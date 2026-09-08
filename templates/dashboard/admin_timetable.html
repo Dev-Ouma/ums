@@ -1,0 +1,160 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Timetable · UMS{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h4><i class="fa-solid fa-calendar-week me-2 text-primary"></i>Class Timetable</h4>
+    <p class="text-muted small mb-0">Weekly schedule of lectures, tutorials and labs across all courses.</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap align-items-center">
+    <div class="dropdown">
+      <button class="btn btn-light border rounded-pill px-3 dropdown-toggle d-inline-flex align-items-center gap-1" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="fa-solid fa-file-export text-primary"></i> Export
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end shadow-sm rounded-3 py-2">
+        <li><span class="dropdown-header small text-muted text-uppercase fw-semibold">Export Filtered Timetable</span></li>
+        <li><a class="dropdown-item py-2 d-flex align-items-center gap-2" href="{% url 'university:timetable_export' 'pdf' %}{% querystring scope='filtered' %}"><i class="fa-solid fa-file-pdf text-danger fa-fw"></i> PDF (.pdf)</a></li>
+        <li><a class="dropdown-item py-2 d-flex align-items-center gap-2" href="{% url 'university:timetable_export' 'excel' %}{% querystring scope='filtered' %}"><i class="fa-solid fa-file-excel text-success fa-fw"></i> Excel (.xlsx)</a></li>
+        <li><a class="dropdown-item py-2 d-flex align-items-center gap-2" href="{% url 'university:timetable_export' 'csv' %}{% querystring scope='filtered' %}"><i class="fa-solid fa-file-csv text-info fa-fw"></i> CSV (.csv)</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><span class="dropdown-header small text-muted text-uppercase fw-semibold">Export Entire Timetable</span></li>
+        <li><a class="dropdown-item py-2 d-flex align-items-center gap-2" href="{% url 'university:timetable_export' 'pdf' %}?scope=all"><i class="fa-solid fa-file-pdf text-danger fa-fw"></i> All PDF (.pdf)</a></li>
+        <li><a class="dropdown-item py-2 d-flex align-items-center gap-2" href="{% url 'university:timetable_export' 'excel' %}?scope=all"><i class="fa-solid fa-file-excel text-success fa-fw"></i> All Excel (.xlsx)</a></li>
+        <li><a class="dropdown-item py-2 d-flex align-items-center gap-2" href="{% url 'university:timetable_export' 'csv' %}?scope=all"><i class="fa-solid fa-file-csv text-info fa-fw"></i> All CSV (.csv)</a></li>
+      </ul>
+    </div>
+    <a href="{% url 'university:timetable_preview' %}{% querystring %}" target="_blank" class="btn btn-light border rounded-pill px-3 d-inline-flex align-items-center gap-1">
+      <i class="fa-solid fa-eye text-primary"></i> Preview / Print
+    </a>
+    <a href="{% url 'university:timetable_import' %}" class="btn btn-outline-primary rounded-pill px-3 d-inline-flex align-items-center gap-1">
+      <i class="fa-solid fa-file-import"></i> Bulk Import
+    </a>
+    <a href="{% url 'university:class_schedule_create' %}" class="btn btn-primary rounded-pill px-3">
+      <i class="fa-solid fa-calendar-plus me-1"></i>Schedule Class</a>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="card card-ums p-3 mb-4">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-6 col-md-2">
+      <label class="form-label small fw-semibold mb-1">Academic Year</label>
+      <select name="term" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
+        {% for t in terms %}<option value="{{ t.id }}" {% if term.id == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small fw-semibold mb-1">Semester</label>
+      <select name="semester" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
+        <option value="">All</option>
+        {% for n in semester_choices %}<option value="{{ n }}" {% if filters.semester == n|stringformat:"s" %}selected{% endif %}>Sem {{ n }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small fw-semibold mb-1">Department</label>
+      <select name="department" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
+        <option value="">All</option>
+        {% for d in departments %}<option value="{{ d.id }}" {% if filters.department == d.id|stringformat:"s" %}selected{% endif %}>{{ d.code }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small fw-semibold mb-1">Programme</label>
+      <select name="program" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
+        <option value="">All</option>
+        {% for p in programs %}<option value="{{ p.id }}" {% if filters.program == p.id|stringformat:"s" %}selected{% endif %}>{{ p.code }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small fw-semibold mb-1">Course</label>
+      <select name="course" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
+        <option value="">All</option>
+        {% for c in courses %}<option value="{{ c.id }}" {% if filters.course == c.id|stringformat:"s" %}selected{% endif %}>{{ c.code }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small fw-semibold mb-1">Faculty</label>
+      <select name="faculty" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
+        <option value="">All</option>
+        {% for f in faculty_list %}<option value="{{ f.id }}" {% if filters.faculty == f.id|stringformat:"s" %}selected{% endif %}>{{ f.user.display_name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small fw-semibold mb-1">Day</label>
+      <select name="day" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
+        <option value="">All</option>
+        {% for code, label in day_choices %}<option value="{{ code }}" {% if filters.day == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small fw-semibold mb-1">Venue</label>
+      <select name="room" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
+        <option value="">All</option>
+        {% for r in rooms %}<option value="{{ r.id }}" {% if filters.room == r.id|stringformat:"s" %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small fw-semibold mb-1">Status</label>
+      <select name="status" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
+        <option value="">All</option>
+        <option value="DRAFT" {% if filters.status == "DRAFT" %}selected{% endif %}>Draft</option>
+        <option value="PUBLISHED" {% if filters.status == "PUBLISHED" %}selected{% endif %}>Published</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      {% if filters.semester or filters.department or filters.program or filters.course or filters.faculty or filters.day or filters.room or filters.status %}
+        <a href="{% url 'university:admin_timetable' %}?term={{ term.id }}" class="btn btn-outline-secondary btn-sm rounded-pill w-100"><i class="fa-solid fa-xmark me-1"></i>Clear filters</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+{% if not term %}
+  <div class="card card-ums p-4 text-center text-muted">No academic term available. Create one in the admin area first.</div>
+{% else %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <span class="text-muted small">{{ total_count }} session{{ total_count|pluralize }} scheduled</span>
+</div>
+<div class="row g-4">
+  {% for day in grid %}
+  <div class="col-md-6 col-xl-4">
+    <div class="card card-ums h-100">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3"><i class="fa-solid fa-calendar-day me-2 text-primary"></i>{{ day.label }}</h6>
+        {% for s in day.sessions %}
+        <div class="d-flex justify-content-between align-items-start border-bottom py-2">
+          <div>
+            <div class="fw-semibold small">{{ s.course.code }} · {{ s.course.title|truncatechars:28 }}
+              {% if s.status == 'DRAFT' %}<span class="badge bg-secondary-subtle text-secondary border rounded-pill ms-1">Draft</span>
+              {% else %}<span class="badge bg-success-subtle text-success border rounded-pill ms-1">Published</span>{% endif %}
+            </div>
+            <div class="small text-muted">
+              <i class="fa-solid fa-clock me-1"></i>{{ s.start_time|time:"H:i" }}–{{ s.end_time|time:"H:i" }}
+              <span class="mx-1">·</span><i class="fa-solid fa-door-open me-1"></i>{{ s.room.name }}
+              <span class="mx-1">·</span><span class="badge-soft badge rounded-pill">{{ s.get_session_type_display }}</span>
+            </div>
+            <div class="small text-muted"><i class="fa-solid fa-chalkboard-user me-1"></i>
+              {% if s.course.faculty %}{{ s.course.faculty.user.display_name }}{% else %}TBA{% endif %}
+              {% if s.course.program %}<span class="mx-1">·</span>{{ s.course.program.code }}{% endif %}
+              <span class="badge bg-light text-dark border ms-1">Sem {{ s.course.semester_no }}</span></div>
+          </div>
+          <div class="btn-group btn-group-sm">
+            <form method="post" action="{% url 'university:class_schedule_publish' s.id %}" class="d-inline">
+              {% csrf_token %}
+              <button class="btn btn-outline-{% if s.status == 'DRAFT' %}success{% else %}secondary{% endif %}" title="{% if s.status == 'DRAFT' %}Publish{% else %}Unpublish{% endif %}">
+                <i class="fa-solid {% if s.status == 'DRAFT' %}fa-upload{% else %}fa-eye-slash{% endif %}"></i>
+              </button>
+            </form>
+            <a href="{% url 'university:class_schedule_edit' s.id %}" class="btn btn-outline-secondary" title="Edit"><i class="fa-solid fa-pen"></i></a>
+            <a href="{% url 'university:class_schedule_delete' s.id %}" class="btn btn-outline-danger" title="Delete"><i class="fa-solid fa-trash"></i></a>
+          </div>
+        </div>
+        {% empty %}
+        <p class="text-muted small mb-0">No classes scheduled.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

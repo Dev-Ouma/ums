@@ -1,0 +1,15 @@
+<section class="container py-5">
+  <div class="card border-0 rounded-4 text-white p-5 text-center" style="background:var(--gradient)">
+    <h2 class="fw-bold">{{ block.heading }}</h2>
+    {% if block.subheading %}<p class="opacity-75 mb-4">{{ block.subheading }}</p>{% endif %}
+    {% if block.body %}<div class="cms-prose mb-3">{{ block.body|safe }}</div>{% endif %}
+    <div class="d-flex justify-content-center gap-3 flex-wrap">
+      {% if block.link_text %}
+        <a href="{{ block.link_url|default:'#' }}" class="btn btn-light btn-lg rounded-pill px-4 fw-semibold text-primary">{{ block.link_text }}</a>
+      {% endif %}
+      {% if block.secondary_link_text %}
+        <a href="{{ block.secondary_link_url|default:'#' }}" class="btn btn-outline-light btn-lg rounded-pill px-4 fw-semibold">{{ block.secondary_link_text }}</a>
+      {% endif %}
+    </div>
+  </div>
+</section>

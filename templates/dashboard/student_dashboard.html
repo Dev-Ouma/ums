@@ -3,7 +3,11 @@
 {% block content %}
 <div class="page-head">
   <div><h4>Student Dashboard</h4><small class="text-muted">{{ student.roll_no }} · {{ student.program }}</small></div>
-  <div class="breadcrumb-chip"><i class="fa-solid fa-house me-1"></i> Home <i class="fa-solid fa-angle-right mx-1"></i> Dashboard</div>
+  <div class="d-flex align-items-center gap-2">
+    <a href="{% url 'university:student_register_units' %}" class="btn btn-sm btn-primary rounded-pill"><i class="fa-solid fa-clipboard-list me-1"></i>Register Units</a>
+    <a href="{% url 'university:student_academic_transcript' %}" class="btn btn-sm btn-outline-primary rounded-pill"><i class="fa-solid fa-scroll me-1"></i>Academic Transcript</a>
+    <div class="breadcrumb-chip"><i class="fa-solid fa-house me-1"></i> Home <i class="fa-solid fa-angle-right mx-1"></i> Dashboard</div>
+  </div>
 </div>
 
 {% include 'dashboard/_cards.html' %}
@@ -44,7 +48,7 @@
   </div>
   <div class="col-lg-5">
     <div class="card card-ums h-100">
-      <div class="card-header"><i class="fa-solid fa-calendar-star me-2" style="color:var(--primary)"></i>Upcoming Events</div>
+      <div class="card-header"><i class="fa-solid fa-calendar-days me-2" style="color:var(--primary)"></i>Upcoming Events</div>
       <div class="card-body">
         {% for e in upcoming_events %}
         <div class="d-flex gap-3 mb-3">

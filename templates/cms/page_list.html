@@ -1,0 +1,48 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Pages · Site CMS{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h4><i class="fa-solid fa-file-lines me-2 text-primary"></i>Pages</h4>
+  <a class="btn btn-primary rounded-pill px-4" href="{% url 'cms:page_create' %}">
+    <i class="fa-solid fa-plus me-2"></i>New page</a>
+</div>
+{% include 'cms/_nav.html' %}
+
+<div class="card card-ums">
+  <div class="table-responsive"><table class="table align-middle mb-0">
+    <thead><tr><th class="ps-3">Page</th><th>Address</th><th>Layout</th><th>Sections</th>
+      <th>Status</th><th>Updated</th><th></th></tr></thead>
+    <tbody>
+    {% for p in pages %}
+      <tr>
+        <td class="ps-3"><span class="fw-semibold">{{ p.title }}</span></td>
+        <td><code>{{ p.get_absolute_url }}</code></td>
+        <td class="text-muted small">{{ p.get_layout_display }}</td>
+        <td>{{ p.blocks.count }}</td>
+        <td><span class="status {% if p.is_published %}ACTIVE{% else %}PENDING{% endif %}">{{ p.get_status_display }}</span></td>
+        <td class="text-muted small">{{ p.updated_at|date:'d M Y' }}</td>
+        <td class="text-end pe-3">
+          <div class="d-inline-flex gap-1">
+            <a class="btn btn-sm btn-light border rounded-pill" href="{{ p.get_absolute_url }}" target="_blank" rel="noopener" title="View"><i class="fa-solid fa-eye"></i></a>
+            <a class="btn btn-sm btn-primary rounded-pill px-3" href="{% url 'cms:page_edit' p.pk %}">Edit</a>
+            <form method="post" action="{% url 'cms:page_status' p.pk %}" class="d-inline">
+              {% csrf_token %}<input type="hidden" name="next" value="{% url 'cms:page_list' %}">
+              <button class="btn btn-sm btn-light border rounded-pill px-3" type="submit">
+                {% if p.is_published %}Unpublish{% else %}Publish{% endif %}</button>
+            </form>
+            <form method="post" action="{% url 'cms:page_delete' p.pk %}" class="d-inline"
+                  onsubmit="return confirm('Delete “{{ p.title|escapejs }}” and all its sections?')">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-light border rounded-pill text-danger" type="submit" title="Delete"><i class="fa-solid fa-trash"></i></button>
+            </form>
+          </div>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="7" class="p-5 text-center text-muted">
+        <i class="fa-solid fa-file-circle-plus fs-3 d-block mb-2"></i>
+        No pages yet. <a href="{% url 'cms:page_create' %}">Create your first page</a>.</td></tr>
+    {% endfor %}
+    </tbody></table></div>
+</div>
+{% endblock %}

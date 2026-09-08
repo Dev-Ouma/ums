@@ -1,0 +1,11 @@
+{% load cms_tags %}
+<section class="container py-4">
+  <div class="d-flex flex-wrap justify-content-center gap-5 text-center">
+    {% for row in block.body|rows %}
+      <div>
+        <div class="fs-3 fw-bold text-primary">{{ row|cell:0 }}</div>
+        <div class="text-muted small text-uppercase">{{ row|cell:1 }}</div>
+      </div>
+    {% endfor %}
+  </div>
+</section>

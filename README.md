@@ -4,7 +4,7 @@ A modern, full-stack **University Management System** built with **Django**. It 
 three role-based portals (Admin, Faculty, Student), each with its **own theme, colour scheme
 and tools**, a public marketing site, rich charts, and **built-in AI features that need no API key**.
 
-> Built as a demo for the **LazyCoder** YouTube channel. All seeded data is privacy-safe
+> Built and powered by **StackGee**. All seeded data is privacy-safe
 > (emails use `@example.com`, phone numbers are `0000`) so it can be shown publicly.
 
 ---
@@ -162,9 +162,9 @@ No real personal information is present, making the project safe to demo on vide
 ## 🧰 Tech stack
 
 - **Backend:** Django 6, SQLite
-- **Frontend:** Bootstrap 5, Chart.js, Font Awesome, Bootstrap Icons, Google Fonts (Poppins)
+- **Frontend:** Bootstrap 5, Chart.js, Font Awesome, Bootstrap Icons, Google Fonts (Quicksand)
 - **AI:** pure-Python heuristics (no external services / API keys)
 
 ---
 
-Made with ❤️ for **LazyCoder**.
+Made with ❤️ by **StackGee**.

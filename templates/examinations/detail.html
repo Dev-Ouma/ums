@@ -1,0 +1,108 @@
+{% extends 'examinations/base.html' %}
+{% block exam_content %}
+<div class="exam-hero"><div><div class="exam-muted">{{ exam.course.code }} · {{ exam.term }}</div><h3>{{ exam.name }}</h3><p>{{ exam.course.title }}</p><span class="exam-status">{{ exam.get_status_display }}</span></div><div class="exam-actions no-print">{% if editor and exam.status == 'DRAFT' %}<a class="btn btn-primary" href="{% url 'examinations:edit' exam.pk %}">Edit draft</a>{% endif %}{% if editor and exam.status != 'DRAFT' and exam.status != 'CANCELLED' %}<a class="btn btn-primary" href="{% url 'examinations:marks' exam.pk %}">{% if exam.status == 'MARKING' %}Capture marks{% else %}View marks sheet{% endif %}</a>{% endif %}<a class="btn btn-outline-secondary" href="{% url 'examinations:register' exam.pk %}">Candidate register</a>{% if editor and exam.status == 'PUBLISHED' and not exam.original_exam_id %}<a class="btn btn-outline-primary" href="{% url 'examinations:create' %}?original={{ exam.pk }}">Supplementary sitting</a>{% endif %}</div></div>
+<style>
+.wf-track{display:flex;gap:.35rem;flex-wrap:wrap;margin:1.1rem 0 1.4rem}
+.wf-step{flex:1;min-width:105px;padding:.6rem .65rem;border-radius:.7rem;background:#f4f5fa;border:1px solid #e9ebf3;font-size:.78rem;color:#8a90a2;position:relative}
+.wf-step b{display:block;font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;opacity:.7}
+.wf-step.done{background:#eef7f2;border-color:#d4ebe0;color:#1c7a52}
+.wf-step.current{background:linear-gradient(135deg,var(--primary),var(--primary-dark));border-color:transparent;color:#fff;box-shadow:0 6px 16px rgba(20,25,60,.14)}
+.wf-step.current b{opacity:.85}
+.wf-cancelled{background:#fdeaea;border:1px solid #f3d5d5;color:#a32626;border-radius:.7rem;padding:.8rem 1rem;margin:1.1rem 0}
+.wf-action{border:1px solid #e9ebf3;border-radius:.85rem;padding:1rem 1.1rem;margin-bottom:.85rem}
+.wf-action.warning{border-color:#f0e0bd;background:#fffbf1}
+.wf-action.danger{border-color:#f3d5d5;background:#fdf6f6}
+.wf-action.success{border-color:#d4ebe0;background:#f6fcf9}
+.wf-action h6{margin:0 0 .3rem;font-weight:700}
+.wf-action p{margin:0 0 .75rem;color:#5e6678;font-size:.86rem}
+.wf-req{color:#a32626;font-weight:600;font-size:.78rem}
+.examiner-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:.75rem;padding:.85rem 1rem}
+</style>
+<div class="wf-track no-print">{% for step in track %}<div class="wf-step {{ step.state }}"><b>{{ forloop.counter }}</b>{{ step.label }}</div>{% endfor %}</div>
+{% if cancelled %}<div class="wf-cancelled no-print"><strong>This examination was cancelled.</strong> It cannot be reinstated; create a fresh sitting if it needs to run.</div>{% endif %}
+<div class="exam-kpis"><div><small>Candidates</small><strong>{{ total }}</strong></div><div><small>Recorded</small><strong>{{ entered }}/{{ total }}</strong></div><div><small>Passed assessment</small><strong>{% if editor %}{{ passed }}{% else %}—{% endif %}</strong></div><div><small>Absent</small><strong>{{ absent }}</strong></div></div>
+<div class="exam-card">
+  <div class="row g-3">
+    <div class="col-md-3">
+      <div class="exam-muted">Date & time</div>
+      <strong>{{ exam.date|date:'d M Y' }}</strong><br>{{ exam.start_time|time:'H:i'|default:'Not set' }} – {{ exam.end_time|time:'H:i'|default:'Not set' }}
+    </div>
+    <div class="col-md-3">
+      <div class="exam-muted">Room & invigilator</div>
+      <strong>{{ exam.room|default:'Not set' }}</strong><br>{{ exam.invigilator.user.display_name|default:'Not assigned' }}
+    </div>
+    <div class="col-md-3">
+      <div class="exam-muted">Marks Breakdown</div>
+      <strong>CAT: {{ exam.cat_max_marks|floatformat:0 }} | Exam: {{ exam.exam_max_marks|floatformat:0 }}</strong><br>Total Maximum: {{ exam.max_marks }} marks
+    </div>
+    <div class="col-md-3">
+      <div class="exam-muted">CUE Pass threshold</div>
+      <strong>Grade D ≥ {{ exam.pass_mark|floatformat:0 }}%</strong><br>
+      {% for band in exam.grade_bands %}{{ band.grade }} ≥ {{ band.minimum }}{% if not forloop.last %} · {% endif %}{% endfor %}
+    </div>
+  </div>
+
+  <div class="row g-3 mt-2 pt-2 border-top">
+    <div class="col-md-6">
+      <div class="examiner-box">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="exam-muted"><i class="fa-solid fa-user-check text-primary me-1"></i>Internal Examiner (IE)</span>
+          {% if exam.internal_reviewed_at %}<span class="badge bg-success">Reviewed {{ exam.internal_reviewed_at|date:'d M Y' }}</span>{% else %}<span class="badge bg-secondary">Pending review</span>{% endif %}
+        </div>
+        <strong>{{ exam.internal_examiner.user.display_name|default:exam.course.faculty.user.display_name|default:'Not assigned' }}</strong>
+        <div class="small text-muted">{{ exam.internal_examiner.department.name|default:exam.course.department.name }}</div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="examiner-box">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="exam-muted"><i class="fa-solid fa-user-shield text-info me-1"></i>External Examiner (EE)</span>
+          {% if exam.external_reviewed_at %}<span class="badge bg-success">Reviewed {{ exam.external_reviewed_at|date:'d M Y' }}</span>{% elif exam.external_examiner or exam.external_examiner_name %}<span class="badge bg-warning text-dark">Awaiting review</span>{% else %}<span class="badge bg-light text-secondary border">None assigned</span>{% endif %}
+        </div>
+        <strong>{{ exam.external_examiner.user.display_name|default:exam.external_examiner_name|default:'None assigned' }}</strong>
+        <div class="small text-muted">{{ exam.external_examiner.department.name|default:'External moderation' }}</div>
+      </div>
+    </div>
+  </div>
+  {% if exam.examiner_remarks %}
+  <div class="mt-3 p-2 bg-light rounded small"><strong>Moderation remarks:</strong> {{ exam.examiner_remarks }}</div>
+  {% endif %}
+  {% if exam.instructions %}<hr><div>{{ exam.instructions|linebreaksbr }}</div>{% endif %}
+  {% if exam.original_exam %}<p class="mt-3">Supplementary for <a href="{% url 'examinations:detail' exam.original_exam_id %}">{{ exam.original_exam }}</a>. Published supplementary marks replace the original component in the statement.</p>{% endif %}
+</div>
+{% if actions %}<div class="exam-card no-print">
+  <h5 class="mb-1">Workflow</h5>
+  <p class="exam-muted">Each step below is recorded in the audit trail against your name. Read the consequence before you commit &mdash; rolling a step back always needs an administrator and a written reason.</p>
+  {% for key,label,needs_reason,tone,consequence in actions %}
+  <div class="wf-action {{ tone }}">
+    <h6>{{ label }}</h6>
+    <p>{{ consequence }}</p>
+    <form method="post" action="{% url 'examinations:action' exam.pk %}" class="d-flex gap-2 flex-wrap align-items-center"
+          {% if key != 'schedule' and key != 'start' %}data-confirm="{{ label }}"{% endif %}>
+      {% csrf_token %}
+      <input type="hidden" name="revision" value="{{ exam.revision }}">
+      <input type="hidden" name="action" value="{{ key }}">
+      {% if needs_reason %}<input class="form-control" style="max-width:460px" name="reason"
+             placeholder="Reason (required, recorded in the audit trail)"
+             aria-label="Reason for {{ label }}" required maxlength="2000">{% endif %}
+      <button class="btn btn-{% if tone == 'warning' %}outline-warning{% elif tone == 'danger' %}outline-danger{% elif tone == 'success' %}success{% elif tone == 'dark' %}dark{% else %}primary{% endif %}">{{ label }}</button>
+      {% if needs_reason %}<span class="wf-req">Rollback step</span>{% endif %}
+    </form>
+  </div>
+  {% endfor %}
+</div>
+<script>
+document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+  form.addEventListener('submit', function (event) {
+    var reason = form.querySelector('[name=reason]');
+    if (reason && !reason.value.trim()) return;  // the browser's own required check handles this
+    var text = form.dataset.confirm + '\n\n' + form.closest('.wf-action').querySelector('p').textContent
+             + '\n\nContinue?';
+    if (!window.confirm(text)) event.preventDefault();
+  });
+});
+</script>{% endif %}
+{% if editor %}<div class="exam-card"><h5>Assessment grade distribution</h5><div class="exam-actions">{% for grade,count in grades %}<span class="exam-status">{{ grade }}: {{ count }}</span>{% empty %}<p class="exam-muted">No marks recorded yet.</p>{% endfor %}</div></div>
+<div class="exam-card"><h5>Appeals</h5>{% for a in appeals %}<div class="border-bottom py-3"><strong>{{ a.result.student.user.display_name }} · {{ a.result.student.roll_no }}</strong> <span class="exam-status">{{ a.get_status_display }}</span><p>{{ a.reason }}</p>{% if a.resolution %}<p>Resolution: {{ a.resolution }}</p>{% endif %}{% if admin and a.status == 'OPEN' %}<form action="{% url 'examinations:resolve' a.pk %}" method="post" class="no-print">{% csrf_token %}<label for="resolution-{{ a.pk }}">Resolution</label><textarea id="resolution-{{ a.pk }}" name="resolution" class="form-control mb-2" required maxlength="2000"></textarea><button name="decision" value="ACCEPTED" class="btn btn-primary">Accept & reopen for correction</button> <button name="decision" value="REJECTED" class="btn btn-outline-secondary">Reject appeal</button></form>{% endif %}</div>{% empty %}<p class="exam-muted">No appeals for this examination.</p>{% endfor %}</div>
+<div class="exam-card"><h5>Audit history</h5><p class="exam-muted">Latest 50 events, including changes to marks and publication decisions.</p>{% for a in audit %}<details class="border-bottom py-2"><summary>{{ a.created_at|date:'d M Y H:i' }} · {{ a.action }} · {{ a.actor.display_name|default:'System migration' }}</summary><pre style="white-space:pre-wrap;font-size:.8rem" class="mt-2">{{ a.detail }}</pre></details>{% empty %}<p>No events yet.</p>{% endfor %}</div>{% endif %}
+{% endblock %}

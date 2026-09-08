@@ -1,33 +1,53 @@
 import json
+import os
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Q
-from django.http import JsonResponse
+from django.core.exceptions import ValidationError
+from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.db.models import Case, Count, F, IntegerField, Q, When
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from accounts.models import FacultyProfile, Role, StudentProfile
 
-from . import ai, services
+from . import ai, course_io, faculty_io, fee_io, services, student_io, timetable_io
 from .decorators import role_required
+from .financial_services import (
+    check_financial_clearance, generate_fee_receipt_pdf, generate_student_statement_pdf
+)
+from .recycle_bin_services import move_to_recycle_bin
 from .forms import (
-    AssignmentForm, CourseForm, DepartmentForm, EventForm, ExamForm,
-    FacultyForm, FeeInvoiceForm, ProgramForm, StudentForm,
+    AssignmentForm, ClassScheduleForm, CourseForm, DepartmentForm, EventForm,
+    ExamForm, FacultyForm, FeeInvoiceForm, FeeStructureForm, ProgramForm, StudentForm,
 )
 from .models import (
-    Assignment, Attendance, Course, Department, Enrollment, Event,
-    Exam, FeeInvoice, Notice, Payment, Program, Result, Submission,
+    AcademicTerm, Assignment, Attendance, ClassSchedule, Course, Department,
+    Enrollment, Event, Exam, ExamRoom, FeeInvoice, FeeStructure, Notice, Payment,
+    Program, Result, Submission,
 )
+
+DAY_LABELS_MAP = dict(ClassSchedule.Day.choices)
 
 
 # ==========================================================================
 # PUBLIC SITE
 # ==========================================================================
 def home(request):
+    try:
+        from cms.models import Page
+        from cms import services as cms_services
+        cms_home = cms_services.get_page(Page.RESERVED_HOME, request.user)
+        if cms_home:
+            return cms_services.render_page(request, cms_home)
+    except Exception:
+        pass
+
     ctx = {
         "stats": {
             "students": StudentProfile.objects.count(),
@@ -99,8 +119,8 @@ def _render_form(request, form, title, subtitle="", icon="fa-pen-to-square", bac
 def _confirm_delete(request, obj, label, back):
     if request.method == "POST":
         name = str(obj)
-        obj.delete()
-        messages.success(request, f"Deleted {label}: {name}.")
+        move_to_recycle_bin(obj, user=request.user, request=request)
+        messages.success(request, f"Moved {label} '{name}' to Recycle Bin.")
         return redirect(back)
     return render(request, "dashboard/confirm_delete.html", {
         "object": obj, "label": label, "back_url": back,
@@ -110,16 +130,250 @@ def _confirm_delete(request, obj, label, back):
 # ==========================================================================
 # ADMIN AREA — STUDENTS
 # ==========================================================================
+ALLOWED_STUDENT_PAGE_SIZES = [10, 25, 50, 100]
+
+
+def _get_filtered_students_queryset(request):
+    """Common filtering and sorting logic for students list, exports, and preview."""
+    q = request.GET.get("q", "").strip()
+    students_qs = StudentProfile.objects.select_related("user", "program")
+    if q:
+        students_qs = students_qs.filter(
+            Q(roll_no__icontains=q) |
+            Q(user__first_name__icontains=q) |
+            Q(user__last_name__icontains=q) |
+            Q(user__email__icontains=q) |
+            Q(program__code__icontains=q) |
+            Q(program__name__icontains=q)
+        )
+
+    sort_by = request.GET.get("sort", "").strip()
+    order = request.GET.get("order", "asc").strip().lower()
+    sort_fields = {
+        "roll_no": "roll_no",
+        "name": "user__first_name",
+        "program": "program__code",
+        "semester": "current_semester",
+        "email": "user__email",
+    }
+    if sort_by in sort_fields:
+        prefix = "-" if order == "desc" else ""
+        students_qs = students_qs.order_by(f"{prefix}{sort_fields[sort_by]}", "id")
+    else:
+        students_qs = students_qs.order_by("roll_no")
+
+    return students_qs, q, sort_by, order
+
+
 @role_required(Role.ADMIN)
 def admin_students(request):
-    q = request.GET.get("q", "").strip()
-    students = StudentProfile.objects.select_related("user", "program")
-    if q:
-        students = students.filter(
-            Q(roll_no__icontains=q) | Q(user__first_name__icontains=q) |
-            Q(user__last_name__icontains=q))
-    return render(request, "dashboard/admin_students.html",
-                  {"students": students, "q": q})
+    students_qs, q, sort_by, order = _get_filtered_students_queryset(request)
+    total_count = students_qs.count()
+
+    # Rows per page handling: 10, 25, 50, 100, All (default: 25)
+    per_page_param = request.GET.get("per_page", "25").strip().lower()
+    if per_page_param == "all":
+        per_page = max(total_count, 1)
+        selected_per_page = "all"
+    else:
+        try:
+            per_page = int(per_page_param)
+            if per_page not in ALLOWED_STUDENT_PAGE_SIZES:
+                per_page = 25
+        except (ValueError, TypeError):
+            per_page = 25
+        selected_per_page = str(per_page)
+
+    paginator = Paginator(students_qs, per_page)
+    page_number = request.GET.get("page", 1)
+
+    try:
+        page_obj = paginator.page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
+    page_range = (
+        paginator.get_elided_page_range(number=page_obj.number, on_each_side=1, on_ends=1)
+        if paginator.num_pages > 1
+        else []
+    )
+
+    return render(
+        request,
+        "dashboard/admin_students.html",
+        {
+            "students": page_obj,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "page_range": page_range,
+            "q": q,
+            "per_page": selected_per_page,
+            "sort_by": sort_by,
+            "order": order,
+            "total_count": total_count,
+        },
+    )
+
+
+@role_required(Role.ADMIN)
+def student_export(request, fmt):
+    """Export students list in CSV, Excel, or PDF matching current filters and sorting."""
+    fmt = fmt.lower().strip()
+    students_qs, q, sort_by, order = _get_filtered_students_queryset(request)
+
+    site_name = "University Management System"
+    logo_path = os.path.join(settings.BASE_DIR, "static", "img", "ums-logo.png")
+    if not os.path.exists(logo_path):
+        logo_path = None
+
+    timestamp = timezone.now().strftime("%Y%m%d_%H%M")
+
+    if fmt == "csv":
+        data = student_io.export_students_csv(students_qs)
+        resp = HttpResponse(data, content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = f'attachment; filename="students_{timestamp}.csv"'
+        return resp
+
+    elif fmt in ["excel", "xlsx", "xls"]:
+        data = student_io.export_students_excel(students_qs, site_name=site_name)
+        resp = HttpResponse(
+            data,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        resp["Content-Disposition"] = f'attachment; filename="students_{timestamp}.xlsx"'
+        return resp
+
+    elif fmt == "pdf":
+        filter_text = f"Search: '{q}'" if q else None
+        data = student_io.export_students_pdf(
+            students_qs,
+            site_name=site_name,
+            logo_path=logo_path,
+            filter_text=filter_text,
+        )
+        resp = HttpResponse(data, content_type="application/pdf")
+        resp["Content-Disposition"] = f'attachment; filename="students_{timestamp}.pdf"'
+        return resp
+
+    else:
+        raise Http404(f"Unsupported export format: {fmt}")
+
+
+@role_required(Role.ADMIN)
+def student_preview(request):
+    """In-browser print-friendly preview of the formatted student list."""
+    students_qs, q, sort_by, order = _get_filtered_students_queryset(request)
+    return render(
+        request,
+        "dashboard/student_preview.html",
+        {
+            "students": students_qs,
+            "total_count": students_qs.count(),
+            "q": q,
+            "sort_by": sort_by,
+            "order": order,
+            "generated_at": timezone.now(),
+        },
+    )
+
+
+@role_required(Role.ADMIN)
+def student_import_template(request, fmt):
+    """Download sample student import template in CSV or Excel format."""
+    fmt = fmt.lower().strip()
+    if fmt == "csv":
+        data = student_io.generate_import_template_csv()
+        resp = HttpResponse(data, content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = 'attachment; filename="sample_student_import.csv"'
+        return resp
+    elif fmt in ["excel", "xlsx", "xls"]:
+        data = student_io.generate_import_template_excel()
+        resp = HttpResponse(
+            data,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        resp["Content-Disposition"] = 'attachment; filename="sample_student_import.xlsx"'
+        return resp
+    else:
+        raise Http404(f"Unsupported template format: {fmt}")
+
+
+@role_required(Role.ADMIN)
+def student_import(request):
+    """Multi-step bulk import workflow with validation preview and atomic commit."""
+    preview_data = None
+
+    if request.method == "POST":
+        action = request.POST.get("action", "preview")
+
+        if action == "preview":
+            uploaded_file = request.FILES.get("file")
+            if not uploaded_file:
+                messages.error(request, "Please choose a CSV or Excel file to upload.")
+                return render(request, "dashboard/student_import.html", {"preview_data": None})
+
+            try:
+                raw_rows = student_io.parse_uploaded_file(uploaded_file)
+                if not raw_rows:
+                    messages.error(request, "The uploaded file does not contain any data rows.")
+                    return render(request, "dashboard/student_import.html", {"preview_data": None})
+
+                validation_result = student_io.validate_import_rows(raw_rows)
+                request.session["pending_student_import"] = validation_result
+                preview_data = validation_result
+            except Exception as e:
+                messages.error(request, f"Error processing file: {str(e)}")
+                return render(request, "dashboard/student_import.html", {"preview_data": None})
+
+        elif action == "confirm":
+            session_data = request.session.get("pending_student_import")
+            if not session_data or not session_data.get("items"):
+                messages.error(request, "No pending import session found. Please upload your file again.")
+                return redirect("university:student_import")
+
+            valid_items = [item for item in session_data["items"] if item["status"] == "valid"]
+            duplicates_count = session_data.get("duplicate_count", 0)
+            errors_count = session_data.get("error_count", 0)
+
+            if not valid_items:
+                messages.error(request, "There are no valid records to import.")
+                return render(request, "dashboard/student_import.html", {"preview_data": session_data})
+
+            imported_count, failed_count = student_io.execute_student_import(valid_items)
+            total_failed = errors_count + failed_count
+
+            # Clear session
+            request.session.pop("pending_student_import", None)
+
+            # Format summary message as requested:
+            # "Successfully imported: 95 | Failed: 5 | Duplicates: 2"
+            summary_msg = (
+                f"Successfully imported: {imported_count} | "
+                f"Failed: {total_failed} | Duplicates: {duplicates_count}"
+            )
+            messages.success(request, summary_msg)
+            return redirect("university:admin_students")
+
+        elif action == "cancel":
+            request.session.pop("pending_student_import", None)
+            messages.info(request, "Import cancelled.")
+            return redirect("university:student_import")
+
+    # If preview data is in session
+    if preview_data is None and request.method == "GET":
+        preview_data = request.session.get("pending_student_import")
+
+    return render(
+        request,
+        "dashboard/student_import.html",
+        {
+            "preview_data": preview_data,
+            "sample_row": student_io.SAMPLE_STUDENT_ROW,
+            "columns": student_io.IMPORT_COLUMNS,
+        },
+    )
 
 
 @role_required(Role.ADMIN)
@@ -158,11 +412,10 @@ def student_edit(request, pk):
 @role_required(Role.ADMIN)
 def student_delete(request, pk):
     sp = get_object_or_404(StudentProfile, pk=pk)
-    user = sp.user
     if request.method == "POST":
         name = sp.user.display_name
-        user.delete()  # cascades to profile
-        messages.success(request, f"Deleted student {name}.")
+        move_to_recycle_bin(sp, user=request.user, request=request)
+        messages.success(request, f"Moved student '{name}' to Recycle Bin.")
         return redirect("university:admin_students")
     return render(request, "dashboard/confirm_delete.html", {
         "object": sp, "label": "student", "back_url": "university:admin_students",
@@ -172,11 +425,288 @@ def student_delete(request, pk):
 # ==========================================================================
 # ADMIN AREA — FACULTY
 # ==========================================================================
+ALLOWED_FACULTY_PAGE_SIZES = [10, 25, 50, 100]
+
+
+def _get_filtered_faculty_queryset(request):
+    """Common filtering, search, and sorting logic for faculty list, exports, and preview."""
+    q = request.GET.get("q", "").strip()
+    dept_id = request.GET.get("department", "").strip()
+
+    faculty_qs = FacultyProfile.objects.select_related("user", "department").prefetch_related("courses").annotate(
+        n_courses=Count("courses", distinct=True)
+    )
+
+    if q:
+        faculty_qs = faculty_qs.filter(
+            Q(employee_id__icontains=q) |
+            Q(user__first_name__icontains=q) |
+            Q(user__last_name__icontains=q) |
+            Q(user__email__icontains=q) |
+            Q(department__name__icontains=q) |
+            Q(department__code__icontains=q) |
+            Q(designation__icontains=q) |
+            Q(specialization__icontains=q)
+        )
+
+    if dept_id:
+        faculty_qs = faculty_qs.filter(department_id=dept_id)
+
+    sort_by = request.GET.get("sort", "").strip()
+    order = request.GET.get("order", "asc").strip().lower()
+    sort_fields = {
+        "employee_id": "employee_id",
+        "name": "user__first_name",
+        "department": "department__name",
+        "designation": "designation",
+        "email": "user__email",
+        "courses": "n_courses",
+    }
+    if sort_by in sort_fields:
+        prefix = "-" if order == "desc" else ""
+        faculty_qs = faculty_qs.order_by(f"{prefix}{sort_fields[sort_by]}", "id")
+    else:
+        faculty_qs = faculty_qs.order_by("employee_id")
+
+    return faculty_qs, q, dept_id, sort_by, order
+
+
 @role_required(Role.ADMIN)
 def admin_faculty(request):
-    faculty = FacultyProfile.objects.select_related("user", "department").annotate(
-        n_courses=Count("courses"))
-    return render(request, "dashboard/admin_faculty.html", {"faculty": faculty})
+    faculty_qs, q, dept_id, sort_by, order = _get_filtered_faculty_queryset(request)
+    total_count = faculty_qs.count()
+
+    per_page_param = request.GET.get("per_page", "25").strip().lower()
+    if per_page_param == "all":
+        per_page = max(total_count, 1)
+        selected_per_page = "all"
+    else:
+        try:
+            per_page = int(per_page_param)
+            if per_page not in ALLOWED_FACULTY_PAGE_SIZES:
+                per_page = 25
+        except (ValueError, TypeError):
+            per_page = 25
+        selected_per_page = str(per_page)
+
+    paginator = Paginator(faculty_qs, per_page)
+    page_number = request.GET.get("page", 1)
+
+    try:
+        page_obj = paginator.page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
+    page_range = (
+        paginator.get_elided_page_range(number=page_obj.number, on_each_side=1, on_ends=1)
+        if paginator.num_pages > 1
+        else []
+    )
+
+    departments = Department.objects.all().order_by("name")
+
+    return render(
+        request,
+        "dashboard/admin_faculty.html",
+        {
+            "faculty": page_obj,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "page_range": page_range,
+            "q": q,
+            "selected_department": dept_id,
+            "departments": departments,
+            "per_page": selected_per_page,
+            "sort_by": sort_by,
+            "order": order,
+            "total_count": total_count,
+        },
+    )
+
+
+@role_required(Role.ADMIN)
+def faculty_export(request, fmt):
+    """Export faculty in CSV, Excel, or PDF with scope=filtered (default) or scope=all."""
+    fmt = fmt.lower().strip()
+    scope = request.GET.get("scope", "filtered").strip().lower()
+
+    if scope == "all":
+        faculty_qs = FacultyProfile.objects.select_related("user", "department").prefetch_related("courses").annotate(
+            n_courses=Count("courses", distinct=True)
+        ).order_by("employee_id")
+        filter_text = "All Faculty"
+    else:
+        faculty_qs, q, dept_id, sort_by, order = _get_filtered_faculty_queryset(request)
+        filter_parts = []
+        if q:
+            filter_parts.append(f"Search: '{q}'")
+        if dept_id:
+            dept = Department.objects.filter(pk=dept_id).first()
+            if dept:
+                filter_parts.append(f"Dept: {dept.code}")
+        filter_text = " · ".join(filter_parts) if filter_parts else None
+
+    site_name = "University Management System"
+    logo_path = os.path.join(settings.BASE_DIR, "static", "img", "ums-logo.png")
+    if not os.path.exists(logo_path):
+        logo_path = None
+
+    timestamp = timezone.now().strftime("%Y%m%d_%H%M")
+
+    if fmt == "csv":
+        data = faculty_io.export_faculty_csv(faculty_qs)
+        resp = HttpResponse(data, content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = f'attachment; filename="faculty_{timestamp}.csv"'
+        return resp
+
+    elif fmt in ["excel", "xlsx", "xls"]:
+        data = faculty_io.export_faculty_excel(faculty_qs, site_name=site_name)
+        resp = HttpResponse(
+            data,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        resp["Content-Disposition"] = f'attachment; filename="faculty_{timestamp}.xlsx"'
+        return resp
+
+    elif fmt == "pdf":
+        data = faculty_io.export_faculty_pdf(
+            faculty_qs,
+            site_name=site_name,
+            logo_path=logo_path,
+            filter_text=filter_text,
+        )
+        resp = HttpResponse(data, content_type="application/pdf")
+        resp["Content-Disposition"] = f'attachment; filename="faculty_{timestamp}.pdf"'
+        return resp
+
+    else:
+        raise Http404(f"Unsupported export format: {fmt}")
+
+
+@role_required(Role.ADMIN)
+def faculty_preview(request):
+    """In-browser print-friendly document preview of faculty directory."""
+    scope = request.GET.get("scope", "filtered").strip().lower()
+    if scope == "all":
+        faculty_qs = FacultyProfile.objects.select_related("user", "department").prefetch_related("courses").annotate(
+            n_courses=Count("courses", distinct=True)
+        ).order_by("employee_id")
+        q = ""
+        dept_id = ""
+    else:
+        faculty_qs, q, dept_id, sort_by, order = _get_filtered_faculty_queryset(request)
+
+    dept_obj = Department.objects.filter(pk=dept_id).first() if dept_id else None
+
+    return render(
+        request,
+        "dashboard/faculty_preview.html",
+        {
+            "faculty": faculty_qs,
+            "total_count": faculty_qs.count(),
+            "q": q,
+            "department": dept_obj,
+            "generated_at": timezone.now(),
+            "scope": scope,
+        },
+    )
+
+
+@role_required(Role.ADMIN)
+def faculty_import_template(request, fmt):
+    """Download sample faculty import template in CSV or Excel format."""
+    fmt = fmt.lower().strip()
+    if fmt == "csv":
+        data = faculty_io.generate_faculty_template_csv()
+        resp = HttpResponse(data, content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = 'attachment; filename="sample_faculty_import.csv"'
+        return resp
+    elif fmt in ["excel", "xlsx", "xls"]:
+        data = faculty_io.generate_faculty_template_excel()
+        resp = HttpResponse(
+            data,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        resp["Content-Disposition"] = 'attachment; filename="sample_faculty_import.xlsx"'
+        return resp
+    else:
+        raise Http404(f"Unsupported template format: {fmt}")
+
+
+@role_required(Role.ADMIN)
+def faculty_import(request):
+    """Multi-step bulk faculty import with validation preview and atomic commit."""
+    preview_data = None
+
+    if request.method == "POST":
+        action = request.POST.get("action", "preview")
+
+        if action == "preview":
+            uploaded_file = request.FILES.get("file")
+            if not uploaded_file:
+                messages.error(request, "Please choose a CSV or Excel file to upload.")
+                return render(request, "dashboard/faculty_import.html", {"preview_data": None})
+
+            try:
+                raw_rows = faculty_io.parse_uploaded_faculty_file(uploaded_file)
+                if not raw_rows:
+                    messages.error(request, "The uploaded file does not contain any data rows.")
+                    return render(request, "dashboard/faculty_import.html", {"preview_data": None})
+
+                validation_result = faculty_io.validate_faculty_import_rows(raw_rows)
+                request.session["pending_faculty_import"] = validation_result
+                preview_data = validation_result
+            except Exception as e:
+                messages.error(request, f"Error processing file: {str(e)}")
+                return render(request, "dashboard/faculty_import.html", {"preview_data": None})
+
+        elif action == "confirm":
+            session_data = request.session.get("pending_faculty_import")
+            if not session_data or not session_data.get("items"):
+                messages.error(request, "No pending import session found. Please upload your file again.")
+                return redirect("university:faculty_import")
+
+            valid_items = [item for item in session_data["items"] if item["status"] == "valid"]
+            duplicates_count = session_data.get("duplicate_count", 0)
+            errors_count = session_data.get("error_count", 0)
+
+            if not valid_items:
+                messages.error(request, "There are no valid records to import.")
+                return render(request, "dashboard/faculty_import.html", {"preview_data": session_data})
+
+            imported_count, failed_count = faculty_io.execute_faculty_import(valid_items)
+            total_failed = errors_count + failed_count
+
+            request.session.pop("pending_faculty_import", None)
+
+            # Summary message format:
+            # "Successfully imported: 95 | Failed: 5 | Duplicates: 2"
+            summary_msg = (
+                f"Successfully imported: {imported_count} | "
+                f"Failed: {total_failed} | Duplicates: {duplicates_count}"
+            )
+            messages.success(request, summary_msg)
+            return redirect("university:admin_faculty")
+
+        elif action == "cancel":
+            request.session.pop("pending_faculty_import", None)
+            messages.info(request, "Faculty import cancelled.")
+            return redirect("university:faculty_import")
+
+    if preview_data is None and request.method == "GET":
+        preview_data = request.session.get("pending_faculty_import")
+
+    return render(
+        request,
+        "dashboard/faculty_import.html",
+        {
+            "preview_data": preview_data,
+            "sample_row": faculty_io.SAMPLE_FACULTY_ROW,
+            "columns": faculty_io.FACULTY_IMPORT_COLUMNS,
+        },
+    )
 
 
 @role_required(Role.ADMIN)
@@ -212,11 +742,10 @@ def faculty_edit(request, pk):
 @role_required(Role.ADMIN)
 def faculty_delete(request, pk):
     fp = get_object_or_404(FacultyProfile, pk=pk)
-    user = fp.user
     if request.method == "POST":
         name = fp.user.display_name
-        user.delete()
-        messages.success(request, f"Deleted faculty {name}.")
+        move_to_recycle_bin(fp, user=request.user, request=request)
+        messages.success(request, f"Moved faculty '{name}' to Recycle Bin.")
         return redirect("university:admin_faculty")
     return render(request, "dashboard/confirm_delete.html", {
         "object": fp, "label": "faculty", "back_url": "university:admin_faculty",
@@ -303,14 +832,314 @@ def program_delete(request, pk):
 # ==========================================================================
 # COURSES  (admin CRUD + enrollment management)
 # ==========================================================================
+ALLOWED_COURSE_PAGE_SIZES = [10, 25, 50, 100]
+
+
+def _get_filtered_courses_queryset(request):
+    """Build filtered and sorted queryset for courses."""
+    q = request.GET.get("q", "").strip()
+    dept_id = request.GET.get("department", "").strip()
+    prog_id = request.GET.get("program", "").strip()
+    status_filter = request.GET.get("status", "").strip()
+    sort_by = request.GET.get("sort", "").strip().lower()
+    order = request.GET.get("order", "asc").strip().lower()
+
+    courses = Course.objects.select_related("department", "program", "faculty__user").annotate(
+        n=Count("enrollments", distinct=True)
+    )
+
+    if q:
+        courses = courses.filter(
+            Q(title__icontains=q)
+            | Q(code__icontains=q)
+            | Q(department__name__icontains=q)
+            | Q(department__code__icontains=q)
+            | Q(faculty__user__first_name__icontains=q)
+            | Q(faculty__user__last_name__icontains=q)
+            | Q(description__icontains=q)
+        )
+
+    if dept_id:
+        courses = courses.filter(department_id=dept_id)
+
+    if prog_id:
+        courses = courses.filter(program_id=prog_id)
+
+    if status_filter:
+        courses = courses.filter(status__iexact=status_filter)
+
+    sort_fields = {
+        "code": "code",
+        "title": "title",
+        "department": "department__name",
+        "credits": "credits",
+        "semester": "semester_no",
+        "enrolled": "n",
+        "status": "status",
+    }
+    if sort_by in sort_fields:
+        prefix = "-" if order == "desc" else ""
+        courses = courses.order_by(f"{prefix}{sort_fields[sort_by]}", "id")
+    else:
+        courses = courses.order_by("code")
+
+    return courses, q, dept_id, prog_id, status_filter, sort_by, order
+
+
 @login_required
 def admin_courses(request):
-    q = request.GET.get("q", "").strip()
-    courses = Course.objects.select_related("department", "faculty__user").annotate(
-        n=Count("enrollments"))
-    if q:
-        courses = courses.filter(Q(title__icontains=q) | Q(code__icontains=q))
-    return render(request, "dashboard/admin_courses.html", {"courses": courses, "q": q})
+    courses_qs, q, dept_id, prog_id, status_filter, sort_by, order = _get_filtered_courses_queryset(request)
+    total_count = courses_qs.count()
+
+    per_page_param = request.GET.get("per_page", "25").strip().lower()
+    if per_page_param == "all":
+        per_page = max(total_count, 1)
+        selected_per_page = "all"
+    else:
+        try:
+            per_page = int(per_page_param)
+            if per_page not in ALLOWED_COURSE_PAGE_SIZES:
+                per_page = 25
+        except (ValueError, TypeError):
+            per_page = 25
+        selected_per_page = str(per_page)
+
+    paginator = Paginator(courses_qs, per_page)
+    page_number = request.GET.get("page", 1)
+
+    try:
+        page_obj = paginator.page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
+    page_range = (
+        paginator.get_elided_page_range(number=page_obj.number, on_each_side=1, on_ends=1)
+        if paginator.num_pages > 1
+        else []
+    )
+
+    departments = Department.objects.all().order_by("name")
+    programs = Program.objects.select_related("department").all().order_by("name")
+    statuses = [Course.STATUS_ACTIVE, Course.STATUS_ARCHIVED, Course.STATUS_UPCOMING]
+
+    return render(
+        request,
+        "dashboard/admin_courses.html",
+        {
+            "courses": page_obj,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "page_range": page_range,
+            "q": q,
+            "selected_department": dept_id,
+            "selected_program": prog_id,
+            "selected_status": status_filter,
+            "departments": departments,
+            "programs": programs,
+            "statuses": statuses,
+            "per_page": selected_per_page,
+            "sort_by": sort_by,
+            "order": order,
+            "total_count": total_count,
+        },
+    )
+
+
+@role_required(Role.ADMIN)
+def course_export(request, fmt):
+    """Export courses in CSV, Excel, or PDF with scope=filtered (default) or scope=all."""
+    fmt = fmt.lower().strip()
+    scope = request.GET.get("scope", "filtered").strip().lower()
+
+    if scope == "all":
+        courses_qs = Course.objects.select_related("department", "program", "faculty__user").annotate(
+            n=Count("enrollments", distinct=True)
+        ).order_by("code")
+        filter_text = "All Courses"
+    else:
+        courses_qs, q, dept_id, prog_id, status_filter, sort_by, order = _get_filtered_courses_queryset(request)
+        filter_parts = []
+        if q:
+            filter_parts.append(f"Search: '{q}'")
+        if dept_id:
+            dept = Department.objects.filter(pk=dept_id).first()
+            if dept:
+                filter_parts.append(f"Dept: {dept.code}")
+        if prog_id:
+            prog = Program.objects.filter(pk=prog_id).first()
+            if prog:
+                filter_parts.append(f"Program: {prog.code}")
+        if status_filter:
+            filter_parts.append(f"Status: {status_filter}")
+        filter_text = " · ".join(filter_parts) if filter_parts else None
+
+    site_name = "University Management System"
+    logo_path = os.path.join(settings.BASE_DIR, "static", "img", "ums-logo.png")
+    if not os.path.exists(logo_path):
+        logo_path = None
+
+    timestamp = timezone.now().strftime("%Y%m%d_%H%M")
+
+    if fmt == "csv":
+        data = course_io.export_course_csv(courses_qs)
+        resp = HttpResponse(data, content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = f'attachment; filename="courses_{timestamp}.csv"'
+        return resp
+
+    elif fmt in ["excel", "xlsx", "xls"]:
+        data = course_io.export_course_excel(courses_qs, site_name=site_name)
+        resp = HttpResponse(
+            data,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        resp["Content-Disposition"] = f'attachment; filename="courses_{timestamp}.xlsx"'
+        return resp
+
+    elif fmt == "pdf":
+        data = course_io.export_course_pdf(
+            courses_qs,
+            site_name=site_name,
+            logo_path=logo_path,
+            filter_text=filter_text,
+        )
+        resp = HttpResponse(data, content_type="application/pdf")
+        resp["Content-Disposition"] = f'attachment; filename="courses_{timestamp}.pdf"'
+        return resp
+
+    else:
+        raise Http404(f"Unsupported export format: {fmt}")
+
+
+@role_required(Role.ADMIN)
+def course_preview(request):
+    """In-browser print-friendly document preview of course catalog."""
+    scope = request.GET.get("scope", "filtered").strip().lower()
+    if scope == "all":
+        courses_qs = Course.objects.select_related("department", "program", "faculty__user").annotate(
+            n=Count("enrollments", distinct=True)
+        ).order_by("code")
+        q = ""
+        dept_id = ""
+        prog_id = ""
+        status_filter = ""
+    else:
+        courses_qs, q, dept_id, prog_id, status_filter, sort_by, order = _get_filtered_courses_queryset(request)
+
+    dept_obj = Department.objects.filter(pk=dept_id).first() if dept_id else None
+    prog_obj = Program.objects.filter(pk=prog_id).first() if prog_id else None
+
+    return render(
+        request,
+        "dashboard/course_preview.html",
+        {
+            "courses": courses_qs,
+            "total_count": courses_qs.count(),
+            "q": q,
+            "department": dept_obj,
+            "program": prog_obj,
+            "status_filter": status_filter,
+            "generated_at": timezone.now(),
+            "scope": scope,
+        },
+    )
+
+
+@role_required(Role.ADMIN)
+def course_import_template(request, fmt):
+    """Download sample course import template in CSV or Excel format."""
+    fmt = fmt.lower().strip()
+    if fmt == "csv":
+        data = course_io.generate_course_template_csv()
+        resp = HttpResponse(data, content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = 'attachment; filename="sample_course_import.csv"'
+        return resp
+    elif fmt in ["excel", "xlsx", "xls"]:
+        data = course_io.generate_course_template_excel()
+        resp = HttpResponse(
+            data,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        resp["Content-Disposition"] = 'attachment; filename="sample_course_import.xlsx"'
+        return resp
+    else:
+        raise Http404(f"Unsupported template format: {fmt}")
+
+
+@role_required(Role.ADMIN)
+def course_import(request):
+    """Multi-step bulk course import with validation preview and atomic commit."""
+    preview_data = None
+
+    if request.method == "POST":
+        action = request.POST.get("action", "preview")
+
+        if action == "preview":
+            uploaded_file = request.FILES.get("file")
+            if not uploaded_file:
+                messages.error(request, "Please choose a CSV or Excel file to upload.")
+                return render(request, "dashboard/course_import.html", {"preview_data": None})
+
+            try:
+                raw_rows = course_io.parse_uploaded_course_file(uploaded_file)
+                if not raw_rows:
+                    messages.error(request, "The uploaded file does not contain any data rows.")
+                    return render(request, "dashboard/course_import.html", {"preview_data": None})
+
+                validation_result = course_io.validate_course_import_rows(raw_rows)
+                request.session["pending_course_import"] = validation_result
+                preview_data = validation_result
+            except Exception as e:
+                messages.error(request, f"Error processing file: {str(e)}")
+                return render(request, "dashboard/course_import.html", {"preview_data": None})
+
+        elif action == "confirm":
+            session_data = request.session.get("pending_course_import")
+            if not session_data or not session_data.get("items"):
+                messages.error(request, "No pending import session found. Please upload your file again.")
+                return redirect("university:course_import")
+
+            valid_items = [item for item in session_data["items"] if item["status"] == "valid"]
+            duplicates_count = session_data.get("duplicate_count", 0)
+            errors_count = session_data.get("error_count", 0)
+
+            if not valid_items:
+                messages.error(request, "There are no valid records to import.")
+                return render(request, "dashboard/course_import.html", {"preview_data": session_data})
+
+            imported_count, failed_count = course_io.execute_course_import(valid_items)
+            total_failed = errors_count + failed_count
+
+            request.session.pop("pending_course_import", None)
+
+            # Summary message format:
+            # "Successfully imported: 95 | Failed: 5 | Duplicates: 2"
+            summary_msg = (
+                f"Successfully imported: {imported_count} | "
+                f"Failed: {total_failed} | "
+                f"Duplicates: {duplicates_count}"
+            )
+            messages.success(request, summary_msg)
+            return redirect("university:admin_courses")
+
+        elif action == "cancel":
+            request.session.pop("pending_course_import", None)
+            messages.info(request, "Course import was cancelled.")
+            return redirect("university:course_import")
+
+    elif "pending_course_import" in request.session:
+        preview_data = request.session["pending_course_import"]
+
+    return render(
+        request,
+        "dashboard/course_import.html",
+        {
+            "preview_data": preview_data,
+            "sample_row": course_io.SAMPLE_COURSE_ROW,
+            "columns": course_io.COURSE_IMPORT_COLUMNS,
+        },
+    )
 
 
 @login_required
@@ -383,16 +1212,211 @@ def enrollment_remove(request, pk):
 # ==========================================================================
 # FEES  (admin)
 # ==========================================================================
+ALLOWED_FEE_PAGE_SIZES = [10, 25, 50, 100]
+
+
+def _get_filtered_fees_queryset(request):
+    """Build filtered and sorted queryset for fee invoices."""
+    q = request.GET.get("q", "").strip()
+    status_filter = request.GET.get("status", "").strip().upper()
+    term_id = request.GET.get("term", "").strip()
+    sort_by = request.GET.get("sort", "").strip().lower()
+    order = request.GET.get("order", "desc").strip().lower()
+
+    invoices = FeeInvoice.objects.select_related("student__user", "term").annotate(
+        calculated_balance=F("amount") - F("amount_paid")
+    )
+
+    if q:
+        invoices = invoices.filter(
+            Q(title__icontains=q)
+            | Q(student__roll_no__icontains=q)
+            | Q(student__user__first_name__icontains=q)
+            | Q(student__user__last_name__icontains=q)
+            | Q(student__user__email__icontains=q)
+        )
+
+    if status_filter == "PAID":
+        invoices = invoices.filter(amount_paid__gte=F("amount"))
+    elif status_filter == "PARTIAL":
+        invoices = invoices.filter(amount_paid__gt=0, amount_paid__lt=F("amount"))
+    elif status_filter == "UNPAID":
+        invoices = invoices.filter(amount_paid=0)
+
+    if term_id:
+        invoices = invoices.filter(term_id=term_id)
+
+    sort_fields = {
+        "invoice": "id",
+        "student": "student__user__first_name",
+        "title": "title",
+        "amount": "amount",
+        "paid": "amount_paid",
+        "balance": "calculated_balance",
+        "due_date": "due_date",
+        "issued_on": "issued_on",
+    }
+    if sort_by in sort_fields:
+        prefix = "-" if order == "desc" else ""
+        invoices = invoices.order_by(f"{prefix}{sort_fields[sort_by]}", "-id")
+    else:
+        invoices = invoices.order_by("-issued_on", "-id")
+
+    return invoices, q, status_filter, term_id, sort_by, order
+
+
 @role_required(Role.ADMIN)
 def admin_fees(request):
-    invoices = FeeInvoice.objects.select_related("student__user")
+    invoices_qs, q, status_filter, term_id, sort_by, order = _get_filtered_fees_queryset(request)
+    total_count = invoices_qs.count()
+
+    per_page_param = request.GET.get("per_page", "25").strip().lower()
+    if per_page_param == "all":
+        per_page = max(total_count, 1)
+        selected_per_page = "all"
+    else:
+        try:
+            per_page = int(per_page_param)
+            if per_page not in ALLOWED_FEE_PAGE_SIZES:
+                per_page = 25
+        except (ValueError, TypeError):
+            per_page = 25
+        selected_per_page = str(per_page)
+
+    paginator = Paginator(invoices_qs, per_page)
+    page_number = request.GET.get("page", 1)
+
+    try:
+        page_obj = paginator.page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
+    page_range = (
+        paginator.get_elided_page_range(number=page_obj.number, on_each_side=1, on_ends=1)
+        if paginator.num_pages > 1
+        else []
+    )
+
+    all_invoices = FeeInvoice.objects.all()
+    terms = AcademicTerm.objects.all().order_by("-start_date")
+    statuses = ["PAID", "PARTIAL", "UNPAID"]
+
     ctx = {
-        "invoices": invoices[:100],
+        "invoices": page_obj,
+        "page_obj": page_obj,
+        "paginator": paginator,
+        "page_range": page_range,
+        "total_count": total_count,
+        "q": q,
+        "selected_status": status_filter,
+        "selected_term": term_id,
+        "terms": terms,
+        "statuses": statuses,
+        "per_page": selected_per_page,
+        "sort_by": sort_by,
+        "order": order,
         "collected": services.total_fees_collected(),
         "billed": services.total_fees_billed(),
-        "unpaid": sum(float(i.balance) for i in invoices),
+        "unpaid": sum(float(i.balance) for i in all_invoices),
     }
     return render(request, "dashboard/admin_fees.html", ctx)
+
+
+@role_required(Role.ADMIN)
+def fee_export(request, fmt):
+    """Export fee invoices in CSV, Excel, or PDF with scope=filtered (default) or scope=all."""
+    fmt = fmt.lower().strip()
+    scope = request.GET.get("scope", "filtered").strip().lower()
+
+    if scope == "all":
+        invoices_qs = FeeInvoice.objects.select_related("student__user", "term").order_by("-issued_on", "-id")
+        filter_text = "All Invoices"
+    else:
+        invoices_qs, q, status_filter, term_id, sort_by, order = _get_filtered_fees_queryset(request)
+        filter_parts = []
+        if q:
+            filter_parts.append(f"Search: '{q}'")
+        if status_filter:
+            filter_parts.append(f"Status: {status_filter}")
+        if term_id:
+            term = AcademicTerm.objects.filter(pk=term_id).first()
+            if term:
+                filter_parts.append(f"Term: {term.name}")
+        filter_text = " · ".join(filter_parts) if filter_parts else None
+
+    site_name = "University Management System"
+    logo_path = os.path.join(settings.BASE_DIR, "static", "img", "ums-logo.png")
+    if not os.path.exists(logo_path):
+        logo_path = None
+
+    timestamp = timezone.now().strftime("%Y%m%d_%H%M")
+
+    if fmt == "csv":
+        data = fee_io.export_fee_csv(invoices_qs)
+        resp = HttpResponse(data, content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = f'attachment; filename="fee_report_{timestamp}.csv"'
+        return resp
+
+    elif fmt in ["excel", "xlsx", "xls"]:
+        data = fee_io.export_fee_excel(invoices_qs, site_name=site_name)
+        resp = HttpResponse(
+            data,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        resp["Content-Disposition"] = f'attachment; filename="fee_report_{timestamp}.xlsx"'
+        return resp
+
+    elif fmt == "pdf":
+        data = fee_io.export_fee_pdf(
+            invoices_qs,
+            site_name=site_name,
+            logo_path=logo_path,
+            filter_text=filter_text,
+        )
+        resp = HttpResponse(data, content_type="application/pdf")
+        resp["Content-Disposition"] = f'attachment; filename="fee_report_{timestamp}.pdf"'
+        return resp
+
+    else:
+        raise Http404(f"Unsupported export format: {fmt}")
+
+
+@role_required(Role.ADMIN)
+def fee_preview(request):
+    """In-browser print-friendly document preview of fee invoices report."""
+    scope = request.GET.get("scope", "filtered").strip().lower()
+    if scope == "all":
+        invoices_qs = FeeInvoice.objects.select_related("student__user", "term").order_by("-issued_on", "-id")
+        q = ""
+        status_filter = ""
+        term_id = ""
+    else:
+        invoices_qs, q, status_filter, term_id, sort_by, order = _get_filtered_fees_queryset(request)
+
+    term_obj = AcademicTerm.objects.filter(pk=term_id).first() if term_id else None
+
+    total_billed = sum(float(i.amount) for i in invoices_qs)
+    total_paid = sum(float(i.amount_paid) for i in invoices_qs)
+    total_balance = sum(float(i.balance) for i in invoices_qs)
+
+    return render(
+        request,
+        "dashboard/fee_preview.html",
+        {
+            "invoices": invoices_qs,
+            "total_count": invoices_qs.count(),
+            "total_billed": total_billed,
+            "total_paid": total_paid,
+            "total_balance": total_balance,
+            "q": q,
+            "status_filter": status_filter,
+            "term": term_obj,
+            "generated_at": timezone.now(),
+            "scope": scope,
+        },
+    )
 
 
 @role_required(Role.ADMIN)
@@ -402,7 +1426,7 @@ def fee_create(request):
         form.save()
         messages.success(request, "Invoice created.")
         return redirect("university:admin_fees")
-    return _render_form(request, form, "Create Invoice", "", "fa-file-invoice-dollar",
+    return _render_form(request, form, "Create Invoice", "", "fa-file-invoice",
                         "university:admin_fees")
 
 
@@ -420,8 +1444,422 @@ def record_payment(request, pk):
         invoice.save()
         Payment.objects.create(invoice=invoice, amount=amount, method="Front-desk",
                                reference=f"TXN-{timezone.now().strftime('%H%M%S')}")
-        messages.success(request, f"Recorded ${amount:,.0f} against {invoice.title}.")
+        messages.success(request, f"Recorded KES {amount:,.0f} against {invoice.title}.")
     return redirect("university:admin_fees")
+
+
+@role_required(Role.ADMIN)
+def admin_fee_structures(request):
+    """Admin: Directory of program fee schedules per year/semester."""
+    structures = FeeStructure.objects.select_related("program", "term").order_by("program__name", "year_of_study", "semester")
+    return render(request, "dashboard/admin_fee_structures.html", {
+        "structures": structures,
+    })
+
+
+@role_required(Role.ADMIN)
+def fee_structure_create(request):
+    """Admin: Define fee schedule for a program and study year/term."""
+    form = FeeStructureForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        fs = form.save()
+        messages.success(request, f"Fee structure for {fs.program.code} Year {fs.year_of_study} Sem {fs.semester} created.")
+        return redirect("university:admin_fee_structures")
+    return _render_form(request, form, "Create Fee Structure", "Define tuition and statutory fee components",
+                        "fa-scale-balanced", "university:admin_fee_structures")
+
+
+@role_required(Role.ADMIN)
+def fee_structure_edit(request, pk):
+    """Admin: Edit fee schedule amounts."""
+    fs = get_object_or_404(FeeStructure, pk=pk)
+    form = FeeStructureForm(request.POST or None, instance=fs)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, f"Fee structure updated.")
+        return redirect("university:admin_fee_structures")
+    return _render_form(request, form, f"Edit Fee Structure: {fs.program.code}",
+                        f"Year {fs.year_of_study} Semester {fs.semester}",
+                        "fa-scale-balanced", "university:admin_fee_structures")
+
+
+@role_required(Role.ADMIN)
+@require_POST
+def fee_structure_delete(request, pk):
+    """Admin: Remove fee structure."""
+    fs = get_object_or_404(FeeStructure, pk=pk)
+    move_to_recycle_bin(fs, user=request.user, request=request)
+    messages.info(request, "Fee structure moved to Recycle Bin.")
+    return redirect("university:admin_fee_structures")
+
+
+@login_required
+def fee_receipt_pdf(request, pk):
+    """Download official University Payment Receipt PDF."""
+    payment = get_object_or_404(Payment.objects.select_related("invoice__student__user", "invoice__term"), pk=pk)
+    # Security: student can only download own receipts, admin can download all
+    if request.user.role == Role.STUDENT and payment.invoice.student.user != request.user:
+        raise Http404("Receipt not found.")
+
+    pdf_bytes = generate_fee_receipt_pdf(payment)
+    resp = HttpResponse(pdf_bytes, content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="Receipt_REC-{payment.id:06d}.pdf"'
+    return resp
+
+
+@login_required
+def student_fee_statement(request):
+    """Student / Admin: View interactive ledger statement of account."""
+    if request.user.role == Role.STUDENT:
+        sp = get_object_or_404(StudentProfile, user=request.user)
+    else:
+        student_id = request.GET.get("student_id")
+        sp = get_object_or_404(StudentProfile, pk=student_id) if student_id else None
+        if not sp:
+            messages.warning(request, "Please select a student to view financial statement.")
+            return redirect("university:admin_fees")
+
+    clearance = check_financial_clearance(sp)
+    invoices = FeeInvoice.objects.filter(student=sp).order_by("issued_on", "id")
+    payments = Payment.objects.filter(invoice__student=sp).select_related("invoice").order_by("paid_on", "id")
+
+    return render(request, "dashboard/student_fee_statement.html", {
+        "student": sp,
+        "clearance": clearance,
+        "invoices": invoices,
+        "payments": payments,
+    })
+
+
+@login_required
+def student_fee_statement_pdf(request):
+    """Download official Student Statement of Account PDF."""
+    if request.user.role == Role.STUDENT:
+        sp = get_object_or_404(StudentProfile, user=request.user)
+    else:
+        student_id = request.GET.get("student_id")
+        sp = get_object_or_404(StudentProfile, pk=student_id) if student_id else None
+        if not sp:
+            raise Http404("Student not specified.")
+
+    pdf_bytes = generate_student_statement_pdf(sp)
+    resp = HttpResponse(pdf_bytes, content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="Statement_{sp.roll_no}.pdf"'
+    return resp
+
+
+# ==========================================================================
+# TIMETABLE  (weekly class scheduling)
+# ==========================================================================
+def _selected_term(request):
+    term_id = request.GET.get("term")
+    if term_id:
+        term = AcademicTerm.objects.filter(pk=term_id).first()
+        if term:
+            return term
+    return AcademicTerm.objects.filter(is_current=True).first() or AcademicTerm.objects.first()
+
+
+def _order_by_weekday(schedules):
+    """Order a ClassSchedule queryset Monday->Saturday instead of the model's alphabetical default."""
+    order = Case(*[When(day=code, then=i) for i, (code, _) in enumerate(ClassSchedule.Day.choices)],
+                output_field=IntegerField())
+    return schedules.annotate(_weekday_order=order).order_by("_weekday_order", "start_time")
+
+
+def _timetable_grid(schedules):
+    by_day = {code: [] for code, _ in ClassSchedule.Day.choices}
+    for s in schedules:
+        by_day.setdefault(s.day, []).append(s)
+    return [{"code": code, "label": label, "sessions": by_day.get(code, [])}
+            for code, label in ClassSchedule.Day.choices]
+
+
+def _get_filtered_schedule_queryset(request):
+    """Build the filtered timetable queryset shared by the grid, export and preview views."""
+    term = _selected_term(request)
+    semester = request.GET.get("semester", "").strip()
+    dept_id = request.GET.get("department", "").strip()
+    prog_id = request.GET.get("program", "").strip()
+    course_id = request.GET.get("course", "").strip()
+    faculty_id = request.GET.get("faculty", "").strip()
+    day = request.GET.get("day", "").strip()
+    room_id = request.GET.get("room", "").strip()
+    status_filter = request.GET.get("status", "").strip()
+
+    schedules = ClassSchedule.objects.select_related(
+        "course", "course__department", "course__program", "course__faculty__user", "room", "term")
+    schedules = schedules.filter(term=term) if term else schedules.none()
+
+    if semester:
+        schedules = schedules.filter(course__semester_no=semester)
+    if dept_id:
+        schedules = schedules.filter(course__department_id=dept_id)
+    if prog_id:
+        schedules = schedules.filter(course__program_id=prog_id)
+    if course_id:
+        schedules = schedules.filter(course_id=course_id)
+    if faculty_id:
+        schedules = schedules.filter(course__faculty_id=faculty_id)
+    if day:
+        schedules = schedules.filter(day=day)
+    if room_id:
+        schedules = schedules.filter(room_id=room_id)
+    if status_filter:
+        schedules = schedules.filter(status=status_filter)
+
+    filters = {"semester": semester, "department": dept_id, "program": prog_id, "course": course_id,
+              "faculty": faculty_id, "day": day, "room": room_id, "status": status_filter}
+    return schedules, term, filters
+
+
+def _timetable_filter_options():
+    return {
+        "departments": Department.objects.all(),
+        "programs": Program.objects.select_related("department").all(),
+        "courses": Course.objects.select_related("department").order_by("code"),
+        "faculty_list": FacultyProfile.objects.select_related("user").order_by("user__first_name"),
+        "rooms": ExamRoom.objects.filter(active=True),
+        "day_choices": ClassSchedule.Day.choices,
+        "semester_choices": [1, 2, 3],
+    }
+
+
+@role_required(Role.ADMIN)
+def admin_timetable(request):
+    schedules, term, filters = _get_filtered_schedule_queryset(request)
+    ctx = {
+        "grid": _timetable_grid(schedules), "term": term, "terms": AcademicTerm.objects.all(),
+        "filters": filters, "total_count": schedules.count(),
+    }
+    ctx.update(_timetable_filter_options())
+    return render(request, "dashboard/admin_timetable.html", ctx)
+
+
+@role_required(Role.ADMIN)
+def class_schedule_create(request):
+    form = ClassScheduleForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        try:
+            schedule = form.save()
+        except ValidationError as exc:
+            form.add_error(None, exc)
+        else:
+            messages.success(request, f"Scheduled {schedule.course.code} on "
+                                     f"{schedule.get_day_display()}.")
+            return redirect("university:admin_timetable")
+    return _render_form(request, form, "Schedule a Class", "", "fa-calendar-plus",
+                        "university:admin_timetable")
+
+
+@role_required(Role.ADMIN)
+def class_schedule_edit(request, pk):
+    schedule = get_object_or_404(ClassSchedule, pk=pk)
+    form = ClassScheduleForm(request.POST or None, instance=schedule)
+    if request.method == "POST" and form.is_valid():
+        try:
+            form.save()
+        except ValidationError as exc:
+            form.add_error(None, exc)
+        else:
+            messages.success(request, "Class schedule updated.")
+            return redirect("university:admin_timetable")
+    return _render_form(request, form, "Edit Class Schedule", str(schedule), "fa-pen",
+                        "university:admin_timetable")
+
+
+@role_required(Role.ADMIN)
+def class_schedule_delete(request, pk):
+    schedule = get_object_or_404(ClassSchedule, pk=pk)
+    return _confirm_delete(request, schedule, "class schedule", "university:admin_timetable")
+
+
+@role_required(Role.ADMIN)
+@require_POST
+def class_schedule_publish(request, pk):
+    schedule = get_object_or_404(ClassSchedule, pk=pk)
+    schedule.status = (ClassSchedule.Status.DRAFT if schedule.status == ClassSchedule.Status.PUBLISHED
+                       else ClassSchedule.Status.PUBLISHED)
+    schedule.save(update_fields=["status"])
+    messages.success(request, f"{schedule} is now {schedule.get_status_display().lower()}.")
+    referer = request.META.get("HTTP_REFERER")
+    if referer and request.get_host() in referer:
+        return redirect(referer)
+    return redirect("university:admin_timetable")
+
+
+@role_required(Role.ADMIN)
+def timetable_export(request, fmt):
+    """Export the timetable in CSV, Excel, or PDF, respecting active filters (scope=all ignores them)."""
+    fmt = fmt.lower().strip()
+    scope = request.GET.get("scope", "filtered").strip().lower()
+
+    if scope == "all":
+        schedules = ClassSchedule.objects.select_related(
+            "course", "course__department", "course__program", "course__faculty__user", "room", "term")
+        filter_text = "All Timetable Entries"
+    else:
+        schedules, term, filters = _get_filtered_schedule_queryset(request)
+        parts = [f"Term: {term.name}"] if term else []
+        if filters["department"]:
+            dept = Department.objects.filter(pk=filters["department"]).first()
+            if dept:
+                parts.append(f"Dept: {dept.code}")
+        if filters["day"]:
+            parts.append(f"Day: {DAY_LABELS_MAP.get(filters['day'], filters['day'])}")
+        filter_text = " · ".join(parts) if parts else None
+
+    site_name = "University Management System"
+    logo_path = os.path.join(settings.BASE_DIR, "static", "img", "ums-logo.png")
+    if not os.path.exists(logo_path):
+        logo_path = None
+    timestamp = timezone.now().strftime("%Y%m%d_%H%M")
+    schedules = _order_by_weekday(schedules)
+
+    if fmt == "csv":
+        data = timetable_io.export_timetable_csv(schedules)
+        resp = HttpResponse(data, content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = f'attachment; filename="timetable_{timestamp}.csv"'
+        return resp
+    elif fmt in ("excel", "xlsx", "xls"):
+        data = timetable_io.export_timetable_excel(schedules, site_name=site_name)
+        resp = HttpResponse(data, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        resp["Content-Disposition"] = f'attachment; filename="timetable_{timestamp}.xlsx"'
+        return resp
+    elif fmt == "pdf":
+        data = timetable_io.export_timetable_pdf(schedules, site_name=site_name, logo_path=logo_path,
+                                                 filter_text=filter_text)
+        resp = HttpResponse(data, content_type="application/pdf")
+        resp["Content-Disposition"] = f'attachment; filename="timetable_{timestamp}.pdf"'
+        return resp
+    raise Http404(f"Unsupported export format: {fmt}")
+
+
+@role_required(Role.ADMIN)
+def timetable_preview(request):
+    """In-browser print-friendly preview of the (filtered) timetable."""
+    scope = request.GET.get("scope", "filtered").strip().lower()
+    if scope == "all":
+        schedules = ClassSchedule.objects.select_related(
+            "course", "course__department", "course__program", "course__faculty__user", "room", "term")
+        term = None
+    else:
+        schedules, term, filters = _get_filtered_schedule_queryset(request)
+    return render(request, "dashboard/timetable_preview.html", {
+        "schedules": _order_by_weekday(schedules), "total_count": schedules.count(),
+        "term": term, "generated_at": timezone.now(), "scope": scope,
+    })
+
+
+@role_required(Role.ADMIN)
+def timetable_import_template(request, fmt):
+    fmt = fmt.lower().strip()
+    if fmt == "csv":
+        data = timetable_io.generate_timetable_template_csv()
+        resp = HttpResponse(data, content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = 'attachment; filename="sample_timetable_import.csv"'
+        return resp
+    elif fmt in ("excel", "xlsx", "xls"):
+        data = timetable_io.generate_timetable_template_excel()
+        resp = HttpResponse(data, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        resp["Content-Disposition"] = 'attachment; filename="sample_timetable_import.xlsx"'
+        return resp
+    raise Http404(f"Unsupported template format: {fmt}")
+
+
+@role_required(Role.ADMIN)
+def timetable_import(request):
+    """Multi-step bulk timetable import: upload -> validate & preview -> confirm or cancel."""
+    preview_data = None
+
+    if request.method == "POST":
+        action = request.POST.get("action", "preview")
+
+        if action == "preview":
+            uploaded_file = request.FILES.get("file")
+            if not uploaded_file:
+                messages.error(request, "Please choose a CSV or Excel file to upload.")
+                return render(request, "dashboard/timetable_import.html", {"preview_data": None})
+            try:
+                raw_rows = timetable_io.parse_uploaded_timetable_file(uploaded_file)
+                if not raw_rows:
+                    messages.error(request, "The uploaded file does not contain any data rows.")
+                    return render(request, "dashboard/timetable_import.html", {"preview_data": None})
+                validation_result = timetable_io.validate_timetable_import_rows(raw_rows)
+                request.session["pending_timetable_import"] = validation_result
+                preview_data = validation_result
+            except Exception as e:
+                messages.error(request, f"Error processing file: {str(e)}")
+                return render(request, "dashboard/timetable_import.html", {"preview_data": None})
+
+        elif action == "confirm":
+            session_data = request.session.get("pending_timetable_import")
+            if not session_data or not session_data.get("items"):
+                messages.error(request, "No pending import session found. Please upload your file again.")
+                return redirect("university:timetable_import")
+
+            valid_items = [item for item in session_data["items"] if item["status"] == "valid"]
+            duplicates_count = session_data.get("duplicate_count", 0)
+            conflicts_count = session_data.get("conflict_count", 0)
+            errors_count = session_data.get("error_count", 0)
+
+            if not valid_items:
+                messages.error(request, "There are no valid records to import.")
+                return render(request, "dashboard/timetable_import.html", {"preview_data": session_data})
+
+            publish_status = (ClassSchedule.Status.PUBLISHED if request.POST.get("publish") == "1"
+                             else ClassSchedule.Status.DRAFT)
+            imported_count, failed_count = timetable_io.execute_timetable_import(
+                valid_items, status=publish_status)
+            total_failed = errors_count + failed_count
+
+            request.session.pop("pending_timetable_import", None)
+            summary_msg = (f"Successfully imported: {imported_count} | Failed: {total_failed} | "
+                          f"Duplicates: {duplicates_count} | Conflicts: {conflicts_count}")
+            messages.success(request, summary_msg)
+            return redirect("university:admin_timetable")
+
+        elif action == "cancel":
+            request.session.pop("pending_timetable_import", None)
+            messages.info(request, "Timetable import was cancelled.")
+            return redirect("university:timetable_import")
+
+    elif "pending_timetable_import" in request.session:
+        preview_data = request.session["pending_timetable_import"]
+
+    return render(request, "dashboard/timetable_import.html", {
+        "preview_data": preview_data, "sample_row": timetable_io.SAMPLE_TIMETABLE_ROW,
+        "columns": timetable_io.TIMETABLE_IMPORT_COLUMNS,
+    })
+
+
+@role_required(Role.FACULTY)
+def faculty_timetable(request):
+    fp = get_object_or_404(FacultyProfile, user=request.user)
+    term = _selected_term(request)
+    schedules = ClassSchedule.objects.filter(
+        course__faculty=fp, status=ClassSchedule.Status.PUBLISHED).select_related("course", "room")
+    schedules = schedules.filter(term=term) if term else schedules.none()
+    return render(request, "dashboard/faculty_timetable.html", {
+        "grid": _timetable_grid(schedules), "term": term,
+        "terms": AcademicTerm.objects.all(),
+    })
+
+
+@role_required(Role.STUDENT)
+def student_timetable(request):
+    sp = get_object_or_404(StudentProfile, user=request.user)
+    term = _selected_term(request)
+    course_ids = Enrollment.objects.filter(student=sp, status=Enrollment.ACTIVE
+                                           ).values_list("course_id", flat=True)
+    schedules = ClassSchedule.objects.filter(
+        course_id__in=course_ids, status=ClassSchedule.Status.PUBLISHED).select_related(
+        "course", "course__faculty__user", "room")
+    schedules = schedules.filter(term=term) if term else schedules.none()
+    return render(request, "dashboard/student_timetable.html", {
+        "grid": _timetable_grid(schedules), "term": term,
+        "terms": AcademicTerm.objects.all(),
+    })
 
 
 # ==========================================================================
@@ -452,8 +1890,8 @@ def notices(request):
 @require_POST
 def notice_delete(request, pk):
     notice = get_object_or_404(Notice, pk=pk)
-    notice.delete()
-    messages.info(request, "Notice removed.")
+    move_to_recycle_bin(notice, user=request.user, request=request)
+    messages.info(request, "Notice moved to Recycle Bin.")
     return redirect("university:notices")
 
 
@@ -627,44 +2065,25 @@ def assignment_detail(request, pk):
     return render(request, "dashboard/assignment_detail.html", ctx)
 
 
+# Compatibility routes use the same scoped, audited examination workflow.
 @role_required(Role.ADMIN, Role.FACULTY)
 def exam_create(request):
-    initial = {}
-    course_id = request.GET.get("course")
-    if course_id:
-        initial["course"] = course_id
-    form = ExamForm(request.POST or None, initial=initial)
-    if request.method == "POST" and form.is_valid():
-        x = form.save()
-        messages.success(request, f"Exam '{x.name}' created.")
-        return redirect("university:course_detail", pk=x.course_id)
-    return _render_form(request, form, "Add Exam", "", "fa-file-pen",
-                        "university:admin_courses")
+    from .examination_views import edit
+    return edit(request)
 
 
 @role_required(Role.ADMIN, Role.FACULTY)
 def exam_edit(request, pk):
-    x = get_object_or_404(Exam, pk=pk)
-    form = ExamForm(request.POST or None, instance=x)
-    if request.method == "POST" and form.is_valid():
-        form.save()
-        messages.success(request, "Exam updated.")
-        return redirect("university:course_detail", pk=x.course_id)
-    return _render_form(request, form, "Edit Exam", x.name, "fa-pen",
-                        "university:admin_courses")
+    from .examination_views import edit
+    return edit(request, pk)
 
 
 @role_required(Role.ADMIN, Role.FACULTY)
 def exam_delete(request, pk):
-    x = get_object_or_404(Exam, pk=pk)
-    course_pk = x.course_id
-    if request.method == "POST":
-        x.delete()
-        messages.success(request, "Exam deleted.")
-        return redirect("university:course_detail", pk=course_pk)
-    return render(request, "dashboard/confirm_delete.html", {
-        "object": x, "label": "exam", "back_url": "university:admin_courses",
-    })
+    from .examination_views import staff_exam
+    staff_exam(request, pk)
+    messages.info(request, "Use the examination overview to cancel a sitting. Examination records are retained for audit.")
+    return redirect("examinations:detail", pk=pk)
 
 
 @role_required(Role.FACULTY, Role.ADMIN)
@@ -720,10 +2139,7 @@ def student_attendance(request):
 
 @role_required(Role.STUDENT)
 def student_results(request):
-    sp = get_object_or_404(StudentProfile, user=request.user)
-    results = Result.objects.filter(student=sp).select_related("exam__course")
-    return render(request, "dashboard/student_results.html",
-                  {"results": results, "stats": services.student_stats(sp)})
+    return redirect("examinations:statement")
 
 
 @role_required(Role.STUDENT)
@@ -753,9 +2169,39 @@ def submit_assignment(request, pk):
 @role_required(Role.STUDENT)
 def student_fees(request):
     sp = get_object_or_404(StudentProfile, user=request.user)
-    invoices = FeeInvoice.objects.filter(student=sp)
+
+    if request.method == "POST":
+        invoice_id = request.POST.get("invoice_id")
+        amount_str = request.POST.get("amount", "0")
+        method = request.POST.get("method", "M-Pesa")
+        reference = request.POST.get("reference", "").strip() or f"MPESA-{timezone.now().strftime('%H%M%S')}"
+
+        invoice = get_object_or_404(FeeInvoice, pk=invoice_id, student=sp)
+        try:
+            amt = Decimal(amount_str)
+        except Exception:
+            amt = Decimal("0.00")
+
+        if amt > 0:
+            amt = min(amt, invoice.balance)
+            invoice.amount_paid += amt
+            invoice.save()
+            pmt = Payment.objects.create(invoice=invoice, amount=amt, method=method, reference=reference)
+            messages.success(request, f"Payment of KES {amt:,.2f} recorded successfully (Ref: {reference}). Receipt REC-{pmt.id:06d} generated.")
+        else:
+            messages.error(request, "Please enter a valid payment amount.")
+        return redirect("university:student_fees")
+
+    invoices = FeeInvoice.objects.filter(student=sp).order_by("-issued_on")
+    payments = Payment.objects.filter(invoice__student=sp).select_related("invoice").order_by("-paid_on")
+    clearance = check_financial_clearance(sp)
+
     return render(request, "dashboard/student_fees.html", {
-        "invoices": invoices, "stats": services.student_stats(sp),
+        "student": sp,
+        "invoices": invoices,
+        "payments": payments,
+        "clearance": clearance,
+        "stats": services.student_stats(sp),
     })
 
 

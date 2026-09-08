@@ -178,11 +178,11 @@ def assistant_reply(text: str, user) -> dict:
             s = services.student_stats(user.student_profile)
             if s["fee_due"] > 0:
                 return resp(f"You have an outstanding balance of "
-                            f"<b>${s['fee_due']:,.0f}</b>. Please clear it before the due date.",
+                            f"<b>KES {s['fee_due']:,.0f}</b>. Please clear it before the due date.",
                             "fa-wallet")
             return resp("All your fees are cleared. You're good to go! ✅", "fa-wallet")
         total = services.total_fees_collected()
-        return resp(f"Total fees collected so far: <b>${total:,.0f}</b>.", "fa-wallet")
+        return resp(f"Total fees collected so far: <b>KES {total:,.0f}</b>.", "fa-wallet")
 
     # Counts ---------------------------------------------------------------
     if "how many" in q or "count" in q or "number of" in q or "total" in q:

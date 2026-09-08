@@ -1,0 +1,383 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+{% load ums_extras %}
+
+{% block title %}Roles & Permissions · All Staff Access Control · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4><i class="fa-solid fa-user-shield me-2 text-primary"></i>Roles & Permissions Management</h4>
+    <p class="text-muted small mb-0">Granular role-based access control (RBAC) and user-level permission overrides for all academic and administrative staff.</p>
+  </div>
+  <div class="breadcrumb-chip">
+    <a href="{% url 'university:admin_setups_dashboard' %}" class="text-decoration-none text-muted">Admin Setups</a>
+    <i class="fa-solid fa-angle-right mx-1"></i> Staff Permissions
+  </div>
+</div>
+
+<!-- KPI Metrics Overview Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">
+    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#6C5CE7,#8f7bff)">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="val">{{ total_staff }}</div>
+          <div class="lbl mt-1">All Staff Members</div>
+        </div>
+        <span class="fs-3 opacity-75"><i class="fa-solid fa-users-gear"></i></span>
+      </div>
+      <div class="delta mt-2"><i class="fa-solid fa-chalkboard-user"></i> Faculty & Administrators</div>
+      <i class="fa-solid fa-users-gear ghost"></i>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#00b894,#55efc4)">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="val">{{ total_roles }}</div>
+          <div class="lbl mt-1">Configured Roles</div>
+        </div>
+        <span class="fs-3 opacity-75"><i class="fa-solid fa-shield-halved"></i></span>
+      </div>
+      <div class="delta mt-2"><i class="fa-solid fa-layer-group"></i> Academic & Admin Roles</div>
+      <i class="fa-solid fa-shield-halved ghost"></i>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#0984e3,#74b9ff)">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="val">{{ total_permissions }}</div>
+          <div class="lbl mt-1">Granular Permissions</div>
+        </div>
+        <span class="fs-3 opacity-75"><i class="fa-solid fa-key"></i></span>
+      </div>
+      <div class="delta mt-2"><i class="fa-solid fa-cubes"></i> 7 System Subsystems</div>
+      <i class="fa-solid fa-key ghost"></i>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#e84393,#fd79a8)">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="val">{{ total_overrides }}</div>
+          <div class="lbl mt-1">Active Overrides</div>
+        </div>
+        <span class="fs-3 opacity-75"><i class="fa-solid fa-sliders"></i></span>
+      </div>
+      <div class="delta mt-2"><i class="fa-solid fa-user-pen"></i> Explicit User Grants/Denies</div>
+      <i class="fa-solid fa-sliders ghost"></i>
+    </div>
+  </div>
+</div>
+
+<!-- Main Strategic Navigation Sub-Tabs -->
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+  <div class="card-header bg-white border-bottom p-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <ul class="nav nav-pills gap-2 flex-wrap" role="tablist">
+      <li class="nav-item">
+        <a href="?sub=staff" class="nav-link rounded-pill px-3 py-2 fw-semibold {% if sub_tab == 'staff' %}active{% endif %}">
+          <i class="fa-solid fa-users me-1"></i> All Staff Directory ({{ total_staff }})
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="?sub=roles" class="nav-link rounded-pill px-3 py-2 fw-semibold {% if sub_tab == 'roles' %}active{% endif %}">
+          <i class="fa-solid fa-shield-halved me-1"></i> Roles Matrix ({{ total_roles }})
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="?sub=permissions" class="nav-link rounded-pill px-3 py-2 fw-semibold {% if sub_tab == 'permissions' %}active{% endif %}">
+          <i class="fa-solid fa-key me-1"></i> Permissions Catalog ({{ total_permissions }})
+        </a>
+      </li>
+    </ul>
+
+    {% if sub_tab == 'roles' %}
+    <a href="{% url 'university:role_create' %}" class="btn btn-primary btn-sm rounded-pill px-3">
+      <i class="fa-solid fa-plus me-1"></i> Create Custom Role
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- Tab 1: All Staff Access Directory -->
+  {% if sub_tab == 'staff' %}
+  <div class="card-body p-3 p-md-4">
+    <!-- Filter Toolbar -->
+    <form method="get" class="row g-2 align-items-center mb-4">
+      <input type="hidden" name="sub" value="staff">
+      
+      <div class="col-12 col-md-5">
+        <div class="search-container">
+          <i class="fa-solid fa-magnifying-glass search-icon-prefix"></i>
+          <input 
+            type="text" 
+            name="q" 
+            value="{{ search_query }}" 
+            class="form-control search-input-field" 
+            placeholder="Search staff by name, username, email..."
+          >
+        </div>
+      </div>
+
+      <div class="col-6 col-md-3">
+        <select name="dept" class="form-select form-select-sm rounded-3 fw-medium">
+          <option value="">-- All Departments --</option>
+          {% for d in departments %}
+          <option value="{{ d.id }}" {% if selected_dept == d.id|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-6 col-md-2">
+        <select name="role" class="form-select form-select-sm rounded-3 fw-medium">
+          <option value="">-- All Roles --</option>
+          {% for r in roles %}
+          <option value="{{ r.code }}" {% if selected_role == r.code %}selected{% endif %}>{{ r.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-12 col-md-2 d-flex gap-2">
+        <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3 w-100">
+          <i class="fa-solid fa-filter me-1"></i> Filter
+        </button>
+        {% if search_query or selected_dept or selected_role %}
+        <a href="?sub=staff" class="btn btn-sm btn-outline-secondary rounded-pill px-2" title="Reset">
+          <i class="fa-solid fa-xmark"></i>
+        </a>
+        {% endif %}
+      </div>
+    </form>
+
+    <!-- Staff Table -->
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0" style="font-size:.88rem;">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3" style="min-width:240px;">Staff Member</th>
+            <th>Primary Role</th>
+            <th>Department</th>
+            <th>Assigned Staff Roles</th>
+            <th>User Overrides</th>
+            <th class="text-end pe-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in staff_items %}
+          <tr>
+            <td class="ps-3">
+              <div class="d-flex align-items-center gap-2.5">
+                <img src="{{ item.user.avatar }}" alt="avatar" class="rounded-circle" style="width:36px;height:36px;object-fit:cover;">
+                <div>
+                  <div class="fw-bold text-dark">{{ item.user.get_full_name|default:item.user.username }}</div>
+                  <div class="text-muted small" style="font-size:.78rem;">
+                    {{ item.user.email|default:item.user.username }}
+                    {% if item.user.is_superuser %}
+                    <span class="badge bg-danger-subtle text-danger rounded-pill ms-1">Superuser</span>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <span class="badge {% if item.user.role == 'ADMIN' %}bg-primary{% else %}bg-info text-dark{% endif %} rounded-pill px-2.5 py-1">
+                {{ item.user.get_role_display }}
+              </span>
+            </td>
+            <td class="text-muted small">
+              {{ item.department.name|default:"General / Institution" }}
+            </td>
+            <td>
+              {% if item.assignments %}
+                <div class="d-flex flex-wrap gap-1">
+                  {% for asgn in item.assignments %}
+                  <span class="badge rounded-pill text-white" style="background:{{ asgn.role.color }};font-size:.74rem;">
+                    {{ asgn.role.name }}
+                  </span>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <span class="text-muted small italic">Standard {{ item.user.get_role_display }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if item.total_overrides > 0 %}
+                <div class="d-flex align-items-center gap-1">
+                  {% if item.grants_count > 0 %}
+                  <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill" title="{{ item.grants_count }} explicitly granted permissions">
+                    <i class="fa-solid fa-plus me-1"></i>{{ item.grants_count }} Grant{{ item.grants_count|pluralize }}
+                  </span>
+                  {% endif %}
+                  {% if item.denies_count > 0 %}
+                  <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill" title="{{ item.denies_count }} explicitly revoked permissions">
+                    <i class="fa-solid fa-minus me-1"></i>{{ item.denies_count }} Denied
+                  </span>
+                  {% endif %}
+                </div>
+              {% else %}
+                <span class="text-muted small opacity-75">No Overrides</span>
+              {% endif %}
+            </td>
+            <td class="text-end pe-3">
+              <a href="{% url 'university:staff_user_access_detail' item.user.id %}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                <i class="fa-solid fa-user-gear me-1"></i> Manage Access & Overrides
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="text-center py-5 text-muted">
+              <i class="fa-solid fa-users-slash fa-2x mb-2 opacity-50 d-block"></i>
+              No staff members found matching your search.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Server-Side Pagination -->
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="d-flex justify-content-between align-items-center pt-3 border-top mt-3 flex-wrap gap-2">
+      <small class="text-muted">
+        Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ total_staff_count }} staff members
+      </small>
+      <nav aria-label="Staff pagination">
+        <ul class="pagination pagination-sm mb-0">
+          {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?{% url_replace page=page_obj.previous_page_number %}">Previous</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">Previous</span></li>
+          {% endif %}
+
+          {% for p in page_obj.paginator.page_range %}
+            {% if p >= page_obj.number|add:"-2" and p <= page_obj.number|add:"2" %}
+              <li class="page-item {% if page_obj.number == p %}active{% endif %}">
+                <a class="page-link" href="?{% url_replace page=p %}">{{ p }}</a>
+              </li>
+            {% endif %}
+          {% endfor %}
+
+          {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?{% url_replace page=page_obj.next_page_number %}">Next</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">Next</span></li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
+
+  </div>
+  {% endif %}
+
+  <!-- Tab 2: Staff Roles Matrix -->
+  {% if sub_tab == 'roles' %}
+  <div class="card-body p-3 p-md-4">
+    <div class="row g-3">
+      {% for role in roles %}
+      <div class="col-md-6 col-xl-4">
+        <div class="card card-ums report-card-item h-100 p-3 d-flex flex-column justify-content-between">
+          <div class="card-strip" style="background:{{ role.color }};"></div>
+          <div>
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <span class="badge rounded-pill text-white px-3 py-1.5" style="background:{{ role.color }};font-size:.82rem;">
+                {{ role.name }}
+              </span>
+              {% if role.is_system_role %}
+              <span class="badge bg-light text-muted border rounded-pill small" title="Built-in system role">System Core</span>
+              {% else %}
+              <span class="badge bg-success-subtle text-success rounded-pill small">Custom Role</span>
+              {% endif %}
+            </div>
+
+            <p class="text-muted small mb-3" style="min-height:38px;line-height:1.45;">
+              {{ role.description }}
+            </p>
+
+            <div class="d-flex align-items-center justify-content-between text-muted small py-2 border-top border-bottom mb-3" style="font-size:.8rem;">
+              <span><i class="fa-solid fa-key me-1 text-primary"></i>Permissions:</span>
+              <strong class="text-dark">{{ role.permissions.count }} Allowed</strong>
+            </div>
+
+            <!-- Permission Chips Preview -->
+            <div class="d-flex flex-wrap gap-1 mb-3">
+              {% for p in role.permissions.all|slice:":6" %}
+              <span class="badge bg-light text-dark border small" style="font-size:.72rem;">{{ p.name }}</span>
+              {% endfor %}
+              {% if role.permissions.count > 6 %}
+              <span class="badge bg-light text-muted border small" style="font-size:.72rem;">+{{ role.permissions.count|add:"-6" }} more</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+            <span class="text-muted small">
+              <i class="fa-solid fa-users me-1"></i>{{ role.assignments.count }} Staff assigned
+            </span>
+            <div class="d-flex gap-1">
+              <a href="{% url 'university:role_edit' role.id %}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                <i class="fa-solid fa-pen me-1"></i> Edit Permissions
+              </a>
+              {% if not role.is_system_role %}
+              <form method="post" action="{% url 'university:role_delete' role.id %}" onsubmit="return confirm('Are you sure you want to delete role {{ role.name }}?');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Delete Role">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Tab 3: System Permissions Catalog -->
+  {% if sub_tab == 'permissions' %}
+  <div class="card-body p-3 p-md-4">
+    {% for module_name, perms in modules.items %}
+    <div class="card border rounded-3 mb-4 overflow-hidden">
+      <div class="card-header bg-light py-2.5 px-3 d-flex align-items-center justify-content-between">
+        <span class="fw-bold text-dark"><i class="fa-solid fa-folder-tree text-primary me-2"></i>{{ module_name }} Module</span>
+        <span class="badge bg-secondary rounded-pill">{{ perms|length }} Permissions</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="font-size:.86rem;">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3" style="width:280px;">Permission Name</th>
+              <th style="width:240px;">Identifier Code</th>
+              <th>Description</th>
+              <th class="text-end pe-3" style="width:140px;">Roles Included</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in perms %}
+            <tr>
+              <td class="ps-3 fw-semibold text-dark">{{ p.name }}</td>
+              <td><code>{{ p.code }}</code></td>
+              <td class="text-muted small">{{ p.description }}</td>
+              <td class="text-end pe-3">
+                <span class="badge bg-light text-primary border rounded-pill">{{ p.roles.count }} Role{{ p.roles.count|pluralize }}</span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

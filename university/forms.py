@@ -4,8 +4,8 @@ from django.utils import timezone
 from accounts.models import FacultyProfile, Role, StudentProfile, User
 
 from .models import (
-    Assignment, Course, Department, Enrollment, Event, Exam, FeeInvoice,
-    Notice, Program,
+    Assignment, ClassSchedule, Course, Department, Enrollment, Event, Exam,
+    ExamRoom, FeeInvoice, FeeStructure, Notice, Program,
 )
 
 CTRL = "form-control"
@@ -225,8 +225,11 @@ class CourseForm(forms.ModelForm):
     class Meta:
         model = Course
         fields = ["code", "title", "department", "program", "faculty", "credits",
-                  "semester_no", "description", "image_url"]
-        widgets = {"description": forms.Textarea(attrs={"rows": 3})}
+                  "semester_no", "status", "description", "image_url"]
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 3}),
+            "semester_no": forms.Select(choices=[(1, "Semester 1"), (2, "Semester 2"), (3, "Semester 3")]),
+        }
 
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
@@ -274,8 +277,40 @@ class FeeInvoiceForm(forms.ModelForm):
     class Meta:
         model = FeeInvoice
         fields = ["student", "term", "title", "amount", "amount_paid", "due_date"]
+        labels = {"amount": "Amount (KES)", "amount_paid": "Amount paid (KES)"}
         widgets = {"due_date": forms.DateInput(attrs={"type": "date"})}
 
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
         _style(self.fields)
+
+
+class ClassScheduleForm(forms.ModelForm):
+    class Meta:
+        model = ClassSchedule
+        fields = ["course", "term", "room", "day", "start_time", "end_time", "session_type", "status"]
+        widgets = {
+            "start_time": forms.TimeInput(attrs={"type": "time"}),
+            "end_time": forms.TimeInput(attrs={"type": "time"}),
+        }
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self.fields["room"].queryset = ExamRoom.objects.filter(active=True)
+        _style(self.fields)
+
+
+class FeeStructureForm(forms.ModelForm):
+    class Meta:
+        model = FeeStructure
+        fields = [
+            "program", "term", "year_of_study", "semester",
+            "tuition_fee", "registration_fee", "examination_fee",
+            "library_fee", "activity_fee", "medical_fee",
+            "ict_fee", "student_union_fee"
+        ]
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        _style(self.fields)
+

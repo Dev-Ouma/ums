@@ -1,0 +1,11 @@
+<section class="container py-5">
+  {% if block.heading %}<h2 class="fw-bold mb-4">{{ block.heading }}</h2>{% endif %}
+  <ul class="list-group list-group-flush">
+    {% for d in items %}
+      <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+        <span class="fw-semibold">{{ d.name }}</span>
+        <span class="badge badge-soft rounded-pill">{{ d.code }}</span>
+      </li>
+    {% empty %}<li class="list-group-item px-0 text-muted">No departments yet.</li>{% endfor %}
+  </ul>
+</section>

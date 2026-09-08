@@ -1,0 +1,176 @@
+{% extends "base_dashboard.html" %}
+{% load static %}
+{% block title %}Evaluate {{ course.code }} · UMS{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <a href="{% url 'university:student_evaluation_portal' %}" class="btn btn-sm btn-outline-secondary rounded-pill">
+    <i class="fa-solid fa-arrow-left me-1"></i>Back to Evaluations
+  </a>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <!-- Course header card -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4" style="background: linear-gradient(135deg,#6C5CE7,#a29bfe); color:#fff;">
+      <div class="card-body p-4">
+        <div class="d-flex align-items-center gap-3">
+          <div class="rounded-3 p-3" style="background:rgba(255,255,255,.15); font-size:1.8rem;">
+            <i class="fa-solid fa-book-open"></i>
+          </div>
+          <div>
+            <h2 class="fw-bold mb-1" style="font-size:1.3rem;">{{ course.code }} — {{ course.title }}</h2>
+            <p class="mb-0 opacity-80">
+              <i class="fa-solid fa-chalkboard-user me-1"></i>
+              {% if course.faculty %}{{ course.faculty }}{% else %}Lecturer not assigned{% endif %}
+              &nbsp;·&nbsp;
+              <i class="fa-solid fa-calendar-alt me-1"></i>{{ term.name }}
+            </p>
+          </div>
+        </div>
+        <div class="mt-3 p-2 rounded-3" style="background:rgba(255,255,255,.12); font-size:.82rem;">
+          <i class="fa-solid fa-user-secret me-1"></i>
+          <strong>Privacy guarantee:</strong> Your identity is <strong>never</strong> stored alongside your feedback.
+          Submission is one-time per course and completely anonymous.
+        </div>
+      </div>
+    </div>
+
+    <!-- Evaluation Form -->
+    <form method="post" id="evalForm">
+      {% csrf_token %}
+
+      <!-- Rating Dimensions — rendered by JS -->
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header border-0 py-3 px-4" style="background:#f8f9fa; border-radius:1rem 1rem 0 0 !important;">
+          <h5 class="mb-0 fw-semibold"><i class="fa-solid fa-star me-2 text-warning"></i>Rating Dimensions <span class="badge bg-secondary ms-2" style="font-size:.7rem">1 = Poor · 5 = Excellent</span></h5>
+        </div>
+        <div class="card-body p-4" id="ratingContainer">
+          <!-- Injected by JS -->
+        </div>
+      </div>
+
+      <!-- Open Comments -->
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header border-0 py-3 px-4" style="background:#f8f9fa; border-radius:1rem 1rem 0 0 !important;">
+          <h5 class="mb-0 fw-semibold"><i class="fa-solid fa-comment-dots me-2 text-info"></i>Open Feedback <span class="text-muted small fw-normal">(Optional)</span></h5>
+        </div>
+        <div class="card-body p-4">
+          <div class="mb-3">
+            <label for="strengths" class="form-label fw-semibold">What did you find most valuable about this course?</label>
+            <textarea name="strengths" id="strengths" rows="3" class="form-control rounded-3"
+                      placeholder="Share what worked well — teaching style, examples, resources..."
+                      maxlength="2000">{% if post_data %}{{ post_data.strengths }}{% endif %}</textarea>
+          </div>
+          <div>
+            <label for="suggestions" class="form-label fw-semibold">How could this course be improved?</label>
+            <textarea name="suggestions" id="suggestions" rows="3" class="form-control rounded-3"
+                      placeholder="Constructive suggestions for improvement..."
+                      maxlength="2000">{% if post_data %}{{ post_data.suggestions }}{% endif %}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-3 justify-content-end">
+        <a href="{% url 'university:student_evaluation_portal' %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+        <button type="submit" class="btn btn-primary rounded-pill px-5 fw-semibold" id="submitBtn">
+          <i class="fa-solid fa-paper-plane me-2"></i>Submit Evaluation
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+.rating-circle {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:44px; height:44px; border-radius:50%;
+  border:2px solid #dee2e6; font-weight:700; font-size:1rem;
+  cursor:pointer; transition:all .2s; background:#fff; color:#6C5CE7;
+  user-select:none;
+}
+.eval-rating-btn:hover .rating-circle { border-color:#6C5CE7; background:#f0edff; }
+.eval-rating-btn input:checked ~ .rating-circle {
+  background:#6C5CE7; color:#fff; border-color:#6C5CE7;
+  box-shadow:0 0 0 4px rgba(108,92,231,.18);
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const DIMS = [
+  {name:"teaching_quality",    label:"Teaching Quality",              desc:"How effectively did the lecturer present material and engage students?"},
+  {name:"course_content",      label:"Course Content & Delivery",     desc:"Was content relevant, up-to-date, and well-structured?"},
+  {name:"assessment_fairness", label:"Assessment & Examination Fairness", desc:"Were assessments, exams, and grading fair and transparent?"},
+  {name:"resources_adequacy",  label:"Resources & Study Materials",   desc:"Were course materials and tools adequate?"},
+  {name:"overall_satisfaction",label:"Overall Satisfaction",          desc:"Overall, how satisfied are you with this course and lecturer?"},
+];
+
+// Pre-fill post values if form was re-submitted
+const POST = {
+{% if post_data %}
+{% for key, val in post_data.items %}"{{ key }}":"{{ val }}",
+{% endfor %}{% endif %}
+};
+
+const container = document.getElementById("ratingContainer");
+DIMS.forEach((dim, idx) => {
+  const wrap = document.createElement("div");
+  wrap.className = "mb-4" + (idx < DIMS.length - 1 ? " pb-3 border-bottom" : "");
+  wrap.innerHTML = `
+    <label class="form-label fw-semibold mb-1">${dim.label}</label>
+    <p class="text-muted small mb-2">${dim.desc}</p>
+    <div class="d-flex gap-2 flex-wrap" id="grp_${dim.name}">
+      ${[1,2,3,4,5].map(v => `
+        <label class="eval-rating-btn" style="cursor:pointer">
+          <input type="radio" name="${dim.name}" value="${v}" class="d-none" required
+            ${POST[dim.name] == v ? "checked" : ""}>
+          <span class="rating-circle">${v}</span>
+        </label>
+      `).join("")}
+    </div>
+    <div class="d-flex justify-content-between mt-1" style="font-size:.72rem;color:#aaa;max-width:280px;">
+      <span>Poor</span><span>Excellent</span>
+    </div>
+    <div class="text-danger small mt-1 d-none" id="err_${dim.name}">⚠ Please select a rating.</div>
+  `;
+  container.appendChild(wrap);
+});
+
+// Visual feedback on radio change + restore checked state
+document.querySelectorAll(".eval-rating-btn input[type=radio]").forEach(radio => {
+  const syncStyle = (r) => {
+    const group = r.name;
+    document.querySelectorAll(`input[name="${group}"]`).forEach(x => {
+      x.parentElement.querySelector(".rating-circle").removeAttribute("style");
+    });
+    if (r.checked) {
+      r.parentElement.querySelector(".rating-circle").style.cssText =
+        "background:#6C5CE7;color:#fff;border-color:#6C5CE7;box-shadow:0 0 0 4px rgba(108,92,231,.18);";
+    }
+  };
+  radio.addEventListener("change", () => syncStyle(radio));
+  if (radio.checked) syncStyle(radio);
+});
+
+// Client-side validation
+document.getElementById("evalForm").addEventListener("submit", function(e) {
+  let valid = true;
+  DIMS.forEach(dim => {
+    const checked = document.querySelector(`input[name="${dim.name}"]:checked`);
+    const errEl = document.getElementById(`err_${dim.name}`);
+    if (!checked) { valid = false; errEl.classList.remove("d-none"); }
+    else { errEl.classList.add("d-none"); }
+  });
+  if (!valid) {
+    e.preventDefault();
+    document.querySelector(".text-danger.small:not(.d-none)")?.scrollIntoView({behavior:"smooth", block:"center"});
+  } else {
+    const btn = document.getElementById("submitBtn");
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Submitting...';
+    btn.disabled = true;
+  }
+});
+</script>
+{% endblock %}

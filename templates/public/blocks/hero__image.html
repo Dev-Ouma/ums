@@ -1,0 +1,11 @@
+<section class="pub-hero cms-hero"
+  {% if block.image %}style="background-image:linear-gradient(100deg,rgba(16,29,43,.96) 0%,rgba(16,29,43,.85) 32%,rgba(16,29,43,.35) 60%,rgba(16,29,43,0) 78%),url('{{ block.image.url }}')"{% endif %}>
+  <div class="container">
+    {% if block.subheading %}<div class="welcome">{{ block.subheading }}</div>{% endif %}
+    <h1><span class="bold">{{ block.heading }}</span></h1>
+    {% if block.body %}<div class="lead-sub">{{ block.body|safe }}</div>{% endif %}
+    {% if block.link_text %}
+      <a href="{{ block.link_url|default:'#' }}" class="hero-btn">{{ block.link_text }} <i class="fa-solid fa-arrow-right"></i></a>
+    {% endif %}
+  </div>
+</section>

@@ -1,0 +1,882 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+{% block title %}University Reports & Analytics · UMS{% endblock %}
+
+{% block extra_css %}
+<style>
+  .search-container {
+    position: relative;
+    transition: all 0.25s ease;
+  }
+  .search-container:focus-within {
+    box-shadow: 0 0 0 4px rgba(108, 92, 231, 0.15);
+    border-radius: 12px;
+  }
+  .search-icon-prefix {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6C5CE7;
+    font-size: 1.05rem;
+    pointer-events: none;
+  }
+  .search-input-field {
+    padding-left: 46px !important;
+    padding-right: 70px !important;
+    height: 48px;
+    border-radius: 12px !important;
+    font-size: 0.95rem;
+    font-weight: 500;
+    border: 1.5px solid rgba(108, 92, 231, 0.2);
+  }
+  .search-input-field:focus {
+    border-color: #6C5CE7 !important;
+    box-shadow: none !important;
+  }
+  .search-clear-btn {
+    position: absolute;
+    right: 36px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #b2bec3;
+    font-size: 1rem;
+    cursor: pointer;
+    display: none;
+    padding: 4px 6px;
+    border-radius: 50%;
+  }
+  .search-clear-btn:hover {
+    color: #e84393;
+  }
+  .search-kbd-shortcut {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.72rem;
+    padding: 2px 7px;
+    background: #f1f2f6;
+    border: 1px solid #dfe6e9;
+    border-radius: 6px;
+    color: #636e72;
+    pointer-events: none;
+  }
+  
+  .filter-panel {
+    background: #ffffff;
+    border: 1px solid rgba(108, 92, 231, 0.12);
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  }
+
+  .cat-pill-btn {
+    border: 1.5px solid #e2e8f0;
+    background: #ffffff;
+    color: #4a5568;
+    padding: 6px 14px;
+    border-radius: 50px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .cat-pill-btn:hover {
+    border-color: #6C5CE7;
+    color: #6C5CE7;
+    transform: translateY(-1px);
+  }
+  .cat-pill-btn.active {
+    background: #6C5CE7 !important;
+    border-color: #6C5CE7 !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(108, 92, 231, 0.28);
+  }
+  .cat-pill-btn .pill-count {
+    background: rgba(0,0,0,0.08);
+    border-radius: 20px;
+    padding: 1px 7px;
+    font-size: 0.72rem;
+  }
+  .cat-pill-btn.active .pill-count {
+    background: rgba(255,255,255,0.25);
+    color: #ffffff;
+  }
+
+  .report-card-item {
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    border-radius: 14px;
+    border: 1px solid rgba(0,0,0,0.06);
+    position: relative;
+    overflow: hidden;
+  }
+  .report-card-item:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px rgba(108, 92, 231, 0.12);
+    border-color: rgba(108, 92, 231, 0.3);
+  }
+  .report-card-item .card-strip {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 4px;
+  }
+
+  .active-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(108, 92, 231, 0.09);
+    color: #6C5CE7;
+    border: 1px solid rgba(108, 92, 231, 0.22);
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+  .active-filter-chip .chip-remove {
+    cursor: pointer;
+    opacity: 0.65;
+    transition: opacity 0.15s;
+  }
+  .active-filter-chip .chip-remove:hover {
+    opacity: 1;
+    color: #e84393;
+  }
+
+  .highlight-match {
+    background-color: #fff3bf;
+    color: #2d3436;
+    padding: 0 2px;
+    border-radius: 3px;
+    font-weight: 700;
+  }
+
+  .view-btn {
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #718096;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    transition: all 0.15s ease;
+  }
+  .view-btn.active {
+    background: #6C5CE7;
+    border-color: #6C5CE7;
+    color: #fff;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4><i class="fa-solid fa-chart-pie me-2 text-primary"></i>University Reports & Analytics</h4>
+    <p class="text-muted small mb-0">Centralized academic, operational, examination, and Senate consolidated reporting center.</p>
+  </div>
+  <div class="breadcrumb-chip">
+    <i class="fa-solid fa-house me-1"></i> Home <i class="fa-solid fa-angle-right mx-1"></i> Reports
+  </div>
+</div>
+
+<!-- KPI Summary Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">
+    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#6C5CE7,#8f7bff)">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="val">{{ total_reports_count }}</div>
+          <div class="lbl mt-1">Report Catalogues</div>
+        </div>
+        <span class="fs-3 opacity-75"><i class="fa-solid fa-file-contract"></i></span>
+      </div>
+      <div class="delta mt-2"><i class="fa-solid fa-layer-group"></i> 7 Major Categories</div>
+      <i class="fa-solid fa-file-contract ghost"></i>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#00b894,#55efc4)">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="val">{{ total_students|intcomma }}</div>
+          <div class="lbl mt-1">Student Population</div>
+        </div>
+        <span class="fs-3 opacity-75"><i class="fa-solid fa-user-graduate"></i></span>
+      </div>
+      <div class="delta mt-2"><i class="fa-solid fa-check-double"></i> Live Enrolled Database</div>
+      <i class="fa-solid fa-user-graduate ghost"></i>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#0984e3,#74b9ff)">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="val">{{ overall_pass_rate }}%</div>
+          <div class="lbl mt-1">Overall Pass Rate</div>
+        </div>
+        <span class="fs-3 opacity-75"><i class="fa-solid fa-award"></i></span>
+      </div>
+      <div class="delta mt-2"><i class="fa-solid fa-chart-line"></i> Exam Marks Evaluated</div>
+      <i class="fa-solid fa-award ghost"></i>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#e84393,#fd79a8)">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="val">{{ total_exams }}</div>
+          <div class="lbl mt-1">Exams & Sessions</div>
+        </div>
+        <span class="fs-3 opacity-75"><i class="fa-solid fa-file-pen"></i></span>
+      </div>
+      <div class="delta mt-2"><i class="fa-solid fa-building-columns"></i> Senate Moderated</div>
+      <i class="fa-solid fa-file-pen ghost"></i>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================================== -->
+<!-- ADVANCED FILTERS & SEARCH TOOLBAR (Replaces Static Tabs) -->
+<!-- ============================================================================== -->
+<div class="card filter-panel p-3 p-md-4 mb-4">
+  <div class="row g-3 align-items-center">
+    
+    <!-- Real-time Search Input -->
+    <div class="col-12 col-lg-6">
+      <div class="search-container">
+        <i class="fa-solid fa-magnifying-glass search-icon-prefix"></i>
+        <input 
+          type="text" 
+          id="reportSearchInput" 
+          class="form-control search-input-field" 
+          placeholder="Search reports by title, description, category, or filter..."
+          value="{{ selected_q }}"
+          autocomplete="off"
+        >
+        <button type="button" id="clearSearchBtn" class="search-clear-btn" title="Clear search">
+          <i class="fa-solid fa-circle-xmark"></i>
+        </button>
+        <span class="search-kbd-shortcut d-none d-sm-inline" title="Press '/' to focus search">/</span>
+      </div>
+    </div>
+
+    <!-- Advanced Filter Controls -->
+    <div class="col-12 col-lg-6">
+      <div class="row g-2 align-items-center justify-content-lg-end">
+        
+        <!-- Category Dropdown -->
+        <div class="col-6 col-sm-4">
+          <select id="categoryFilter" class="form-select form-select-sm rounded-3 fw-semibold">
+            <option value="all" {% if selected_cat == 'all' %}selected{% endif %}>All Categories ({{ total_reports_count }})</option>
+            {% for cat_data in categorized_reports %}
+            <option value="{{ cat_data.category.id }}" {% if selected_cat == cat_data.category.id %}selected{% endif %}>
+              {{ cat_data.category.title }} ({{ cat_data.count }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Target Audience Dropdown -->
+        <div class="col-6 col-sm-4">
+          <select id="audienceFilter" class="form-select form-select-sm rounded-3 fw-semibold">
+            <option value="all" {% if selected_audience == 'all' %}selected{% endif %}>All Audiences</option>
+            {% for aud in distinct_audiences %}
+            <option value="{{ aud }}" {% if selected_audience == aud %}selected{% endif %}>{{ aud }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Sort Order Selector -->
+        <div class="col-6 col-sm-4">
+          <select id="sortFilter" class="form-select form-select-sm rounded-3 fw-semibold">
+            <option value="default" {% if selected_sort == 'default' %}selected{% endif %}>Sort: Default</option>
+            <option value="name_asc" {% if selected_sort == 'name_asc' %}selected{% endif %}>Title (A → Z)</option>
+            <option value="name_desc" {% if selected_sort == 'name_desc' %}selected{% endif %}>Title (Z → A)</option>
+            <option value="category" {% if selected_sort == 'category' %}selected{% endif %}>By Category</option>
+            <option value="filters_count" {% if selected_sort == 'filters_count' %}selected{% endif %}>Most Configurable</option>
+          </select>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Interactive Category Badges / Quick Filter Pills -->
+  <div class="d-flex align-items-center gap-2 flex-wrap mt-3 pt-3 border-top">
+    <span class="text-muted small fw-bold me-1"><i class="fa-solid fa-filter me-1 text-primary"></i>Quick Category:</span>
+    
+    <button type="button" class="cat-pill-btn {% if selected_cat == 'all' or not selected_cat %}active{% endif %}" data-cat="all">
+      <i class="fa-solid fa-border-all"></i> All
+      <span class="pill-count">{{ total_reports_count }}</span>
+    </button>
+
+    {% for cat_data in categorized_reports %}
+    <button 
+      type="button" 
+      class="cat-pill-btn {% if selected_cat == cat_data.category.id %}active{% endif %}" 
+      data-cat="{{ cat_data.category.id }}"
+      style="{% if selected_cat == cat_data.category.id %}background:{{ cat_data.category.color }} !important;border-color:{{ cat_data.category.color }} !important;{% endif %}"
+    >
+      <i class="fa-solid {{ cat_data.category.icon }}" style="color:{% if selected_cat == cat_data.category.id %}#fff{% else %}{{ cat_data.category.color }}{% endif %};"></i>
+      {{ cat_data.category.title }}
+      <span class="pill-count">{{ cat_data.count }}</span>
+    </button>
+    {% endfor %}
+  </div>
+
+  <!-- Active Filters Summary & Layout Switcher -->
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3 pt-2">
+    <div class="d-flex align-items-center gap-2 flex-wrap" id="activeFilterStatus">
+      <span class="small text-muted fw-semibold">
+        Showing <strong id="visibleCount" class="text-dark">{{ all_reports|length }}</strong> of {{ total_reports_count }} reports
+      </span>
+      <div id="filterChipsContainer" class="d-inline-flex align-items-center gap-2 flex-wrap"></div>
+      <button type="button" id="resetAllFiltersBtn" class="btn btn-link btn-sm text-decoration-none p-0 text-danger small fw-semibold" style="display:none;">
+        <i class="fa-solid fa-rotate-left me-1"></i>Reset filters
+      </button>
+    </div>
+
+    <!-- Layout Switcher: Grid vs List -->
+    <div class="d-flex align-items-center gap-1">
+      <span class="text-muted small me-1 d-none d-sm-inline">Layout:</span>
+      <button type="button" id="btnViewGrid" class="view-btn active" title="Grid View">
+        <i class="fa-solid fa-table-cells-large"></i>
+      </button>
+      <button type="button" id="btnViewList" class="view-btn" title="Compact List View">
+        <i class="fa-solid fa-list"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================================== -->
+<!-- REPORTS CATALOG DISPLAY (Grid & List View) -->
+<!-- ============================================================================== -->
+
+<!-- 1. Grid View (Default) -->
+<div id="reportsGrid" class="row g-3 mb-4">
+  {% for rep in all_reports %}
+  <div 
+    class="col-md-6 col-xl-4 report-item-wrapper" 
+    data-key="{{ rep.key }}"
+    data-title="{{ rep.title|lower }}"
+    data-desc="{{ rep.description|lower }}"
+    data-cat="{{ rep.category }}"
+    data-audience="{{ rep.audience|lower }}"
+    data-orientation="{{ rep.orientation }}"
+    data-filters="{% for f in rep.filters %}{{ f|lower }} {% endfor %}"
+    data-filter-count="{{ rep.filters|length }}"
+  >
+    <div class="card card-ums report-card-item h-100 p-3 d-flex flex-column justify-content-between">
+      <div class="card-strip" style="background:{{ rep.category_info.color }};"></div>
+      
+      <div>
+        <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
+          <div class="d-flex align-items-center gap-2">
+            <span class="icon-circle shadow-sm" style="width:40px;height:40px;background:{{ rep.category_info.color }};color:#ffffff;font-size:1.05rem;border-radius:10px;">
+              <i class="fa-solid {{ rep.icon }}"></i>
+            </span>
+            <div>
+              <span class="badge rounded-pill text-white small" style="background:{{ rep.category_info.color }};font-size:0.72rem;">
+                <i class="fa-solid {{ rep.category_info.icon }} me-1"></i>{{ rep.category_info.title }}
+              </span>
+            </div>
+          </div>
+
+          <span class="badge bg-light text-muted border rounded-pill small" style="font-size:0.7rem;">
+            <i class="fa-solid {% if rep.orientation == 'landscape' %}fa-file-lines{% else %}fa-file{% endif %} me-1"></i>
+            {{ rep.orientation|title }}
+          </span>
+        </div>
+
+        <h6 class="fw-bold mb-1 report-title-text" style="font-size:0.96rem;line-height:1.35;">
+          {{ rep.title }}
+        </h6>
+        
+        <p class="text-muted small mb-2 report-desc-text" style="min-height:38px;line-height:1.45;font-size:0.83rem;">
+          {{ rep.description }}
+        </p>
+
+        <div class="d-flex align-items-center justify-content-between text-muted small py-1 border-top" style="font-size:0.76rem;">
+          <span title="Target stakeholder">
+            <i class="fa-solid fa-users-viewfinder text-primary me-1"></i>{{ rep.audience }}
+          </span>
+          <span title="Configurable filters">
+            <i class="fa-solid fa-sliders text-secondary me-1"></i>{{ rep.filters|length }} Filter{{ rep.filters|pluralize }}
+          </span>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center pt-2 mt-2 border-top">
+        <!-- Quick Direct Export Dropdown -->
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary rounded-pill dropdown-toggle px-2 py-1" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="font-size:0.78rem;">
+            <i class="fa-solid fa-download me-1"></i> Export
+          </button>
+          <ul class="dropdown-menu dropdown-menu-start shadow-sm" style="font-size:0.85rem;">
+            <li>
+              <a class="dropdown-item py-2" href="{% url 'university:export_report' rep.key 'pdf' %}">
+                <i class="fa-solid fa-file-pdf text-danger me-2"></i> PDF Document (.pdf)
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item py-2" href="{% url 'university:export_report' rep.key 'excel' %}">
+                <i class="fa-solid fa-file-excel text-success me-2"></i> Excel Spreadsheet (.xlsx)
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item py-2" href="{% url 'university:export_report' rep.key 'csv' %}">
+                <i class="fa-solid fa-file-csv text-primary me-2"></i> CSV Data File (.csv)
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <a href="{% url 'university:report_view' rep.key %}" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm">
+          <i class="fa-solid fa-play me-1"></i> Run Report
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- 2. Compact List View (Hidden by default) -->
+<div id="reportsList" class="card card-ums mb-4 d-none">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0" style="font-size:.88rem;">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-4" style="min-width:280px;">Report Name</th>
+          <th>Category</th>
+          <th>Target Stakeholder</th>
+          <th>Layout</th>
+          <th>Filters</th>
+          <th class="text-end pe-4">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rep in all_reports %}
+        <tr 
+          class="report-list-row"
+          data-key="{{ rep.key }}"
+          data-title="{{ rep.title|lower }}"
+          data-desc="{{ rep.description|lower }}"
+          data-cat="{{ rep.category }}"
+          data-audience="{{ rep.audience|lower }}"
+          data-orientation="{{ rep.orientation }}"
+          data-filters="{% for f in rep.filters %}{{ f|lower }} {% endfor %}"
+          data-filter-count="{{ rep.filters|length }}"
+        >
+          <td class="ps-4">
+            <div class="d-flex align-items-center gap-3">
+              <span class="icon-circle" style="width:34px;height:34px;background:{{ rep.category_info.color }};color:#fff;font-size:0.9rem;border-radius:8px;">
+                <i class="fa-solid {{ rep.icon }}"></i>
+              </span>
+              <div>
+                <div class="fw-bold report-title-text">{{ rep.title }}</div>
+                <div class="text-muted small report-desc-text" style="font-size:0.78rem;">{{ rep.description|truncatechars:70 }}</div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="badge rounded-pill text-white" style="background:{{ rep.category_info.color }};font-size:0.75rem;">
+              <i class="fa-solid {{ rep.category_info.icon }} me-1"></i>{{ rep.category_info.title }}
+            </span>
+          </td>
+          <td class="text-muted small">{{ rep.audience }}</td>
+          <td>
+            <span class="badge bg-light text-muted border rounded-pill" style="font-size:0.72rem;">
+              {{ rep.orientation|title }}
+            </span>
+          </td>
+          <td class="text-muted small">
+            <span class="badge bg-light text-secondary border rounded-pill">
+              {{ rep.filters|length }} Filter{{ rep.filters|pluralize }}
+            </span>
+          </td>
+          <td class="text-end pe-4">
+            <div class="btn-group">
+              <a href="{% url 'university:report_view' rep.key %}" class="btn btn-sm btn-primary rounded-pill px-3">
+                <i class="fa-solid fa-play me-1"></i> Run
+              </a>
+              <button type="button" class="btn btn-sm btn-primary dropdown-toggle dropdown-toggle-split rounded-pill ms-1" data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="visually-hidden">Toggle Dropdown</span>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                <li>
+                  <a class="dropdown-item py-2" href="{% url 'university:export_report' rep.key 'pdf' %}">
+                    <i class="fa-solid fa-file-pdf text-danger me-2"></i> Export PDF
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item py-2" href="{% url 'university:export_report' rep.key 'excel' %}">
+                    <i class="fa-solid fa-file-excel text-success me-2"></i> Export Excel
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item py-2" href="{% url 'university:export_report' rep.key 'csv' %}">
+                    <i class="fa-solid fa-file-csv text-primary me-2"></i> Export CSV
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Empty State when no reports match search/filter -->
+<div id="noReportsState" class="card card-ums text-center p-5 mb-4 d-none">
+  <div class="py-4">
+    <div class="mb-3 text-muted opacity-50">
+      <i class="fa-solid fa-magnifying-glass-chart fa-4x"></i>
+    </div>
+    <h5 class="fw-bold mb-1">No Matching Reports Found</h5>
+    <p class="text-muted small mb-3">No report catalogues matched your search keyword or selected filter criteria.</p>
+    <button type="button" id="emptyStateResetBtn" class="btn btn-outline-primary rounded-pill px-4">
+      <i class="fa-solid fa-rotate-left me-1"></i> Reset All Filters
+    </button>
+  </div>
+</div>
+
+<!-- Recent Report Generation Audit Ledger -->
+{% if recent_reports %}
+<div class="card card-ums mt-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>Recent Report Generation Log</span>
+    <span class="badge-soft badge rounded-pill">Audit Trail Logged</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0" style="font-size:.85rem;">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-4">Timestamp</th>
+          <th>Action</th>
+          <th>Target Report</th>
+          <th>Generated By</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in recent_reports %}
+        <tr>
+          <td class="ps-4 text-muted">{{ r.timestamp|date:"d M Y H:i" }}</td>
+          <td>
+            <span class="badge {% if 'EXPORT' in r.action %}bg-success{% else %}bg-primary{% endif %} rounded-pill">
+              {{ r.action }}
+            </span>
+          </td>
+          <td class="fw-semibold">{{ r.target_repr }}</td>
+          <td>{{ r.actor_username }}</td>
+          <td class="text-muted small">{{ r.details|truncatechars:45 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const searchInput = document.getElementById('reportSearchInput');
+  const clearSearchBtn = document.getElementById('clearSearchBtn');
+  const categoryFilter = document.getElementById('categoryFilter');
+  const audienceFilter = document.getElementById('audienceFilter');
+  const sortFilter = document.getElementById('sortFilter');
+  const catPillBtns = document.querySelectorAll('.cat-pill-btn');
+  const gridCards = document.querySelectorAll('.report-item-wrapper');
+  const listRows = document.querySelectorAll('.report-list-row');
+  const visibleCountEl = document.getElementById('visibleCount');
+  const filterChipsContainer = document.getElementById('filterChipsContainer');
+  const resetAllBtn = document.getElementById('resetAllFiltersBtn');
+  const emptyResetBtn = document.getElementById('emptyStateResetBtn');
+  const noReportsState = document.getElementById('noReportsState');
+  const reportsGrid = document.getElementById('reportsGrid');
+  const reportsList = document.getElementById('reportsList');
+  const btnViewGrid = document.getElementById('btnViewGrid');
+  const btnViewList = document.getElementById('btnViewList');
+
+  // Store original titles & descriptions for text highlighting
+  const originalCardTexts = new Map();
+  gridCards.forEach(card => {
+    const key = card.dataset.key;
+    const titleEl = card.querySelector('.report-title-text');
+    const descEl = card.querySelector('.report-desc-text');
+    originalCardTexts.set(key, {
+      title: titleEl ? titleEl.textContent.trim() : '',
+      desc: descEl ? descEl.textContent.trim() : ''
+    });
+  });
+
+  // Keyboard shortcut '/' to focus search
+  document.addEventListener('keydown', function(e) {
+    if (e.key === '/' && document.activeElement !== searchInput && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
+      e.preventDefault();
+      searchInput.focus();
+      searchInput.select();
+    }
+    if (e.key === 'Escape' && document.activeElement === searchInput) {
+      if (searchInput.value) {
+        searchInput.value = '';
+        applyFilters();
+      } else {
+        searchInput.blur();
+      }
+    }
+  });
+
+  // View mode persistence
+  const savedView = localStorage.getItem('ums_reports_view_mode') || 'grid';
+  setViewMode(savedView);
+
+  btnViewGrid.addEventListener('click', () => setViewMode('grid'));
+  btnViewList.addEventListener('click', () => setViewMode('list'));
+
+  function setViewMode(mode) {
+    if (mode === 'list') {
+      reportsGrid.classList.add('d-none');
+      reportsList.classList.remove('d-none');
+      btnViewList.classList.add('active');
+      btnViewGrid.classList.remove('active');
+      localStorage.setItem('ums_reports_view_mode', 'list');
+    } else {
+      reportsList.classList.add('d-none');
+      reportsGrid.classList.remove('d-none');
+      btnViewGrid.classList.add('active');
+      btnViewList.classList.remove('active');
+      localStorage.setItem('ums_reports_view_mode', 'grid');
+    }
+  }
+
+  // Event Listeners
+  searchInput.addEventListener('input', function() {
+    clearSearchBtn.style.display = this.value ? 'block' : 'none';
+    applyFilters();
+  });
+
+  clearSearchBtn.addEventListener('click', function() {
+    searchInput.value = '';
+    clearSearchBtn.style.display = 'none';
+    searchInput.focus();
+    applyFilters();
+  });
+
+  categoryFilter.addEventListener('change', function() {
+    syncPillState(this.value);
+    applyFilters();
+  });
+
+  audienceFilter.addEventListener('change', applyFilters);
+  sortFilter.addEventListener('change', applyFilters);
+
+  catPillBtns.forEach(btn => {
+    btn.addEventListener('click', function() {
+      const cat = this.dataset.cat;
+      categoryFilter.value = cat;
+      syncPillState(cat);
+      applyFilters();
+    });
+  });
+
+  function syncPillState(selectedCat) {
+    catPillBtns.forEach(btn => {
+      const isMatch = (btn.dataset.cat === selectedCat);
+      btn.classList.toggle('active', isMatch);
+      if (isMatch && selectedCat !== 'all') {
+        const color = btn.style.borderColor || '#6C5CE7';
+        btn.style.backgroundColor = color;
+        btn.style.borderColor = color;
+      } else if (!isMatch) {
+        btn.style.backgroundColor = '';
+        btn.style.borderColor = '';
+      }
+    });
+  }
+
+  resetAllBtn.addEventListener('click', resetFilters);
+  emptyResetBtn.addEventListener('click', resetFilters);
+
+  function resetFilters() {
+    searchInput.value = '';
+    clearSearchBtn.style.display = 'none';
+    categoryFilter.value = 'all';
+    audienceFilter.value = 'all';
+    sortFilter.value = 'default';
+    syncPillState('all');
+    applyFilters();
+  }
+
+  // Highlight helper
+  function highlightText(text, query) {
+    if (!query) return text;
+    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    return text.replace(regex, '<span class="highlight-match">$1</span>');
+  }
+
+  // Master Filter & Sort function
+  function applyFilters() {
+    const q = searchInput.value.trim().toLowerCase();
+    const cat = categoryFilter.value;
+    const aud = audienceFilter.value.toLowerCase();
+    const sort = sortFilter.value;
+
+    let visibleCount = 0;
+    const items = [];
+
+    gridCards.forEach((card, idx) => {
+      const key = card.dataset.key;
+      const title = card.dataset.title;
+      const desc = card.dataset.desc;
+      const itemCat = card.dataset.cat;
+      const itemAud = card.dataset.audience;
+      const itemFilters = card.dataset.filters;
+      const filterCount = parseInt(card.dataset.filterCount || 0, 10);
+      const listRow = listRows[idx];
+
+      const matchQ = !q || title.includes(q) || desc.includes(q) || itemCat.includes(q) || itemAud.includes(q) || itemFilters.includes(q);
+      const matchCat = (cat === 'all') || (itemCat === cat);
+      const matchAud = (aud === 'all') || itemAud.includes(aud);
+
+      const isVisible = matchQ && matchCat && matchAud;
+
+      if (isVisible) {
+        visibleCount++;
+        items.push({
+          card,
+          listRow,
+          title,
+          filterCount,
+          category: itemCat,
+          key
+        });
+        card.style.display = '';
+        if (listRow) listRow.style.display = '';
+
+        // Highlight matching text in title & desc
+        const orig = originalCardTexts.get(key);
+        if (orig) {
+          const titleEl = card.querySelector('.report-title-text');
+          const descEl = card.querySelector('.report-desc-text');
+          if (titleEl) titleEl.innerHTML = highlightText(orig.title, q);
+          if (descEl) descEl.innerHTML = highlightText(orig.desc, q);
+        }
+      } else {
+        card.style.display = 'none';
+        if (listRow) listRow.style.display = 'none';
+      }
+    });
+
+    // Sorting
+    if (sort !== 'default' && items.length > 0) {
+      items.sort((a, b) => {
+        if (sort === 'name_asc') return a.title.localeCompare(b.title);
+        if (sort === 'name_desc') return b.title.localeCompare(a.title);
+        if (sort === 'category') return a.category.localeCompare(b.category) || a.title.localeCompare(b.title);
+        if (sort === 'filters_count') return b.filterCount - a.filterCount;
+        return 0;
+      });
+
+      // Re-append in sorted order
+      items.forEach(item => {
+        reportsGrid.appendChild(item.card);
+        if (item.listRow) reportsList.querySelector('tbody').appendChild(item.listRow);
+      });
+    }
+
+    // Update Counter & Empty State
+    visibleCountEl.textContent = visibleCount;
+    if (visibleCount === 0) {
+      noReportsState.classList.remove('d-none');
+      reportsGrid.classList.add('d-none');
+      reportsList.classList.add('d-none');
+    } else {
+      noReportsState.classList.add('d-none');
+      if (btnViewList.classList.contains('active')) {
+        reportsList.classList.remove('d-none');
+      } else {
+        reportsGrid.classList.remove('d-none');
+      }
+    }
+
+    // Render Active Filter Chips
+    renderFilterChips(q, cat, aud, sort);
+  }
+
+  function renderFilterChips(q, cat, aud, sort) {
+    filterChipsContainer.innerHTML = '';
+    let hasFilters = false;
+
+    if (q) {
+      hasFilters = true;
+      const chip = createChip(`Search: "${q}"`, () => {
+        searchInput.value = '';
+        clearSearchBtn.style.display = 'none';
+        applyFilters();
+      });
+      filterChipsContainer.appendChild(chip);
+    }
+
+    if (cat !== 'all') {
+      hasFilters = true;
+      const catText = categoryFilter.options[categoryFilter.selectedIndex].text.split('(')[0].trim();
+      const chip = createChip(`Category: ${catText}`, () => {
+        categoryFilter.value = 'all';
+        syncPillState('all');
+        applyFilters();
+      });
+      filterChipsContainer.appendChild(chip);
+    }
+
+    if (aud !== 'all') {
+      hasFilters = true;
+      const chip = createChip(`Audience: ${aud}`, () => {
+        audienceFilter.value = 'all';
+        applyFilters();
+      });
+      filterChipsContainer.appendChild(chip);
+    }
+
+    if (sort !== 'default') {
+      hasFilters = true;
+      const sortText = sortFilter.options[sortFilter.selectedIndex].text;
+      const chip = createChip(`${sortText}`, () => {
+        sortFilter.value = 'default';
+        applyFilters();
+      });
+      filterChipsContainer.appendChild(chip);
+    }
+
+    resetAllBtn.style.display = hasFilters ? 'inline-block' : 'none';
+  }
+
+  function createChip(label, onRemove) {
+    const chip = document.createElement('span');
+    chip.className = 'active-filter-chip';
+    chip.innerHTML = `${label} <i class="fa-solid fa-xmark chip-remove"></i>`;
+    chip.querySelector('.chip-remove').addEventListener('click', onRemove);
+    return chip;
+  }
+
+  // Initial filter run on page load
+  if (searchInput.value) clearSearchBtn.style.display = 'block';
+  applyFilters();
+});
+</script>
+{% endblock %}

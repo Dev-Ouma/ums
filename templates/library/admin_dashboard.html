@@ -1,0 +1,365 @@
+{% extends "base_dashboard.html" %}
+{% load static %}
+
+{% block title %}Library Circulation & Repository — University Management System{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <!-- Page Header -->
+  <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+    <div>
+      <h1 class="h3 fw-bold mb-1 text-dark">
+        <i class="fa-solid fa-book-bookmark text-primary me-2"></i>Library Circulation & Repository Desk
+      </h1>
+      <p class="text-muted mb-0">Manage catalog volumes, circulation desk issue/returns, and digital past papers.</p>
+    </div>
+  </div>
+
+  <!-- Metric Badges -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-4">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <span class="text-muted small text-uppercase fw-semibold">Catalog Titles</span>
+            <h3 class="fw-bold mb-0 text-primary mt-1">{{ total_titles }}</h3>
+          </div>
+          <div class="badge-icon bg-primary-subtle text-primary p-3 rounded-circle">
+            <i class="fa-solid fa-books fs-4"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-4">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <span class="text-muted small text-uppercase fw-semibold">Active Loans</span>
+            <h3 class="fw-bold mb-0 text-success mt-1">{{ active_loans }}</h3>
+          </div>
+          <div class="badge-icon bg-success-subtle text-success p-3 rounded-circle">
+            <i class="fa-solid fa-book-reader fs-4"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-4">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <span class="text-muted small text-uppercase fw-semibold">Overdue Loans</span>
+            <h3 class="fw-bold mb-0 text-danger mt-1">{{ overdue_loans }}</h3>
+          </div>
+          <div class="badge-icon bg-danger-subtle text-danger p-3 rounded-circle">
+            <i class="fa-solid fa-triangle-exclamation fs-4"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs Navigation -->
+  <ul class="nav nav-pills gap-2 mb-4 bg-white p-2 rounded-4 shadow-sm border">
+    <li class="nav-item">
+      <a class="nav-link rounded-3 fw-semibold {% if active_tab == 'circulation' %}active{% endif %}" href="?tab=circulation">
+        <i class="fa-solid fa-arrow-right-arrow-left me-1"></i> Circulation Desk
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link rounded-3 fw-semibold {% if active_tab == 'catalog' %}active{% endif %}" href="?tab=catalog">
+        <i class="fa-solid fa-book me-1"></i> Book Catalog
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link rounded-3 fw-semibold {% if active_tab == 'past_papers' %}active{% endif %}" href="?tab=past_papers">
+        <i class="fa-solid fa-file-pdf me-1"></i> Past Exam Papers
+      </a>
+    </li>
+  </ul>
+
+  <!-- Tab 1: Circulation Desk -->
+  {% if active_tab == 'circulation' %}
+    <div class="row g-4 mb-4">
+      <!-- Quick Check-out Form -->
+      <div class="col-12 col-lg-4">
+        <div class="card border-0 shadow-sm rounded-4 p-4">
+          <h5 class="fw-bold mb-1 text-dark">Issue Reference Volume</h5>
+          <p class="text-muted small mb-3">Check out a book to a student or faculty member.</p>
+          <form method="post" action="{% url 'university:admin_library_issue' %}">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Select Book</label>
+              <select name="book_id" class="form-select" required>
+                <option value="">Choose Volume...</option>
+                {% for b in books %}
+                  {% if b.available_copies > 0 %}
+                    <option value="{{ b.id }}">{{ b.title }} ({{ b.available_copies }} free)</option>
+                  {% endif %}
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Borrower Username or Email</label>
+              <input type="text" name="borrower_username" class="form-control" placeholder="e.g. stu.aarav or student email" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Loan Period (Days)</label>
+              <input type="number" name="days" class="form-control" value="14" min="1" max="60" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">
+              <i class="fa-solid fa-hand-holding-hand me-1"></i> Issue Volume
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Active Loans Table -->
+      <div class="col-12 col-lg-8">
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+          <div class="card-header bg-white border-0 p-4 pb-2 d-flex align-items-center justify-content-between">
+            <h5 class="fw-bold mb-0 text-dark">Current Circulation Ledger</h5>
+            <span class="badge bg-light text-muted border">{{ loans_page.paginator.count }} transactions</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light text-uppercase small text-muted">
+                <tr>
+                  <th class="ps-4">Book Title</th>
+                  <th>Borrower</th>
+                  <th>Due Date</th>
+                  <th>Status</th>
+                  <th class="text-end pe-4">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for loan in loans_page %}
+                  <tr>
+                    <td class="ps-4">
+                      <div class="d-flex flex-column">
+                        <span class="fw-semibold text-dark">{{ loan.book.title }}</span>
+                        <span class="text-muted small">{{ loan.book.call_number }}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="d-flex flex-column">
+                        <span class="small fw-semibold text-dark">{{ loan.borrower.get_full_name|default:loan.borrower.username }}</span>
+                        <span class="text-muted font-monospace" style="font-size: 0.72rem;">{{ loan.borrower.username }}</span>
+                      </div>
+                    </td>
+                    <td><span class="small text-dark">{{ loan.due_date|date:"M d, Y" }}</span></td>
+                    <td>
+                      {% if loan.status == 'RETURNED' %}
+                        <span class="badge bg-secondary-subtle text-secondary border">Returned</span>
+                      {% elif loan.status == 'OVERDUE' %}
+                        <span class="badge bg-danger text-white">Overdue</span>
+                      {% else %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+                      {% endif %}
+                    </td>
+                    <td class="text-end pe-4">
+                      {% if loan.status != 'RETURNED' %}
+                        <form method="post" action="{% url 'university:admin_library_return' loan.pk %}" class="d-inline">
+                          {% csrf_token %}
+                          <button type="submit" class="btn btn-sm btn-outline-success" title="Mark Returned">
+                            <i class="fa-solid fa-arrow-turn-down-left me-1"></i> Return
+                          </button>
+                        </form>
+                      {% else %}
+                        <span class="small text-muted">Cleared</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="5" class="text-center py-5">
+                      <p class="text-muted small mb-0">No active book loans recorded.</p>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  <!-- Tab 2: Book Catalog -->
+  {% elif active_tab == 'catalog' %}
+    <div class="row g-4">
+      <div class="col-12 col-lg-4">
+        <div class="card border-0 shadow-sm rounded-4 p-4">
+          <h5 class="fw-bold mb-1 text-dark">Add New Title</h5>
+          <p class="text-muted small mb-3">Register a new volume into the catalog.</p>
+          <form method="post" action="{% url 'university:admin_library_book_create' %}">
+            {% csrf_token %}
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Book Title</label>
+              <input type="text" name="title" class="form-control" required>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Author(s)</label>
+              <input type="text" name="author" class="form-control" required>
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col-6">
+                <label class="form-label small fw-semibold">ISBN</label>
+                <input type="text" name="isbn" class="form-control">
+              </div>
+              <div class="col-6">
+                <label class="form-label small fw-semibold">Category</label>
+                <input type="text" name="category" class="form-control" value="Computer Science">
+              </div>
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col-6">
+                <label class="form-label small fw-semibold">Call Number</label>
+                <input type="text" name="call_number" class="form-control" placeholder="QA76.73">
+              </div>
+              <div class="col-6">
+                <label class="form-label small fw-semibold">Shelf Location</label>
+                <input type="text" name="shelf_location" class="form-control" value="Stack 1, Shelf A">
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Total Copies</label>
+              <input type="number" name="copies" class="form-control" value="5" min="1" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">
+              <i class="fa-solid fa-plus me-1"></i> Register Title
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-8">
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light text-uppercase small text-muted">
+                <tr>
+                  <th class="ps-4">Title & Author</th>
+                  <th>Category</th>
+                  <th>Call Number</th>
+                  <th>Location</th>
+                  <th class="pe-4">Available</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for b in books %}
+                  <tr>
+                    <td class="ps-4">
+                      <div class="d-flex flex-column">
+                        <span class="fw-semibold text-dark">{{ b.title }}</span>
+                        <span class="text-muted small">{{ b.author }}</span>
+                      </div>
+                    </td>
+                    <td><span class="badge bg-light text-dark border">{{ b.category }}</span></td>
+                    <td><span class="small font-monospace">{{ b.call_number|default:"—" }}</span></td>
+                    <td><span class="small text-muted">{{ b.shelf_location }}</span></td>
+                    <td class="pe-4">
+                      <span class="badge {% if b.available_copies > 0 %}bg-success-subtle text-success{% else %}bg-danger-subtle text-danger{% endif %} border">
+                        {{ b.available_copies }} / {{ b.total_copies }}
+                      </span>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  <!-- Tab 3: Past Exam Papers -->
+  {% elif active_tab == 'past_papers' %}
+    <div class="row g-4">
+      <div class="col-12 col-lg-4">
+        <div class="card border-0 shadow-sm rounded-4 p-4">
+          <h5 class="fw-bold mb-1 text-dark">Upload Past Exam Paper</h5>
+          <p class="text-muted small mb-3">Add examination papers to the revision repository.</p>
+          <form method="post" action="{% url 'university:admin_past_paper_create' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Course</label>
+              <select name="course_id" class="form-select" required>
+                {% for c in courses %}
+                  <option value="{{ c.id }}">{{ c.code }} — {{ c.title }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Academic Term</label>
+              <select name="term_id" class="form-select" required>
+                {% for t in terms %}
+                  <option value="{{ t.id }}">{{ t.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Exam Type</label>
+              <select name="exam_type" class="form-select">
+                <option value="MAIN">Main University Exam</option>
+                <option value="CAT">Continuous Assessment Test</option>
+                <option value="SUPPLEMENTARY">Supplementary Exam</option>
+              </select>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Paper Title</label>
+              <input type="text" name="title" class="form-control" placeholder="e.g. End of Semester Exam 2025" required>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Academic Year</label>
+              <input type="text" name="academic_year" class="form-control" value="2024/2025" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">PDF File Attachment (Optional)</label>
+              <input type="file" name="file_attachment" class="form-control" accept=".pdf">
+            </div>
+            <button type="submit" class="btn btn-primary w-100">
+              <i class="fa-solid fa-cloud-arrow-up me-1"></i> Upload Paper
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-8">
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light text-uppercase small text-muted">
+                <tr>
+                  <th class="ps-4">Course & Title</th>
+                  <th>Term</th>
+                  <th>Type</th>
+                  <th class="pe-4 text-end">Published</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for pp in past_papers %}
+                  <tr>
+                    <td class="ps-4">
+                      <div class="d-flex flex-column">
+                        <span class="fw-semibold text-dark">{{ pp.course.code }} — {{ pp.title }}</span>
+                        <span class="text-muted small">{{ pp.course.title }}</span>
+                      </div>
+                    </td>
+                    <td><span class="small text-dark">{{ pp.term.name }}</span></td>
+                    <td><span class="badge bg-light text-dark border">{{ pp.get_exam_type_display }}</span></td>
+                    <td class="pe-4 text-end"><span class="small text-muted">{{ pp.uploaded_at|date:"M d, Y" }}</span></td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="4" class="text-center py-5">
+                      <p class="text-muted small mb-0">No past papers uploaded yet.</p>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

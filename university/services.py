@@ -53,10 +53,11 @@ def student_stats(student) -> dict:
     att_present = att_qs.filter(status__in=[Attendance.PRESENT, Attendance.LATE]).count()
     attendance_pct = round(att_present / att_total * 100, 1) if att_total else 0.0
 
-    results = Result.objects.filter(student=student).select_related("exam__course")
+    results = Result.objects.filter(exam__status=Exam.Status.PUBLISHED, student=student).select_related("exam__course")
     pcts = [r.percentage for r in results]
     avg_marks = round(sum(pcts) / len(pcts), 1) if pcts else 0.0
-    gpa = round(min(10.0, avg_marks / 9.5), 2)
+    from .examination_services import student_statement
+    gpa = student_statement(student).gpa
 
     # weakest subject by average percentage
     subject_scores: dict[str, list[float]] = {}
@@ -141,8 +142,8 @@ def admin_dashboard():
              "icon": "fa-chalkboard-user", "grad": "linear-gradient(135deg,#20c997,#12b886)", "up": True},
             {"label": "Total Courses", "value": course_count, "delta": "-3% vs last month",
              "icon": "fa-book", "grad": "linear-gradient(135deg,#f368a6,#e6488a)", "up": False},
-            {"label": "Fees Collected", "value": f"${collected:,.0f}", "delta": "+18% vs last month",
-             "icon": "fa-sack-dollar", "grad": "linear-gradient(135deg,#4dabf7,#3b9ae1)", "up": True},
+            {"label": "Fees Collected", "value": f"KES {collected:,.0f}", "delta": "+18% vs last month",
+             "icon": "fa-wallet", "grad": "linear-gradient(135deg,#4dabf7,#3b9ae1)", "up": True},
         ],
         "months": _month_labels(),
         "fee_collected": collected_by_month,
@@ -180,9 +181,10 @@ def faculty_dashboard(faculty):
         course_att.append(round(p / t * 100, 1) if t else 0)
 
     # grade distribution across faculty courses
-    grade_buckets = {"A+": 0, "A": 0, "B+": 0, "B": 0, "C": 0, "D": 0, "F": 0}
-    for r in Result.objects.filter(exam__course_id__in=course_ids):
-        grade_buckets[r.grade] += 1
+    grade_buckets = {"A": 0, "B": 0, "C": 0, "D": 0, "F": 0}
+    for r in Result.objects.filter(exam__status=Exam.Status.PUBLISHED, exam__course_id__in=course_ids):
+        if r.grade in grade_buckets:
+            grade_buckets[r.grade] += 1
 
     return {
         "cards": [
@@ -224,7 +226,7 @@ def student_dashboard(student):
     # marks per subject
     subj_labels, subj_values = [], []
     for e in enrollments:
-        r = Result.objects.filter(student=student, exam__course=e.course).first()
+        r = Result.objects.filter(exam__status=Exam.Status.PUBLISHED, student=student, exam__course=e.course).first()
         if r:
             subj_labels.append(e.course.code)
             subj_values.append(r.percentage)
@@ -234,11 +236,11 @@ def student_dashboard(student):
         "cards": [
             {"label": "Attendance", "value": f"{stats['attendance_pct']}%", "icon": "fa-calendar-check",
              "grad": "linear-gradient(135deg,#0984e3,#48b1f3)"},
-            {"label": "Average / GPA", "value": f"{stats['gpa']}", "icon": "fa-graduation-cap",
+            {"label": "Average / GPA", "value": f"{stats['gpa']}" if stats['gpa'] is not None else "N/A", "icon": "fa-graduation-cap",
              "grad": "linear-gradient(135deg,#6C5CE7,#8f7bff)"},
             {"label": "Pending Work", "value": stats["pending_assignments"], "icon": "fa-list-check",
              "grad": "linear-gradient(135deg,#e17055,#f0932b)"},
-            {"label": "Fee Balance", "value": f"${stats['fee_due']:,.0f}", "icon": "fa-wallet",
+            {"label": "Fee Balance", "value": f"KES {stats['fee_due']:,.0f}", "icon": "fa-wallet",
              "grad": "linear-gradient(135deg,#00b894,#20bf6b)"},
         ],
         "enrollments": enrollments,

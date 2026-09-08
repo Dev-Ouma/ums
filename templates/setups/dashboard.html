@@ -1,0 +1,137 @@
+{% extends "base_dashboard.html" %}
+{% load static %}
+
+{% block title %}Admin Setups & System Configuration — University Management System{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <!-- Page Header -->
+  <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+    <div>
+      <h1 class="h3 fw-bold mb-1 text-dark">
+        <i class="fa-solid fa-gears text-primary me-2"></i>Admin Setups & Configuration
+      </h1>
+      <p class="text-muted mb-0">Centralized university-wide policy engine governing academic standards, examinations, timetables, and security.</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <a href="{% url 'university:audit_dashboard' %}?module=SYSTEM_SETTINGS" class="btn btn-outline-secondary">
+        <i class="fa-solid fa-clock-rotate-left me-1"></i> Config Change Logs
+      </a>
+    </div>
+  </div>
+
+  <!-- Main Content Layout with Sidebar Category Tabs -->
+  <div class="row g-4">
+    <!-- Categories Navigation Sidebar -->
+    <div class="col-12 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-3">
+        <div class="card-header bg-white border-0 p-3 pb-2">
+          <span class="text-uppercase text-muted fw-bold small">Configuration Hub</span>
+        </div>
+        <div class="list-group list-group-flush p-2 pt-0">
+          {% for tab_key, tab_label, tab_icon, cat_enum in valid_tabs %}
+            <a href="?tab={{ tab_key }}" class="list-group-item list-group-item-action d-flex align-items-center justify-content-between rounded-3 border-0 py-2.5 px-3 mb-1 {% if active_tab == tab_key %}active bg-primary text-white{% else %}text-dark{% endif %}">
+              <div class="d-flex align-items-center gap-2.5">
+                <i class="fa-solid {{ tab_icon }} {% if active_tab == tab_key %}text-white{% else %}text-primary{% endif %}"></i>
+                <span class="fw-semibold small">{{ tab_label }}</span>
+              </div>
+              <i class="fa-solid fa-chevron-right small opacity-50"></i>
+            </a>
+          {% endfor %}
+          <a href="{% url 'university:staff_permissions_dashboard' %}" class="list-group-item list-group-item-action d-flex align-items-center justify-content-between rounded-3 border-0 py-2.5 px-3 mb-1 text-dark bg-light bg-opacity-75">
+            <div class="d-flex align-items-center gap-2.5">
+              <i class="fa-solid fa-user-shield text-primary"></i>
+              <span class="fw-semibold small">Roles & Permissions</span>
+            </div>
+            <span class="badge bg-primary rounded-pill small" style="font-size:.7rem;">RBAC</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Quick Links Card -->
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-light">
+        <h6 class="fw-bold small text-muted text-uppercase mb-2">Entity Catalogs</h6>
+        <div class="d-flex flex-column gap-1 small">
+          <a href="{% url 'university:staff_permissions_dashboard' %}" class="text-decoration-none text-dark py-1 fw-bold"><i class="fa-solid fa-user-shield text-primary me-2"></i>Staff Roles & Overrides</a>
+          <a href="{% url 'university:admin_departments' %}" class="text-decoration-none text-dark py-1"><i class="fa-solid fa-building-columns text-primary me-2"></i>Departments & Programmes</a>
+          <a href="{% url 'university:admin_courses' %}" class="text-decoration-none text-dark py-1"><i class="fa-solid fa-book text-primary me-2"></i>Course Catalog</a>
+          <a href="{% url 'university:admin_timetable' %}" class="text-decoration-none text-dark py-1"><i class="fa-solid fa-calendar-week text-primary me-2"></i>Timetable Matrix</a>
+          <a href="{% url 'university:admin_fee_structures' %}" class="text-decoration-none text-dark py-1"><i class="fa-solid fa-scale-balanced text-primary me-2"></i>Fee Structures</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Settings Form Panel -->
+    <div class="col-12 col-lg-9">
+      <form method="post" action="{% url 'university:admin_setups_update' current_group.category %}">
+        {% csrf_token %}
+        <div class="card border-0 shadow-sm rounded-4">
+          <div class="card-header bg-white border-0 p-4 pb-3 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2">
+            <div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary-subtle text-primary p-2 rounded-3"><i class="fa-solid {{ current_group.icon }} fs-5"></i></span>
+                <h4 class="fw-bold mb-0 text-dark">{{ current_group.label }}</h4>
+              </div>
+              <p class="text-muted small mb-0 mt-1">Configure operational variables and university-wide rules for {{ current_group.label|lower }}.</p>
+            </div>
+            <button type="submit" class="btn btn-primary px-4">
+              <i class="fa-solid fa-floppy-disk me-1"></i> Save Changes
+            </button>
+          </div>
+
+          <div class="card-body p-4 pt-2">
+            <div class="row g-4">
+              {% for setting in current_group.settings %}
+                <div class="col-12 {% if setting.value_type == 'JSON' %}col-12{% else %}col-12 col-md-6{% endif %}">
+                  <div class="p-3 bg-light rounded-4 border h-100 d-flex flex-column justify-content-between">
+                    <div>
+                      <div class="d-flex align-items-center justify-content-between mb-1">
+                        <label for="id_{{ setting.key }}" class="fw-bold text-dark small mb-0">{{ setting.label }}</label>
+                        <span class="badge bg-white text-muted border font-monospace" style="font-size: 0.68rem;">{{ setting.key }}</span>
+                      </div>
+                      <p class="text-muted small mb-3" style="font-size: 0.78rem;">{{ setting.description }}</p>
+                    </div>
+
+                    <div>
+                      {% if setting.value_type == 'BOOLEAN' %}
+                        <div class="form-check form-switch fs-5">
+                          <input class="form-check-input" type="checkbox" role="switch" id="id_{{ setting.key }}" name="setting_{{ setting.key }}" {% if setting.value|lower == 'true' %}checked{% endif %}>
+                          <label class="form-check-label small text-muted fs-6" for="id_{{ setting.key }}">
+                            {% if setting.value|lower == 'true' %}Enabled / Active{% else %}Disabled / Inactive{% endif %}
+                          </label>
+                        </div>
+                      {% elif setting.value_type == 'INTEGER' %}
+                        <input type="number" step="1" class="form-control bg-white" id="id_{{ setting.key }}" name="setting_{{ setting.key }}" value="{{ setting.value }}" required>
+                      {% elif setting.value_type == 'DECIMAL' %}
+                        <input type="number" step="0.01" class="form-control bg-white" id="id_{{ setting.key }}" name="setting_{{ setting.key }}" value="{{ setting.value }}" required>
+                      {% elif setting.value_type == 'JSON' %}
+                        <textarea class="form-control font-monospace bg-white" id="id_{{ setting.key }}" name="setting_{{ setting.key }}" rows="8" style="font-size: 0.8rem;" required>{{ setting.value }}</textarea>
+                      {% else %}
+                        <input type="text" class="form-control bg-white" id="id_{{ setting.key }}" name="setting_{{ setting.key }}" value="{{ setting.value }}" required>
+                      {% endif %}
+                      <div class="d-flex justify-content-between align-items-center mt-2" style="font-size: 0.72rem;">
+                        <span class="text-muted">Type: {{ setting.value_type }}</span>
+                        <span class="text-muted">Updated: {{ setting.updated_at|date:"M d, H:i" }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              {% empty %}
+                <div class="col-12 text-center py-5">
+                  <p class="text-muted">No configuration entries discovered for this category.</p>
+                </div>
+              {% endfor %}
+            </div>
+
+            <div class="d-flex justify-content-end mt-4 pt-3 border-top">
+              <button type="submit" class="btn btn-primary px-4">
+                <i class="fa-solid fa-floppy-disk me-1"></i> Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

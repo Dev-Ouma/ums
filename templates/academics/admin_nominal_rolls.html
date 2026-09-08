@@ -1,0 +1,69 @@
+{% extends "base_dashboard.html" %}
+{% load static humanize %}
+
+{% block title %}Examination Nominal Rolls | UMS{% endblock %}
+
+{% block content %}
+<div class="content-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+  <div>
+    <h2 class="fw-bold mb-1"><i class="fa-solid fa-users-viewfinder me-2 text-primary"></i>Examination Nominal Rolls</h2>
+    <p class="text-muted mb-0">Generate room-by-room, paper-by-paper attendance registers and candidate sign-in sheets for invigilators.</p>
+  </div>
+</div>
+
+<!-- Exams Table -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-4">Course Paper</th>
+          <th>Term</th>
+          <th>Date & Time</th>
+          <th>Exam Room / Hall</th>
+          <th>Enrolled Candidates</th>
+          <th class="text-end pe-4">Download Register</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for exam in exams %}
+          <tr>
+            <td class="ps-4">
+              <div class="fw-bold text-dark">{{ exam.course.code }} — {{ exam.course.name }}</div>
+              <small class="text-muted">{{ exam.course.department.name }}</small>
+            </td>
+            <td><span class="badge bg-light text-dark border">{{ exam.term.name|default:"Regular" }}</span></td>
+            <td>
+              {% if exam.date %}
+                <div class="fw-semibold"><i class="fa-regular fa-calendar me-1 text-muted"></i>{{ exam.date|date:"d M Y" }}</div>
+                <small class="text-muted">{{ exam.start_time|time:"H:i" }} - {{ exam.end_time|time:"H:i" }}</small>
+              {% else %}
+                <span class="text-muted small">Not Scheduled</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge bg-light text-primary border">
+                <i class="fa-solid fa-door-open me-1"></i>{{ exam.room.name|default:"Main Examination Hall" }}
+              </span>
+            </td>
+            <td>
+              <span class="badge bg-primary bg-opacity-10 text-primary fw-bold px-3 py-1">
+                {{ exam.course.enrollments.count }} Students Enrolled
+              </span>
+            </td>
+            <td class="text-end pe-4">
+              <a href="{% url 'university:admin_exam_nominal_roll_pdf' exam.pk %}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                <i class="fa-solid fa-file-pdf me-1"></i> Nominal Roll (PDF)
+              </a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="text-center py-5 text-muted">No scheduled examinations found.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,15 @@
+<section class="container py-5">
+  <div class="row align-items-center g-5">
+    <div class="col-lg-6">
+      {% if block.subheading %}<div class="text-uppercase small fw-bold text-primary mb-2">{{ block.subheading }}</div>{% endif %}
+      <h1 class="fw-bold mb-3">{{ block.heading }}</h1>
+      {% if block.body %}<div class="text-muted fs-5">{{ block.body|safe }}</div>{% endif %}
+      {% if block.link_text %}
+        <a href="{{ block.link_url|default:'#' }}" class="btn btn-primary btn-lg rounded-pill px-4 mt-4">{{ block.link_text }}</a>
+      {% endif %}
+    </div>
+    <div class="col-lg-6">
+      {% if block.image %}<img src="{{ block.image.url }}" alt="{{ block.heading }}" class="img-fluid rounded-4 shadow">{% endif %}
+    </div>
+  </div>
+</section>

@@ -1,0 +1,4 @@
+<section class="cms-image-full">
+  {% if block.image %}<img src="{{ block.image.url }}" alt="{{ block.heading }}" class="w-100">{% endif %}
+  {% if block.heading %}<div class="container py-3"><p class="text-muted small mb-0">{{ block.heading }}</p></div>{% endif %}
+</section>

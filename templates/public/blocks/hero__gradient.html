@@ -1,0 +1,8 @@
+<section class="cms-hero-gradient text-white text-center py-5" style="background:var(--gradient)">
+  <div class="container py-5">
+    {% if block.subheading %}<div class="text-uppercase small fw-semibold opacity-75 mb-2">{{ block.subheading }}</div>{% endif %}
+    <h1 class="display-4 fw-bold">{{ block.heading }}</h1>
+    {% if block.body %}<div class="lead opacity-90 mx-auto" style="max-width:680px">{{ block.body|safe }}</div>{% endif %}
+    {% include 'public/blocks/_links.html' with on_dark=True %}
+  </div>
+</section>

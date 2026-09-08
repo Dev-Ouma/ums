@@ -1,0 +1,7 @@
+{% extends 'public/layouts/_page_base.html' %}
+{% comment %}Full-width container, no header — for galleries and dashboards.{% endcomment %}
+{% block page_body %}
+<div class="cms-wide">
+  {% for ctx in blocks %}{% include ctx.block.template_name with block=ctx.block items=ctx.items %}{% endfor %}
+</div>
+{% endblock %}

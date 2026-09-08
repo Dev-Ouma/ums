@@ -1,0 +1,84 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Faculty Teaching Reports · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h4><i class="fa-solid fa-chalkboard-user me-2 text-primary"></i>Faculty Teaching & Academic Reports</h4>
+    <p class="text-muted small mb-0">Course performance, grade distributions, and student lists for your assigned courses.</p>
+  </div>
+  <div class="breadcrumb-chip">
+    <i class="fa-solid fa-house me-1"></i> Home <i class="fa-solid fa-angle-right mx-1"></i> Teaching Reports
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-6 col-xl-3">
+    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#6C5CE7,#8f7bff)">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="val">{{ total_courses }}</div>
+          <div class="lbl mt-1">Courses Assigned</div>
+        </div>
+        <span class="fs-3 opacity-75"><i class="fa-solid fa-book"></i></span>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6 col-xl-3">
+    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#00b894,#55efc4)">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="val">{{ total_students_taught }}</div>
+          <div class="lbl mt-1">Students Taught</div>
+        </div>
+        <span class="fs-3 opacity-75"><i class="fa-solid fa-users"></i></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card card-ums">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="fa-solid fa-book me-2 text-primary"></i>My Assigned Teaching Units</span>
+    <span class="badge-soft badge rounded-pill">{{ courses|length }} Courses</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-4">Course Code</th>
+          <th>Course Title</th>
+          <th>Department</th>
+          <th>Enrolled</th>
+          <th class="text-end pe-4">Available Course Reports</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in courses %}
+        <tr>
+          <td class="ps-4 fw-bold text-primary">{{ c.code }}</td>
+          <td class="fw-semibold">{{ c.title }}</td>
+          <td>{{ c.department.name }}</td>
+          <td><span class="badge-soft badge rounded-pill">{{ c.enrolled_count }} students</span></td>
+          <td class="text-end pe-4">
+            <div class="btn-group btn-group-sm">
+              <a href="{% url 'university:report_view' 'grade_distribution' %}?course={{ c.id }}" class="btn btn-outline-primary" title="Grade Distribution">
+                <i class="fa-solid fa-chart-column me-1"></i> Grades
+              </a>
+              <a href="{% url 'university:report_view' 'academic_performance' %}?course={{ c.id }}" class="btn btn-outline-secondary" title="Course Marks Summary">
+                <i class="fa-solid fa-table-list me-1"></i> Results
+              </a>
+              <a href="{% url 'university:report_view' 'cat_vs_exam_analysis' %}?course={{ c.id }}" class="btn btn-outline-info" title="CAT vs Exam">
+                <i class="fa-solid fa-scale-balanced me-1"></i> CAT vs Exam
+              </a>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted p-4">No course units currently assigned.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

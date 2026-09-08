@@ -1,0 +1,65 @@
+{% comment %}
+Account menu — the profile chip + dropdown shown at the far right of every
+header (dashboard and public). Expects an authenticated `user`.
+
+Variant is controlled by the caller:
+  {% include 'partials/_account_menu.html' with variant='public' %}
+{% endcomment %}
+<div class="acct" data-acct>
+  <button type="button" class="acct-trigger {% if variant == 'public' %}acct-trigger-public{% endif %}"
+          id="acctTrigger" data-acct-trigger
+          aria-haspopup="menu" aria-expanded="false" aria-controls="acctMenu">
+    <span class="acct-avatar">
+      {% if user.has_custom_avatar %}
+        <img src="{{ user.avatar }}" alt="">
+      {% else %}
+        <span class="acct-initials">{{ user.initials }}</span>
+      {% endif %}
+    </span>
+    <span class="acct-trigger-text d-none d-md-flex">
+      <span class="acct-trigger-name">{{ user.display_name }}</span>
+      <span class="acct-trigger-role">{{ user.get_role_display }}</span>
+    </span>
+    <i class="fa-solid fa-chevron-down acct-caret" aria-hidden="true"></i>
+    <span class="visually-hidden">Open account menu</span>
+  </button>
+
+  <div class="acct-menu" id="acctMenu" role="menu" aria-labelledby="acctTrigger" hidden>
+    <div class="acct-head">
+      <span class="acct-avatar acct-avatar-lg">
+        {% if user.has_custom_avatar %}
+          <img src="{{ user.avatar }}" alt="">
+        {% else %}
+          <span class="acct-initials">{{ user.initials }}</span>
+        {% endif %}
+      </span>
+      <div class="acct-head-text">
+        <div class="acct-name">{{ user.display_name }}</div>
+        <div class="acct-email">{{ user.email|default:user.username }}</div>
+        <span class="acct-role-badge">
+          <i class="fa-solid {{ user.theme.icon|default:'fa-user' }}"></i>{{ user.get_role_display }}
+        </span>
+      </div>
+    </div>
+
+    <div class="acct-links">
+      <a class="acct-item" role="menuitem" href="{% url 'accounts:profile' %}">
+        <i class="fa-solid fa-id-badge"></i><span>My profile</span></a>
+      <a class="acct-item" role="menuitem" href="{% url 'accounts:profile_settings' %}">
+        <i class="fa-solid fa-user-gear"></i><span>Profile settings</span></a>
+      <a class="acct-item" role="menuitem" href="{% url 'accounts:profile_settings' %}?tab=password">
+        <i class="fa-solid fa-key"></i><span>Change password</span></a>
+      {% if variant == 'public' %}
+        <a class="acct-item" role="menuitem" href="{% url 'university:dashboard' %}">
+          <i class="fa-solid fa-gauge-high"></i><span>Dashboard</span></a>
+      {% endif %}
+    </div>
+
+    <form method="post" action="{% url 'accounts:logout' %}" class="acct-logout">
+      {% csrf_token %}
+      <button type="submit" class="acct-item acct-item-danger" role="menuitem">
+        <i class="fa-solid fa-right-from-bracket"></i><span>Log out</span>
+      </button>
+    </form>
+  </div>
+</div>

@@ -1,0 +1,210 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Unit Registration Management · Academics · UMS{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h4><i class="fa-solid fa-clipboard-check me-2" style="color:var(--primary)"></i>Unit Registration Management</h4>
+    <small class="text-muted">Monitor, review, and approve student semester course registrations.</small>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <div class="dropdown">
+      <button class="btn btn-sm btn-outline-primary dropdown-toggle rounded-pill" type="button" data-bs-toggle="dropdown">
+        <i class="fa-solid fa-download me-1"></i>Export
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+        <li><a class="dropdown-item" href="?export=csv{% if q %}&q={{ q }}{% endif %}{% if selected_term %}&term={{ selected_term }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}"><i class="fa-solid fa-file-csv me-2 text-primary"></i>Export as CSV</a></li>
+        <li><a class="dropdown-item" href="?export=xlsx{% if q %}&q={{ q }}{% endif %}{% if selected_term %}&term={{ selected_term }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}"><i class="fa-solid fa-file-excel me-2 text-success"></i>Export as Excel (.xlsx)</a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-ums p-3">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <span class="text-muted small">Total Registrations</span>
+          <h4 class="fw-bold mb-0 mt-1">{{ total_count }}</h4>
+        </div>
+        <div class="icon-circle" style="background:#eef0fd;color:#494a87"><i class="fa-solid fa-users"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-ums p-3">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <span class="text-muted small">Pending Approval</span>
+          <h4 class="fw-bold mb-0 mt-1 text-warning">{{ pending_count }}</h4>
+        </div>
+        <div class="icon-circle" style="background:#fff9db;color:#f59f00"><i class="fa-solid fa-hourglass-half"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-ums p-3">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <span class="text-muted small">Approved / Active</span>
+          <h4 class="fw-bold mb-0 mt-1 text-success">{{ approved_count }}</h4>
+        </div>
+        <div class="icon-circle" style="background:#ebfbee;color:#2f9e44"><i class="fa-solid fa-circle-check"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-ums p-3">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <span class="text-muted small">Academic Terms</span>
+          <h4 class="fw-bold mb-0 mt-1 text-primary">{{ terms|length }}</h4>
+        </div>
+        <div class="icon-circle" style="background:#e7f5ff;color:#1c7ed6"><i class="fa-solid fa-calendar-check"></i></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters Bar -->
+<div class="card card-ums p-3 mb-4">
+  <form method="get" class="row g-2 align-items-center">
+    <div class="col-md-3">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text bg-light"><i class="fa-solid fa-magnifying-glass"></i></span>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Search student name, roll no...">
+      </div>
+    </div>
+    <div class="col-md-2">
+      <select name="term" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Academic Terms</option>
+        {% for t in terms %}
+          <option value="{{ t.pk }}" {% if selected_term == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <select name="program" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Programmes</option>
+        {% for p in programs %}
+          <option value="{{ p.pk }}" {% if selected_program == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Statuses</option>
+        <option value="DRAFT" {% if selected_status == 'DRAFT' %}selected{% endif %}>Draft</option>
+        <option value="SUBMITTED" {% if selected_status == 'SUBMITTED' %}selected{% endif %}>Submitted (Pending)</option>
+        <option value="APPROVED" {% if selected_status == 'APPROVED' %}selected{% endif %}>Approved</option>
+        <option value="REGISTERED" {% if selected_status == 'REGISTERED' %}selected{% endif %}>Registered</option>
+        <option value="REJECTED" {% if selected_status == 'REJECTED' %}selected{% endif %}>Rejected</option>
+      </select>
+    </div>
+    <div class="col-md-3 d-flex gap-2">
+      <button type="submit" class="btn btn-sm btn-primary rounded-pill flex-fill">Apply Filters</button>
+      <a href="{% url 'university:admin_unit_registrations' %}" class="btn btn-sm btn-outline-secondary rounded-pill">Reset</a>
+    </div>
+  </form>
+</div>
+
+<!-- Registrations Table -->
+<form method="post">
+  {% csrf_token %}
+  <div class="card card-ums">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <div class="d-flex align-items-center gap-3">
+        <span class="fw-semibold">Student Registrations</span>
+        <button type="submit" name="action" value="bulk_approve" class="btn btn-sm btn-outline-success rounded-pill py-1 px-3"
+                onclick="return confirm('Approve all selected submitted registrations?');">
+          <i class="fa-solid fa-check-double me-1"></i>Approve Selected
+        </button>
+      </div>
+      <span class="text-muted small">Showing page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3" style="width:40px">
+              <input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('.reg-check').forEach(cb => cb.checked = this.checked);">
+            </th>
+            <th>Roll No</th>
+            <th>Student</th>
+            <th>Programme</th>
+            <th>Term</th>
+            <th>Credits</th>
+            <th>Status</th>
+            <th>Enrolled Units</th>
+            <th class="text-end pe-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for reg in page %}
+            <tr>
+              <td class="ps-3">
+                {% if reg.status == 'SUBMITTED' %}
+                  <input type="checkbox" name="selected_ids" value="{{ reg.pk }}" class="form-check-input reg-check">
+                {% endif %}
+              </td>
+              <td class="fw-bold">{{ reg.student.roll_no }}</td>
+              <td>
+                <div class="fw-semibold">{{ reg.student.user.display_name }}</div>
+                <small class="text-muted">{{ reg.student.user.email }}</small>
+              </td>
+              <td>{{ reg.student.program.name|default:'—' }}</td>
+              <td><span class="badge-soft badge rounded-pill">{{ reg.term.name }}</span></td>
+              <td><strong>{{ reg.total_credits }}</strong> units</td>
+              <td>
+                <span class="badge rounded-pill 
+                  {% if reg.status == 'APPROVED' or reg.status == 'REGISTERED' %}bg-success
+                  {% elif reg.status == 'SUBMITTED' %}bg-warning text-dark
+                  {% elif reg.status == 'REJECTED' %}bg-danger
+                  {% else %}bg-secondary{% endif %}">
+                  {{ reg.get_status_display }}
+                </span>
+              </td>
+              <td class="small">
+                {% for enr in reg.enrollments.all %}
+                  <span class="badge bg-light text-dark border me-1">{{ enr.course.code }}</span>
+                {% empty %}
+                  <span class="text-muted italic">No units</span>
+                {% endfor %}
+              </td>
+              <td class="text-end pe-3">
+                <a href="{% url 'university:admin_unit_registration_detail' reg.pk %}" class="btn btn-sm btn-outline-primary rounded-pill py-1 px-3">
+                  <i class="fa-solid fa-pen-to-square me-1"></i>Review
+                </a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="9" class="text-center py-5 text-muted">
+                <i class="fa-solid fa-inbox fs-2 mb-2 d-block opacity-50"></i>
+                No semester unit registrations found matching the applied criteria.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if page.has_other_pages %}
+      <div class="card-footer d-flex justify-content-between align-items-center py-2">
+        <span class="small text-muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+        <ul class="pagination pagination-sm mb-0">
+          {% if page.has_previous %}
+            <li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if selected_term %}&term={{ selected_term }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}">Previous</a></li>
+          {% endif %}
+          <li class="page-item active"><span class="page-link">{{ page.number }}</span></li>
+          {% if page.has_next %}
+            <li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if selected_term %}&term={{ selected_term }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}">Next</a></li>
+          {% endif %}
+        </ul>
+      </div>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

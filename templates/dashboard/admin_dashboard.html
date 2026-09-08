@@ -11,17 +11,24 @@
 
 <div class="row g-4">
   <div class="col-lg-7">
-    <div class="card card-ums h-100">
-      <div class="card-header d-flex justify-content-between align-items-center">
+    <div class="card card-ums card-lift h-100">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
         <span><i class="fa-solid fa-chart-column me-2 text-primary"></i>Monthly Fee Collection</span>
-        <span class="badge-soft badge rounded-pill">This year</span>
+        <div class="chart-actions">
+          <button type="button" class="chart-filter-btn active" data-range="12">12M</button>
+          <button type="button" class="chart-filter-btn" data-range="6">6M</button>
+          <button type="button" class="btn-chart-export" onclick="UmsCharts.exportPng('feeChart', 'monthly_fee_collection')" title="Download PNG"><i class="fa-solid fa-camera me-1"></i>PNG</button>
+        </div>
       </div>
       <div class="card-body"><canvas id="feeChart" height="130"></canvas></div>
     </div>
   </div>
   <div class="col-lg-5">
-    <div class="card card-ums h-100">
-      <div class="card-header"><i class="fa-solid fa-chart-line me-2 text-primary"></i>Student Enrollment Trend</div>
+    <div class="card card-ums card-lift h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fa-solid fa-chart-line me-2 text-primary"></i>Student Enrollment Trend</span>
+        <button type="button" class="btn-chart-export" onclick="UmsCharts.exportPng('enrollChart', 'student_enrollment_trend')" title="Download PNG"><i class="fa-solid fa-camera me-1"></i>PNG</button>
+      </div>
       <div class="card-body"><canvas id="enrollChart" height="150"></canvas></div>
     </div>
   </div>
@@ -29,19 +36,25 @@
 
 <div class="row g-4 mt-1">
   <div class="col-lg-4">
-    <div class="card card-ums h-100">
-      <div class="card-header"><i class="fa-solid fa-chart-pie me-2 text-primary"></i>Students by Department</div>
+    <div class="card card-ums card-lift h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fa-solid fa-chart-pie me-2 text-primary"></i>Students by Department</span>
+        <button type="button" class="btn-chart-export" onclick="UmsCharts.exportPng('deptChart', 'students_by_department')" title="Download PNG"><i class="fa-solid fa-camera"></i></button>
+      </div>
       <div class="card-body"><canvas id="deptChart" height="200"></canvas></div>
     </div>
   </div>
   <div class="col-lg-4">
-    <div class="card card-ums h-100">
-      <div class="card-header"><i class="fa-solid fa-user-check me-2 text-primary"></i>Attendance Overview</div>
+    <div class="card card-ums card-lift h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fa-solid fa-user-check me-2 text-primary"></i>Attendance Overview</span>
+        <button type="button" class="btn-chart-export" onclick="UmsCharts.exportPng('attChart', 'attendance_overview')" title="Download PNG"><i class="fa-solid fa-camera"></i></button>
+      </div>
       <div class="card-body"><canvas id="attChart" height="200"></canvas></div>
     </div>
   </div>
   <div class="col-lg-4">
-    <div class="card card-ums h-100">
+    <div class="card card-ums card-lift h-100">
       <div class="card-header d-flex justify-content-between"><span><i class="fa-solid fa-fire me-2 text-primary"></i>Top Courses</span></div>
       <div class="card-body">
         {% for c in top_courses %}
@@ -60,7 +73,7 @@
 
 <div class="row g-4 mt-1">
   <div class="col-lg-7">
-    <div class="card card-ums h-100">
+    <div class="card card-ums card-lift h-100">
       <div class="card-header"><i class="fa-solid fa-bullhorn me-2 text-primary"></i>Recent Notices</div>
       <div class="list-group list-group-flush">
         {% for n in recent_notices %}
@@ -76,8 +89,8 @@
     </div>
   </div>
   <div class="col-lg-5">
-    <div class="card card-ums h-100">
-      <div class="card-header"><i class="fa-solid fa-calendar-star me-2 text-primary"></i>Upcoming Events</div>
+    <div class="card card-ums card-lift h-100">
+      <div class="card-header"><i class="fa-solid fa-calendar-days me-2 text-primary"></i>Upcoming Events</div>
       <div class="card-body">
         {% for e in upcoming_events %}
         <div class="d-flex gap-3 mb-3">
@@ -99,25 +112,105 @@
 
 {% block extra_js %}
 <script>
-const months = {{ months|safe }};
-new Chart(feeChart, {type:'bar', data:{labels:months, datasets:[
-  {label:'Collected', data:{{ fee_collected|safe }}, backgroundColor:'#6C5CE7', borderRadius:6},
-  {label:'Pending', data:{{ fee_pending|safe }}, backgroundColor:'#e6e6f5', borderRadius:6}]},
-  options:{plugins:{legend:{position:'bottom'}},scales:{y:{grid:{color:'#f0f0f7'}},x:{grid:{display:false}}}}});
+const rawMonths = {{ months|safe }};
+const rawCollected = {{ fee_collected|safe }};
+const rawPending = {{ fee_pending|safe }};
 
-new Chart(enrollChart, {type:'line', data:{labels:months, datasets:[
-  {label:'Total Students', data:{{ enroll_trend|safe }}, borderColor:'#6C5CE7', backgroundColor:'rgba(108,92,231,.15)', fill:true, tension:.4},
-  {label:'New Admissions', data:{{ new_admissions|safe }}, borderColor:'#e84393', tension:.4}]},
-  options:{plugins:{legend:{position:'bottom'}},scales:{y:{grid:{color:'#f0f0f7'}},x:{grid:{display:false}}}}});
+// Fee collection chart with interactive formatting
+const feeCanvas = document.getElementById('feeChart');
+const feeChartInstance = new Chart(feeCanvas, {
+  type: 'bar',
+  data: {
+    labels: rawMonths,
+    datasets: [
+      {label: 'Collected (KES)', data: rawCollected, backgroundColor: '#6C5CE7', borderRadius: 6},
+      {label: 'Pending (KES)', data: rawPending, backgroundColor: '#e6e6f5', borderRadius: 6}
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: {position: 'bottom'},
+      tooltip: {
+        callbacks: {
+          label: (item) => `${item.dataset.label}: KES ${Number(item.raw || 0).toLocaleString()}`
+        }
+      }
+    },
+    scales: {
+      y: {
+        grid: {color: '#f0f0f7'},
+        ticks: {
+          callback: (val) => val >= 1000000 ? (val / 1000000) + 'M' : val >= 1000 ? (val / 1000) + 'k' : val
+        }
+      },
+      x: {grid: {display: false}}
+    }
+  }
+});
 
-new Chart(deptChart, {type:'doughnut', data:{
-  labels:[{% for d in dept_rows %}'{{ d.name }}',{% endfor %}],
-  datasets:[{data:[{% for d in dept_rows %}{{ d.n }},{% endfor %}],
-  backgroundColor:[{% for d in dept_rows %}'{{ d.color }}',{% endfor %}]}]},
-  options:{plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:10}}}},cutout:'62%'}});
+// Time filter buttons for Fee Chart
+document.querySelectorAll('.chart-filter-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    document.querySelectorAll('.chart-filter-btn').forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    const range = parseInt(e.target.getAttribute('data-range'), 10) || 12;
+    const sliceCount = Math.min(range, rawMonths.length);
+    const startIndex = rawMonths.length - sliceCount;
 
-new Chart(attChart, {type:'doughnut', data:{labels:['Present','Absent','Late'],
-  datasets:[{data:{{ attendance_split|safe }}, backgroundColor:['#00b894','#e84393','#f0932b']}]},
-  options:{plugins:{legend:{position:'bottom'}},cutout:'62%'}});
+    feeChartInstance.data.labels = rawMonths.slice(startIndex);
+    feeChartInstance.data.datasets[0].data = rawCollected.slice(startIndex);
+    feeChartInstance.data.datasets[1].data = rawPending.slice(startIndex);
+    feeChartInstance.update();
+  });
+});
+
+// Enrollment trend with gradient area
+const enrollCanvas = document.getElementById('enrollChart');
+const enrollCtx = enrollCanvas.getContext('2d');
+const enrollGrad = UmsCharts.createGradient(enrollCtx, '#6C5CE7', 0.25, 0.01);
+
+new Chart(enrollCanvas, {
+  type: 'line',
+  data: {
+    labels: rawMonths,
+    datasets: [
+      {label: 'Total Students', data: {{ enroll_trend|safe }}, borderColor: '#6C5CE7', backgroundColor: enrollGrad, fill: true, tension: .4, pointRadius: 3},
+      {label: 'New Admissions', data: {{ new_admissions|safe }}, borderColor: '#e84393', tension: .4, pointRadius: 3}
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: {legend: {position: 'bottom'}},
+    scales: {y: {grid: {color: '#f0f0f7'}}, x: {grid: {display: false}}}
+  }
+});
+
+new Chart(deptChart, {
+  type: 'doughnut',
+  data: {
+    labels: [{% for d in dept_rows %}'{{ d.name }}',{% endfor %}],
+    datasets: [{
+      data: [{% for d in dept_rows %}{{ d.n }},{% endfor %}],
+      backgroundColor: [{% for d in dept_rows %}'{{ d.color }}',{% endfor %}]
+    }]
+  },
+  options: {
+    plugins: {legend: {position: 'bottom', labels: {boxWidth: 12, font: {size: 10}}}},
+    cutout: '62%'
+  }
+});
+
+new Chart(attChart, {
+  type: 'doughnut',
+  data: {
+    labels: ['Present', 'Absent', 'Late'],
+    datasets: [{data: {{ attendance_split|safe }}, backgroundColor: ['#00b894', '#e84393', '#f0932b']}]
+  },
+  options: {
+    plugins: {legend: {position: 'bottom'}},
+    cutout: '62%'
+  }
+});
 </script>
 {% endblock %}

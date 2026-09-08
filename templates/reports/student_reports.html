@@ -1,0 +1,127 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}My Academic Reports · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h4><i class="fa-solid fa-scroll me-2 text-primary"></i>My Official Academic Reports</h4>
+    <p class="text-muted small mb-0">Verified transcripts, running financial ledgers, exam cards, and clearance dossiers.</p>
+  </div>
+  <div class="breadcrumb-chip">
+    <i class="fa-solid fa-house me-1"></i> Home <i class="fa-solid fa-angle-right mx-1"></i> My Reports
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Report Link Cards -->
+  <div class="col-md-6 col-xl-4">
+    <div class="card card-ums card-lift h-100 p-3">
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <span class="icon-circle" style="background:#6C5CE7;width:48px;height:48px;">
+          <i class="fa-solid fa-file-invoice"></i>
+        </span>
+        <div>
+          <h6 class="fw-bold mb-0">Provisional Transcript</h6>
+          <small class="text-muted">Certified semester results statement</small>
+        </div>
+      </div>
+      <p class="small text-muted mb-3">
+        Official interim academic statement showing CAT, exam marks, letter grades, GPA, and term averages.
+      </p>
+      <div class="mt-auto pt-2 border-top">
+        <a href="{% url 'university:student_results' %}" class="btn btn-sm btn-primary rounded-pill w-100">
+          <i class="fa-solid fa-eye me-1"></i> View Results
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6 col-xl-4">
+    <div class="card card-ums card-lift h-100 p-3">
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <span class="icon-circle" style="background:#00b894;width:48px;height:48px;">
+          <i class="fa-solid fa-file-invoice-dollar"></i>
+        </span>
+        <div>
+          <h6 class="fw-bold mb-0">Statement of Account</h6>
+          <small class="text-muted">Financial ledger & running balance</small>
+        </div>
+      </div>
+      <p class="small text-muted mb-3">
+        Complete debit/credit transaction history including semester invoices, M-Pesa receipts, and clearance status.
+      </p>
+      <div class="mt-auto pt-2 border-top">
+        <a href="{% url 'university:student_fee_statement' %}" class="btn btn-sm btn-primary rounded-pill w-100">
+          <i class="fa-solid fa-file-lines me-1"></i> View Statement
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6 col-xl-4">
+    <div class="card card-ums card-lift h-100 p-3">
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <span class="icon-circle" style="background:#e84393;width:48px;height:48px;">
+          <i class="fa-solid fa-id-card"></i>
+        </span>
+        <div>
+          <h6 class="fw-bold mb-0">Examination Admission Slip</h6>
+          <small class="text-muted">Official Exam Card with security seal</small>
+        </div>
+      </div>
+      <p class="small text-muted mb-3">
+        Printable exam card confirming fee clearance, invigilator sign-off boxes, and certified registered units.
+      </p>
+      <div class="mt-auto pt-2 border-top">
+        <a href="{% url 'university:student_exam_card' %}" class="btn btn-sm btn-primary rounded-pill w-100">
+          <i class="fa-solid fa-download me-1"></i> Exam Slip
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6 col-xl-4">
+    <div class="card card-ums card-lift h-100 p-3">
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <span class="icon-circle" style="background:#0984e3;width:48px;height:48px;">
+          <i class="fa-solid fa-clipboard-check"></i>
+        </span>
+        <div>
+          <h6 class="fw-bold mb-0">Unit Registration Slip</h6>
+          <small class="text-muted">Approved semester coursework</small>
+        </div>
+      </div>
+      <p class="small text-muted mb-3">
+        Summary of approved courses, academic credit hours, and assigned teaching lecturers for the current term.
+      </p>
+      <div class="mt-auto pt-2 border-top">
+        <a href="{% url 'university:student_register_units' %}" class="btn btn-sm btn-primary rounded-pill w-100">
+          <i class="fa-solid fa-list-check me-1"></i> Unit Register
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6 col-xl-4">
+    <div class="card card-ums card-lift h-100 p-3">
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <span class="icon-circle" style="background:#f0932b;width:48px;height:48px;">
+          <i class="fa-solid fa-user-graduate"></i>
+        </span>
+        <div>
+          <h6 class="fw-bold mb-0">Graduation Clearance Dossier</h6>
+          <small class="text-muted">Multi-department exit sign-offs</small>
+        </div>
+      </div>
+      <p class="small text-muted mb-3">
+        5-station clearance status across Finance, Library, Dean, Student Affairs, and Senate Degree conferment.
+      </p>
+      <div class="mt-auto pt-2 border-top">
+        <a href="{% url 'university:student_graduation' %}" class="btn btn-sm btn-primary rounded-pill w-100">
+          <i class="fa-solid fa-stamp me-1"></i> Clearance Status
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

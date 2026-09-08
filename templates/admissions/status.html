@@ -1,0 +1,140 @@
+{% extends "base_public.html" %}
+{% load static %}
+
+{% block title %}Check Admission Status | University Management System{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+
+      <!-- Header Card -->
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4" style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: white;">
+        <div class="card-body p-4 p-md-5 text-center">
+          <div class="mb-3">
+            <span class="rounded-circle bg-white text-primary p-3 d-inline-flex">
+              <i class="fa-solid fa-graduation-cap fa-2x"></i>
+            </span>
+          </div>
+          <h2 class="fw-bold mb-1">Check Admission Status</h2>
+          <p class="mb-0 opacity-75">Track your application progress and download your official admission offer letter.</p>
+        </div>
+      </div>
+
+      <!-- Search Form -->
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-body p-4">
+          <form method="get" action="{% url 'university:admissions_status' %}">
+            <div class="row g-3 align-items-end">
+              <div class="col-md-5">
+                <label class="form-label fw-semibold small">Application Reference No.</label>
+                <input type="text" name="ref" class="form-control form-control-lg rounded-3" placeholder="e.g. APP-2026-0001" value="{{ ref|default:'' }}">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold small">National ID / Passport No.</label>
+                <input type="text" name="national_id" class="form-control form-control-lg rounded-3" placeholder="e.g. 34567890" value="{{ national_id|default:'' }}">
+              </div>
+              <div class="col-md-3">
+                <button type="submit" class="btn btn-primary btn-lg w-100 rounded-3 fw-semibold">
+                  <i class="fa-solid fa-search me-1"></i> Track
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Results Display -->
+      {% if searched %}
+        {% if application %}
+          <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+            <div class="card-header bg-white border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div>
+                <span class="text-muted small">Application Reference:</span>
+                <span class="fw-bold ms-1 text-primary">{{ application.application_number }}</span>
+              </div>
+              <div>
+                {% if application.status == "SUBMITTED" %}
+                  <span class="badge bg-secondary px-3 py-2 rounded-pill"><i class="fa-solid fa-clock me-1"></i> Submitted</span>
+                {% elif application.status == "UNDER_REVIEW" %}
+                  <span class="badge bg-warning text-dark px-3 py-2 rounded-pill"><i class="fa-solid fa-spinner fa-spin me-1"></i> Under Review</span>
+                {% elif application.status == "ACCEPTED" or application.status == "ENROLLED" %}
+                  <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> Offer Admitted</span>
+                {% elif application.status == "REJECTED" %}
+                  <span class="badge bg-danger px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-xmark me-1"></i> Not Successful</span>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="card-body p-4">
+              <div class="row g-4">
+                <div class="col-md-6">
+                  <div class="text-muted small">Applicant Full Name</div>
+                  <div class="fs-5 fw-bold text-dark">{{ application.full_name }}</div>
+                  <div class="text-muted small mt-2">National ID / Passport: <b>{{ application.national_id }}</b></div>
+                  <div class="text-muted small">Email: <b>{{ application.email }}</b></div>
+                </div>
+
+                <div class="col-md-6">
+                  <div class="text-muted small">Offered Programme</div>
+                  <div class="fs-5 fw-bold text-primary">{{ application.program.code }} — {{ application.program.name }}</div>
+                  <div class="text-muted small mt-2">Department: <b>{{ application.program.department.name }}</b></div>
+                  <div class="text-muted small">Intake: <b>{{ application.intake.name }}</b></div>
+                </div>
+              </div>
+
+              <hr class="my-4">
+
+              {% if application.status == "ACCEPTED" or application.status == "ENROLLED" %}
+                <div class="p-4 rounded-4 bg-success bg-opacity-10 border border-success border-opacity-25 mb-3">
+                  <div class="d-flex align-items-start gap-3">
+                    <div class="text-success fs-3"><i class="fa-solid fa-award"></i></div>
+                    <div>
+                      <h5 class="fw-bold text-success mb-1">Congratulations! You Have Been Offered Provisional Admission</h5>
+                      <p class="mb-2 text-dark">
+                        Your assigned Registration Number is: <b class="badge bg-dark fs-6">{{ application.admitted_reg_no|default:'Pending Registration' }}</b>
+                      </p>
+                      <p class="mb-3 text-muted small">
+                        Please download your official Letter of Offer below and present it on orientation day ({{ application.reporting_date|default:'Monday, 14 September 2026' }}).
+                      </p>
+                      <a href="{% url 'university:download_admission_letter' application.pk %}" class="btn btn-success rounded-pill px-4 py-2 fw-semibold">
+                        <i class="fa-solid fa-file-arrow-down me-1"></i> Download Official Admission Letter (PDF)
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              {% elif application.status == "UNDER_REVIEW" or application.status == "SUBMITTED" %}
+                <div class="p-4 rounded-4 bg-light border text-center">
+                  <i class="fa-solid fa-hourglass-half fa-2x text-warning mb-2"></i>
+                  <h6 class="fw-bold text-dark mb-1">Your Application is Being Processed</h6>
+                  <p class="text-muted small mb-0">
+                    The Admissions Board is currently reviewing candidate academic records. You will receive an email notification and status update once the decision is finalized.
+                  </p>
+                </div>
+              {% elif application.status == "REJECTED" %}
+                <div class="p-4 rounded-4 bg-danger bg-opacity-10 border border-danger border-opacity-25">
+                  <h6 class="fw-bold text-danger mb-1">Application Unsuccessful</h6>
+                  <p class="text-muted small mb-0">
+                    Thank you for your interest in our programs. Regrettably, your application does not meet the competitive cluster cut-off points for the selected intake cycle.
+                  </p>
+                </div>
+              {% endif %}
+
+            </div>
+          </div>
+        {% else %}
+          <div class="card border-0 shadow-sm rounded-4 p-5 text-center">
+            <i class="fa-solid fa-circle-question fa-3x text-muted mb-3 opacity-50"></i>
+            <h5 class="fw-bold text-dark">No Application Found</h5>
+            <p class="text-muted small mb-3">We could not locate an application matching your reference number or ID. Please verify your details or submit a new application.</p>
+            <a href="{% url 'university:admissions_apply' %}" class="btn btn-primary rounded-pill px-4 py-2 mx-auto">
+              Submit New Application
+            </a>
+          </div>
+        {% endif %}
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+{% endblock %}

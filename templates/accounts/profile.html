@@ -1,11 +1,21 @@
 {% extends 'base_dashboard.html' %}
 {% block title %}My Profile · UMS{% endblock %}
 {% block content %}
-<div class="page-head"><h4><i class="fa-solid fa-id-badge me-2 text-primary"></i>My Profile</h4></div>
+<div class="page-head">
+  <h4><i class="fa-solid fa-id-badge me-2 text-primary"></i>My Profile</h4>
+  <a class="btn btn-primary rounded-pill px-4" href="{% url 'accounts:profile_settings' %}">
+    <i class="fa-solid fa-user-gear me-2"></i>Edit profile</a>
+</div>
 <div class="row g-4">
   <div class="col-lg-4">
     <div class="card card-ums text-center p-4">
-      <img src="{{ user.avatar }}" class="rounded-circle mx-auto mb-3" width="110" height="110">
+      <span class="acct-avatar mx-auto mb-3" style="width:110px;height:110px">
+        {% if user.has_custom_avatar %}
+          <img src="{{ user.avatar }}" alt="Your profile picture">
+        {% else %}
+          <span class="acct-initials" style="font-size:2.1rem">{{ user.initials }}</span>
+        {% endif %}
+      </span>
       <h5 class="fw-bold mb-0">{{ user.display_name }}</h5>
       <span class="badge-soft badge rounded-pill mt-2">{{ user.get_role_display }}</span>
       <div class="text-muted small mt-3"><i class="fa-solid fa-envelope me-2"></i>{{ user.email|default:"—" }}</div>
@@ -25,6 +35,32 @@
           <div class="col-sm-6"><small class="text-muted">Employee ID</small><div class="fw-semibold">{{ user.faculty_profile.employee_id }}</div></div>
           <div class="col-sm-6"><small class="text-muted">Department</small><div class="fw-semibold">{{ user.faculty_profile.department }}</div></div>
         {% endif %}
+      </div>
+    </div>
+
+    <div class="card card-ums p-4 mt-4">
+      <h6 class="fw-bold mb-3"><i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>Login activity</h6>
+      <div class="row g-3">
+        <div class="col-sm-6">
+          <small class="text-muted">First access to site</small>
+          <div class="fw-semibold">
+            {% if user.first_seen_at %}{{ user.first_seen_at|date:"l, j F Y, g:i A" }}
+              <span class="text-muted">({{ user.first_seen_at|timesince }})</span>{% else %}—{% endif %}</div>
+        </div>
+        <div class="col-sm-6">
+          <small class="text-muted">Last access to site</small>
+          <div class="fw-semibold">
+            {% if user.last_seen_at %}{{ user.last_seen_at|date:"l, j F Y, g:i A" }}
+              <span class="text-muted">({{ user.last_seen_at|timesince }})</span>{% else %}—{% endif %}</div>
+        </div>
+        <div class="col-sm-6">
+          <small class="text-muted">Last IP address</small>
+          <div class="fw-semibold"><code class="acct-ip">{{ user.last_login_ip|default:"—" }}</code></div>
+        </div>
+        <div class="col-sm-6">
+          <small class="text-muted">Account created</small>
+          <div class="fw-semibold">{{ user.date_joined|date:"l, j F Y, g:i A" }}</div>
+        </div>
       </div>
     </div>
   </div>

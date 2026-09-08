@@ -1,0 +1,232 @@
+{% extends "base_dashboard.html" %}
+{% load static %}
+
+{% block title %}Graduation & Exit Clearance — University Management System{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <!-- Page Header -->
+  <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+    <div>
+      <h1 class="h3 fw-bold mb-1 text-dark">
+        <i class="fa-solid fa-graduation-cap text-primary me-2"></i>Graduation & Degree Conferment
+      </h1>
+      <p class="text-muted mb-0">Multi-department exit clearance, academic eligibility audit, and degree certification.</p>
+    </div>
+    {% if application and application.status in 'CLEARED SENATE_APPROVED GRADUATED' %}
+      <div class="d-flex gap-2">
+        <a href="{% url 'university:student_clearance_certificate_pdf' %}" class="btn btn-outline-primary" target="_blank">
+          <i class="fa-solid fa-file-shield me-1"></i> Clearance Certificate (PDF)
+        </a>
+        <a href="{% url 'university:student_degree_certificate_pdf' %}" class="btn btn-success" target="_blank">
+          <i class="fa-solid fa-award me-1"></i> Degree Certificate (PDF)
+        </a>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="row g-4">
+    <!-- Student & Eligibility Card -->
+    <div class="col-12 col-lg-4">
+      <div class="card border-0 shadow-sm rounded-4 mb-3">
+        <div class="card-body p-4">
+          <h6 class="text-uppercase text-muted fw-bold small mb-3">Graduand Academic Profile</h6>
+          
+          <div class="text-center py-2 mb-3 border-bottom">
+            <div class="avatar-circle mx-auto mb-2 bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 70px; height: 70px;">
+              <i class="fa-solid fa-user-graduate fs-2"></i>
+            </div>
+            <h5 class="fw-bold mb-0 text-dark">{{ student.user.get_full_name|default:student.user.username }}</h5>
+            <span class="text-muted small font-monospace">{{ student.roll_no }}</span>
+            <div class="mt-2">
+              <span class="badge bg-light text-dark border">{{ student.program.name|default:"Undergraduate Degree" }}</span>
+            </div>
+          </div>
+
+          <ul class="list-group list-group-flush small">
+            <li class="list-group-item d-flex justify-content-between px-0 py-2">
+              <span class="text-muted">Cumulative GPA (CGPA)</span>
+              <span class="fw-bold text-dark">{{ audit.cgpa|floatformat:2 }} / 4.00</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between px-0 py-2">
+              <span class="text-muted">Degree Classification</span>
+              <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ audit.classification }}</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between px-0 py-2">
+              <span class="text-muted">Total Credits Earned</span>
+              <span class="fw-semibold text-dark">{{ audit.credits_earned }} Credits</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between px-0 py-2">
+              <span class="text-muted">Audit Eligibility</span>
+              {% if audit.eligible %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="fa-solid fa-check me-1"></i>Eligible</span>
+              {% else %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="fa-solid fa-triangle-exclamation me-1"></i>Requirements Pending</span>
+              {% endif %}
+            </li>
+          </ul>
+
+          {% if not application %}
+            <div class="mt-4">
+              <form method="post" action="{% url 'university:student_apply_clearance' %}">
+                {% csrf_token %}
+                {% if ceremony %}
+                  <input type="hidden" name="ceremony_id" value="{{ ceremony.id }}">
+                {% endif %}
+                <button type="submit" class="btn btn-primary w-100 py-2.5 rounded-3 fw-semibold" {% if not audit.eligible %}onclick="return confirm('You have pending academic or financial requirements. Do you still wish to submit clearance?');"{% endif %}>
+                  <i class="fa-solid fa-file-signature me-1"></i> Initiate Exit Clearance
+                </button>
+              </form>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Eligibility Notes / Audit Card -->
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body p-4">
+          <h6 class="text-uppercase text-muted fw-bold small mb-2">Graduation Audit Checklist</h6>
+          {% if audit.issues %}
+            <div class="alert alert-warning p-3 rounded-3 small mb-0">
+              <div class="fw-bold mb-1"><i class="fa-solid fa-circle-exclamation me-1"></i>Pending Requirements:</div>
+              <ul class="mb-0 ps-3">
+                {% for issue in audit.issues %}
+                  <li>{{ issue }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% else %}
+            <div class="alert alert-success p-3 rounded-3 small mb-0">
+              <i class="fa-solid fa-circle-check me-1"></i> All graduation academic and financial clearance criteria are satisfied.
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Clearance Process Column -->
+    <div class="col-12 col-lg-8">
+      {% if application %}
+        <!-- Status Banner -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+          <div class="card-body p-4">
+            <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3">
+              <div>
+                <span class="text-muted small text-uppercase fw-semibold">Application Reference</span>
+                <h4 class="fw-bold mb-1 text-dark">{{ application.certificate_serial|default:"NIU/DEG/PENDING" }}</h4>
+                <p class="text-muted small mb-0">{{ application.notes }}</p>
+              </div>
+              <div>
+                {% if application.status == 'CLEARED' or application.status == 'SENATE_APPROVED' %}
+                  <span class="badge bg-success p-2 fs-6 rounded-3"><i class="fa-solid fa-shield-check me-1"></i>{{ application.get_status_display }}</span>
+                {% elif application.status == 'REJECTED' %}
+                  <span class="badge bg-danger p-2 fs-6 rounded-3"><i class="fa-solid fa-ban me-1"></i>Hold / Uncleared</span>
+                {% else %}
+                  <span class="badge bg-primary p-2 fs-6 rounded-3"><i class="fa-solid fa-spinner fa-spin me-1"></i>In Progress</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Departmental Clearance Stations Table -->
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+          <div class="card-header bg-white border-0 p-4 pb-2">
+            <h5 class="fw-bold mb-0 text-dark">5-Station Departmental Clearance Tracker</h5>
+            <span class="text-muted small">Real-time status of multi-departmental approvals required before Senate degree conferment.</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light text-uppercase small text-muted">
+                <tr>
+                  <th class="ps-4">Station / Department</th>
+                  <th>Status</th>
+                  <th>Verified By</th>
+                  <th>Date Cleared</th>
+                  <th class="pe-4">Department Remarks</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for dc in application.clearances.all %}
+                  <tr>
+                    <td class="ps-4">
+                      <div class="d-flex align-items-center gap-2">
+                        {% if dc.department == 'FINANCE' %}
+                          <i class="fa-solid fa-wallet text-success"></i>
+                        {% elif dc.department == 'LIBRARY' %}
+                          <i class="fa-solid fa-book text-primary"></i>
+                        {% elif dc.department == 'ACADEMIC_DEAN' %}
+                          <i class="fa-solid fa-user-tie text-info"></i>
+                        {% elif dc.department == 'STUDENT_AFFAIRS' %}
+                          <i class="fa-solid fa-bed text-warning"></i>
+                        {% else %}
+                          <i class="fa-solid fa-stamp text-danger"></i>
+                        {% endif %}
+                        <span class="fw-semibold text-dark">{{ dc.get_department_display }}</span>
+                      </div>
+                    </td>
+                    <td>
+                      {% if dc.status == 'CLEARED' %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle">
+                          <i class="fa-solid fa-circle-check me-1"></i> Cleared
+                        </span>
+                      {% elif dc.status == 'REJECTED' %}
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
+                          <i class="fa-solid fa-ban me-1"></i> Hold
+                        </span>
+                      {% else %}
+                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
+                          <i class="fa-solid fa-clock me-1"></i> Pending Review
+                        </span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <span class="small text-dark">
+                        {% if dc.cleared_by %}
+                          {{ dc.cleared_by.get_full_name|default:dc.cleared_by.username }}
+                        {% else %}
+                          <span class="text-muted">—</span>
+                        {% endif %}
+                      </span>
+                    </td>
+                    <td>
+                      <span class="small text-dark">{{ dc.cleared_at|date:"M d, Y"|default:"—" }}</span>
+                    </td>
+                    <td class="pe-4">
+                      <span class="small text-muted">{{ dc.remarks|default:"Awaiting departmental inspection." }}</span>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      {% else %}
+        <!-- Application Call to Action -->
+        <div class="card border-0 shadow-sm rounded-4 text-center p-5">
+          <div class="py-5">
+            <div class="badge-icon bg-primary-subtle text-primary p-4 rounded-circle d-inline-flex mb-3">
+              <i class="fa-solid fa-scroll display-4"></i>
+            </div>
+            <h4 class="fw-bold text-dark">Ready for Degree Conferment?</h4>
+            <p class="text-muted mx-auto" style="max-width: 500px;">
+              Final year students who have completed or are completing their coursework can initiate exit clearance.
+              Clearance checks will be routed to Finance, Library, Faculty Dean, Student Affairs, and the Registrar.
+            </p>
+            <form method="post" action="{% url 'university:student_apply_clearance' %}">
+              {% csrf_token %}
+              {% if ceremony %}
+                <input type="hidden" name="ceremony_id" value="{{ ceremony.id }}">
+              {% endif %}
+              <button type="submit" class="btn btn-primary px-4 py-2.5 rounded-3 fw-semibold">
+                <i class="fa-solid fa-paper-plane me-1"></i> Start Exit Clearance Process
+              </button>
+            </form>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

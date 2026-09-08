@@ -1,0 +1,369 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+{% load ums_extras %}
+
+{% block title %}Access & Overrides · {{ staff_user.get_full_name|default:staff_user.username }} · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4><i class="fa-solid fa-user-gear me-2 text-primary"></i>Staff Access & Permission Overrides</h4>
+    <p class="text-muted small mb-0">Inspect effective permissions, manage assigned staff roles, and configure user-level Grant/Deny overrides.</p>
+  </div>
+  <div class="breadcrumb-chip">
+    <a href="{% url 'university:staff_permissions_dashboard' %}" class="text-decoration-none text-muted">Staff Access Hub</a>
+    <i class="fa-solid fa-angle-right mx-1"></i> {{ staff_user.username }}
+  </div>
+</div>
+
+<!-- Staff Profile Summary Banner -->
+<div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-3">
+      <img src="{{ staff_user.avatar }}" alt="avatar" class="rounded-circle shadow-sm" style="width:64px;height:64px;object-fit:cover;">
+      <div>
+        <div class="d-flex align-items-center gap-2">
+          <h5 class="fw-bold text-dark mb-0">{{ staff_user.get_full_name|default:staff_user.username }}</h5>
+          <span class="badge {% if staff_user.role == 'ADMIN' %}bg-primary{% else %}bg-info text-dark{% endif %} rounded-pill">
+            {{ staff_user.get_role_display }}
+          </span>
+          {% if staff_user.is_superuser %}
+          <span class="badge bg-danger rounded-pill"><i class="fa-solid fa-crown me-1"></i>Superuser</span>
+          {% endif %}
+        </div>
+        <div class="text-muted small mt-1">
+          <i class="fa-solid fa-envelope me-1 text-primary"></i> {{ staff_user.email|default:"No email recorded" }}
+          <span class="mx-2">·</span>
+          <i class="fa-solid fa-id-badge me-1 text-primary"></i> @{{ staff_user.username }}
+          {% if staff_user.faculty_profile.department %}
+          <span class="mx-2">·</span>
+          <i class="fa-solid fa-building-columns me-1 text-primary"></i> {{ staff_user.faculty_profile.department.name }}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Overrides Tally Badge -->
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge bg-light text-dark border rounded-pill px-3 py-2 fw-semibold">
+        <i class="fa-solid fa-sliders text-primary me-1"></i> {{ overrides_count }} Active User Override{{ overrides_count|pluralize }}
+      </span>
+      <a href="{% url 'university:staff_permissions_dashboard' %}" class="btn btn-outline-secondary rounded-pill btn-sm px-3">
+        <i class="fa-solid fa-arrow-left me-1"></i> Back to Directory
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  
+  <!-- Left Column: Assigned Staff Roles Card -->
+  <div class="col-12 col-lg-4">
+    <div class="card border-0 shadow-sm rounded-4 p-3 p-md-4 h-100 bg-white">
+      <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+        <h6 class="fw-bold text-dark mb-0">
+          <i class="fa-solid fa-shield-halved text-primary me-1.5"></i>Assigned Staff Roles
+        </h6>
+        <button type="button" class="btn btn-sm btn-primary rounded-pill px-2.5 py-1" data-bs-toggle="modal" data-bs-target="#assignRoleModal" style="font-size:.78rem;">
+          <i class="fa-solid fa-plus me-1"></i> Assign Role
+        </button>
+      </div>
+
+      <p class="text-muted small mb-3">
+        Staff roles provide baseline bundles of permissions across operational modules.
+      </p>
+
+      {% if active_assignments %}
+      <div class="d-flex flex-column gap-2.5 mb-3">
+        {% for asgn in active_assignments %}
+        <div class="card border rounded-3 p-2.5 position-relative overflow-hidden">
+          <div class="card-strip" style="position:absolute;left:0;top:0;bottom:0;width:4px;background:{{ asgn.role.color }};"></div>
+          <div class="ps-2">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <span class="badge rounded-pill text-white" style="background:{{ asgn.role.color }};font-size:.75rem;">
+                  {{ asgn.role.name }}
+                </span>
+                {% if asgn.department %}
+                <span class="badge bg-light text-muted border rounded-pill small ms-1">
+                  {{ asgn.department.code }}
+                </span>
+                {% endif %}
+              </div>
+              <form method="post" action="{% url 'university:staff_role_assignment_action' staff_user.id %}" onsubmit="return confirm('Remove role {{ asgn.role.name }} from this staff member?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="remove">
+                <input type="hidden" name="assignment_id" value="{{ asgn.id }}">
+                <button type="submit" class="btn btn-link btn-sm text-danger p-0" title="Remove Role">
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </form>
+            </div>
+            <div class="text-muted small mt-1" style="font-size:.76rem;line-height:1.35;">
+              {{ asgn.role.description|truncatechars:85 }}
+            </div>
+            <div class="d-flex justify-content-between text-muted small mt-1 pt-1 border-top" style="font-size:.72rem;">
+              <span>{{ asgn.role.permissions.count }} Permissions</span>
+              <span>Assigned {{ asgn.assigned_at|date:"d M Y" }}</span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-center py-4 text-muted bg-light rounded-3 mb-3">
+        <i class="fa-solid fa-shield-slash fa-2x mb-1 opacity-50 d-block"></i>
+        <span class="small">No custom staff roles assigned.<br>User operates under default <strong>{{ staff_user.get_role_display }}</strong> permissions.</span>
+      </div>
+      {% endif %}
+
+      <!-- Quick Tips Box -->
+      <div class="alert alert-info border-0 rounded-3 p-2.5 small mb-0" style="font-size:.8rem;">
+        <i class="fa-solid fa-circle-info me-1"></i>
+        <strong>Permission Priority:</strong> Explicit user overrides (Grant/Deny) override any role settings.
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: Effective Granular Permissions & Overrides Matrix -->
+  <div class="col-12 col-lg-8">
+    <div class="card border-0 shadow-sm rounded-4 p-3 p-md-4 bg-white">
+      <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom flex-wrap gap-2">
+        <div>
+          <h6 class="fw-bold text-dark mb-0">
+            <i class="fa-solid fa-key text-primary me-1.5"></i>Granular Permissions & Explicit Overrides
+          </h6>
+          <small class="text-muted">Directly grant extra authority or deny specific actions for this staff member.</small>
+        </div>
+      </div>
+
+      <!-- Module by Module Accordion / Tables -->
+      {% for module_name, perms_list in grouped_perms.items %}
+      <div class="card border rounded-3 mb-3 overflow-hidden">
+        <div class="card-header bg-light py-2 px-3 d-flex justify-content-between align-items-center">
+          <span class="fw-bold text-dark small">
+            <i class="fa-solid fa-folder-tree text-primary me-1.5"></i>{{ module_name }} Module
+          </span>
+          <span class="badge bg-secondary rounded-pill" style="font-size:.72rem;">{{ perms_list|length }} Permissions</span>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0" style="font-size:.84rem;">
+            <thead class="table-light border-bottom">
+              <tr>
+                <th class="ps-3" style="min-width:200px;">Permission</th>
+                <th>Effective Status</th>
+                <th>Source / Rule</th>
+                <th class="text-end pe-3" style="min-width:160px;">Override Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p_info in perms_list %}
+              <tr class="{% if p_info.has_override %}{% if p_info.override_type == 'GRANT' %}table-success-subtle{% else %}table-danger-subtle{% endif %}{% endif %}">
+                <td class="ps-3">
+                  <div class="fw-bold text-dark">{{ p_info.permission.name }}</div>
+                  <code class="text-muted small" style="font-size:.72rem;">{{ p_info.permission.code }}</code>
+                </td>
+                <td>
+                  {% if p_info.granted %}
+                  <span class="badge bg-success text-white rounded-pill px-2.5 py-1" style="font-size:.74rem;">
+                    <i class="fa-solid fa-check me-1"></i> GRANTED
+                  </span>
+                  {% else %}
+                  <span class="badge bg-danger text-white rounded-pill px-2.5 py-1" style="font-size:.74rem;">
+                    <i class="fa-solid fa-xmark me-1"></i> DENIED
+                  </span>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="small {% if p_info.has_override %}fw-bold text-primary{% else %}text-muted{% endif %}">
+                    {{ p_info.source }}
+                  </span>
+                </td>
+                <td class="text-end pe-3">
+                  <div class="btn-group btn-group-sm">
+                    <!-- If override exists -> show Remove button -->
+                    {% if p_info.has_override %}
+                    <form method="post" action="{% url 'university:set_permission_override_action' staff_user.id %}" class="d-inline">
+                      {% csrf_token %}
+                      <input type="hidden" name="perm_code" value="{{ p_info.permission.code }}">
+                      <input type="hidden" name="override_type" value="REMOVE">
+                      <button type="submit" class="btn btn-sm btn-outline-secondary rounded-pill px-2 py-0.5" title="Remove Override & Revert to Role Default" style="font-size:.74rem;">
+                        <i class="fa-solid fa-rotate-left me-1"></i> Reset
+                      </button>
+                    </form>
+                    {% endif %}
+
+                    <!-- Explicit Grant Trigger -->
+                    {% if not p_info.has_override or p_info.override_type != 'GRANT' %}
+                    <button 
+                      type="button" 
+                      class="btn btn-sm btn-outline-success rounded-pill px-2 py-0.5 ms-1"
+                      onclick="openOverrideModal('{{ p_info.permission.code }}', '{{ p_info.permission.name|escapejs }}', 'GRANT')"
+                      style="font-size:.74rem;"
+                    >
+                      <i class="fa-solid fa-plus me-1"></i> Grant
+                    </button>
+                    {% endif %}
+
+                    <!-- Explicit Deny Trigger -->
+                    {% if not p_info.has_override or p_info.override_type != 'DENY' %}
+                    <button 
+                      type="button" 
+                      class="btn btn-sm btn-outline-danger rounded-pill px-2 py-0.5 ms-1"
+                      onclick="openOverrideModal('{{ p_info.permission.code }}', '{{ p_info.permission.name|escapejs }}', 'DENY')"
+                      style="font-size:.74rem;"
+                    >
+                      <i class="fa-solid fa-ban me-1"></i> Block
+                    </button>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endfor %}
+
+    </div>
+  </div>
+
+</div>
+
+<!-- ============================================================================== -->
+<!-- MODAL: ASSIGN STAFF ROLE -->
+<!-- ============================================================================== -->
+<div class="modal fade" id="assignRoleModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <form method="post" action="{% url 'university:staff_role_assignment_action' staff_user.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="assign">
+        
+        <div class="modal-header border-bottom pb-3">
+          <h5 class="modal-title fw-bold">
+            <i class="fa-solid fa-shield-halved text-primary me-2"></i>Assign Staff Role
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body py-3">
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Staff Member</label>
+            <input type="text" class="form-control form-control-sm bg-light" value="{{ staff_user.get_full_name|default:staff_user.username }} (@{{ staff_user.username }})" readonly>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Select Staff Role <span class="text-danger">*</span></label>
+            <select name="role_id" class="form-select" required>
+              <option value="">-- Choose Role --</option>
+              {% for r in all_roles %}
+              <option value="{{ r.id }}">{{ r.name }} ({{ r.permissions.count }} permissions)</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Department Scope (Optional)</label>
+            <select name="department_id" class="form-select">
+              <option value="">-- Institution-Wide (All Departments) --</option>
+              {% for d in departments %}
+              <option value="{{ d.id }}" {% if staff_user.faculty_profile.department_id == d.id %}selected{% endif %}>{{ d.name }} ({{ d.code }})</option>
+              {% endfor %}
+            </select>
+            <small class="text-muted" style="font-size:.76rem;">Scope this role to a specific department (e.g. HOD of SCIT).</small>
+          </div>
+        </div>
+
+        <div class="modal-footer border-top pt-2">
+          <button type="button" class="btn btn-outline-secondary rounded-pill btn-sm px-3" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary rounded-pill btn-sm px-4">
+            <i class="fa-solid fa-check me-1"></i> Save Assignment
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================================== -->
+<!-- MODAL: CONFIGURE EXPLICIT PERMISSION OVERRIDE -->
+<!-- ============================================================================== -->
+<div class="modal fade" id="overrideModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <form method="post" action="{% url 'university:set_permission_override_action' staff_user.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="perm_code" id="overridePermCode">
+        <input type="hidden" name="override_type" id="overrideType">
+        
+        <div class="modal-header border-bottom pb-3">
+          <h5 class="modal-title fw-bold" id="overrideModalTitle">
+            <i class="fa-solid fa-sliders text-primary me-2"></i>Configure Permission Override
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body py-3">
+          <div class="alert mb-3" id="overrideModalAlert">
+            <span id="overrideModalDesc"></span>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Target Permission</label>
+            <input type="text" id="overridePermName" class="form-control form-control-sm bg-light" readonly>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Audit Rationale / Justification <span class="text-danger">*</span></label>
+            <textarea name="reason" rows="3" class="form-control" placeholder="Explain why this special override is being granted or blocked for audit compliance..." required></textarea>
+            <small class="text-muted" style="font-size:.76rem;">This justification is permanently logged to the immutable Audit Trail.</small>
+          </div>
+        </div>
+
+        <div class="modal-footer border-top pt-2">
+          <button type="button" class="btn btn-outline-secondary rounded-pill btn-sm px-3" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn rounded-pill btn-sm px-4" id="overrideSubmitBtn">
+            Confirm Override
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openOverrideModal(permCode, permName, overrideType) {
+  document.getElementById('overridePermCode').value = permCode;
+  document.getElementById('overrideType').value = overrideType;
+  document.getElementById('overridePermName').value = permName + ' (' + permCode + ')';
+
+  const modalTitle = document.getElementById('overrideModalTitle');
+  const modalAlert = document.getElementById('overrideModalAlert');
+  const modalDesc = document.getElementById('overrideModalDesc');
+  const submitBtn = document.getElementById('overrideSubmitBtn');
+
+  if (overrideType === 'GRANT') {
+    modalTitle.innerHTML = '<i class="fa-solid fa-circle-check text-success me-2"></i>Explicit Permission Grant';
+    modalAlert.className = 'alert alert-success border-0 rounded-3 p-2.5 small';
+    modalDesc.innerHTML = '<strong>Explicit Grant:</strong> This staff member will be granted access to this permission regardless of their assigned role permissions.';
+    submitBtn.className = 'btn btn-success rounded-pill btn-sm px-4';
+    submitBtn.innerHTML = '<i class="fa-solid fa-check me-1"></i> Authorize Grant';
+  } else {
+    modalTitle.innerHTML = '<i class="fa-solid fa-ban text-danger me-2"></i>Explicit Permission Block / Revocation';
+    modalAlert.className = 'alert alert-danger border-0 rounded-3 p-2.5 small';
+    modalDesc.innerHTML = '<strong>Explicit Deny:</strong> This staff member will be strictly blocked from executing this permission even if their role permits it.';
+    submitBtn.className = 'btn btn-danger rounded-pill btn-sm px-4';
+    submitBtn.innerHTML = '<i class="fa-solid fa-ban me-1"></i> Enforce Block';
+  }
+
+  const modal = new bootstrap.Modal(document.getElementById('overrideModal'));
+  modal.show();
+}
+</script>
+{% endblock %}
