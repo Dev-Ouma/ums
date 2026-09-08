@@ -1,0 +1,219 @@
+{% extends 'base_dashboard.html' %}
+{% load static %}
+{% block title %}Bulk Import Students · UMS{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h4><i class="fa-solid fa-file-import me-2 text-primary"></i>Bulk Import Students</h4>
+    <p class="text-muted small mb-0">Upload student records via CSV or Excel spreadsheet with automatic validation.</p>
+  </div>
+  <a href="{% url 'university:admin_students' %}" class="btn btn-light border rounded-pill px-3">
+    <i class="fa-solid fa-arrow-left me-1"></i> Back to Students
+  </a>
+</div>
+
+{% if not preview_data %}
+<!-- STEP 1: UPLOAD & TEMPLATE DOWNLOAD -->
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card card-ums p-4">
+      <h5 class="fw-bold mb-3"><i class="fa-solid fa-cloud-arrow-up text-primary me-2"></i>Upload Student Spreadsheet</h5>
+      <p class="text-muted small mb-4">
+        Select a <strong>CSV</strong> or <strong>Excel (.xlsx)</strong> file containing student records.
+        The system will parse and validate the file and show an interactive preview before committing any data.
+      </p>
+
+      <form method="post" enctype="multipart/form-data" class="dropzone-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="preview">
+
+        <div class="upload-box border-2 border-dashed rounded-4 p-5 text-center mb-4" style="background:#fafaff; border-color:#d5d0f8;">
+          <i class="fa-solid fa-file-excel fa-3x text-primary mb-3"></i>
+          <h6 class="fw-bold mb-1">Choose your student import file</h6>
+          <p class="text-muted small mb-3">Supports .csv, .xlsx, and .xls spreadsheets</p>
+          <input type="file" name="file" id="fileInput" class="form-control d-none" accept=".csv, .xlsx, .xls" required onchange="updateFileLabel(this)">
+          <button type="button" class="btn btn-primary rounded-pill px-4 fw-semibold" onclick="document.getElementById('fileInput').click()">
+            <i class="fa-solid fa-folder-open me-2"></i>Browse Computer
+          </button>
+          <div id="fileSelectedName" class="mt-3 text-success fw-semibold small" style="display:none;"></div>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2">
+          <a href="{% url 'university:admin_students' %}" class="btn btn-light border rounded-pill px-4">Cancel</a>
+          <button type="submit" id="submitUploadBtn" class="btn btn-primary rounded-pill px-4 fw-semibold" disabled>
+            <i class="fa-solid fa-magnifying-glass me-1"></i> Validate & Preview File
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card card-ums p-4">
+      <h5 class="fw-bold mb-2"><i class="fa-solid fa-download text-primary me-2"></i>Download Sample Template</h5>
+      <p class="text-muted small mb-3">
+        Download a ready-to-use template prefilled with column headers (Row 1) and realistic sample student data (Row 2) demonstrating the exact format.
+      </p>
+
+      <div class="d-grid gap-2 mb-4">
+        <a href="{% url 'university:student_import_template' 'csv' %}" class="btn btn-outline-secondary rounded-pill py-2 text-start px-3 d-flex align-items-center justify-content-between">
+          <span><i class="fa-solid fa-file-csv text-info me-2 fs-5"></i> Download CSV Template</span>
+          <span class="badge bg-light text-dark border">.csv</span>
+        </a>
+        <a href="{% url 'university:student_import_template' 'excel' %}" class="btn btn-outline-secondary rounded-pill py-2 text-start px-3 d-flex align-items-center justify-content-between">
+          <span><i class="fa-solid fa-file-excel text-success me-2 fs-5"></i> Download Excel Template</span>
+          <span class="badge bg-light text-dark border">.xlsx</span>
+        </a>
+      </div>
+
+      <h6 class="fw-bold small text-uppercase text-muted mb-2">Column Specifications</h6>
+      <div class="table-responsive small">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr><th>Column</th><th>Required</th><th>Example</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>Roll No</code></td><td><span class="badge bg-danger">Yes</span></td><td><code>STU2026101</code></td></tr>
+            <tr><td><code>First Name</code></td><td><span class="badge bg-danger">Yes</span></td><td>Jane</td></tr>
+            <tr><td><code>Last Name</code></td><td><span class="badge bg-danger">Yes</span></td><td>Doe</td></tr>
+            <tr><td><code>Email</code></td><td><span class="badge bg-danger">Yes</span></td><td>jane.doe@example.com</td></tr>
+            <tr><td><code>Program Code</code></td><td><span class="badge bg-secondary">Optional</span></td><td>CS-BS</td></tr>
+            <tr><td><code>Current Semester</code></td><td><span class="badge bg-secondary">Optional</span></td><td>1 (1-12)</td></tr>
+            <tr><td><code>Gender</code></td><td><span class="badge bg-secondary">Optional</span></td><td>Female / Male / Other</td></tr>
+            <tr><td><code>Phone</code></td><td><span class="badge bg-secondary">Optional</span></td><td>+254 712 345 678</td></tr>
+            <tr><td><code>Username</code></td><td><span class="badge bg-secondary">Auto</span></td><td>jane.doe</td></tr>
+            <tr><td><code>Password</code></td><td><span class="badge bg-secondary">Default</span></td><td>Student@2026</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% else %}
+<!-- STEP 2: VALIDATION PREVIEW -->
+<div class="card card-ums mb-4 p-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div>
+      <h5 class="fw-bold mb-1"><i class="fa-solid fa-list-check text-primary me-2"></i>Import Validation Preview</h5>
+      <p class="text-muted small mb-0">Review verified student rows, detected duplicates, and formatting errors before final submission.</p>
+    </div>
+
+    <!-- Summary Badges -->
+    <div class="d-flex gap-2 flex-wrap">
+      <div class="card px-3 py-2 text-center border">
+        <div class="small text-muted text-uppercase fw-semibold">Total Rows</div>
+        <div class="fs-5 fw-bold text-dark">{{ preview_data.total_count }}</div>
+      </div>
+      <div class="card px-3 py-2 text-center border-success-subtle bg-success-subtle">
+        <div class="small text-success text-uppercase fw-semibold">Valid Rows</div>
+        <div class="fs-5 fw-bold text-success">{{ preview_data.valid_count }}</div>
+      </div>
+      <div class="card px-3 py-2 text-center border-warning-subtle bg-warning-subtle">
+        <div class="small text-warning-emphasis text-uppercase fw-semibold">Duplicates</div>
+        <div class="fs-5 fw-bold text-warning-emphasis">{{ preview_data.duplicate_count }}</div>
+      </div>
+      <div class="card px-3 py-2 text-center border-danger-subtle bg-danger-subtle">
+        <div class="small text-danger text-uppercase fw-semibold">Errors</div>
+        <div class="fs-5 fw-bold text-danger">{{ preview_data.error_count }}</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="my-3 text-muted opacity-25">
+
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div class="small text-muted">
+      {% if preview_data.valid_count > 0 %}
+        <i class="fa-solid fa-circle-check text-success me-1"></i>
+        <strong>{{ preview_data.valid_count }}</strong> record{{ preview_data.valid_count|pluralize }} ready to import into the database.
+      {% else %}
+        <i class="fa-solid fa-triangle-exclamation text-danger me-1"></i>
+        No valid records available for import. Please correct the spreadsheet and re-upload.
+      {% endif %}
+    </div>
+
+    <!-- Actions form -->
+    <form method="post" class="d-flex gap-2">
+      {% csrf_token %}
+      <button type="submit" name="action" value="cancel" class="btn btn-light border rounded-pill px-4">
+        <i class="fa-solid fa-xmark me-1"></i> Cancel & Re-upload
+      </button>
+      {% if preview_data.valid_count > 0 %}
+      <button type="submit" name="action" value="confirm" class="btn btn-primary rounded-pill px-4 fw-semibold">
+        <i class="fa-solid fa-check me-1"></i> Confirm & Import {{ preview_data.valid_count }} Valid Student{{ preview_data.valid_count|pluralize }}
+      </button>
+      {% endif %}
+    </form>
+  </div>
+
+  <!-- Preview Table -->
+  <div class="table-responsive rounded-3 border">
+    <table class="table align-middle mb-0" style="font-size:0.88rem;">
+      <thead class="table-light">
+        <tr>
+          <th style="width:50px;" class="ps-3">Row</th>
+          <th style="width:110px;">Status</th>
+          <th>Roll No</th>
+          <th>Student Name</th>
+          <th>Email</th>
+          <th>Program</th>
+          <th>Sem</th>
+          <th>Gender</th>
+          <th>Validation Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in preview_data.items %}
+        <tr class="{% if item.status == 'valid' %}table-success-subtle{% elif item.status == 'duplicate' %}table-warning-subtle{% else %}table-danger-subtle{% endif %}">
+          <td class="ps-3 text-muted fw-semibold">#{{ item.row_num }}</td>
+          <td>
+            {% if item.status == 'valid' %}
+              <span class="badge bg-success rounded-pill px-3"><i class="fa-solid fa-check me-1"></i> Valid</span>
+            {% elif item.status == 'duplicate' %}
+              <span class="badge bg-warning text-dark rounded-pill px-2"><i class="fa-solid fa-clone me-1"></i> Duplicate</span>
+            {% else %}
+              <span class="badge bg-danger rounded-pill px-3"><i class="fa-solid fa-triangle-exclamation me-1"></i> Error</span>
+            {% endif %}
+          </td>
+          <td class="fw-bold">{{ item.roll_no|default:"—" }}</td>
+          <td class="fw-semibold">{{ item.full_name|default:"—" }}</td>
+          <td>{{ item.email|default:"—" }}</td>
+          <td>{{ item.program_code|default:"—" }}</td>
+          <td>Sem {{ item.current_semester }}</td>
+          <td>{{ item.gender_display }}</td>
+          <td>
+            {% if item.errors %}
+              <ul class="mb-0 ps-3 small text-danger">
+                {% for err in item.errors %}
+                  <li>{{ err }}</li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <span class="text-success small"><i class="fa-solid fa-check-circle me-1"></i> Ready to import</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<script>
+function updateFileLabel(input) {
+  var submitBtn = document.getElementById('submitUploadBtn');
+  var nameLabel = document.getElementById('fileSelectedName');
+  if (input.files && input.files[0]) {
+    var file = input.files[0];
+    nameLabel.textContent = 'Selected: ' + file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+    nameLabel.style.display = 'block';
+    submitBtn.disabled = false;
+  } else {
+    nameLabel.style.display = 'none';
+    submitBtn.disabled = true;
+  }
+}
+</script>
+{% endblock %}

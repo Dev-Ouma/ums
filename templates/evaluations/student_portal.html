@@ -1,0 +1,155 @@
+{% extends "base_dashboard.html" %}
+{% load static %}
+{% block title %}Course Evaluations · UMS{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <div>
+    <h1 class="page-title mb-1"><i class="fa-solid fa-star-half-stroke me-2 text-warning"></i>Course Evaluations</h1>
+    <p class="text-muted mb-0 small">Rate your courses and lecturers to help improve teaching quality. All submissions are <strong>100% anonymous</strong>.</p>
+  </div>
+  {% if active_term %}
+  <span class="badge bg-primary-soft text-primary px-3 py-2" style="font-size:.85rem">
+    <i class="fa-solid fa-calendar-alt me-1"></i>{{ active_term.name }}
+  </span>
+  {% endif %}
+</div>
+
+<!-- Window status banner -->
+{% if window %}
+  {% if open_window %}
+    <div class="alert border-0 rounded-4 mb-4" style="background: linear-gradient(135deg,#0f9b58 0%,#00b09b 100%); color:#fff;">
+      <i class="fa-solid fa-circle-check me-2"></i>
+      <strong>Evaluation window is OPEN</strong>
+      {% if window.closes_at %} — closes {{ window.closes_at|date:"d M Y, H:i" }}{% endif %}.
+      Please complete all pending evaluations below.
+    </div>
+  {% else %}
+    <div class="alert border-0 rounded-4 mb-4" style="background: linear-gradient(135deg,#b24592 0%,#f15f79 100%); color:#fff;">
+      <i class="fa-solid fa-circle-xmark me-2"></i>
+      <strong>Evaluation window is CLOSED</strong>. Evaluations are not currently being collected.
+      Check back when the academic office opens the next window.
+    </div>
+  {% endif %}
+{% else %}
+  <div class="alert alert-warning rounded-4 mb-4">
+    <i class="fa-solid fa-triangle-exclamation me-2"></i>Evaluation window has not been configured by the academic office yet.
+  </div>
+{% endif %}
+
+<div class="row g-4">
+
+  <!-- PENDING EVALUATIONS -->
+  {% if open_window %}
+  <div class="col-12">
+    <div class="card border-0 shadow-sm rounded-4">
+      <div class="card-header border-0 rounded-top-4 py-3 px-4" style="background: linear-gradient(135deg,#6C5CE7,#a29bfe);">
+        <h5 class="mb-0 text-white fw-semibold"><i class="fa-solid fa-hourglass-half me-2"></i>Pending Evaluations ({{ pending|length }})</h5>
+      </div>
+      <div class="card-body p-0">
+        {% if pending %}
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th class="ps-4">Course</th>
+                  <th>Lecturer</th>
+                  <th>Credits</th>
+                  <th class="pe-4 text-end">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in pending %}
+                <tr>
+                  <td class="ps-4">
+                    <div class="fw-semibold">{{ item.course.code }}</div>
+                    <div class="small text-muted">{{ item.course.title }}</div>
+                  </td>
+                  <td>
+                    {% if item.course.faculty %}
+                      <span class="badge bg-light text-dark border">{{ item.course.faculty }}</span>
+                    {% else %}
+                      <span class="text-muted small">N/A</span>
+                    {% endif %}
+                  </td>
+                  <td><span class="badge bg-secondary-soft text-secondary">{{ item.course.credits }} cr</span></td>
+                  <td class="pe-4 text-end">
+                    <a href="{% url 'university:student_evaluation_submit' item.course.pk %}"
+                       class="btn btn-sm btn-primary rounded-pill px-3">
+                      <i class="fa-solid fa-pen-to-square me-1"></i>Evaluate
+                    </a>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="text-center py-5 text-muted">
+            <i class="fa-solid fa-check-double fa-3x mb-3 text-success"></i>
+            <p class="mb-0 fw-semibold">All evaluations completed!</p>
+            <p class="small">Thank you for your feedback.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- SUBMITTED EVALUATIONS -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm rounded-4">
+      <div class="card-header border-0 rounded-top-4 py-3 px-4" style="background: linear-gradient(135deg,#11998e,#38ef7d);">
+        <h5 class="mb-0 text-white fw-semibold"><i class="fa-solid fa-circle-check me-2"></i>Submitted Evaluations ({{ submitted|length }})</h5>
+      </div>
+      <div class="card-body p-0">
+        {% if submitted %}
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th class="ps-4">Course</th>
+                  <th>Lecturer</th>
+                  <th>Avg Score</th>
+                  <th class="pe-4">Submitted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in submitted %}
+                <tr>
+                  <td class="ps-4">
+                    <div class="fw-semibold">{{ item.course.code }}</div>
+                    <div class="small text-muted">{{ item.course.title }}</div>
+                  </td>
+                  <td>
+                    {% if item.course.faculty %}
+                      <span class="badge bg-light text-dark border">{{ item.course.faculty }}</span>
+                    {% else %}
+                      <span class="text-muted small">N/A</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% with avg=item.evaluation.average_score %}
+                    <span class="badge {% if avg >= 4 %}bg-success{% elif avg >= 3 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                      {{ avg }} / 5
+                    </span>
+                    {% endwith %}
+                  </td>
+                  <td class="pe-4 small text-muted">{{ item.evaluation.submitted_at|date:"d M Y" }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="text-center py-5 text-muted">
+            <i class="fa-solid fa-inbox fa-3x mb-3 opacity-30"></i>
+            <p class="mb-0">No evaluations submitted yet this term.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

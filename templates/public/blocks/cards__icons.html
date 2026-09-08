@@ -1,0 +1,18 @@
+{% load cms_tags %}
+<section class="container py-5">
+  {% if block.heading %}<h2 class="fw-bold text-center mb-4">{{ block.heading }}</h2>{% endif %}
+  <div class="row g-4">
+    {% for row in block.body|rows %}
+      <div class="col-md-4">
+        <div class="portal-card">
+          <div class="pc-head">
+            <span class="pc-icon"><i class="fa-solid {{ row|cell:2|default:'fa-circle-dot' }}"></i></span>
+            <h5>{{ row|cell:0 }}</h5>
+          </div>
+          <p>{{ row|cell:1 }}</p>
+          {% if row|cell:3 %}<a class="pc-chevron" href="{{ row|cell:3 }}"><i class="fa-solid fa-arrow-right"></i></a>{% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</section>

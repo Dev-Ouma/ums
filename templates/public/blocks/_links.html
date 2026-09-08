@@ -1,0 +1,19 @@
+{% comment %}
+Shared action buttons for blocks.
+
+Pass `on_dark=True` when the block sits on a coloured panel: the brand button
+styles are brand-coloured themselves, so on a brand-gradient background they
+render as near-invisible text on their own colour.
+{% endcomment %}
+{% if block.link_text or block.secondary_link_text %}
+<div class="d-flex justify-content-center gap-3 flex-wrap mt-4">
+  {% if block.link_text %}
+    <a href="{{ block.link_url|default:'#' }}"
+       class="btn btn-lg rounded-pill px-4 fw-semibold {% if on_dark %}btn-light text-primary{% else %}btn-primary{% endif %}">{{ block.link_text }}</a>
+  {% endif %}
+  {% if block.secondary_link_text %}
+    <a href="{{ block.secondary_link_url|default:'#' }}"
+       class="btn btn-lg rounded-pill px-4 fw-semibold {% if on_dark %}btn-outline-light{% else %}btn-outline-primary{% endif %}">{{ block.secondary_link_text }}</a>
+  {% endif %}
+</div>
+{% endif %}

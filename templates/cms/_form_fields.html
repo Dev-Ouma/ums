@@ -1,0 +1,23 @@
+{% comment %}Renders a bound form as a two-column grid with inline errors.{% endcomment %}
+{% if form.non_field_errors %}
+  <div class="alert alert-danger rounded-3">{{ form.non_field_errors }}</div>
+{% endif %}
+<div class="row g-3">
+  {% for field in form %}
+    <div class="{% if field.field.widget.input_type == 'checkbox' %}col-12{% else %}col-md-6{% endif %}">
+      {% if field.field.widget.input_type == 'checkbox' %}
+        <div class="form-check">
+          {{ field }}
+          <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        </div>
+      {% else %}
+        <label class="form-label small text-muted" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+      {% endif %}
+      {% for error in field.errors %}
+        <div class="text-danger small mt-1"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ error }}</div>
+      {% endfor %}
+      {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+    </div>
+  {% endfor %}
+</div>

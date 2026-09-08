@@ -1,0 +1,5 @@
+{% with score=score %}
+<span class="badge {% if score >= 4 %}bg-success{% elif score >= 3 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+  {{ score }}
+</span>
+{% endwith %}

@@ -1,0 +1,41 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}{% if is_create %}Add section{% else %}Edit section{% endif %} · Site CMS{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h4><i class="fa-solid fa-layer-group me-2 text-primary"></i>{% if is_create %}Add section{% else %}Edit section{% endif %}</h4>
+  <a class="btn btn-light border rounded-pill px-4" href="{% url 'cms:page_edit' page_obj.pk %}">
+    <i class="fa-solid fa-arrow-left me-2"></i>Back to {{ page_obj.title }}</a>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="card card-ums p-4">
+      <form method="post" enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+        {% include 'cms/_form_fields.html' %}
+        <div class="mt-4 d-flex gap-2">
+          <button class="btn btn-primary rounded-pill px-4" type="submit">
+            <i class="fa-solid fa-floppy-disk me-2"></i>Save section</button>
+          <a class="btn btn-light border rounded-pill px-4" href="{% url 'cms:page_edit' page_obj.pk %}">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card card-ums p-4">
+      <h6 class="fw-bold mb-3"><i class="fa-solid fa-circle-info me-2 text-primary"></i>Writing a section</h6>
+      <p class="small text-muted mb-3"><strong>Template variant</strong> switches which template the
+        section renders through. Change the block type and save to see that type's variants.</p>
+      <p class="small text-muted mb-2"><strong>Repeating sections</strong> (statistics, feature grid,
+        cards) read one item per line from the body, with columns separated by <code>|</code>:</p>
+      <pre class="small bg-light p-3 rounded-3 mb-3">46 | Students | fa-user-graduate
+10 | Faculty  | fa-chalkboard-user</pre>
+      <p class="small text-muted mb-3">Cards take a fourth column for the link:
+        <code>Title | Text | fa-icon | /catalog/</code></p>
+      <p class="small text-muted mb-0"><strong>Live-data sections</strong> (departments, courses,
+        events) ignore the body and pull straight from the system — set how many to show with
+        “Item limit”.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

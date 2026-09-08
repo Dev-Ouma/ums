@@ -1,0 +1,11 @@
+{% comment %}Shared sub-navigation for the site manager.{% endcomment %}
+<div class="cms-nav mb-4">
+  {% with n=request.resolver_match.url_name %}
+  <a class="{% if n == 'dashboard' %}active{% endif %}" href="{% url 'cms:dashboard' %}"><i class="fa-solid fa-gauge-high"></i> Overview</a>
+  <a class="{% if n == 'page_list' or n == 'page_edit' or n == 'page_create' or n == 'block_edit' or n == 'block_create' %}active{% endif %}" href="{% url 'cms:page_list' %}"><i class="fa-solid fa-file-lines"></i> Pages</a>
+  <a class="{% if n == 'menu_list' or n == 'menu_edit' or n == 'menu_create' %}active{% endif %}" href="{% url 'cms:menu_list' %}"><i class="fa-solid fa-bars-staggered"></i> Navigation</a>
+  <a class="{% if n == 'media' %}active{% endif %}" href="{% url 'cms:media' %}"><i class="fa-solid fa-images"></i> Media</a>
+  <a class="{% if n == 'settings' %}active{% endif %}" href="{% url 'cms:settings' %}"><i class="fa-solid fa-sliders"></i> Site settings</a>
+  <a href="{% url 'university:home' %}" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> View site</a>
+  {% endwith %}
+</div>

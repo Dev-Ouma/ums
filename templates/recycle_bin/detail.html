@@ -1,0 +1,151 @@
+{% extends "base_dashboard.html" %}
+{% load static %}
+
+{% block title %}Archived Record #{{ item.id }} — Recycle Bin{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <!-- Breadcrumb & Back -->
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center gap-2">
+      <a href="{% url 'university:recycle_bin_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-circle p-2">
+        <i class="fa-solid fa-arrow-left"></i>
+      </a>
+      <div>
+        <h1 class="h4 fw-bold mb-0 text-dark">Archived Record Details</h1>
+        <span class="text-muted small">{{ item.content_type }} &bull; Reference #{{ item.object_id }}</span>
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      {% if not item.is_restored %}
+        <form method="post" action="{% url 'university:recycle_bin_restore' item.pk %}" onsubmit="return confirm('Restore this record back into active circulation?');">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-success">
+            <i class="fa-solid fa-rotate-left me-1"></i> Restore Record
+          </button>
+        </form>
+        <form method="post" action="{% url 'university:recycle_bin_purge' item.pk %}" onsubmit="return confirm('CRITICAL WARNING: Irreversible permanent deletion.\nProceed?');">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline-danger">
+            <i class="fa-solid fa-trash-can me-1"></i> Permanent Purge
+          </button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Meta Summary Column -->
+    <div class="col-12 col-lg-4">
+      <!-- Status Card -->
+      <div class="card border-0 shadow-sm rounded-4 mb-3">
+        <div class="card-body p-4">
+          <h6 class="text-uppercase text-muted fw-bold small mb-3">Recovery Status</h6>
+          {% if item.is_restored %}
+            <div class="alert alert-success d-flex align-items-center gap-3 rounded-3 mb-3">
+              <i class="fa-solid fa-circle-check fs-3"></i>
+              <div>
+                <strong>Restored to Live Database</strong>
+                <div class="small text-muted">Restored on {{ item.restored_at|date:"M d, Y H:i" }}</div>
+                {% if item.restored_by %}
+                  <div class="small text-muted">By: {{ item.restored_by.get_full_name|default:item.restored_by.username }}</div>
+                {% endif %}
+              </div>
+            </div>
+          {% elif item.is_protected %}
+            <div class="alert alert-warning d-flex align-items-center gap-3 rounded-3 mb-3">
+              <i class="fa-solid fa-shield-halved fs-3"></i>
+              <div>
+                <strong>Protected Record</strong>
+                <div class="small">Protected against accidental permanent purge. Only Superuser may purge.</div>
+              </div>
+            </div>
+          {% else %}
+            <div class="alert alert-danger d-flex align-items-center gap-3 rounded-3 mb-3">
+              <i class="fa-solid fa-trash-can fs-3"></i>
+              <div>
+                <strong>Awaiting Restoration or Purge</strong>
+                <div class="small">Stored safely in recycle bin archive.</div>
+              </div>
+            </div>
+          {% endif %}
+
+          <ul class="list-group list-group-flush small">
+            <li class="list-group-item d-flex justify-content-between px-0 py-2">
+              <span class="text-muted">Entity Class</span>
+              <span class="fw-semibold text-dark">{{ item.content_type }}</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between px-0 py-2">
+              <span class="text-muted">Module</span>
+              <span class="badge bg-light text-dark border">{{ item.module }}</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between px-0 py-2">
+              <span class="text-muted">Original Reference ID</span>
+              <span class="fw-mono text-dark">{{ item.object_id }}</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between px-0 py-2">
+              <span class="text-muted">Object Title / Repr</span>
+              <span class="fw-semibold text-dark text-end">{{ item.object_repr }}</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Deletion Forensic Context -->
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body p-4">
+          <h6 class="text-uppercase text-muted fw-bold small mb-3">Deletion Forensics</h6>
+          <div class="d-flex flex-column gap-3 small">
+            <div>
+              <span class="text-muted d-block">Deleted By:</span>
+              <span class="fw-semibold text-dark">
+                {% if item.deleted_by %}
+                  <i class="fa-solid fa-user-circle me-1 text-primary"></i>{{ item.deleted_by.get_full_name|default:item.deleted_by.username }} ({{ item.deleted_by.username }})
+                {% else %}
+                  <i class="fa-solid fa-robot me-1 text-secondary"></i>System Automator
+                {% endif %}
+              </span>
+            </div>
+            <div>
+              <span class="text-muted d-block">Timestamp:</span>
+              <span class="text-dark">{{ item.deleted_at|date:"l, F d, Y" }} at {{ item.deleted_at|time:"H:i:s" }}</span>
+            </div>
+            <div>
+              <span class="text-muted d-block">Originating IP Address:</span>
+              <code class="text-primary">{{ item.ip_address|default:"127.0.0.1 (Direct Interface)" }}</code>
+            </div>
+            <div>
+              <span class="text-muted d-block">Device Type:</span>
+              <span class="badge bg-light text-dark border"><i class="fa-solid fa-laptop me-1"></i>{{ item.device_type }}</span>
+            </div>
+            <div>
+              <span class="text-muted d-block">User-Agent Header:</span>
+              <div class="bg-light p-2 rounded text-muted font-monospace" style="font-size: 0.72rem; word-break: break-all;">
+                {{ item.user_agent|default:"Standard Web Browser" }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Serialized State Column -->
+    <div class="col-12 col-lg-8">
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-header bg-white border-0 p-4 pb-2 d-flex align-items-center justify-content-between">
+          <div>
+            <h5 class="fw-bold mb-0 text-dark">Serialized Entity Snapshot</h5>
+            <span class="text-muted small">Full state snapshot captured immediately prior to deletion.</span>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText(document.getElementById('jsonViewer').innerText); alert('JSON copied to clipboard!');">
+            <i class="fa-solid fa-copy me-1"></i> Copy JSON
+          </button>
+        </div>
+        <div class="card-body p-4 pt-2">
+          <pre id="jsonViewer" class="bg-dark text-light p-3 rounded-3 font-monospace mb-0" style="max-height: 520px; overflow-y: auto; font-size: 0.85rem; line-height: 1.4;"><code>{{ formatted_json }}</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

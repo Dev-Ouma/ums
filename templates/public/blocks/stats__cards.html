@@ -1,0 +1,14 @@
+{% load cms_tags %}
+<section class="container py-5">
+  {% if block.heading %}<h2 class="fw-bold text-center mb-4">{{ block.heading }}</h2>{% endif %}
+  <div class="row g-3 text-center">
+    {% for row in block.body|rows %}
+      <div class="col-6 col-lg-3">
+        <div class="card border-0 rounded-4 shadow-sm p-4 h-100">
+          <div class="fs-2 fw-bold text-primary">{{ row|cell:0 }}</div>
+          <div class="text-muted small text-uppercase fw-semibold">{{ row|cell:1 }}</div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</section>

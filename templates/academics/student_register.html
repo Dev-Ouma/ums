@@ -1,0 +1,194 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Register Units · Academics · UMS{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h4><i class="fa-solid fa-clipboard-list me-2" style="color:var(--primary)"></i>Register Units</h4>
+    <small class="text-muted">{{ student.roll_no }} · {{ student.user.display_name }} · {{ student.program.name|default:'No Programme Assigned' }}</small>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <span class="badge rounded-pill px-3 py-2 fs-6 
+      {% if registration.status == 'APPROVED' or registration.status == 'REGISTERED' %}bg-success
+      {% elif registration.status == 'SUBMITTED' %}bg-warning text-dark
+      {% elif registration.status == 'REJECTED' %}bg-danger
+      {% else %}bg-secondary{% endif %}">
+      <i class="fa-solid fa-circle-dot me-1"></i>Status: {{ registration.get_status_display|default:'Draft' }}
+    </span>
+  </div>
+</div>
+
+{% if not term %}
+  <div class="alert alert-warning rounded-3">
+    <i class="fa-solid fa-triangle-exclamation me-2"></i>No academic term is currently open for registration. Please consult the Academic Registry.
+  </div>
+{% else %}
+
+  <!-- Term & Rules Banner -->
+  <div class="card card-ums mb-4">
+    <div class="card-body">
+      <div class="row align-items-center">
+        <div class="col-md-7">
+          <h6 class="fw-bold mb-1"><i class="fa-solid fa-calendar-check me-2 text-primary"></i>Active Academic Session: {{ term.name }}</h6>
+          <p class="text-muted small mb-0">
+            Session Period: <strong>{{ term.start_date|date:"d M Y" }}</strong> to <strong>{{ term.end_date|date:"d M Y" }}</strong> · 
+            Registration Deadline: <strong>{{ term.end_date|date:"d M Y" }}</strong>
+            {% if is_deadline_passed %}<span class="badge bg-danger ms-1">Registration Closed</span>{% else %}<span class="badge bg-success ms-1">Registration Open</span>{% endif %}
+          </p>
+          {% if registration.admin_remarks %}
+            <div class="alert alert-info py-2 px-3 mt-2 mb-0 small">
+              <strong>Registry Remarks:</strong> {{ registration.admin_remarks }}
+            </div>
+          {% endif %}
+        </div>
+        <div class="col-md-5 text-md-end mt-3 mt-md-0">
+          <div class="d-inline-block text-start p-3 bg-light rounded-3 border" style="min-width:220px">
+            <div class="d-flex justify-content-between small text-muted mb-1">
+              <span>Total Units / Credits:</span>
+              <strong class="text-dark">{{ total_credits }} / 24</strong>
+            </div>
+            <div class="progress" style="height:8px">
+              <div class="progress-bar {% if total_credits > 24 %}bg-danger{% elif total_credits >= 12 %}bg-success{% else %}bg-primary{% endif %}" 
+                   style="width:{% widthratio total_credits 24 100 %}%"></div>
+            </div>
+            <div class="small text-muted mt-1" style="font-size:0.75rem">
+              Min: 12 credits · Max: 24 credits
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1. Registered Units Section -->
+  <div class="card card-ums mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span><i class="fa-solid fa-list-check me-2" style="color:var(--primary)"></i>My Selected Course Units ({{ enrolled_units|length }})</span>
+      {% if is_editable and enrolled_units %}
+        <form method="post" onsubmit="return confirm('Are you sure you want to formally submit your unit registration for administrative review?');">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="submit_registration">
+          <button type="submit" class="btn btn-sm btn-primary rounded-pill">
+            <i class="fa-solid fa-paper-plane me-1"></i>Submit for Approval
+          </button>
+        </form>
+      {% elif registration.status == 'SUBMITTED' %}
+        <span class="text-muted small"><i class="fa-solid fa-clock me-1 text-warning"></i>Submitted on {{ registration.submitted_at|date:"d M Y H:i" }} — Awaiting Approval</span>
+      {% elif registration.status == 'APPROVED' %}
+        <span class="text-success small"><i class="fa-solid fa-circle-check me-1"></i>Approved by Academic Registry</span>
+      {% endif %}
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Course Code</th>
+            <th>Course Title</th>
+            <th>Department</th>
+            <th>Credits / Units</th>
+            <th>Lecturer</th>
+            <th>Status</th>
+            {% if is_editable %}<th class="text-end pe-3">Action</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for enr in enrolled_units %}
+            <tr>
+              <td class="ps-3 fw-bold">{{ enr.course.code }}</td>
+              <td>
+                <div class="fw-semibold">{{ enr.course.title }}</div>
+                <small class="text-muted">Semester {{ enr.course.semester_no }}</small>
+              </td>
+              <td><span class="badge rounded-pill" style="background:{{ enr.course.department.color }}">{{ enr.course.department.code }}</span></td>
+              <td><strong>{{ enr.course.credits }}</strong> units</td>
+              <td class="small text-muted">
+                {% if enr.course.faculty %}{{ enr.course.faculty.user.display_name }}{% else %}TBA{% endif %}
+              </td>
+              <td>
+                <span class="status {{ enr.status }}">{{ enr.get_status_display }}</span>
+              </td>
+              {% if is_editable %}
+                <td class="text-end pe-3">
+                  <form method="post" class="d-inline" onsubmit="return confirm('Remove {{ enr.course.code }} from your registration?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="drop_unit">
+                    <input type="hidden" name="enrollment_id" value="{{ enr.pk }}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill py-1 px-3">
+                      <i class="fa-solid fa-trash-can me-1"></i>Drop
+                    </button>
+                  </form>
+                </td>
+              {% endif %}
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="7" class="text-center py-5 text-muted">
+                <i class="fa-solid fa-folder-open fs-2 mb-2 d-block opacity-50"></i>
+                You haven't selected any course units yet for {{ term.name }}.<br>
+                Choose from the available courses list below to add units.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 2. Available Units Section -->
+  {% if is_editable %}
+  <div class="card card-ums">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span><i class="fa-solid fa-book-bookmark me-2" style="color:var(--primary)"></i>Available Course Units for {{ student.program.name|default:'Your Programme' }}</span>
+      <span class="badge bg-light text-dark">{{ available_courses|length }} courses available</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Code</th>
+            <th>Title</th>
+            <th>Department</th>
+            <th>Credits</th>
+            <th>Semester</th>
+            <th>Instructor</th>
+            <th class="text-end pe-3">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for course in available_courses %}
+            <tr>
+              <td class="ps-3 fw-bold">{{ course.code }}</td>
+              <td>
+                <div class="fw-semibold">{{ course.title }}</div>
+              </td>
+              <td><span class="badge rounded-pill" style="background:{{ course.department.color }}">{{ course.department.code }}</span></td>
+              <td><strong>{{ course.credits }}</strong> units</td>
+              <td><span class="badge-soft badge rounded-pill">Sem {{ course.semester_no }}</span></td>
+              <td class="small text-muted">
+                {% if course.faculty %}{{ course.faculty.user.display_name }}{% else %}TBA{% endif %}
+              </td>
+              <td class="text-end pe-3">
+                <form method="post" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="add_unit">
+                  <input type="hidden" name="course_id" value="{{ course.pk }}">
+                  <button type="submit" class="btn btn-sm btn-outline-primary rounded-pill py-1 px-3">
+                    <i class="fa-solid fa-plus me-1"></i>Add Unit
+                  </button>
+                </form>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="7" class="text-center py-4 text-muted">
+                No additional active course units available for registration at this time.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+{% endif %}
+{% endblock %}

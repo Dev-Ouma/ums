@@ -1,0 +1,36 @@
+{% extends "admin/base.html" %}
+{% load i18n %}
+
+{% comment %}
+Overrides Django's own admin/base_site.html purely to put the Django admin on
+the same typeface as the rest of the system. The branding blocks below are
+copied verbatim from the stock template so nothing else changes.
+{% endcomment %}
+
+{% block extrastyle %}{{ block.super }}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --app-font:'Quicksand',system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+    --font-family-primary:var(--app-font);
+    --font-family-monospace:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  html,body,input,select,textarea,button,.button,#header,#nav-sidebar,
+  .module,.form-row,.help,h1,h2,h3,h4,h5,h6{font-family:var(--app-font)}
+  /* Code and diff output stay monospaced. */
+  code,pre,kbd,samp,.readonly pre{font-family:var(--font-family-monospace)}
+</style>
+{% endblock %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block branding %}
+<div id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:_('Django administration') }}</a></div>
+{% if user.is_anonymous %}
+  {% include "admin/color_theme_toggle.html" %}
+{% endif %}
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

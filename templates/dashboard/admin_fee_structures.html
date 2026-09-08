@@ -1,0 +1,84 @@
+{% extends "base_dashboard.html" %}
+{% load static humanize %}
+
+{% block title %}Program Fee Structures | UMS{% endblock %}
+
+{% block content %}
+<div class="content-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+  <div>
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <a href="{% url 'university:admin_fees' %}" class="btn btn-sm btn-light rounded-circle"><i class="fa-solid fa-arrow-left"></i></a>
+      <h2 class="fw-bold mb-0">Programme Fee Schedules</h2>
+    </div>
+    <p class="text-muted mb-0">Define standard tuition and statutory fee components per programme, year of study, and semester for automated billing.</p>
+  </div>
+  <a href="{% url 'university:fee_structure_create' %}" class="btn btn-primary rounded-pill px-4 py-2">
+    <i class="fa-solid fa-plus me-1"></i> New Fee Schedule
+  </a>
+</div>
+
+<!-- Fee Structures Table -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-4">Programme</th>
+          <th>Level</th>
+          <th>Tuition (KES)</th>
+          <th>Statutory Fees (KES)</th>
+          <th>Total Semester Fee</th>
+          <th class="text-end pe-4">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for fs in structures %}
+          <tr>
+            <td class="ps-4">
+              <div class="fw-bold text-dark">{{ fs.program.code }} — {{ fs.program.name }}</div>
+              <small class="text-muted">{{ fs.program.department.name }}</small>
+            </td>
+            <td>
+              <span class="badge bg-light text-dark border">
+                Year {{ fs.year_of_study }} Sem {{ fs.semester }}
+              </span>
+            </td>
+            <td class="fw-semibold">KES {{ fs.tuition_fee|intcomma }}</td>
+            <td>
+              <small class="text-muted">
+                Reg: {{ fs.registration_fee|intcomma }} · Exam: {{ fs.examination_fee|intcomma }} · ICT: {{ fs.ict_fee|intcomma }} · Med: {{ fs.medical_fee|intcomma }}
+              </small>
+            </td>
+            <td>
+              <span class="badge bg-success bg-opacity-10 text-success fs-6 fw-bold px-3 py-1">
+                KES {{ fs.total_fee|intcomma }}
+              </span>
+            </td>
+            <td class="text-end pe-4">
+              <div class="d-flex justify-content-end gap-1">
+                <a href="{% url 'university:fee_structure_edit' fs.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                  <i class="fa-solid fa-pen-to-square me-1"></i> Edit
+                </a>
+                <form method="post" action="{% url 'university:fee_structure_delete' fs.pk %}" class="d-inline" onsubmit="return confirm('Delete this fee schedule?');">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2">
+                    <i class="fa-solid fa-trash"></i>
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="text-center py-5 text-muted">
+              <i class="fa-solid fa-scale-balanced fa-3x mb-3 opacity-50"></i>
+              <p class="mb-2">No programme fee schedules configured yet.</p>
+              <a href="{% url 'university:fee_structure_create' %}" class="btn btn-sm btn-primary rounded-pill px-4">Create Fee Structure</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

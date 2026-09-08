@@ -1,0 +1,8 @@
+<section class="container py-5">
+  <div class="card rounded-4 p-5 text-center" style="border:2px solid var(--primary)">
+    <h2 class="fw-bold">{{ block.heading }}</h2>
+    {% if block.subheading %}<p class="text-muted mb-4">{{ block.subheading }}</p>{% endif %}
+    {% if block.body %}<div class="cms-prose mb-3">{{ block.body|safe }}</div>{% endif %}
+    {% include 'public/blocks/_links.html' %}
+  </div>
+</section>

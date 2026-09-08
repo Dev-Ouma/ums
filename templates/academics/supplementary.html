@@ -1,0 +1,141 @@
+{% extends "base_dashboard.html" %}
+{% load static humanize %}
+
+{% block title %}Supplementary & Special Examinations | UMS{% endblock %}
+
+{% block content %}
+<div class="content-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+  <div>
+    <h2 class="fw-bold mb-1"><i class="fa-solid fa-arrows-rotate me-2 text-primary"></i>Supplementary & Special Exams</h2>
+    <p class="text-muted mb-0">Apply to re-sit failed courses (Supplementary) or approved missed papers (Special Exams).</p>
+  </div>
+</div>
+
+<!-- Important Notice -->
+<div class="alert alert-info border-0 shadow-sm rounded-4 p-4 mb-4">
+  <h6 class="fw-bold mb-1 text-info"><i class="fa-solid fa-circle-info me-2"></i>Kenyan CUE University Regulation</h6>
+  <p class="mb-0 small text-dark">
+    In accordance with university examination statutes, marks obtained in a <b>Supplementary Examination</b> are capped at a maximum of <b>Grade 'C' (50%)</b>. Approved Special Examinations (for documented medical/compassionate reasons) retain full earned marks.
+  </p>
+</div>
+
+<!-- Failing / Eligible Courses for Supplementary -->
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+  <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+    <h5 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-triangle-exclamation me-2 text-danger"></i>Courses Eligible for Supplementary / Special Exam</h5>
+  </div>
+  <div class="card-body p-4">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Course Code</th>
+            <th>Course Title</th>
+            <th>Term</th>
+            <th>Grade Earned</th>
+            <th>Exam Type</th>
+            <th>Reason / Justification</th>
+            <th class="text-end">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for res in failing_results %}
+            <tr>
+              <td class="fw-bold text-primary font-monospace">{{ res.exam.course.code }}</td>
+              <td class="fw-semibold">{{ res.exam.course.name }}</td>
+              <td><small class="badge bg-light text-dark border">{{ res.exam.term.name }}</small></td>
+              <td><span class="badge bg-danger px-2 py-1 fs-6">F (Failed)</span></td>
+              <form method="post" action="{% url 'university:student_supplementary_apply' res.exam.course.id %}">
+                {% csrf_token %}
+                <td>
+                  <select name="exam_type" class="form-select form-select-sm">
+                    <option value="SUPPLEMENTARY">Supplementary Exam</option>
+                    <option value="SPECIAL">Special Exam (Medical/Cause)</option>
+                  </select>
+                </td>
+                <td>
+                  <input type="text" name="reason" class="form-control form-control-sm" placeholder="e.g. Re-sit failed paper" required>
+                </td>
+                <td class="text-end">
+                  <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3">
+                    <i class="fa-solid fa-paper-plane me-1"></i> Apply
+                  </button>
+                </td>
+              </form>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="7" class="text-center py-4 text-muted">
+                <i class="fa-solid fa-circle-check text-success fa-2x mb-2 d-block"></i>
+                You have no failed courses on your record. Good standing!
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Existing Applications History -->
+<div class="card border-0 shadow-sm rounded-4">
+  <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+    <h5 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>My Supplementary Applications</h5>
+  </div>
+  <div class="card-body p-4">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Course</th>
+            <th>Type</th>
+            <th>Reason</th>
+            <th>Status</th>
+            <th>Fee Invoice</th>
+            <th>Applied Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for reg in existing_regs %}
+            <tr>
+              <td>
+                <div class="fw-bold text-dark">{{ reg.course.code }}</div>
+                <small class="text-muted">{{ reg.course.name }}</small>
+              </td>
+              <td>
+                <span class="badge bg-light text-primary border">{{ reg.get_exam_type_display }}</span>
+              </td>
+              <td><small class="text-muted">{{ reg.reason|default:"—" }}</small></td>
+              <td>
+                {% if reg.status == "PENDING" %}
+                  <span class="badge bg-warning text-dark px-3 py-1 rounded-pill"><i class="fa-solid fa-clock me-1"></i> Pending Review</span>
+                {% elif reg.status == "APPROVED" %}
+                  <span class="badge bg-success px-3 py-1 rounded-pill"><i class="fa-solid fa-check me-1"></i> Approved</span>
+                {% elif reg.status == "REJECTED" %}
+                  <span class="badge bg-danger px-3 py-1 rounded-pill"><i class="fa-solid fa-ban me-1"></i> Rejected</span>
+                {% elif reg.status == "COMPLETED" %}
+                  <span class="badge bg-primary px-3 py-1 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> Completed</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if reg.fee_invoice %}
+                  <span class="badge bg-light text-dark border">
+                    KES {{ reg.fee_invoice.amount|intcomma }} ({{ reg.fee_invoice.status }})
+                  </span>
+                {% else %}
+                  <span class="text-muted small">Pending Approval</span>
+                {% endif %}
+              </td>
+              <td><small class="text-muted">{{ reg.created_at|date:"d M Y" }}</small></td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="text-center py-4 text-muted">No past supplementary exam applications recorded.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,133 @@
+{% extends "base_dashboard.html" %}
+{% load static %}
+{% block title %}Evaluation Analytics · Faculty · UMS{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <div>
+    <h1 class="page-title mb-1"><i class="fa-solid fa-chart-bar me-2 text-primary"></i>My Course Evaluations</h1>
+    <p class="text-muted mb-0 small">Anonymous student feedback aggregated by dimension — identity of individual students is never revealed.</p>
+  </div>
+  <form method="get" class="d-flex gap-2 align-items-center">
+    <select name="term" class="form-select form-select-sm rounded-pill" style="min-width:180px;" onchange="this.form.submit()">
+      <option value="">— All Terms —</option>
+      {% for t in all_terms %}
+        <option value="{{ t.pk }}" {% if selected_term and selected_term.pk == t.pk %}selected{% endif %}>{{ t.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+{% if not analytics %}
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body text-center py-5 text-muted">
+      <i class="fa-solid fa-chart-pie fa-3x mb-3 opacity-25"></i>
+      <p class="mb-0 fw-semibold">No evaluation data available yet.</p>
+      <p class="small">Students can only submit evaluations when the evaluation window is open.</p>
+    </div>
+  </div>
+{% else %}
+
+{% for item in analytics %}
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+  <div class="card-header border-0 py-3 px-4 d-flex align-items-center justify-content-between" style="background: linear-gradient(135deg,#6C5CE7,#a29bfe); border-radius:1rem 1rem 0 0 !important;">
+    <div>
+      <h5 class="mb-0 text-white fw-semibold">{{ item.course.code }} — {{ item.course.title }}</h5>
+      <span class="text-white opacity-75 small">{{ item.total }} response{% if item.total != 1 %}s{% endif %}</span>
+    </div>
+    {% with avg=item.average %}
+    <div class="text-center">
+      <div class="display-6 fw-bold text-white">{{ avg }}</div>
+      <div class="small text-white opacity-75">/ 5.00</div>
+    </div>
+    {% endwith %}
+  </div>
+  <div class="card-body p-4">
+    <div class="row g-4">
+
+      <!-- Dimension bars -->
+      <div class="col-md-7">
+        <h6 class="fw-semibold mb-3 text-muted text-uppercase" style="font-size:.72rem; letter-spacing:.08em">Dimension Scores</h6>
+        {% for dim in item.dimensions %}
+        <div class="mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small fw-semibold">{{ dim.label }}</span>
+            <span class="badge {% if dim.avg >= 4 %}bg-success{% elif dim.avg >= 3 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+              {{ dim.avg }}
+            </span>
+          </div>
+          <div class="progress rounded-pill" style="height:10px; background:#f0edff;">
+            <div class="progress-bar rounded-pill" role="progressbar"
+                 style="width:{% widthratio dim.avg 5 100 %}%; background:linear-gradient(90deg,#6C5CE7,#a29bfe);">
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Distribution chart -->
+      <div class="col-md-5">
+        <h6 class="fw-semibold mb-3 text-muted text-uppercase" style="font-size:.72rem; letter-spacing:.08em">Overall Satisfaction Distribution</h6>
+        <canvas id="chart_{{ forloop.counter }}" height="140"></canvas>
+      </div>
+    </div>
+
+    <!-- Comments -->
+    {% if item.comments %}
+    <hr class="my-3">
+    <h6 class="fw-semibold mb-3 text-muted text-uppercase" style="font-size:.72rem; letter-spacing:.08em">
+      <i class="fa-solid fa-comments me-1"></i>Student Comments (anonymised)
+    </h6>
+    <div class="row g-3">
+      {% for comment in item.comments|slice:":6" %}
+        {% if comment.strengths %}
+        <div class="col-md-6">
+          <div class="p-3 rounded-3 h-100" style="background:#f0fdf4; border-left:4px solid #22c55e;">
+            <div class="small fw-semibold text-success mb-1"><i class="fa-solid fa-thumbs-up me-1"></i>Strength</div>
+            <p class="mb-0 small text-muted">{{ comment.strengths|truncatewords:40 }}</p>
+          </div>
+        </div>
+        {% endif %}
+        {% if comment.suggestions %}
+        <div class="col-md-6">
+          <div class="p-3 rounded-3 h-100" style="background:#fff7ed; border-left:4px solid #f59e0b;">
+            <div class="small fw-semibold text-warning mb-1"><i class="fa-solid fa-lightbulb me-1"></i>Suggestion</div>
+            <p class="mb-0 small text-muted">{{ comment.suggestions|truncatewords:40 }}</p>
+          </div>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+(function() {
+  const ctx = document.getElementById("chart_{{ forloop.counter }}");
+  if (!ctx) return;
+  new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: ["1 ★", "2 ★", "3 ★", "4 ★", "5 ★"],
+      datasets: [{
+        label: "Responses",
+        data: [{{ item.distribution.1 }}, {{ item.distribution.2 }}, {{ item.distribution.3 }}, {{ item.distribution.4 }}, {{ item.distribution.5 }}],
+        backgroundColor: ["#ef4444","#f97316","#eab308","#22c55e","#6C5CE7"],
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: "#f3f4f6" } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+})();
+</script>
+{% endfor %}
+{% endif %}
+{% endblock %}

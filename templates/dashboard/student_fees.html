@@ -1,22 +1,207 @@
 {% extends 'base_dashboard.html' %}
-{% load humanize %}
-{% block title %}My Fees · UMS{% endblock %}
+{% load static humanize %}
+
+{% block title %}My Fees & Financials · UMS{% endblock %}
+
 {% block content %}
-<div class="page-head">
-  <h4><i class="fa-solid fa-wallet me-2" style="color:var(--primary)"></i>My Fees</h4>
-  <span class="breadcrumb-chip">Balance <b>${{ stats.fee_due|floatformat:0|intcomma }}</b></span>
+<div class="content-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+  <div>
+    <h2 class="fw-bold mb-1"><i class="fa-solid fa-wallet me-2 text-primary"></i>My Fees & Financials</h2>
+    <p class="text-muted mb-0">Track semester invoices, submit payment references, and download official payment receipts.</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'university:student_fee_statement' %}" class="btn btn-outline-primary rounded-pill px-3 py-2">
+      <i class="fa-solid fa-file-lines me-1"></i> Statement of Account
+    </a>
+    <a href="{% url 'university:student_exam_card' %}" class="btn btn-primary rounded-pill px-3 py-2">
+      <i class="fa-solid fa-id-card me-1"></i> Check Exam Card Clearance
+    </a>
+  </div>
 </div>
-<div class="card card-ums">
-  <div class="table-responsive"><table class="table align-middle mb-0">
-    <thead><tr><th class="ps-4">Invoice</th><th>Issued</th><th>Due</th><th>Amount</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
-    <tbody>{% for i in invoices %}
-      <tr><td class="ps-4 fw-semibold">{{ i.title }}</td>
-        <td class="small">{{ i.issued_on|date:'d M Y' }}</td>
-        <td class="small">{{ i.due_date|date:'d M Y' }}</td>
-        <td>${{ i.amount|floatformat:0|intcomma }}</td>
-        <td>${{ i.amount_paid|floatformat:0|intcomma }}</td>
-        <td class="fw-semibold">${{ i.balance|floatformat:0|intcomma }}</td>
-        <td><span class="status {{ i.status }}">{{ i.status }}</span></td></tr>
-    {% empty %}<tr><td colspan="7" class="text-muted p-3 text-center">No invoices.</td></tr>{% endfor %}</tbody></table></div>
+
+<!-- Financial Summary KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white">
+      <small class="text-muted fw-semibold">Total Billed</small>
+      <div class="fs-4 fw-bold text-dark mt-1">KES {{ clearance.total_billed|floatformat:0|intcomma }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white">
+      <small class="text-muted fw-semibold">Total Paid</small>
+      <div class="fs-4 fw-bold text-success mt-1">KES {{ clearance.total_paid|floatformat:0|intcomma }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white">
+      <small class="text-muted fw-semibold">Balance Due</small>
+      <div class="fs-4 fw-bold {% if clearance.balance > 0 %}text-danger{% else %}text-success{% endif %} mt-1">
+        KES {{ clearance.balance|floatformat:0|intcomma }}
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white">
+      <small class="text-muted fw-semibold">Exam Clearance</small>
+      <div class="mt-1">
+        {% if clearance.is_cleared %}
+          <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> 100% Cleared</span>
+        {% else %}
+          <span class="badge bg-danger px-3 py-2 rounded-pill"><i class="fa-solid fa-lock me-1"></i> Hold ({{ clearance.percentage_paid }}%)</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Invoices Table -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4 bg-white">
+  <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+    <h5 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-file-invoice-dollar me-2 text-primary"></i>Fee Invoices</h5>
+  </div>
+  <div class="card-body p-4">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Invoice Title</th>
+            <th>Issued On</th>
+            <th>Due Date</th>
+            <th>Amount</th>
+            <th>Paid</th>
+            <th>Balance</th>
+            <th>Status</th>
+            <th class="text-end">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in invoices %}
+            <tr>
+              <td class="fw-semibold text-dark">{{ inv.title }}</td>
+              <td class="small text-muted">{{ inv.issued_on|date:'d M Y' }}</td>
+              <td class="small text-muted">{{ inv.due_date|date:'d M Y' }}</td>
+              <td class="fw-semibold">KES {{ inv.amount|floatformat:0|intcomma }}</td>
+              <td class="text-success">KES {{ inv.amount_paid|floatformat:0|intcomma }}</td>
+              <td class="fw-bold {% if inv.balance > 0 %}text-danger{% else %}text-success{% endif %}">
+                KES {{ inv.balance|floatformat:0|intcomma }}
+              </td>
+              <td>
+                {% if inv.status == "PAID" %}
+                  <span class="badge bg-success px-3 py-1 rounded-pill">Paid</span>
+                {% elif inv.status == "PARTIAL" %}
+                  <span class="badge bg-warning text-dark px-3 py-1 rounded-pill">Partial</span>
+                {% else %}
+                  <span class="badge bg-danger px-3 py-1 rounded-pill">Unpaid</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                {% if inv.balance > 0 %}
+                  <button type="button" class="btn btn-sm btn-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#payModal{{ inv.id }}">
+                    <i class="fa-solid fa-money-bill-transfer me-1"></i> Pay
+                  </button>
+                {% else %}
+                  <span class="text-muted small"><i class="fa-solid fa-check text-success me-1"></i>Settled</span>
+                {% endif %}
+              </td>
+            </tr>
+
+            <!-- Pay Invoice Modal -->
+            {% if inv.balance > 0 %}
+              <div class="modal fade" id="payModal{{ inv.id }}" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog">
+                  <div class="modal-content rounded-4 border-0 shadow">
+                    <div class="modal-header border-0 pb-0">
+                      <h5 class="modal-title fw-bold">Pay {{ inv.title }}</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="post" action="{% url 'university:student_fees' %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="invoice_id" value="{{ inv.id }}">
+                      <div class="modal-body p-4">
+                        <div class="p-3 bg-light rounded-3 mb-3">
+                          <small class="text-muted d-block">Outstanding Invoice Balance:</small>
+                          <span class="fs-5 fw-bold text-danger">KES {{ inv.balance|floatformat:0|intcomma }}</span>
+                        </div>
+                        <div class="mb-3">
+                          <label class="form-label fw-semibold small">Payment Amount (KES)</label>
+                          <input type="number" name="amount" class="form-control rounded-3" value="{{ inv.balance }}" min="1" max="{{ inv.balance }}" required>
+                        </div>
+                        <div class="mb-3">
+                          <label class="form-label fw-semibold small">Payment Channel</label>
+                          <select name="method" class="form-select rounded-3">
+                            <option value="M-Pesa Paybill">M-Pesa (Paybill 247247)</option>
+                            <option value="Bank Deposit">Bank Deposit Slip (Absa Bank)</option>
+                            <option value="Card / Online">Credit / Debit Card</option>
+                          </select>
+                        </div>
+                        <div class="mb-3">
+                          <label class="form-label fw-semibold small">Transaction Reference / Code</label>
+                          <input type="text" name="reference" class="form-control rounded-3" placeholder="e.g. QK89XY3410" required>
+                        </div>
+                      </div>
+                      <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">Submit Payment</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+          {% empty %}
+            <tr>
+              <td colspan="8" class="text-center py-4 text-muted">No fee invoices recorded.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Past Payment Receipts History -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
+  <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+    <h5 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-receipt me-2 text-primary"></i>Official Payment Receipts</h5>
+  </div>
+  <div class="card-body p-4">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Receipt No</th>
+            <th>Date Paid</th>
+            <th>Invoice Covered</th>
+            <th>Payment Method</th>
+            <th>Transaction Ref</th>
+            <th>Amount (KES)</th>
+            <th class="text-end">Download Receipt</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pmt in payments %}
+            <tr>
+              <td class="fw-bold font-monospace text-primary">REC-{{ pmt.id|stringformat:"06d" }}</td>
+              <td class="small">{{ pmt.paid_on|date:'d M Y' }}</td>
+              <td class="fw-semibold">{{ pmt.invoice.title }}</td>
+              <td><span class="badge bg-light text-dark border">{{ pmt.method }}</span></td>
+              <td class="font-monospace text-muted small">{{ pmt.reference }}</td>
+              <td class="fw-bold text-success">KES {{ pmt.amount|floatformat:0|intcomma }}</td>
+              <td class="text-end">
+                <a href="{% url 'university:fee_receipt_pdf' pmt.pk %}" class="btn btn-sm btn-outline-success rounded-pill px-3" target="_blank">
+                  <i class="fa-solid fa-file-pdf me-1"></i> PDF Receipt
+                </a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="7" class="text-center py-4 text-muted">No payment transactions recorded yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 {% endblock %}

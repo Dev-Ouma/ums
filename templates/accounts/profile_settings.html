@@ -1,0 +1,211 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Profile Settings · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h4><i class="fa-solid fa-user-gear me-2 text-primary"></i>Profile Settings</h4>
+  <a class="btn btn-light border rounded-pill px-3" href="{% url 'accounts:profile' %}">
+    <i class="fa-solid fa-eye me-2"></i>View my profile</a>
+</div>
+
+<div class="row g-4">
+  <!-- Identity summary ------------------------------------------------ -->
+  <div class="col-lg-4">
+    <div class="card card-ums p-4 text-center">
+      <span class="acct-avatar mx-auto mb-3" style="width:104px;height:104px">
+        {% if user.has_custom_avatar %}
+          <img src="{{ user.avatar }}" alt="Your profile picture">
+        {% else %}
+          <span class="acct-initials" style="font-size:2rem">{{ user.initials }}</span>
+        {% endif %}
+      </span>
+      <h5 class="fw-bold mb-1">{{ user.display_name }}</h5>
+      <div class="text-muted small mb-2">@{{ user.username }}</div>
+      <span class="badge badge-soft rounded-pill mx-auto px-3">
+        <i class="fa-solid {{ theme.icon }} me-1"></i>{{ user.get_role_display }}</span>
+
+      <hr class="my-4">
+      <div class="text-start small">
+        <div class="text-muted">Email</div>
+        <div class="fw-semibold mb-3 text-break">{{ user.email|default:"—" }}</div>
+        <div class="text-muted">Phone</div>
+        <div class="fw-semibold mb-3">{{ user.phone|default:"—" }}</div>
+        {% if user.is_student and user.student_profile %}
+          <div class="text-muted">Roll number</div>
+          <div class="fw-semibold mb-3">{{ user.student_profile.roll_no }}</div>
+          <div class="text-muted">Programme</div>
+          <div class="fw-semibold">{{ user.student_profile.program|default:"—" }}</div>
+        {% elif user.is_faculty and user.faculty_profile %}
+          <div class="text-muted">Employee ID</div>
+          <div class="fw-semibold mb-3">{{ user.faculty_profile.employee_id }}</div>
+          <div class="text-muted">Department</div>
+          <div class="fw-semibold">{{ user.faculty_profile.department|default:"—" }}</div>
+        {% endif %}
+      </div>
+      <p class="text-muted small mt-3 mb-0">
+        <i class="fa-solid fa-lock me-1"></i>Registry-managed fields are shown here but can only be
+        changed by an administrator.</p>
+    </div>
+  </div>
+
+  <!-- Editable sections ----------------------------------------------- -->
+  <div class="col-lg-8">
+    <div class="card card-ums p-0 overflow-hidden">
+      <ul class="nav nav-tabs px-3 pt-3 border-0" role="tablist">
+        <li class="nav-item"><button class="nav-link {% if active_tab == 'profile' %}active{% endif %}"
+            data-bs-toggle="tab" data-bs-target="#tab-profile" type="button" role="tab">
+            <i class="fa-solid fa-id-card me-2"></i>Details</button></li>
+        <li class="nav-item"><button class="nav-link {% if active_tab == 'avatar' %}active{% endif %}"
+            data-bs-toggle="tab" data-bs-target="#tab-avatar" type="button" role="tab">
+            <i class="fa-solid fa-image-portrait me-2"></i>Picture</button></li>
+        <li class="nav-item"><button class="nav-link {% if active_tab == 'password' %}active{% endif %}"
+            data-bs-toggle="tab" data-bs-target="#tab-password" type="button" role="tab">
+            <i class="fa-solid fa-key me-2"></i>Password</button></li>
+        <li class="nav-item"><button class="nav-link {% if active_tab == 'activity' %}active{% endif %}"
+            data-bs-toggle="tab" data-bs-target="#tab-activity" type="button" role="tab">
+            <i class="fa-solid fa-clock-rotate-left me-2"></i>Login activity</button></li>
+      </ul>
+
+      <div class="tab-content p-4">
+        <!-- Details -->
+        <div class="tab-pane fade {% if active_tab == 'profile' %}show active{% endif %}" id="tab-profile" role="tabpanel">
+          <form method="post" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="form_type" value="profile">
+            {% if profile_form.non_field_errors %}
+              <div class="alert alert-danger rounded-3">{{ profile_form.non_field_errors }}</div>
+            {% endif %}
+            <div class="row g-3">
+              {% for field in profile_form %}
+                <div class="col-md-6">
+                  <label class="form-label small text-muted" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                  {{ field }}
+                  {% for error in field.errors %}
+                    <div class="text-danger small mt-1"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ error }}</div>
+                  {% endfor %}
+                </div>
+              {% endfor %}
+            </div>
+
+            {% if details_form %}
+              <h6 class="fw-bold mt-4 mb-3">
+                {% if user.is_student %}Student details{% else %}Teaching details{% endif %}</h6>
+              <div class="row g-3">
+                {% for field in details_form %}
+                  <div class="col-md-6">
+                    <label class="form-label small text-muted" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% for error in field.errors %}
+                      <div class="text-danger small mt-1"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ error }}</div>
+                    {% endfor %}
+                  </div>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            <div class="mt-4 d-flex gap-2">
+              <button class="btn btn-primary rounded-pill px-4" type="submit">
+                <i class="fa-solid fa-floppy-disk me-2"></i>Save changes</button>
+              <a class="btn btn-light border rounded-pill px-4" href="{% url 'accounts:profile_settings' %}">Cancel</a>
+            </div>
+          </form>
+        </div>
+
+        <!-- Picture -->
+        <div class="tab-pane fade {% if active_tab == 'avatar' %}show active{% endif %}" id="tab-avatar" role="tabpanel">
+          <form method="post" enctype="multipart/form-data" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="form_type" value="avatar">
+            <div class="d-flex align-items-center gap-4 flex-wrap">
+              <span class="acct-avatar" style="width:96px;height:96px">
+                {% if user.has_custom_avatar %}
+                  <img src="{{ user.avatar }}" alt="Current profile picture">
+                {% else %}
+                  <span class="acct-initials" style="font-size:1.8rem">{{ user.initials }}</span>
+                {% endif %}
+              </span>
+              <div class="flex-grow-1" style="min-width:240px">
+                <label class="form-label small text-muted" for="{{ avatar_form.avatar_image.id_for_label }}">
+                  {{ avatar_form.avatar_image.label }}</label>
+                {{ avatar_form.avatar_image }}
+                {% for error in avatar_form.avatar_image.errors %}
+                  <div class="text-danger small mt-1"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ error }}</div>
+                {% endfor %}
+                <div class="form-text">JPEG, PNG, GIF or WebP · up to 2 MB. Tick “Clear” to fall back
+                  to your generated monogram.</div>
+              </div>
+            </div>
+            <div class="mt-4">
+              <button class="btn btn-primary rounded-pill px-4" type="submit">
+                <i class="fa-solid fa-upload me-2"></i>Update picture</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Password -->
+        <div class="tab-pane fade {% if active_tab == 'password' %}show active{% endif %}" id="tab-password" role="tabpanel">
+          <form method="post" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="form_type" value="password">
+            {% if password_form.non_field_errors %}
+              <div class="alert alert-danger rounded-3">{{ password_form.non_field_errors }}</div>
+            {% endif %}
+            <div class="row g-3">
+              {% for field in password_form %}
+                <div class="col-12 col-md-8">
+                  <label class="form-label small text-muted" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                  {{ field }}
+                  {% for error in field.errors %}
+                    <div class="text-danger small mt-1"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ error }}</div>
+                  {% endfor %}
+                  {% if field.help_text %}<div class="form-text">{{ field.help_text|safe }}</div>{% endif %}
+                </div>
+              {% endfor %}
+            </div>
+            <div class="mt-4">
+              <button class="btn btn-primary rounded-pill px-4" type="submit">
+                <i class="fa-solid fa-key me-2"></i>Change password</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Login activity -->
+        <div class="tab-pane fade {% if active_tab == 'activity' %}show active{% endif %}" id="tab-activity" role="tabpanel">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="text-muted small">First access to site</div>
+              <div class="fw-semibold">
+                {% if user.first_seen_at %}{{ user.first_seen_at|date:"l, j F Y, g:i A" }}
+                  <span class="text-muted">({{ user.first_seen_at|timesince }})</span>
+                {% else %}—{% endif %}</div>
+            </div>
+            <div class="col-md-6">
+              <div class="text-muted small">Last access to site</div>
+              <div class="fw-semibold">
+                {% if user.last_seen_at %}{{ user.last_seen_at|date:"l, j F Y, g:i A" }}
+                  <span class="text-muted">({{ user.last_seen_at|timesince }})</span>
+                {% else %}—{% endif %}</div>
+            </div>
+            <div class="col-md-6">
+              <div class="text-muted small">Last login</div>
+              <div class="fw-semibold">
+                {% if user.last_login %}{{ user.last_login|date:"l, j F Y, g:i A" }}{% else %}—{% endif %}</div>
+            </div>
+            <div class="col-md-6">
+              <div class="text-muted small">Last IP address</div>
+              <div class="fw-semibold"><code class="acct-ip">{{ user.last_login_ip|default:"—" }}</code></div>
+            </div>
+            <div class="col-md-6">
+              <div class="text-muted small">Account created</div>
+              <div class="fw-semibold">{{ user.date_joined|date:"l, j F Y, g:i A" }}</div>
+            </div>
+          </div>
+          <p class="text-muted small mt-4 mb-0">
+            <i class="fa-solid fa-circle-info me-1"></i>Last access is refreshed at most once a minute
+            while you browse, so it reflects real activity rather than only sign-ins.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

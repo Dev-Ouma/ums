@@ -1,0 +1,82 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}{% if is_create %}New page{% else %}{{ page_obj.title }}{% endif %} · Site CMS{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h4><i class="fa-solid fa-file-pen me-2 text-primary"></i>{% if is_create %}New page{% else %}{{ page_obj.title }}{% endif %}</h4>
+  {% if page_obj %}
+    <div class="d-flex gap-2">
+      <a class="btn btn-light border rounded-pill px-3" href="{{ page_obj.get_absolute_url }}" target="_blank" rel="noopener">
+        <i class="fa-solid fa-eye me-2"></i>{% if page_obj.is_published %}View{% else %}Preview draft{% endif %}</a>
+      <form method="post" action="{% url 'cms:page_status' page_obj.pk %}">
+        {% csrf_token %}<input type="hidden" name="next" value="{% url 'cms:page_edit' page_obj.pk %}">
+        <button class="btn btn-primary rounded-pill px-4" type="submit">
+          {% if page_obj.is_published %}Unpublish{% else %}Publish{% endif %}</button>
+      </form>
+    </div>
+  {% endif %}
+</div>
+{% include 'cms/_nav.html' %}
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card card-ums p-4">
+      <h6 class="fw-bold mb-3">Page details</h6>
+      <form method="post" novalidate>
+        {% csrf_token %}
+        {% include 'cms/_form_fields.html' %}
+        <div class="mt-4 d-flex gap-2">
+          <button class="btn btn-primary rounded-pill px-4" type="submit">
+            <i class="fa-solid fa-floppy-disk me-2"></i>Save</button>
+          <a class="btn btn-light border rounded-pill px-4" href="{% url 'cms:page_list' %}">Back</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card card-ums">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fa-solid fa-layer-group me-2 text-primary"></i>Sections</span>
+        {% if page_obj %}
+          <a class="btn btn-sm btn-primary rounded-pill px-3" href="{% url 'cms:block_create' page_obj.pk %}">
+            <i class="fa-solid fa-plus me-1"></i>Add section</a>
+        {% endif %}
+      </div>
+      <div class="p-3">
+        {% if not page_obj %}
+          <p class="text-muted mb-0 p-3">Save the page first, then add sections to it.</p>
+        {% else %}
+          {% for b in blocks %}
+            <div class="cms-block-row {% if not b.is_visible %}is-hidden{% endif %}">
+              <div class="cms-block-order">
+                <form method="post" action="{% url 'cms:block_move' b.pk 'up' %}">{% csrf_token %}
+                  <button class="btn btn-sm btn-light border" type="submit" {% if forloop.first %}disabled{% endif %} aria-label="Move up"><i class="fa-solid fa-chevron-up"></i></button></form>
+                <form method="post" action="{% url 'cms:block_move' b.pk 'down' %}">{% csrf_token %}
+                  <button class="btn btn-sm btn-light border" type="submit" {% if forloop.last %}disabled{% endif %} aria-label="Move down"><i class="fa-solid fa-chevron-down"></i></button></form>
+              </div>
+              <div class="flex-grow-1 min-w-0">
+                <div class="fw-semibold">{{ b.heading|default:b.get_block_type_display }}</div>
+                <div class="small text-muted">
+                  {{ b.get_block_type_display }} · {{ b.variant }}
+                  {% if not b.is_visible %}<span class="badge bg-secondary ms-1">Hidden</span>{% endif %}
+                </div>
+              </div>
+              <div class="d-flex gap-1">
+                <a class="btn btn-sm btn-light border rounded-pill px-3" href="{% url 'cms:block_edit' b.pk %}">Edit</a>
+                <form method="post" action="{% url 'cms:block_delete' b.pk %}"
+                      onsubmit="return confirm('Remove this section?')">{% csrf_token %}
+                  <button class="btn btn-sm btn-light border rounded-pill text-danger" type="submit" aria-label="Delete section"><i class="fa-solid fa-trash"></i></button></form>
+              </div>
+            </div>
+          {% empty %}
+            <div class="p-4 text-center text-muted">
+              <i class="fa-solid fa-layer-group fs-3 d-block mb-2"></i>
+              No sections yet — <a href="{% url 'cms:block_create' page_obj.pk %}">add the first one</a>.
+            </div>
+          {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

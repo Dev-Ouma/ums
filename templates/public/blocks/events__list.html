@@ -1,0 +1,11 @@
+<section class="container py-5">
+  {% if block.heading %}<h2 class="fw-bold mb-4">{{ block.heading }}</h2>{% endif %}
+  <ul class="list-group list-group-flush">
+    {% for e in items %}
+      <li class="list-group-item px-0 d-flex justify-content-between">
+        <span class="fw-semibold">{{ e.title }}</span>
+        <span class="text-muted small">{{ e.date|date:'d M Y' }}</span>
+      </li>
+    {% empty %}<li class="list-group-item px-0 text-muted">No upcoming events.</li>{% endfor %}
+  </ul>
+</section>

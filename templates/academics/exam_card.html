@@ -1,0 +1,189 @@
+{% extends "base_dashboard.html" %}
+{% load static humanize %}
+
+{% block title %}Examination Card | UMS{% endblock %}
+
+{% block content %}
+<div class="content-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+  <div>
+    <h2 class="fw-bold mb-1"><i class="fa-solid fa-address-card me-2 text-primary"></i>Student Examination Card</h2>
+    <p class="text-muted mb-0">Official Examination Admission Pass for the current academic session.</p>
+  </div>
+  <div>
+    {% if clearance.is_cleared %}
+      <a href="{% url 'university:student_exam_card_pdf' %}" class="btn btn-primary rounded-pill px-4 py-2" target="_blank">
+        <i class="fa-solid fa-print me-1"></i> Print / Download PDF
+      </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Financial Clearance Status Banner -->
+{% if clearance.is_cleared %}
+  <div class="alert alert-success border-0 shadow-sm rounded-4 p-4 mb-4 d-flex align-items-center gap-3">
+    <div class="fs-2 text-success"><i class="fa-solid fa-circle-check"></i></div>
+    <div>
+      <h6 class="fw-bold mb-1 text-success">Financial Clearance Confirmed (100% Cleared)</h6>
+      <p class="mb-0 text-dark small">
+        Your tuition and statutory fees are fully cleared for this semester. You are officially certified to sit for all registered university examinations.
+      </p>
+    </div>
+  </div>
+{% else %}
+  <div class="alert alert-danger border-0 shadow-sm rounded-4 p-4 mb-4">
+    <div class="d-flex align-items-start gap-3">
+      <div class="fs-2 text-danger"><i class="fa-solid fa-circle-exclamation"></i></div>
+      <div class="flex-grow-1">
+        <h5 class="fw-bold mb-1 text-danger">Examination Card Withheld — Financial Hold</h5>
+        <p class="text-dark mb-2">
+          University examination regulations require 100% fee clearance prior to the issuance of examination cards.
+        </p>
+        <div class="row g-3 my-1">
+          <div class="col-md-3">
+            <small class="text-muted">Total Billed:</small>
+            <div class="fw-bold">KES {{ clearance.total_billed|intcomma }}</div>
+          </div>
+          <div class="col-md-3">
+            <small class="text-muted">Total Paid:</small>
+            <div class="fw-bold text-success">KES {{ clearance.total_paid|intcomma }}</div>
+          </div>
+          <div class="col-md-3">
+            <small class="text-muted">Outstanding Balance:</small>
+            <div class="fw-bold text-danger">KES {{ clearance.balance|intcomma }}</div>
+          </div>
+          <div class="col-md-3">
+            <small class="text-muted">Clearance Percentage:</small>
+            <div class="fw-bold">{{ clearance.percentage_paid }}%</div>
+          </div>
+        </div>
+        <div class="mt-3">
+          <a href="{% url 'university:student_fees' %}" class="btn btn-danger rounded-pill px-4 py-2 fw-semibold">
+            <i class="fa-solid fa-wallet me-1"></i> Pay Balance via Student Finance
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+<!-- Printable Exam Card Layout -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4 bg-white">
+  <!-- Card Header -->
+  <div class="p-4 p-md-5 border-bottom bg-light">
+    <div class="row align-items-center g-3">
+      <div class="col-md-2 text-center text-md-start">
+        <div class="rounded-4 bg-primary text-white d-inline-flex p-3 shadow-sm">
+          <i class="fa-solid fa-graduation-cap fa-3x"></i>
+        </div>
+      </div>
+      <div class="col-md-7 text-center text-md-start">
+        <h4 class="fw-bold text-dark mb-0">UNIVERSITY MANAGEMENT SYSTEM</h4>
+        <div class="text-muted small fw-semibold">DIRECTORATE OF EXAMINATIONS & TIMETABLING</div>
+        <div class="badge bg-primary px-3 py-1 rounded-pill mt-2">
+          {{ term.name|default:"2026/2027 Academic Session" }} · Examination Pass
+        </div>
+      </div>
+      <div class="col-md-3 text-center text-md-end">
+        {% if clearance.is_cleared %}
+          <div class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-2 rounded-4">
+            <i class="fa-solid fa-stamp fa-2x mb-1 d-block"></i>
+            <small class="fw-bold d-block">FINANCIALLY CLEARED</small>
+            <span style="font-size:.7rem;">OFFICIALLY VALID</span>
+          </div>
+        {% else %}
+          <div class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-3 py-2 rounded-4">
+            <i class="fa-solid fa-lock fa-2x mb-1 d-block"></i>
+            <small class="fw-bold d-block">HOLD ACTIVE</small>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Student Bio Details -->
+  <div class="p-4 border-bottom">
+    <div class="row g-3">
+      <div class="col-6 col-md-3">
+        <small class="text-muted">Student Name</small>
+        <div class="fw-bold text-dark fs-6">{{ student.user.display_name }}</div>
+      </div>
+      <div class="col-6 col-md-3">
+        <small class="text-muted">Registration Number</small>
+        <div class="fw-bold text-primary font-monospace fs-6">{{ student.roll_no }}</div>
+      </div>
+      <div class="col-6 col-md-3">
+        <small class="text-muted">Programme</small>
+        <div class="fw-semibold text-dark">{{ student.program.code }} — {{ student.program.name }}</div>
+      </div>
+      <div class="col-6 col-md-3">
+        <small class="text-muted">Study Level</small>
+        <div class="fw-semibold text-dark">Year {{ student.year_of_study|default:1 }} Semester {{ student.semester|default:1 }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Registered Courses Table -->
+  <div class="p-4">
+    <h6 class="fw-bold text-dark mb-3"><i class="fa-solid fa-clipboard-check me-2 text-primary"></i>Certified Registered Examination Papers</h6>
+    <div class="table-responsive">
+      <table class="table table-bordered align-middle">
+        <thead class="table-light">
+          <tr>
+            <th style="width: 50px;">#</th>
+            <th>Course Code</th>
+            <th>Course Title</th>
+            <th class="text-center" style="width: 80px;">Units</th>
+            <th>Exam Schedule / Room</th>
+            <th class="text-center" style="width: 150px;">Invigilator Sign</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in courses_with_exams %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td class="fw-bold text-primary font-monospace">{{ item.course.code }}</td>
+              <td class="fw-semibold text-dark">{{ item.course.name }}</td>
+              <td class="text-center">{{ item.course.credits|default:3 }}</td>
+              <td>
+                {% if item.exam and item.exam.date %}
+                  <div><i class="fa-regular fa-calendar me-1 text-muted"></i>{{ item.exam.date|date:"d M Y" }}</div>
+                  <small class="text-muted"><i class="fa-solid fa-location-dot me-1"></i>{{ item.exam.room.name|default:"Main Hall" }} ({{ item.exam.start_time|time:"H:i" }})</small>
+                {% else %}
+                  <span class="text-muted small">Schedule in Timetable</span>
+                {% endif %}
+              </td>
+              <td class="text-center text-muted font-monospace">[ &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ]</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="text-center py-4 text-muted">No course registrations found for the active semester.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Candidate Rules -->
+    <div class="p-3 bg-light rounded-3 mt-3">
+      <div class="fw-bold small text-dark mb-1"><i class="fa-solid fa-triangle-exclamation me-1 text-warning"></i> Examination Room Instructions:</div>
+      <ol class="small text-muted mb-0 ps-3">
+        <li>You must present this Examination Card alongside your University Student ID card at every exam session.</li>
+        <li>Candidates must be in the examination room at least 15 minutes before the paper start time.</li>
+        <li>Mobile phones and unauthorized paper notes are strictly prohibited inside the examination room.</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- Signatures footer -->
+  <div class="p-4 bg-light border-top">
+    <div class="row align-items-center">
+      <div class="col-md-6">
+        <div class="small text-muted">Student Signature: _______________________ Date: _________</div>
+      </div>
+      <div class="col-md-6 text-md-end">
+        <div class="small text-muted">Registrar (Academic Affairs) / Finance Seal Verified</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

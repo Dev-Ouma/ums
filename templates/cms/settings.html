@@ -1,0 +1,16 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Site settings · Site CMS{% endblock %}
+{% block content %}
+<div class="page-head"><h4><i class="fa-solid fa-sliders me-2 text-primary"></i>Site settings</h4></div>
+{% include 'cms/_nav.html' %}
+<div class="card card-ums p-4">
+  <form method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+    {% include 'cms/_form_fields.html' %}
+    <div class="mt-4">
+      <button class="btn btn-primary rounded-pill px-4" type="submit">
+        <i class="fa-solid fa-floppy-disk me-2"></i>Save settings</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

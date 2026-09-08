@@ -3,20 +3,88 @@
 {% block content %}
 <div class="page-head">
   <h4><i class="fa-solid fa-user-graduate me-2 text-primary"></i>Students</h4>
-  <div class="d-flex gap-2 flex-wrap">
-    <form class="d-flex gap-2"><input name="q" value="{{ q }}" class="form-control rounded-pill" placeholder="Search students...">
-      <button class="btn btn-light rounded-pill px-3"><i class="fa-solid fa-magnifying-glass"></i></button></form>
-    <a href="{% url 'university:student_create' %}" class="btn btn-primary rounded-pill px-3"><i class="fa-solid fa-user-plus me-1"></i>Add Student</a>
+  <div class="d-flex gap-2 flex-wrap align-items-center">
+    <form class="d-flex gap-2" method="get">
+      {% if per_page != '25' %}
+        <input type="hidden" name="per_page" value="{{ per_page }}">
+      {% endif %}
+      {% if sort_by %}
+        <input type="hidden" name="sort" value="{{ sort_by }}">
+        <input type="hidden" name="order" value="{{ order }}">
+      {% endif %}
+      <div class="input-group">
+        <input name="q" value="{{ q }}" class="form-control rounded-start-pill" placeholder="Search students..." data-table-search="#studentsTable">
+        <button class="btn btn-light border border-start-0 rounded-end-pill px-3" type="submit" title="Search"><i class="fa-solid fa-magnifying-glass text-muted"></i></button>
+      </div>
+      {% if q %}
+        <a href="{% querystring q=None page=1 %}" class="btn btn-outline-secondary rounded-pill px-3 d-inline-flex align-items-center" title="Clear search"><i class="fa-solid fa-xmark"></i></a>
+      {% endif %}
+    </form>
+    <!-- Export Dropdown -->
+    <div class="dropdown">
+      <button class="btn btn-light border rounded-pill px-3 dropdown-toggle d-inline-flex align-items-center gap-1" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="fa-solid fa-file-export text-primary"></i> Export
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end shadow-sm rounded-3 py-2">
+        <li><span class="dropdown-header small text-muted text-uppercase fw-semibold">Export Filtered List</span></li>
+        <li>
+          <a class="dropdown-item py-2 d-flex align-items-center gap-2" href="{% url 'university:student_export' 'pdf' %}{% querystring %}">
+            <i class="fa-solid fa-file-pdf text-danger fa-fw"></i> PDF Document (.pdf)
+          </a>
+        </li>
+        <li>
+          <a class="dropdown-item py-2 d-flex align-items-center gap-2" href="{% url 'university:student_export' 'excel' %}{% querystring %}">
+            <i class="fa-solid fa-file-excel text-success fa-fw"></i> Excel Spreadsheet (.xlsx)
+          </a>
+        </li>
+        <li>
+          <a class="dropdown-item py-2 d-flex align-items-center gap-2" href="{% url 'university:student_export' 'csv' %}{% querystring %}">
+            <i class="fa-solid fa-file-csv text-info fa-fw"></i> CSV File (.csv)
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Web / Print Preview -->
+    <a href="{% url 'university:student_preview' %}{% querystring %}" target="_blank" class="btn btn-light border rounded-pill px-3 d-inline-flex align-items-center gap-1" title="View printable report">
+      <i class="fa-solid fa-eye text-primary"></i> Preview
+    </a>
+
+    <!-- Bulk Import -->
+    <a href="{% url 'university:student_import' %}" class="btn btn-outline-primary rounded-pill px-3 d-inline-flex align-items-center gap-1">
+      <i class="fa-solid fa-file-import"></i> Bulk Import
+    </a>
+
+    <a href="{% url 'university:student_create' %}" class="btn btn-primary rounded-pill px-3 d-inline-flex align-items-center gap-1"><i class="fa-solid fa-user-plus"></i> Add Student</a>
   </div>
 </div>
 <div class="card card-ums">
-  <div class="table-responsive"><table class="table align-middle mb-0">
-    <thead><tr><th class="ps-4">Student</th><th>Roll No</th><th>Program</th><th>Semester</th><th>Email</th><th class="text-end pe-4">Actions</th></tr></thead>
+  <div class="table-responsive"><table class="table table-ums align-middle mb-0" id="studentsTable">
+    <thead>
+      <tr>
+        <th class="ps-3 text-center" style="width: 40px;">
+          <input type="checkbox" class="form-check-input bulk-select-all" aria-label="Select all students">
+        </th>
+        <th class="sortable">Student</th>
+        <th class="sortable">Roll No</th>
+        <th class="sortable">Program</th>
+        <th class="sortable">Semester</th>
+        <th class="sortable">Email</th>
+        <th class="text-end pe-4">Actions</th>
+      </tr>
+    </thead>
     <tbody>
     {% for s in students %}
       <tr>
-        <td class="ps-4"><div class="d-flex align-items-center gap-2">
-          <img src="{{ s.user.avatar }}" class="avatar-sm"><span class="fw-semibold">{{ s.user.display_name }}</span></div></td>
+        <td class="ps-3 text-center">
+          <input type="checkbox" class="form-check-input bulk-select-row" value="{{ s.id }}">
+        </td>
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            <img src="{{ s.user.avatar }}" class="avatar-sm">
+            <span class="fw-semibold">{{ s.user.display_name }}</span>
+          </div>
+        </td>
         <td><span class="badge-soft badge rounded-pill">{{ s.roll_no }}</span></td>
         <td class="small">{{ s.program.code|default:"—" }}</td>
         <td>Sem {{ s.current_semester }}</td>
@@ -29,7 +97,81 @@
           </div>
         </td>
       </tr>
-    {% empty %}<tr><td colspan="6" class="text-center text-muted p-4">No students found.</td></tr>{% endfor %}
+    {% empty %}<tr><td colspan="7" class="text-center text-muted p-4">No students found.</td></tr>{% endfor %}
     </tbody></table></div>
+
+  <div class="card-footer bg-white border-top d-flex flex-wrap justify-content-between align-items-center gap-3 py-3 px-4">
+    <div class="d-flex flex-wrap align-items-center gap-3">
+      <div class="d-flex align-items-center gap-2">
+        <label for="rowsPerPageSelect" class="small text-muted mb-0 text-nowrap">Rows per page:</label>
+        <select id="rowsPerPageSelect" class="form-select form-select-sm rounded-pill" style="width: auto; min-width: 80px;" onchange="window.location.href=this.value;" aria-label="Rows per page">
+          <option value="{% querystring per_page=10 page=1 %}" {% if per_page == '10' %}selected{% endif %}>10</option>
+          <option value="{% querystring per_page=25 page=1 %}" {% if per_page == '25' %}selected{% endif %}>25</option>
+          <option value="{% querystring per_page=50 page=1 %}" {% if per_page == '50' %}selected{% endif %}>50</option>
+          <option value="{% querystring per_page=100 page=1 %}" {% if per_page == '100' %}selected{% endif %}>100</option>
+          <option value="{% querystring per_page='all' page=1 %}" {% if per_page == 'all' %}selected{% endif %}>All</option>
+        </select>
+      </div>
+      <span class="text-muted small">
+        {% if paginator.count == 0 %}
+          Showing 0 students
+        {% elif page_obj.start_index == page_obj.end_index %}
+          Showing {{ page_obj.start_index }} of {{ paginator.count }} student{{ paginator.count|pluralize }}
+        {% else %}
+          Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ paginator.count }} student{{ paginator.count|pluralize }}
+        {% endif %}
+      </span>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <nav aria-label="Students pagination">
+      <ul class="pagination pagination-sm mb-0 align-items-center gap-1">
+        {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link rounded-pill px-3" href="{% querystring page=page_obj.previous_page_number %}" aria-label="Previous">
+              <i class="fa-solid fa-chevron-left me-1 small"></i> Previous
+            </a>
+          </li>
+        {% else %}
+          <li class="page-item disabled">
+            <span class="page-link rounded-pill px-3 text-muted" aria-disabled="true">
+              <i class="fa-solid fa-chevron-left me-1 small"></i> Previous
+            </span>
+          </li>
+        {% endif %}
+
+        {% for p in page_range %}
+          {% if p == page_obj.paginator.ELLIPSIS %}
+            <li class="page-item disabled">
+              <span class="page-link border-0 text-muted px-2">&hellip;</span>
+            </li>
+          {% elif p == page_obj.number %}
+            <li class="page-item active" aria-current="page">
+              <span class="page-link rounded-circle text-center" style="width: 32px; height: 32px; line-height: 20px; padding: 5px 0;">{{ p }}</span>
+            </li>
+          {% else %}
+            <li class="page-item">
+              <a class="page-link rounded-circle text-center" style="width: 32px; height: 32px; line-height: 20px; padding: 5px 0;" href="{% querystring page=p %}">{{ p }}</a>
+            </li>
+          {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link rounded-pill px-3" href="{% querystring page=page_obj.next_page_number %}" aria-label="Next">
+              Next <i class="fa-solid fa-chevron-right ms-1 small"></i>
+            </a>
+          </li>
+        {% else %}
+          <li class="page-item disabled">
+            <span class="page-link rounded-pill px-3 text-muted" aria-disabled="true">
+              Next <i class="fa-solid fa-chevron-right ms-1 small"></i>
+            </span>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

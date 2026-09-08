@@ -1,0 +1,11 @@
+{% extends 'public/layouts/_page_base.html' %}
+{% comment %}Centred column with a page header — for ordinary content pages.{% endcomment %}
+{% block page_body %}
+<header class="container pt-5 pb-2">
+  <h1 class="fw-bold">{{ page.title }}</h1>
+  {% if page.meta_description %}<p class="text-muted lead">{{ page.meta_description }}</p>{% endif %}
+</header>
+<div class="cms-standard">
+  {% for ctx in blocks %}{% include ctx.block.template_name with block=ctx.block items=ctx.items %}{% endfor %}
+</div>
+{% endblock %}

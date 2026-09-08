@@ -1,0 +1,49 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Media · Site CMS{% endblock %}
+{% block content %}
+<div class="page-head"><h4><i class="fa-solid fa-images me-2 text-primary"></i>Media library</h4></div>
+{% include 'cms/_nav.html' %}
+
+<div class="card card-ums p-4 mb-4">
+  <form method="post" enctype="multipart/form-data" novalidate class="row g-3 align-items-end">
+    {% csrf_token %}
+    {% for field in form %}
+      <div class="col-md-5">
+        <label class="form-label small text-muted" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% for error in field.errors %}
+          <div class="text-danger small mt-1"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ error }}</div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+    <div class="col-md-2">
+      <button class="btn btn-primary rounded-pill px-4 w-100" type="submit">
+        <i class="fa-solid fa-upload me-2"></i>Upload</button>
+    </div>
+  </form>
+</div>
+
+<div class="row g-3">
+  {% for a in assets %}
+    <div class="col-6 col-md-4 col-xl-3">
+      <div class="card card-ums overflow-hidden h-100">
+        <img src="{{ a.file.url }}" alt="{{ a.title }}" style="height:150px;object-fit:cover">
+        <div class="p-3">
+          <div class="fw-semibold small text-truncate">{{ a.title|default:a.file.name }}</div>
+          <input class="form-control form-control-sm mt-2" value="{{ a.file.url }}" readonly
+                 onclick="this.select()" aria-label="Image address">
+          <form method="post" action="{% url 'cms:media_delete' a.pk %}" class="mt-2"
+                onsubmit="return confirm('Delete this image? Sections still using it will lose it.')">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-light border rounded-pill text-danger w-100" type="submit">
+              <i class="fa-solid fa-trash me-1"></i>Delete</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  {% empty %}
+    <div class="col-12"><div class="card card-ums p-5 text-center text-muted">
+      <i class="fa-solid fa-images fs-3 d-block mb-2"></i>No images uploaded yet.</div></div>
+  {% endfor %}
+</div>
+{% endblock %}

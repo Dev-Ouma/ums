@@ -3,7 +3,10 @@
 {% block content %}
 <div class="page-head">
   <h4><i class="fa-solid fa-id-card me-2 text-primary"></i>Student Profile</h4>
-  <a href="{% url 'university:admin_students' %}" class="btn btn-sm btn-outline-primary rounded-pill"><i class="fa-solid fa-arrow-left me-1"></i>Back</a>
+  <div class="d-flex gap-2">
+    <a href="{% url 'university:admin_academic_transcripts' %}?q={{ student.roll_no }}" class="btn btn-sm btn-primary rounded-pill"><i class="fa-solid fa-scroll me-1"></i>Academic Transcripts</a>
+    <a href="{% url 'university:admin_students' %}" class="btn btn-sm btn-outline-primary rounded-pill"><i class="fa-solid fa-arrow-left me-1"></i>Back</a>
+  </div>
 </div>
 <div class="row g-4">
   <div class="col-lg-4">

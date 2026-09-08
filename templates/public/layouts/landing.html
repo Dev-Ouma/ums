@@ -1,0 +1,5 @@
+{% extends 'public/layouts/_page_base.html' %}
+{% comment %}Full-bleed sections, no page header — for marketing front pages.{% endcomment %}
+{% block page_body %}
+  {% for ctx in blocks %}{% include ctx.block.template_name with block=ctx.block items=ctx.items %}{% endfor %}
+{% endblock %}

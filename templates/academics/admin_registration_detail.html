@@ -1,0 +1,148 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Manage Registration · {{ registration.student.roll_no }} · Academics · UMS{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h4><i class="fa-solid fa-file-pen me-2" style="color:var(--primary)"></i>Review Unit Registration</h4>
+    <small class="text-muted">{{ registration.student.roll_no }} · {{ registration.student.user.display_name }} · {{ registration.term.name }}</small>
+  </div>
+  <a href="{% url 'university:admin_unit_registrations' %}" class="btn btn-sm btn-outline-primary rounded-pill">
+    <i class="fa-solid fa-arrow-left me-1"></i>Back to Registrations
+  </a>
+</div>
+
+<div class="row g-4 mb-4">
+  <!-- Left Column: Student & Registration Summary -->
+  <div class="col-lg-4">
+    <div class="card card-ums p-4">
+      <div class="text-center mb-3">
+        <img src="{{ registration.student.user.avatar }}" class="rounded-circle mx-auto mb-2" width="70" height="70">
+        <h6 class="fw-bold mb-0">{{ registration.student.user.display_name }}</h6>
+        <span class="badge-soft badge rounded-pill mt-1">{{ registration.student.roll_no }}</span>
+      </div>
+      <hr>
+      <div class="small">
+        <div class="mb-2"><strong>Programme:</strong> {{ registration.student.program.name|default:'—' }}</div>
+        <div class="mb-2"><strong>Department:</strong> {{ registration.student.program.department.name|default:'—' }}</div>
+        <div class="mb-2"><strong>Term:</strong> {{ registration.term.name }}</div>
+        <div class="mb-2"><strong>Current Level:</strong> Year {{ registration.student.current_semester }} · Semester {{ registration.semester_no }}</div>
+        <div class="mb-2"><strong>Total Credits:</strong> <span class="badge bg-light text-dark fs-6">{{ registration.total_credits }}</span></div>
+        <div class="mb-2">
+          <strong>Status:</strong>
+          <span class="badge rounded-pill 
+            {% if registration.status == 'APPROVED' or registration.status == 'REGISTERED' %}bg-success
+            {% elif registration.status == 'SUBMITTED' %}bg-warning text-dark
+            {% elif registration.status == 'REJECTED' %}bg-danger
+            {% else %}bg-secondary{% endif %}">
+            {{ registration.get_status_display }}
+          </span>
+        </div>
+        {% if registration.submitted_at %}
+          <div class="mb-2 text-muted"><strong>Submitted on:</strong> {{ registration.submitted_at|date:"d M Y H:i" }}</div>
+        {% endif %}
+        {% if registration.approved_at %}
+          <div class="mb-2 text-muted"><strong>Reviewed on:</strong> {{ registration.approved_at|date:"d M Y H:i" }} by {{ registration.approved_by.display_name|default:'Administrator' }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Administrative Decision Card -->
+    <div class="card card-ums p-4 mt-3">
+      <h6 class="fw-bold mb-3"><i class="fa-solid fa-gavel me-2 text-primary"></i>Administrative Action</h6>
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Admin Remarks / Instructions:</label>
+          <textarea name="admin_remarks" class="form-control form-control-sm" rows="3" placeholder="Enter remarks or approval comments...">{{ registration.admin_remarks }}</textarea>
+        </div>
+        <div class="d-grid gap-2">
+          <button type="submit" name="action" value="approve" class="btn btn-sm btn-success rounded-pill py-2">
+            <i class="fa-solid fa-circle-check me-1"></i>Approve Registration
+          </button>
+          <button type="submit" name="action" value="reject" class="btn btn-sm btn-outline-danger rounded-pill py-2"
+                  onclick="return confirm('Reject this student registration with the entered remarks?');">
+            <i class="fa-solid fa-circle-xmark me-1"></i>Reject / Request Revision
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Right Column: Registered Units & Add Unit -->
+  <div class="col-lg-8">
+    <div class="card card-ums mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="fa-solid fa-list-check me-2 text-primary"></i>Registered Course Units ({{ enrolled_units|length }})</span>
+        <span class="badge bg-primary rounded-pill">{{ registration.total_credits }} credits</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Code</th>
+              <th>Course Title</th>
+              <th>Department</th>
+              <th>Credits</th>
+              <th>Status</th>
+              <th class="text-end pe-3">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for enr in enrolled_units %}
+              <tr>
+                <td class="ps-3 fw-bold">{{ enr.course.code }}</td>
+                <td>{{ enr.course.title }}</td>
+                <td><span class="badge rounded-pill" style="background:{{ enr.course.department.color }}">{{ enr.course.department.code }}</span></td>
+                <td><strong>{{ enr.course.credits }}</strong></td>
+                <td><span class="status {{ enr.status }}">{{ enr.get_status_display }}</span></td>
+                <td class="text-end pe-3">
+                  <form method="post" class="d-inline" onsubmit="return confirm('Remove unit {{ enr.course.code }}?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="remove_unit">
+                    <input type="hidden" name="enrollment_id" value="{{ enr.pk }}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill py-1 px-2">
+                      <i class="fa-solid fa-trash me-1"></i>Remove
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="6" class="text-center py-4 text-muted">
+                  No courses are currently registered for this student.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Add Unit to Student Registration -->
+    <div class="card card-ums">
+      <div class="card-header fw-semibold">
+        <i class="fa-solid fa-plus-circle me-2 text-primary"></i>Add Course Unit (Administrative Override)
+      </div>
+      <div class="card-body">
+        <form method="post" class="row g-2 align-items-center">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="add_unit">
+          <div class="col-md-9">
+            <select name="course_id" class="form-select form-select-sm" required>
+              <option value="">Select course unit to add...</option>
+              {% for c in available_courses %}
+                <option value="{{ c.pk }}">{{ c.code }} — {{ c.title }} ({{ c.credits }} credits) · {{ c.department.code }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <button type="submit" class="btn btn-sm btn-primary rounded-pill w-100">
+              <i class="fa-solid fa-plus me-1"></i>Add to Student
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

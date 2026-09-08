@@ -1,0 +1,7 @@
+<section class="container py-5">
+  <div class="card border-0 rounded-4 shadow-sm p-4 p-lg-5">
+    {% if block.heading %}<h2 class="fw-bold mb-3">{{ block.heading }}</h2>{% endif %}
+    {% if block.subheading %}<p class="text-muted lead">{{ block.subheading }}</p>{% endif %}
+    <div class="cms-prose">{{ block.body|safe }}</div>
+  </div>
+</section>

@@ -1,0 +1,44 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}My Timetable · UMS{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h4><i class="fa-solid fa-calendar-week me-2 text-primary"></i>My Timetable</h4>
+  <form method="get" class="d-flex align-items-center gap-2">
+    <select name="term" class="form-select rounded-pill" onchange="this.form.submit()">
+      {% for t in terms %}
+        <option value="{{ t.id }}" {% if term.id == t.id %}selected{% endif %}>{{ t.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+{% if not term %}
+  <div class="card card-ums p-4 text-center text-muted">No academic term available yet.</div>
+{% else %}
+<div class="row g-4">
+  {% for day in grid %}
+  <div class="col-md-6 col-xl-4">
+    <div class="card card-ums h-100">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3"><i class="fa-solid fa-calendar-day me-2 text-primary"></i>{{ day.label }}</h6>
+        {% for s in day.sessions %}
+        <div class="border-bottom py-2">
+          <div class="fw-semibold small">{{ s.course.code }} · {{ s.course.title|truncatechars:28 }}</div>
+          <div class="small text-muted">
+            <i class="fa-solid fa-clock me-1"></i>{{ s.start_time|time:"H:i" }}–{{ s.end_time|time:"H:i" }}
+            <span class="mx-1">·</span><i class="fa-solid fa-door-open me-1"></i>{{ s.room.name }}
+            <span class="mx-1">·</span><span class="badge-soft badge rounded-pill">{{ s.get_session_type_display }}</span>
+          </div>
+          <div class="small text-muted"><i class="fa-solid fa-chalkboard-user me-1"></i>
+            {% if s.course.faculty %}{{ s.course.faculty.user.display_name }}{% else %}TBA{% endif %}</div>
+        </div>
+        {% empty %}
+        <p class="text-muted small mb-0">No classes scheduled.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

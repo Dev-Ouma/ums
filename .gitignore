@@ -9,14 +9,18 @@ env/
 # Django
 db.sqlite3
 db.sqlite3-journal
+db.*.sqlite3
 /media/
 /staticfiles/
 
-# IDE / OS
+# IDE / OS / Agent files
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+.claude/
+skill-observations/
+
 
 # YouTube thumbnails (not part of the project)
 thumbnails/

@@ -1,0 +1,18 @@
+{% extends 'base_public.html' %}
+{% comment %}
+Shared skeleton for every CMS layout. A layout only decides the wrapper
+around {% block page_body %}; the block list itself renders identically.
+{% endcomment %}
+{% block title %}{{ page.title }} · {{ site.site_name }}{% endblock %}
+
+{% block content %}
+{% if is_preview %}
+<div class="container mt-3">
+  <div class="alert alert-warning rounded-3 d-flex align-items-center gap-2">
+    <i class="fa-solid fa-eye"></i>
+    <span><strong>Draft preview.</strong> This page is not published, so visitors cannot see it.</span>
+  </div>
+</div>
+{% endif %}
+{% block page_body %}{% endblock %}
+{% endblock %}

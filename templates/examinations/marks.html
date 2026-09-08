@@ -1,0 +1,668 @@
+{% extends 'examinations/base.html' %}
+{% block exam_content %}
+{{ bands|json_script:"grade-bands" }}
+<style>
+.mp-head{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;align-items:flex-start;margin-bottom:1.2rem}
+.mp-crumb{font-size:.82rem;color:#8a90a2;margin-bottom:.3rem}
+.mp-crumb a{color:#8a90a2;text-decoration:none}
+.mp-crumb a:hover{color:var(--primary)}
+.mp-title{margin:0;font-weight:700;letter-spacing:-.02em}
+.mp-sub{color:#687184;margin:.35rem 0 .6rem}
+.mp-tags{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+.mp-tag{display:inline-flex;align-items:center;gap:.4rem;padding:.32rem .75rem;border-radius:2rem;font-size:.78rem;font-weight:600;background:#eef0fd;color:#494a87}
+.mp-tag.weight{background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff}
+.mp-tag.locked{background:#fdeaea;color:#a32626}
+.mp-tag.live{background:#e6f7f0;color:#136c46}
+.mp-tag.examiner{background:#f0f9ff;border:1px solid #bae6fd;color:#0369a1}
+.mp-tag.examiner-ext{background:#fdf4ff;border:1px solid #f0abfc;color:#86198f}
+
+.mp-bar{position:sticky;top:0;z-index:30;background:#fff;border:1px solid #e3e7ef;border-radius:1rem;padding:1rem 1.15rem;margin-bottom:1rem;box-shadow:0 6px 20px rgba(20,25,60,.06)}
+.mp-progress{display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.mp-track{flex:1;min-width:200px;height:10px;border-radius:6px;background:#eef0f6;overflow:hidden}
+.mp-fill{height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,var(--primary),var(--primary-dark));transition:width .25s ease}
+.mp-count{font-weight:700;white-space:nowrap}
+.mp-count span{color:#8a90a2;font-weight:500}
+
+.mp-stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:.6rem;margin-top:.95rem}
+.mp-stat{background:#f7f8fc;border:1px solid #eceff6;border-radius:.75rem;padding:.6rem .7rem}
+.mp-stat b{display:block;font-size:1.15rem;line-height:1.3;font-variant-numeric:tabular-nums}
+.mp-stat small{color:#7c8399;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em}
+
+.mp-tools{display:flex;gap:.55rem;flex-wrap:wrap;align-items:center;margin-top:.95rem;padding-top:.9rem;border-top:1px solid #eef0f6}
+.mp-search{position:relative;flex:1;min-width:180px;max-width:320px}
+.mp-search input{padding-left:2.1rem}
+.mp-search i{position:absolute;left:.75rem;top:50%;transform:translateY(-50%);color:#a6acbd;font-size:.85rem}
+.mp-chip{border:1px solid #dfe3ed;background:#fff;border-radius:2rem;padding:.35rem .8rem;font-size:.8rem;color:#5e6678;cursor:pointer}
+.mp-chip.on{background:var(--primary);border-color:var(--primary);color:#fff}
+
+.mp-sheet{background:#fff;border:1px solid #e3e7ef;border-radius:1rem;overflow:hidden;margin-bottom:1rem}
+.mp-sheet table{margin:0;width:100%}
+.mp-sheet thead th{position:sticky;top:96px;z-index:20;background:#f7f8fc;border-bottom:1px solid #e3e7ef;font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;color:#7c8399;padding:.75rem .65rem;white-space:nowrap}
+.mp-sheet tbody td{padding:.55rem .65rem;vertical-align:middle;border-bottom:1px solid #f1f3f8}
+.mp-sheet tbody tr:hover{background:#fafbff}
+.mp-sheet tbody tr.dirty{background:#fffbf0}
+.mp-sheet tbody tr.dirty:hover{background:#fff7e6}
+.mp-seat{width:2rem;height:2rem;display:grid;place-items:center;border-radius:.5rem;background:#f1f3f8;font-size:.78rem;font-weight:700;color:#5e6678}
+.mp-roll{font-weight:700;font-size:.88rem}
+.mp-name{color:#7c8399;font-size:.8rem}
+.mp-sheet input[type=number]{width:5.5rem;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.mp-sheet input.invalid{border-color:#e06666;background:#fff6f6;color:#a32626}
+.mp-sheet select{width:7.5rem}
+.mp-remarks{min-width:10rem}
+.mp-total{font-variant-numeric:tabular-nums;font-weight:700;font-size:.9rem}
+.mp-pct{font-variant-numeric:tabular-nums;font-weight:600;font-size:.85rem}
+.mp-grade{display:inline-block;min-width:2.2rem;text-align:center;padding:.2rem .5rem;border-radius:.45rem;font-size:.78rem;font-weight:800}
+.mp-grade.grade-A{background:#e6f7f0;color:#047857;border:1px solid #a7f3d0}
+.mp-grade.grade-B{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+.mp-grade.grade-C{background:#fffbeb;color:#b45309;border:1px solid #fde68a}
+.mp-grade.grade-D{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+.mp-grade.grade-F{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}
+.mp-grade.grade-ABS{background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb}
+.mp-grade.grade-none{background:#f1f3f8;color:#9ca3af}
+
+.mp-outcome{display:inline-block;padding:.2rem .45rem;border-radius:.35rem;font-size:.72rem;font-weight:700;text-transform:uppercase}
+.mp-outcome.pass{background:#e6f7f0;color:#047857}
+.mp-outcome.fail{background:#fef2f2;color:#b91c1c}
+.mp-outcome.abs{background:#f3f4f6;color:#6b7280}
+.mp-outcome.pending{background:#f1f3f8;color:#9ca3af}
+
+.mp-foot{position:sticky;bottom:0;z-index:30;background:#fff;border:1px solid #e3e7ef;border-radius:1rem;padding:.9rem 1.15rem;display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;box-shadow:0 -6px 20px rgba(20,25,60,.06)}
+.mp-dirtynote{color:#a3701f;font-size:.84rem;font-weight:600;display:none}
+.mp-dirtynote.on{display:inline}
+.mp-hint{color:#8a90a2;font-size:.8rem}
+.mp-warn-list{margin:.6rem 0 0;padding-left:1.1rem;color:#5e6678;font-size:.88rem}
+.mp-warn-list li{margin-bottom:.35rem}
+.mp-danger{background:#fdf3f3;border:1px solid #f3d5d5;border-radius:.75rem;padding:.85rem 1rem}
+.mp-noresults{padding:2.5rem;text-align:center;color:#8a90a2}
+@media(max-width:900px){.mp-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.mp-sheet thead th{position:static}}
+@media(max-width:600px){.mp-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media print{.mp-bar,.mp-foot,.mp-tools{display:none!important}}
+</style>
+
+<div class="mp-head">
+  <div>
+    <div class="mp-crumb"><a href="{% url 'examinations:index' %}">Examinations</a> ›
+      <a href="{% url 'examinations:detail' exam.pk %}">{{ exam.course.code }} · {{ exam.name }}</a> › Marks processing</div>
+    <h3 class="mp-title">Marks Processing & Grading</h3>
+    <p class="mp-sub">{{ exam.course.code }} — {{ exam.course.title }} · {{ exam.term }} · Total Maximum: <strong>{{ exam.max_marks }} marks</strong></p>
+    <div class="mp-tags">
+      <span class="mp-tag weight">{{ component }}</span>
+      <span class="mp-tag {% if editable %}live{% else %}locked{% endif %}">
+        <i class="fa-solid {% if editable %}fa-pen-to-square{% else %}fa-lock{% endif %}"></i>{{ exam.get_status_display }}
+      </span>
+      <span class="mp-tag examiner">
+        <i class="fa-solid fa-user-check"></i>
+        <strong>Internal Examiner:</strong>
+        {{ exam.internal_examiner.user.display_name|default:exam.course.faculty.user.display_name|default:"Not assigned" }}
+      </span>
+      <span class="mp-tag examiner-ext">
+        <i class="fa-solid fa-user-shield"></i>
+        <strong>External Examiner:</strong>
+        {{ exam.external_examiner.user.display_name|default:exam.external_examiner_name|default:"None assigned" }}
+      </span>
+      <span class="mp-tag">CUE Pass Mark: {{ exam.pass_mark|floatformat:0 }}% (Grade D)</span>
+    </div>
+  </div>
+  <div class="exam-actions no-print">
+    {% if admin or editable %}
+    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#examinerModal">
+      <i class="fa-solid fa-user-gear me-1"></i>Examiners
+    </button>
+    {% endif %}
+    <a class="btn btn-outline-secondary" href="{% url 'examinations:detail' exam.pk %}"><i class="fa-solid fa-arrow-left me-1"></i>Overview</a>
+    <a class="btn btn-outline-secondary" href="{% url 'examinations:register' exam.pk %}">Register</a>
+  </div>
+</div>
+
+{% if not editable %}
+<div class="alert alert-secondary d-flex align-items-center gap-2">
+  <i class="fa-solid fa-lock"></i>
+  <div>This marks sheet is <strong>read-only</strong> at status “{{ exam.get_status_display }}”.
+    {% if exam.status == 'INTERNAL_REVIEW' %}Marks are under review by the Internal Examiner.
+    {% elif exam.status == 'EXTERNAL_REVIEW' %}Marks are under moderation by the External Examiner.
+    {% elif exam.status == 'SUBMITTED' %}Marks were submitted as final and are awaiting Senate/Admin approval.
+    {% elif exam.status == 'APPROVED' %}Results are approved and awaiting publication.
+    {% elif exam.status == 'PUBLISHED' %}Results are published to students.
+    {% elif exam.status == 'SCHEDULED' %}Open marks capture from the overview to begin entering marks.{% endif %}</div>
+</div>
+{% endif %}
+
+{% if errors %}
+<div class="alert alert-danger" role="alert">
+  <strong>The marks sheet could not be saved:</strong>
+  {% for error in errors %}<div>{{ error }}</div>{% endfor %}
+</div>
+{% endif %}
+
+<div class="mp-bar no-print">
+  <div class="mp-progress">
+    <span class="mp-count"><span id="mp-done">{{ recorded }}</span> of {{ total }} <span>candidates recorded</span></span>
+    <div class="mp-track"><div class="mp-fill" id="mp-fill"></div></div>
+    <span class="mp-count" id="mp-pctdone">0%</span>
+  </div>
+  <div class="mp-stats">
+    <div class="mp-stat"><small>Present</small><b id="s-present">0</b></div>
+    <div class="mp-stat"><small>Absent</small><b id="s-absent">0</b></div>
+    <div class="mp-stat"><small>Outstanding</small><b id="s-pending">0</b></div>
+    <div class="mp-stat"><small>Average</small><b id="s-avg">—</b></div>
+    <div class="mp-stat"><small>Pass rate</small><b id="s-pass">—</b></div>
+    <div class="mp-stat"><small>Highest</small><b id="s-top">—</b></div>
+  </div>
+  <div class="mp-tools">
+    <div class="mp-search"><i class="fa-solid fa-magnifying-glass"></i>
+      <input id="mp-q" class="form-control form-control-sm" placeholder="Find candidate by roll number or name" aria-label="Find candidate"></div>
+    <button type="button" class="mp-chip on" data-filter="all">All</button>
+    <button type="button" class="mp-chip" data-filter="pending">Outstanding</button>
+    <button type="button" class="mp-chip" data-filter="fail">Below pass mark (F)</button>
+    <button type="button" class="mp-chip" data-filter="absent">Absent</button>
+    {% if editable %}
+    <span class="ms-auto d-flex gap-2 flex-wrap">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="mp-all-present">Mark all present</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="mp-rest-absent">Remaining absent</button>
+    </span>
+    {% endif %}
+  </div>
+</div>
+
+<form method="post" id="mp-form">{% csrf_token %}
+<input type="hidden" name="revision" value="{{ exam.revision }}">
+<div class="mp-sheet">
+  <div class="table-responsive">
+  <table class="table align-middle">
+    <thead><tr>
+      <th style="width:3rem">Seat</th>
+      <th>Candidate</th>
+      <th style="width:8.5rem">Attendance</th>
+      <th style="width:7rem" class="text-end">CAT / {{ exam.cat_max_marks|floatformat:0 }}</th>
+      <th style="width:7rem" class="text-end">Exam / {{ exam.exam_max_marks|floatformat:0 }}</th>
+      <th style="width:7rem" class="text-end">Total / {{ exam.max_marks }}</th>
+      <th style="width:4.5rem" class="text-end">%</th>
+      <th style="width:4.5rem" class="text-center">Grade</th>
+      <th style="width:5rem" class="text-center">Outcome</th>
+      <th>Remarks</th>
+    </tr></thead>
+    <tbody id="mp-body">
+      {% for r in rows %}
+      <tr data-row data-roll="{{ r.student.roll_no|lower }}" data-name="{{ r.student.user.display_name|lower }}">
+        <td><span class="mp-seat">{{ r.seat_number|default:'—' }}</span></td>
+        <td><div class="mp-roll">{{ r.student.roll_no }}</div><div class="mp-name">{{ r.student.user.display_name }}</div></td>
+        <td>
+          <select class="form-select form-select-sm" name="attendance_{{ r.pk }}" data-att
+                  aria-label="Attendance for {{ r.student.roll_no }}" {% if not editable %}disabled{% endif %}>
+            <option value="PENDING" {% if r.attendance == 'PENDING' %}selected{% endif %}>Not recorded</option>
+            <option value="PRESENT" {% if r.attendance == 'PRESENT' %}selected{% endif %}>Present</option>
+            <option value="ABSENT" {% if r.attendance == 'ABSENT' %}selected{% endif %}>Absent</option>
+          </select>
+        </td>
+        <td class="text-end">
+          <input class="form-control form-control-sm text-end" type="number" data-cat
+                 name="cat_marks_{{ r.pk }}" min="0" max="{{ exam.cat_max_marks }}" step="0.01" inputmode="decimal"
+                 value="{{ r.cat_marks|default_if_none:'' }}" placeholder="max {{ exam.cat_max_marks|floatformat:0 }}"
+                 aria-label="CAT marks for {{ r.student.roll_no }}" {% if not editable %}disabled{% endif %}>
+        </td>
+        <td class="text-end">
+          <input class="form-control form-control-sm text-end" type="number" data-exam
+                 name="exam_marks_{{ r.pk }}" min="0" max="{{ exam.exam_max_marks }}" step="0.01" inputmode="decimal"
+                 value="{{ r.exam_marks|default_if_none:'' }}" placeholder="max {{ exam.exam_max_marks|floatformat:0 }}"
+                 aria-label="Exam marks for {{ r.student.roll_no }}" {% if not editable %}disabled{% endif %}>
+        </td>
+        <td class="text-end mp-total" data-total>
+          {% if r.marks_obtained is not None %}{{ r.marks_obtained }}{% else %}—{% endif %}
+        </td>
+        <td class="text-end mp-pct" data-pct>
+          {% if r.marks_obtained is not None %}{{ r.percentage }}%{% else %}—{% endif %}
+        </td>
+        <td class="text-center">
+          <span class="mp-grade grade-{{ r.grade|default:'none' }}" data-grade>
+            {{ r.grade|default:'—' }}
+          </span>
+        </td>
+        <td class="text-center">
+          <span class="mp-outcome {% if r.attendance == 'ABSENT' %}abs{% elif r.outcome == 'Pass' %}pass{% elif r.outcome == 'Fail' %}fail{% else %}pending{% endif %}" data-outcome>
+            {{ r.outcome }}
+          </span>
+        </td>
+        <td>
+          <input class="form-control form-control-sm mp-remarks" name="remarks_{{ r.pk }}"
+                 value="{{ r.remarks }}" maxlength="250" placeholder="Optional"
+                 aria-label="Remarks for {{ r.student.roll_no }}" {% if not editable %}disabled{% endif %}>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="10" class="mp-noresults">No candidate register yet. Schedule the examination from the overview to register eligible students.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div class="mp-noresults" id="mp-nomatch" style="display:none">No candidate matches this search or filter.</div>
+</div>
+
+{% if editable %}
+<div class="mp-foot no-print">
+  <button class="btn btn-primary" name="save" value="1"><i class="fa-solid fa-floppy-disk me-2"></i>Save marks</button>
+  <button type="button" class="btn btn-outline-primary" id="mp-internal-submit-btn"><i class="fa-solid fa-paper-plane me-1"></i>Submit for Internal Review</button>
+  <button type="button" class="btn btn-dark" id="mp-submit-open"><i class="fa-solid fa-lock me-2"></i>Submit as final</button>
+  <span class="mp-dirtynote" id="mp-dirty"><i class="fa-solid fa-circle-exclamation me-1"></i>Unsaved changes</span>
+  <span class="mp-hint ms-auto">CAT + Exam are totaled and graded automatically. <kbd>Enter</kbd> moves to the next candidate.</span>
+</div>
+{% endif %}
+</form>
+
+{% if editable %}
+<div class="exam-card no-print">
+  <h6 class="mb-2">Bulk Entry by Spreadsheet</h6>
+  <p class="exam-muted mb-3">Download the template with registered candidates, enter CAT and Exam marks offline, and upload. The system automatically computes Total Marks and Kenyan CUE grades upon import.</p>
+  <div class="d-flex gap-3 flex-wrap align-items-end">
+    <a class="btn btn-outline-primary" href="?format=csv&template=1"><i class="fa-solid fa-download me-2"></i>Download CSV template</a>
+    <a class="btn btn-outline-secondary" href="?format=csv"><i class="fa-solid fa-file-csv me-2"></i>Export current sheet</a>
+    <form method="post" enctype="multipart/form-data" class="d-flex gap-2 flex-wrap align-items-end">{% csrf_token %}
+      <input type="hidden" name="revision" value="{{ exam.revision }}">
+      <div><label class="form-label small mb-1" for="csv-file">Import CSV (CAT &amp; Exam columns, up to 1&nbsp;MB)</label>
+        <input id="csv-file" type="file" name="csv_file" accept=".csv,text/csv" class="form-control form-control-sm" required></div>
+      <button class="btn btn-primary">Validate &amp; import</button>
+    </form>
+  </div>
+</div>
+
+<!-- Submit-as-final modal -->
+<div class="modal fade" id="mp-submit-modal" tabindex="-1" aria-labelledby="mp-submit-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">
+    <div class="modal-header">
+      <h5 class="modal-title" id="mp-submit-title"><i class="fa-solid fa-triangle-exclamation text-warning me-2"></i>Submit marks as final</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+    <div class="modal-body">
+      <div id="mp-block-unsaved" class="mp-danger mb-3" style="display:none">
+        <strong>You have unsaved changes.</strong> Save the sheet first before submitting.
+      </div>
+      <div id="mp-block-incomplete" class="mp-danger mb-3" style="display:none">
+        <strong>The register is incomplete.</strong> <span id="mp-block-count"></span> Every candidate needs an attendance decision, and every present candidate needs marks.
+      </div>
+      <p class="mb-1">You are about to submit final results for
+        <strong>{{ exam.course.code }} · {{ exam.name }}</strong> ({{ total }} candidates).</p>
+      <div class="mp-danger mt-3">
+        <strong>Workflow Information:</strong>
+        <ul class="mp-warn-list">
+          <li>The marks sheet will <strong>lock immediately</strong> against further edits.</li>
+          <li>The sitting moves to <strong>Awaiting approval</strong> for Dean / Senate sign-off.</li>
+          <li>Automatic CUE grades (A, B, C, D, F) and grade points are finalized.</li>
+        </ul>
+      </div>
+      <div class="mt-3" id="mp-summary"></div>
+      <div class="form-check mt-3">
+        <input class="form-check-input" type="checkbox" id="mp-ack">
+        <label class="form-check-label" for="mp-ack">I have verified all CAT and Exam marks against scripts and confirm these results are final.</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Keep editing</button>
+      <form method="post" action="{% url 'examinations:action' exam.pk %}" id="mp-submit-form">{% csrf_token %}
+        <input type="hidden" name="action" value="submit">
+        <input type="hidden" name="revision" value="{{ exam.revision }}">
+        <button class="btn btn-dark" id="mp-submit-go" disabled><i class="fa-solid fa-lock me-2"></i>Submit as final</button>
+      </form>
+    </div>
+  </div></div>
+</div>
+
+<!-- Submit to Internal Examiner modal -->
+<div class="modal fade" id="mp-internal-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header">
+      <h5 class="modal-title"><i class="fa-solid fa-paper-plane text-primary me-2"></i>Submit to Internal Examiner</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+    <div class="modal-body">
+      <p>Send marks for <strong>{{ exam.course.code }}</strong> to Internal Examiner:
+        <strong>{{ exam.internal_examiner.user.display_name|default:exam.course.faculty.user.display_name|default:"Not assigned" }}</strong> for review and moderation?</p>
+      <p class="text-muted small">Please ensure all marks are saved prior to submitting for review.</p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+      <form method="post" action="{% url 'examinations:action' exam.pk %}">{% csrf_token %}
+        <input type="hidden" name="action" value="submit_internal">
+        <input type="hidden" name="revision" value="{{ exam.revision }}">
+        <button class="btn btn-primary"><i class="fa-solid fa-paper-plane me-1"></i>Forward to Internal Examiner</button>
+      </form>
+    </div>
+  </div></div>
+</div>
+{% endif %}
+
+<!-- Examiner Assignment Modal -->
+<div class="modal fade" id="examinerModal" tabindex="-1" aria-labelledby="examinerModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post">{% csrf_token %}
+        <input type="hidden" name="update_examiners" value="1">
+        <input type="hidden" name="revision" value="{{ exam.revision }}">
+        <div class="modal-header">
+          <h5 class="modal-title" id="examinerModalTitle"><i class="fa-solid fa-user-gear me-2"></i>Examiner Assignments</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Internal Examiner (IE)</label>
+            <select name="internal_examiner" class="form-select">
+              <option value="">-- None (Defaults to Course Faculty) --</option>
+              {% for f in faculty_list %}
+              <option value="{{ f.pk }}" {% if exam.internal_examiner_id == f.pk or not exam.internal_examiner_id and exam.course.faculty_id == f.pk %}selected{% endif %}>
+                {{ f.user.display_name }} ({{ f.department.code|default:'' }})
+              </option>
+              {% endfor %}
+            </select>
+            <div class="form-text">Internal Examiner is automatically defaulted to the course lecturer and can be changed here.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">External Examiner (Faculty list)</label>
+            <select name="external_examiner" class="form-select">
+              <option value="">-- None / Outside Faculty --</option>
+              {% for f in faculty_list %}
+              <option value="{{ f.pk }}" {% if exam.external_examiner_id == f.pk %}selected{% endif %}>
+                {{ f.user.display_name }} ({{ f.department.code|default:'' }})
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">External Examiner Name &amp; Institution (if external)</label>
+            <input type="text" name="external_examiner_name" class="form-control"
+                   value="{{ exam.external_examiner_name }}" placeholder="e.g. Prof. J. K. Ndung'u (University of Nairobi)">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Examiner Remarks / Moderation Notes</label>
+            <textarea name="examiner_remarks" class="form-control" rows="3" placeholder="Moderation comments or instructions">{{ exam.examiner_remarks }}</textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-save me-1"></i>Save Examiner Details</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const CAT_MAX = {{ exam.cat_max_marks|default:30 }};
+  const EXAM_MAX = {{ exam.exam_max_marks|default:70 }};
+  const MAX = {{ exam.max_marks|default:100 }};
+  const PASS = {{ exam.pass_mark|floatformat:2 }};
+  const EDITABLE = {% if editable %}true{% else %}false{% endif %};
+  const bandsEl = document.getElementById('grade-bands');
+  const BANDS = bandsEl ? JSON.parse(bandsEl.textContent) : [];
+  const rows = Array.from(document.querySelectorAll('[data-row]'));
+  const form = document.getElementById('mp-form');
+  if (!rows.length) return;
+
+  const gradeFor = (pct) => {
+    for (const band of BANDS) {
+      if (pct >= band.minimum) return band.grade;
+    }
+    return 'F';
+  };
+
+  let dirty = false;
+  const markDirty = (tr) => {
+    dirty = true;
+    if (tr) tr.classList.add('dirty');
+    const note = document.getElementById('mp-dirty');
+    if (note) note.classList.add('on');
+  };
+
+  function readRow(tr) {
+    const att = tr.querySelector('[data-att]').value;
+    const catInput = tr.querySelector('[data-cat]');
+    const examInput = tr.querySelector('[data-exam]');
+    const catRaw = catInput ? catInput.value.trim() : '';
+    const examRaw = examInput ? examInput.value.trim() : '';
+
+    const cat = catRaw === '' ? null : Number(catRaw);
+    const exam = examRaw === '' ? null : Number(examRaw);
+
+    const catValid = cat === null || (Number.isFinite(cat) && cat >= 0 && cat <= CAT_MAX);
+    const examValid = exam === null || (Number.isFinite(exam) && exam >= 0 && exam <= EXAM_MAX);
+
+    let total = null;
+    if (cat !== null || exam !== null) {
+      total = (cat !== null ? cat : 0) + (exam !== null ? exam : 0);
+      total = Math.round(total * 100) / 100;
+    }
+
+    const valid = catValid && examValid && (total === null || (total >= 0 && total <= MAX));
+    return { att, cat, exam, total, catValid, examValid, valid };
+  }
+
+  function paintRow(tr) {
+    const { att, cat, exam, total, catValid, examValid, valid } = readRow(tr);
+    const catInput = tr.querySelector('[data-cat]');
+    const examInput = tr.querySelector('[data-exam]');
+    const totalCell = tr.querySelector('[data-total]');
+    const pctCell = tr.querySelector('[data-pct]');
+    const gradeCell = tr.querySelector('[data-grade]');
+    const outcomeCell = tr.querySelector('[data-outcome]');
+
+    if (catInput) {
+      catInput.classList.toggle('invalid', !catValid);
+      if (EDITABLE) catInput.disabled = att === 'ABSENT';
+      if (att === 'ABSENT') catInput.value = '';
+    }
+    if (examInput) {
+      examInput.classList.toggle('invalid', !examValid);
+      if (EDITABLE) examInput.disabled = att === 'ABSENT';
+      if (att === 'ABSENT') examInput.value = '';
+    }
+
+    if (att === 'ABSENT') {
+      totalCell.textContent = '—';
+      pctCell.textContent = '—';
+      gradeCell.textContent = 'ABS';
+      gradeCell.className = 'mp-grade grade-ABS';
+      outcomeCell.textContent = 'Absent';
+      outcomeCell.className = 'mp-outcome abs';
+      return;
+    }
+
+    if (total === null || !valid) {
+      totalCell.textContent = total !== null && !valid ? total.toFixed(2) : '—';
+      pctCell.textContent = '—';
+      gradeCell.textContent = '—';
+      gradeCell.className = 'mp-grade grade-none';
+      outcomeCell.textContent = 'Pending';
+      outcomeCell.className = 'mp-outcome pending';
+      return;
+    }
+
+    totalCell.textContent = total.toFixed(2);
+    const pct = (total / MAX) * 100;
+    pctCell.textContent = pct.toFixed(1) + '%';
+    const grade = gradeFor(pct);
+    gradeCell.textContent = grade;
+    gradeCell.className = 'mp-grade grade-' + grade;
+
+    const isPass = pct >= PASS;
+    outcomeCell.textContent = isPass ? 'Pass' : 'Fail';
+    outcomeCell.className = 'mp-outcome ' + (isPass ? 'pass' : 'fail');
+  }
+
+  function recalc() {
+    let present = 0, absent = 0, pending = 0, recorded = 0, sum = 0, scored = 0, passed = 0, top = null;
+    rows.forEach((tr) => {
+      paintRow(tr);
+      const { att, total, valid } = readRow(tr);
+      if (att === 'ABSENT') {
+        absent++; recorded++; return;
+      }
+      if (att === 'PRESENT') {
+        present++;
+        if (total !== null && valid) {
+          recorded++; scored++;
+          const pct = (total / MAX) * 100;
+          sum += pct;
+          if (pct >= PASS) passed++;
+          if (top === null || total > top) top = total;
+        } else {
+          pending++;
+        }
+        return;
+      }
+      pending++;
+    });
+
+    const total = rows.length;
+    const pct = total ? Math.round((recorded / total) * 100) : 0;
+    document.getElementById('mp-done').textContent = recorded;
+    document.getElementById('mp-fill').style.width = pct + '%';
+    document.getElementById('mp-pctdone').textContent = pct + '%';
+    document.getElementById('s-present').textContent = present;
+    document.getElementById('s-absent').textContent = absent;
+    document.getElementById('s-pending').textContent = pending;
+    document.getElementById('s-avg').textContent = scored ? (sum / scored).toFixed(1) + '%' : '—';
+    document.getElementById('s-pass').textContent = scored ? Math.round((passed / scored) * 100) + '%' : '—';
+    document.getElementById('s-top').textContent = top === null ? '—' : top + ' / ' + MAX;
+    return { total, recorded, pending, absent, present, scored, passed, avg: scored ? sum / scored : null };
+  }
+
+  // Live input recalculation and smooth keyboard navigation
+  rows.forEach((tr) => {
+    tr.querySelectorAll('input,select').forEach((el) => {
+      el.addEventListener('input', () => { markDirty(tr); recalc(); });
+      el.addEventListener('change', () => { markDirty(tr); recalc(); });
+    });
+
+    const catInput = tr.querySelector('[data-cat]');
+    const examInput = tr.querySelector('[data-exam]');
+
+    [catInput, examInput].forEach((input) => {
+      if (!input) return;
+      input.addEventListener('focus', () => input.select());
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          const visible = rows.filter((r) => r.style.display !== 'none');
+          const at = visible.indexOf(tr);
+          const next = visible[at + (event.key === 'ArrowUp' ? -1 : 1)];
+          if (next) {
+            const target = next.querySelector(input === catInput ? '[data-cat]' : '[data-exam]');
+            if (target && !target.disabled) target.focus();
+          }
+        } else if (event.key === 'ArrowRight' && input === catInput && examInput && !examInput.disabled) {
+          examInput.focus();
+        } else if (event.key === 'ArrowLeft' && input === examInput && catInput && !catInput.disabled) {
+          catInput.focus();
+        }
+      });
+    });
+  });
+
+  // Search & Filter chips
+  let filter = 'all';
+  const search = document.getElementById('mp-q');
+  function applyFilter() {
+    const term = (search.value || '').trim().toLowerCase();
+    let shown = 0;
+    rows.forEach((tr) => {
+      const { att, total, valid } = readRow(tr);
+      const hay = (tr.dataset.roll || '') + ' ' + (tr.dataset.name || '');
+      let ok = !term || hay.includes(term);
+      if (ok && filter === 'pending') ok = att === 'PENDING' || (att === 'PRESENT' && (total === null || !valid));
+      if (ok && filter === 'absent') ok = att === 'ABSENT';
+      if (ok && filter === 'fail') ok = att === 'PRESENT' && total !== null && valid && (total / MAX) * 100 < PASS;
+      tr.style.display = ok ? '' : 'none';
+      if (ok) shown++;
+    });
+    document.getElementById('mp-nomatch').style.display = shown ? 'none' : '';
+  }
+  search.addEventListener('input', applyFilter);
+  document.querySelectorAll('.mp-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.mp-chip').forEach((c) => c.classList.remove('on'));
+      chip.classList.add('on');
+      filter = chip.dataset.filter;
+      applyFilter();
+    });
+  });
+
+  // Bulk helpers
+  const allPresent = document.getElementById('mp-all-present');
+  if (allPresent) allPresent.addEventListener('click', () => {
+    rows.forEach((tr) => {
+      if (tr.style.display === 'none') return;
+      const att = tr.querySelector('[data-att]');
+      if (att.value === 'PENDING') { att.value = 'PRESENT'; markDirty(tr); }
+    });
+    recalc(); applyFilter();
+  });
+  const restAbsent = document.getElementById('mp-rest-absent');
+  if (restAbsent) restAbsent.addEventListener('click', () => {
+    const outstanding = rows.filter((tr) => tr.style.display !== 'none' && readRow(tr).att === 'PENDING');
+    if (!outstanding.length) return;
+    if (!confirm('Mark ' + outstanding.length + ' candidate(s) with no attendance decision as ABSENT?')) return;
+    outstanding.forEach((tr) => { tr.querySelector('[data-att]').value = 'ABSENT'; markDirty(tr); });
+    recalc(); applyFilter();
+  });
+
+  // Unsaved changes guard
+  window.addEventListener('beforeunload', (event) => {
+    if (!dirty) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
+  if (form) form.addEventListener('submit', () => { dirty = false; });
+
+  // Internal review modal trigger
+  const internalBtn = document.getElementById('mp-internal-submit-btn');
+  if (internalBtn) {
+    internalBtn.addEventListener('click', () => {
+      const modalEl = document.getElementById('mp-internal-modal');
+      if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    });
+  }
+
+  // Submit as final modal
+  const openBtn = document.getElementById('mp-submit-open');
+  if (openBtn) {
+    const modalEl = document.getElementById('mp-submit-modal');
+    let modal = null;
+    const getModal = () => (modal || (modal = bootstrap.Modal.getOrCreateInstance(modalEl)));
+    const ack = document.getElementById('mp-ack');
+    const go = document.getElementById('mp-submit-go');
+    const unsavedBox = document.getElementById('mp-block-unsaved');
+    const incompleteBox = document.getElementById('mp-block-incomplete');
+
+    const refreshGate = (stats) => {
+      const blocked = dirty || stats.pending > 0;
+      unsavedBox.style.display = dirty ? '' : 'none';
+      incompleteBox.style.display = stats.pending > 0 ? '' : 'none';
+      document.getElementById('mp-block-count').textContent = stats.pending + ' candidate(s) are still outstanding.';
+      ack.disabled = blocked;
+      if (blocked) ack.checked = false;
+      go.disabled = blocked || !ack.checked;
+    };
+
+    openBtn.addEventListener('click', () => {
+      const stats = recalc();
+      document.getElementById('mp-modal-total').textContent = stats.total;
+      document.getElementById('mp-summary').innerHTML =
+        '<div class="mp-stats">' +
+        '<div class="mp-stat"><small>Present</small><b>' + stats.present + '</b></div>' +
+        '<div class="mp-stat"><small>Absent</small><b>' + stats.absent + '</b></div>' +
+        '<div class="mp-stat"><small>Outstanding</small><b>' + stats.pending + '</b></div>' +
+        '<div class="mp-stat"><small>Average</small><b>' + (stats.avg === null ? '—' : stats.avg.toFixed(1) + '%') + '</b></div>' +
+        '<div class="mp-stat"><small>Pass rate</small><b>' + (stats.scored ? Math.round((stats.passed / stats.scored) * 100) + '%' : '—') + '</b></div>' +
+        '<div class="mp-stat"><small>Pass threshold</small><b>' + PASS + '% (D)</b></div>' +
+        '</div>';
+      refreshGate(stats);
+      getModal().show();
+    });
+    ack.addEventListener('change', () => refreshGate(recalc()));
+    const submitForm = document.getElementById('mp-submit-form');
+    if (submitForm) submitForm.addEventListener('submit', () => { dirty = false; });
+  }
+
+  recalc();
+  applyFilter();
+})();
+</script>
+{% endblock %}

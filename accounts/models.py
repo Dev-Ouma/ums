@@ -51,6 +51,17 @@ class User(AbstractUser):
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.STUDENT)
     phone = models.CharField(max_length=20, blank=True, default="0000")
     avatar_url = models.URLField(blank=True)
+    # Uploaded avatar takes precedence over avatar_url, which in turn wins over
+    # the generated ui-avatars fallback. Keeping all three means existing seeded
+    # accounts (which only set avatar_url) keep working untouched.
+    avatar_image = models.ImageField(upload_to="avatars/", blank=True, null=True)
+
+    # -- login activity ----------------------------------------------------
+    # last_login is maintained by Django itself; these three add the "first
+    # access / last access / last IP" picture shown on the account menu.
+    first_seen_at = models.DateTimeField(null=True, blank=True)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+    last_login_ip = models.GenericIPAddressField(null=True, blank=True)
 
     @property
     def theme(self):
@@ -74,12 +85,27 @@ class User(AbstractUser):
 
     @property
     def avatar(self):
+        if self.avatar_image:
+            return self.avatar_image.url
         if self.avatar_url:
             return self.avatar_url
         seed = (self.display_name or self.username).replace(" ", "+")
         colors = {"ADMIN": "6C5CE7", "FACULTY": "009688", "STUDENT": "0984e3"}
         bg = colors.get(self.role, "6C5CE7")
         return f"https://ui-avatars.com/api/?name={seed}&background={bg}&color=fff&bold=true"
+
+    @property
+    def initials(self):
+        """Two-letter monogram for the header chip (e.g. "SA")."""
+        parts = [p for p in (self.first_name, self.last_name) if p]
+        if not parts:
+            parts = [p for p in self.username.replace(".", " ").split() if p]
+        letters = "".join(p[0] for p in parts[:2])
+        return (letters or self.username[:2]).upper()
+
+    @property
+    def has_custom_avatar(self):
+        return bool(self.avatar_image or self.avatar_url)
 
     def __str__(self):
         return f"{self.display_name} ({self.get_role_display()})"
@@ -100,6 +126,14 @@ class StudentProfile(models.Model):
 
     class Meta:
         ordering = ["roll_no"]
+
+    @property
+    def year_of_study(self):
+        return (self.current_semester + 1) // 2 if self.current_semester else 1
+
+    @property
+    def semester(self):
+        return ((self.current_semester - 1) % 2) + 1 if self.current_semester else 1
 
     def get_absolute_url(self):
         return reverse("university:student_detail", args=[self.pk])

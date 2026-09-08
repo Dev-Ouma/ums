@@ -1,0 +1,14 @@
+<section class="container py-5">
+  {% if block.heading %}<h2 class="fw-bold text-center mb-4">{{ block.heading }}</h2>{% endif %}
+  <div class="row g-4">
+    {% for e in items %}
+      <div class="col-md-4">
+        <div class="card border-0 rounded-4 shadow-sm p-4 h-100">
+          <span class="badge badge-soft rounded-pill align-self-start mb-2">{{ e.category }}</span>
+          <h6 class="fw-bold">{{ e.title }}</h6>
+          <div class="small text-muted"><i class="fa-solid fa-calendar-days me-1"></i>{{ e.date|date:'d M Y' }}</div>
+        </div>
+      </div>
+    {% empty %}<p class="text-muted">No upcoming events.</p>{% endfor %}
+  </div>
+</section>

@@ -1,0 +1,20 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}{% if is_create %}Add link{% else %}Edit link{% endif %} · Site CMS{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h4><i class="fa-solid fa-link me-2 text-primary"></i>{% if is_create %}Add link{% else %}Edit link{% endif %}</h4>
+  <a class="btn btn-light border rounded-pill px-4" href="{% url 'cms:menu_list' %}">
+    <i class="fa-solid fa-arrow-left me-2"></i>Back</a>
+</div>
+<div class="card card-ums p-4">
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% include 'cms/_form_fields.html' %}
+    <div class="mt-4 d-flex gap-2">
+      <button class="btn btn-primary rounded-pill px-4" type="submit">
+        <i class="fa-solid fa-floppy-disk me-2"></i>Save link</button>
+      <a class="btn btn-light border rounded-pill px-4" href="{% url 'cms:menu_list' %}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

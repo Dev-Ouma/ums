@@ -1,0 +1,111 @@
+{% extends "base_dashboard.html" %}
+{% load static humanize %}
+
+{% block title %}Student Statement of Account | UMS{% endblock %}
+
+{% block content %}
+<div class="content-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+  <div>
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <a href="{% url 'university:student_fees' %}" class="btn btn-sm btn-light rounded-circle"><i class="fa-solid fa-arrow-left"></i></a>
+      <h2 class="fw-bold mb-0">Student Statement of Account</h2>
+    </div>
+    <p class="text-muted mb-0">Official comprehensive financial statement and running transaction ledger.</p>
+  </div>
+  <a href="{% url 'university:student_fee_statement_pdf' %}{% if request.user.role != 'STUDENT' and student %}?student_id={{ student.id }}{% endif %}" class="btn btn-primary rounded-pill px-4 py-2" target="_blank">
+    <i class="fa-solid fa-file-pdf me-1"></i> Download Official Statement (PDF)
+  </a>
+</div>
+
+<!-- Statement Summary Header -->
+<div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
+  <div class="card-body p-4">
+    <div class="row g-4 align-items-center">
+      <div class="col-md-6">
+        <div class="fs-5 fw-bold text-dark mb-1">{{ student.user.display_name }}</div>
+        <div class="text-muted small">
+          Registration No: <b class="text-primary font-monospace">{{ student.roll_no }}</b> ·
+          Programme: <b>{{ student.program.code }}</b> ({{ student.program.name }})
+        </div>
+      </div>
+      <div class="col-md-6 text-md-end">
+        <div class="d-inline-flex align-items-center gap-3 bg-light p-3 rounded-4">
+          <div>
+            <small class="text-muted d-block">Account Balance Due</small>
+            <span class="fs-4 fw-bold {% if clearance.balance > 0 %}text-danger{% else %}text-success{% endif %}">
+              KES {{ clearance.balance|intcomma }}
+            </span>
+          </div>
+          <div>
+            {% if clearance.is_cleared %}
+              <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> Fully Cleared</span>
+            {% else %}
+              <span class="badge bg-danger px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-exclamation me-1"></i> Balance Pending</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Ledger Transactions Table -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+  <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+    <h5 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-receipt me-2 text-primary"></i>Financial Ledger & Invoices</h5>
+  </div>
+  <div class="card-body p-4">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Reference / Title</th>
+            <th class="text-end">Debit (Billed KES)</th>
+            <th class="text-end">Credit (Paid KES)</th>
+            <th class="text-end">Receipt</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in invoices %}
+            <tr>
+              <td>{{ inv.issued_on|date:"d M Y" }}</td>
+              <td><span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">Debit (Invoice)</span></td>
+              <td class="fw-semibold text-dark">{{ inv.title }} (INV-{{ inv.id|stringformat:"04d" }})</td>
+              <td class="text-end fw-bold">KES {{ inv.amount|intcomma }}</td>
+              <td class="text-end text-muted">—</td>
+              <td class="text-end">—</td>
+            </tr>
+          {% endfor %}
+
+          {% for pmt in payments %}
+            <tr>
+              <td>{{ pmt.paid_on|date:"d M Y" }}</td>
+              <td><span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">Credit (Payment)</span></td>
+              <td class="fw-semibold text-dark">Payment ({{ pmt.method }}) - Ref: {{ pmt.reference }}</td>
+              <td class="text-end text-muted">—</td>
+              <td class="text-end fw-bold text-success">KES {{ pmt.amount|intcomma }}</td>
+              <td class="text-end">
+                <a href="{% url 'university:fee_receipt_pdf' pmt.pk %}" class="btn btn-sm btn-outline-success rounded-pill px-3" target="_blank">
+                  <i class="fa-solid fa-file-invoice me-1"></i> Receipt
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot class="table-light">
+          <tr>
+            <th colspan="3" class="fw-bold">Ledger Totals:</th>
+            <th class="text-end fw-bold">KES {{ clearance.total_billed|intcomma }}</th>
+            <th class="text-end fw-bold text-success">KES {{ clearance.total_paid|intcomma }}</th>
+            <th class="text-end fw-bold {% if clearance.balance > 0 %}text-danger{% else %}text-success{% endif %}">
+              Net Balance: KES {{ clearance.balance|intcomma }}
+            </th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

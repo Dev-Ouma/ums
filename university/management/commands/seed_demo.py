@@ -10,7 +10,8 @@ Usage:
     python manage.py seed_demo --keep   # seed without wiping
 """
 import random
-from datetime import date, timedelta
+from collections import defaultdict
+from datetime import date, time, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -19,8 +20,9 @@ from django.utils import timezone
 
 from accounts.models import FacultyProfile, Role, StudentProfile
 from university.models import (
-    AcademicTerm, Assignment, Attendance, Course, Department, Enrollment,
-    Event, Exam, FeeInvoice, Notice, Payment, Program, Result, Submission,
+    AcademicTerm, Assignment, Attendance, ClassSchedule, Course, Department,
+    Enrollment, Event, Exam, ExamAudit, ExamRoom, FeeInvoice, Notice, Payment,
+    Program, Result, Submission,
 )
 
 User = get_user_model()
@@ -69,23 +71,23 @@ PROGRAMS = [
 
 COURSES = [
     ("CS101", "Introduction to Programming", "CSE", 1),
-    ("CS201", "Data Structures & Algorithms", "CSE", 3),
-    ("CS305", "Database Management Systems", "CSE", 5),
-    ("CS402", "Machine Learning", "CSE", 7),
+    ("CS201", "Data Structures & Algorithms", "CSE", 2),
+    ("CS305", "Database Management Systems", "CSE", 3),
+    ("CS402", "Machine Learning", "CSE", 1),
     ("EC101", "Basic Electronics", "ECE", 1),
-    ("EC210", "Digital Signal Processing", "ECE", 4),
-    ("EC330", "Embedded Systems", "ECE", 6),
+    ("EC210", "Digital Signal Processing", "ECE", 2),
+    ("EC330", "Embedded Systems", "ECE", 3),
     ("ME101", "Engineering Mechanics", "MECH", 1),
-    ("ME220", "Thermodynamics", "MECH", 3),
-    ("ME340", "Robotics & Automation", "MECH", 6),
+    ("ME220", "Thermodynamics", "MECH", 2),
+    ("ME340", "Robotics & Automation", "MECH", 3),
     ("MB110", "Principles of Management", "MBA", 1),
     ("MB230", "Financial Accounting", "MBA", 2),
     ("MB350", "Digital Marketing", "MBA", 3),
-    ("CV120", "Structural Analysis", "CIVIL", 2),
-    ("CV310", "Transportation Engineering", "CIVIL", 5),
+    ("CV120", "Structural Analysis", "CIVIL", 1),
+    ("CV310", "Transportation Engineering", "CIVIL", 2),
     ("BT150", "Cell Biology", "BIO", 1),
-    ("BT260", "Genetic Engineering", "BIO", 4),
-    ("BT370", "Bioinformatics", "BIO", 6),
+    ("BT260", "Genetic Engineering", "BIO", 2),
+    ("BT370", "Bioinformatics", "BIO", 3),
 ]
 
 EVENTS = [
@@ -129,9 +131,9 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         if not options["keep"]:
             self.stdout.write("Clearing previous data...")
-            for model in (Payment, FeeInvoice, Result, Exam, Submission, Assignment,
-                          Attendance, Enrollment, Course, Program, Department,
-                          Event, Notice, AcademicTerm):
+            for model in (Payment, FeeInvoice, Result, ExamAudit, Exam, ClassSchedule,
+                          ExamRoom, Submission, Assignment, Attendance, Enrollment,
+                          Course, Program, Department, Event, Notice, AcademicTerm):
                 model.objects.all().delete()
             StudentProfile.objects.all().delete()
             FacultyProfile.objects.all().delete()
@@ -216,7 +218,7 @@ class Command(BaseCommand):
             program = prog_map[prog_codes[i % len(prog_codes)]]
             sp = StudentProfile.objects.create(
                 user=u, roll_no=f"UMS{year}{i + 1:04d}", program=program,
-                current_semester=random.choice([1, 3, 5, 7]),
+                current_semester=random.choice([1, 2, 3]),
                 gender=random.choice(["M", "F", "O"]),
                 date_of_birth=date(year - random.randint(18, 24),
                                    random.randint(1, 12), random.randint(1, 28)),
@@ -284,18 +286,79 @@ class Command(BaseCommand):
                             status=Submission.SUBMITTED)
                     # else: leave as pending (no submission row)
 
-        # --- Exams + results ------------------------------------------------
+        # --- Examination rooms ----------------------------------------------
+        rooms = [ExamRoom.objects.create(name=name, capacity=capacity, location=location)
+                 for name, capacity, location in [
+                     ("Main Hall", 240, "Administration Block, Ground Floor"),
+                     ("Science Auditorium", 160, "Science Block, First Floor"),
+                     ("Engineering Hall B", 120, "Engineering Block B"),
+                     ("Lecture Theatre 3", 80, "Arts Block, Second Floor"),
+                     ("Seminar Room 12", 40, "Library Building")]]
+
+        # --- Weekly class timetable ------------------------------------------
+        # Two sessions per course (lecture + tutorial), spread across the week
+        # with no faculty or room double-booking.
+        DAYS = [c for c, _ in ClassSchedule.Day.choices if c != "SAT"]
+        TIME_SLOTS = [(time(9, 0), time(10, 30)), (time(11, 0), time(12, 30)),
+                      (time(14, 0), time(15, 30))]
+        ALL_SLOTS = [(d, s, e) for d in DAYS for s, e in TIME_SLOTS]
+        faculty_used, room_used = defaultdict(set), defaultdict(set)
         for c in course_list:
+            candidates = list(ALL_SLOTS)
+            random.shuffle(candidates)
+            chosen = []
+            for day, start, end in candidates:
+                if len(chosen) >= 2:
+                    break
+                if c.faculty_id and (day, start) in faculty_used[c.faculty_id]:
+                    continue
+                chosen.append((day, start, end))
+                if c.faculty_id:
+                    faculty_used[c.faculty_id].add((day, start))
+            for i, (day, start, end) in enumerate(chosen):
+                room = next((r for r in rooms if (day, start) not in room_used[r.id]), rooms[0])
+                room_used[room.id].add((day, start))
+                ClassSchedule.objects.create(
+                    course=c, term=term, room=room, day=day,
+                    start_time=start, end_time=end,
+                    session_type=(ClassSchedule.SessionType.LECTURE if i == 0
+                                 else ClassSchedule.SessionType.TUTORIAL),
+                    status=(ClassSchedule.Status.DRAFT if random.random() < 0.15
+                           else ClassSchedule.Status.PUBLISHED))
+
+        # --- Exams + results --------------------------------------------------
+        # Every course runs a CAT worth 30% and a final examination worth 70%.
+        # Most sittings are published; a few are parked mid-workflow so the
+        # capture / submit / approve / publish screens all have live examples.
+        stages = [Exam.Status.MARKING, Exam.Status.SUBMITTED, Exam.Status.APPROVED]
+        for index, c in enumerate(course_list):
             roster = [e.student for e in enrollments if e.course_id == c.id]
-            for name, offset in [("Mid Term", 25), ("Final Term", 5)]:
+            room = rooms[index % len(rooms)]
+            for kind, name, weight, offset, start in [
+                    (Exam.Kind.CAT, "Continuous Assessment Test", 30, 25, time(9, 0)),
+                    (Exam.Kind.FINAL, "Final Examination", 70, 5, time(14, 0))]:
+                # The last three courses hold their final back at a different
+                # workflow stage; everything else is published.
+                staged = kind == Exam.Kind.FINAL and index >= len(course_list) - 3
+                status = stages[index - (len(course_list) - 3)] if staged else Exam.Status.PUBLISHED
                 exam = Exam.objects.create(
-                    course=c, term=term, name=name,
-                    date=today - timedelta(days=offset), max_marks=100)
-                for sp in roster:
-                    base = random.gauss(68, 15)
-                    marks = max(20, min(100, round(base)))
-                    Result.objects.create(exam=exam, student=sp,
-                                          marks_obtained=Decimal(marks))
+                    course=c, term=term, name=name, kind=kind, weight=weight,
+                    date=today - timedelta(days=offset), max_marks=100,
+                    start_time=start, end_time=time(start.hour + 2, 0),
+                    room=room, invigilator=c.faculty, status=status,
+                    pass_mark=Decimal(40),
+                    published_at=timezone.now() if status == Exam.Status.PUBLISHED else None,
+                    instructions="Answer all questions. No materials may be taken into the hall.")
+                for seat, sp in enumerate(sorted(roster, key=lambda s: s.roll_no), 1):
+                    absent = random.random() < 0.04
+                    marks = None if absent else Decimal(max(20, min(100, round(random.gauss(68, 15)))))
+                    Result.objects.create(
+                        exam=exam, student=sp, seat_number=seat,
+                        attendance="ABSENT" if absent else "PRESENT",
+                        marks_obtained=marks)
+                ExamAudit.objects.create(
+                    exam=exam, action="Seeded",
+                    detail=f"Demo sitting created at status {status}.")
 
         # --- Fees (spread across months for collection chart) ---------------
         for sp in student_list:
