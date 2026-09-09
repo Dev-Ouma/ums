@@ -1,3 +1,4 @@
+from xml.sax.saxutils import escape
 """
 Evaluation Services — Course & Lecturer QA Survey
 =================================================
@@ -19,6 +20,8 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from university.document_design import (ReportDocTemplate, document_styles, document_fonts,
+    PageNumberCanvas, letterhead, get_branding, finish_worksheet)
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -310,10 +313,10 @@ def generate_evaluation_excel(term=None):
     ws.title = "Evaluation Summary"
 
     # Title
-    ws.merge_cells("A1:H1")
+    ws.merge_cells("A1:J1")
     title_cell = ws["A1"]
     term_label = term.name if term else "All Terms"
-    title_cell.value = f"Course Evaluation Summary — {term_label}"
+    title_cell.value = f"{get_branding()['site_name']} — Course Evaluation Summary — {term_label}"
     title_cell.font = Font(size=14, bold=True)
     title_cell.alignment = Alignment(horizontal="center")
 
@@ -350,6 +353,7 @@ def generate_evaluation_excel(term=None):
                     cell.fill = PatternFill("solid", fgColor="FADBD8")  # red tint
 
     buf = io.BytesIO()
+    finish_worksheet(ws, header_row=2)
     wb.save(buf)
     buf.seek(0)
     return buf
@@ -362,14 +366,14 @@ def generate_evaluation_excel(term=None):
 def generate_evaluation_pdf(term=None):
     """Generate a PDF summary of evaluation data for the given term."""
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
+    doc = ReportDocTemplate(buf, pagesize=landscape(A4),
                             leftMargin=30, rightMargin=30,
                             topMargin=30, bottomMargin=30)
-    styles = getSampleStyleSheet()
+    styles = document_styles()
     story = []
 
     term_label = term.name if term else "All Terms"
-    story.append(Paragraph(f"Course Evaluation Report — {term_label}", styles["Title"]))
+    story.append(letterhead(doc.width, "Course Evaluation Report", subtitle=term_label))
     story.append(Spacer(1, 12))
     story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#6C5CE7")))
     story.append(Spacer(1, 8))
@@ -384,8 +388,8 @@ def generate_evaluation_pdf(term=None):
             course = row["course"]
             lecturer = str(course.faculty) if course.faculty else "N/A"
             table_data.append([
-                f"{course.code}\n{course.title[:28]}",
-                lecturer[:22],
+                f"{course.code}\n{course.title}",
+                lecturer,
                 str(row["count"]),
                 str(row["avg_teaching"]),
                 str(row["avg_content"]),
@@ -395,11 +399,15 @@ def generate_evaluation_pdf(term=None):
                 str(row["overall"]),
             ])
 
-        tbl = Table(table_data, repeatRows=1)
+        cell_style = ParagraphStyle('EvaluationCell', parent=styles['Normal'], fontSize=8, leading=11)
+        head_style = ParagraphStyle('EvaluationHead', parent=cell_style, fontName='Quicksand-Bold', textColor=colors.white)
+        table_data = [[Paragraph(escape(str(value)).replace('\n', '<br/>'), head_style if i == 0 else cell_style)
+                       for value in row] for i, row in enumerate(table_data)]
+        tbl = Table(table_data, colWidths=[doc.width * .22, doc.width * .18] + [doc.width * .60 / 7] * 7, repeatRows=1)
         tbl.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1A1A2E")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME", (0, 0), (-1, 0), "Quicksand-Bold"),
             ("FONTSIZE", (0, 0), (-1, -1), 8),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
             ("ALIGN", (2, 0), (-1, -1), "CENTER"),

@@ -2,6 +2,7 @@ from django.urls import path
 
 from . import views
 from . import academics_views
+from . import student_requests_views
 from . import admissions_views
 from . import attachment_views
 from . import audit_views
@@ -13,18 +14,45 @@ from . import setups_views
 from . import evaluation_views
 from . import reporting_views
 from . import permissions_views
+from . import verification_views
+from . import calendar_views
+from . import admission_document_views
 
 app_name = "university"
 
 urlpatterns = [
-    # Public
+    # Public & Verification
     path("", views.home, name="home"),
     path("about/", views.about, name="about"),
     path("contact/", views.contact, name="contact"),
     path("catalog/", views.courses_public, name="courses_public"),
+    path("verify/document/", verification_views.public_verify_document, name="verify_document_query"),
+    path("verify/document/<path:reference_no>/", verification_views.public_verify_document, name="verify_document"),
 
     # Dashboard router
     path("dashboard/", views.dashboard, name="dashboard"),
+    path("manage/", views.dashboard, name="manage_dashboard"),
+    path("manage/api/academic-performance/", views.api_academic_performance, name="api_academic_performance"),
+    path("manage/api/hierarchy/", views.api_academic_hierarchy, name="api_academic_hierarchy"),
+
+    # Admin — Academic Years & Semesters (Central Academic Calendar)
+    path("manage/academic-years/", calendar_views.admin_academic_years, name="admin_academic_years"),
+    path("manage/academic-calendar/", calendar_views.admin_academic_years, name="admin_academic_calendar"),
+    path("manage/academic-years/new/", calendar_views.academic_year_create, name="academic_year_create"),
+    path("manage/academic-years/<int:pk>/", calendar_views.academic_year_detail, name="academic_year_detail"),
+    path("manage/academic-years/<int:pk>/edit/", calendar_views.academic_year_edit, name="academic_year_edit"),
+    path("manage/academic-years/<int:pk>/delete/", calendar_views.academic_year_delete, name="academic_year_delete"),
+    path("manage/academic-years/<int:pk>/action/<str:action>/", calendar_views.academic_year_action, name="academic_year_action"),
+
+    # Semesters under Academic Years
+    path("manage/academic-years/<int:year_id>/semesters/new/", calendar_views.semester_create, name="semester_create"),
+    path("manage/semesters/<int:pk>/edit/", calendar_views.semester_edit, name="semester_edit"),
+    path("manage/semesters/<int:pk>/delete/", calendar_views.semester_delete, name="semester_delete"),
+    path("manage/semesters/<int:pk>/action/<str:action>/", calendar_views.semester_action, name="semester_action"),
+
+    # Student Numbering API & Setup
+    path("manage/api/numbering-preview/", calendar_views.api_numbering_preview, name="api_numbering_preview"),
+    path("manage/academic-calendar/numbering/", calendar_views.admin_save_numbering_config, name="admin_save_numbering_config"),
 
     # Admin — students
     path("manage/students/", views.admin_students, name="admin_students"),
@@ -50,13 +78,22 @@ urlpatterns = [
     path("manage/faculty/<int:pk>/edit/", views.faculty_edit, name="faculty_edit"),
     path("manage/faculty/<int:pk>/delete/", views.faculty_delete, name="faculty_delete"),
 
-    # Admin — departments & programs
+    # Admin — departments & programmes
     path("manage/departments/", views.admin_departments, name="admin_departments"),
     path("manage/departments/new/", views.department_create, name="department_create"),
     path("departments/<int:pk>/", views.department_detail, name="department_detail"),
     path("manage/departments/<int:pk>/edit/", views.department_edit, name="department_edit"),
     path("manage/departments/<int:pk>/delete/", views.department_delete, name="department_delete"),
+
+    # Admin — programmes
+    path("manage/programs/", views.admin_programs, name="admin_programs"),
+    path("manage/programmes/", views.admin_programs, name="admin_programmes"),
     path("manage/programs/new/", views.program_create, name="program_create"),
+    path("manage/programs/export/<str:fmt>/", views.program_export, name="program_export"),
+    path("manage/programs/preview/", views.program_preview, name="program_preview"),
+    path("manage/programs/import/", views.program_import, name="program_import"),
+    path("manage/programs/import/template/<str:fmt>/", views.program_import_template, name="program_import_template"),
+    path("manage/programs/<int:pk>/", views.program_detail, name="program_detail"),
     path("manage/programs/<int:pk>/edit/", views.program_edit, name="program_edit"),
     path("manage/programs/<int:pk>/delete/", views.program_delete, name="program_delete"),
 
@@ -140,12 +177,34 @@ urlpatterns = [
 
     # Admissions (Public & Admin)
     path("admissions/apply/", admissions_views.apply, name="admissions_apply"),
+    path("admissions/<int:pk>/pay-fee/", admissions_views.pay_application_fee, name="pay_application_fee"),
     path("admissions/status/", admissions_views.application_status, name="admissions_status"),
     path("admissions/<int:pk>/letter/", admissions_views.download_admission_letter, name="download_admission_letter"),
     path("manage/admissions/", admissions_views.admin_admissions_list, name="admin_admissions"),
     path("manage/admissions/<int:pk>/", admissions_views.admin_admission_detail, name="admin_admission_detail"),
     path("manage/admissions/<int:pk>/matriculate/", admissions_views.admin_admission_matriculate, name="admin_admission_matriculate"),
     path("manage/admissions/intakes/", admissions_views.admin_intakes, name="admin_intakes"),
+
+    # Admission Documents, Dynamic Templates & Attachment Management (Admin)
+    path("manage/admissions/documents/", admission_document_views.admin_admission_documents_list, name="admin_admission_documents_list"),
+    path("manage/admissions/documents/<int:pk>/", admission_document_views.admin_admission_document_detail, name="admin_admission_document_detail"),
+    path("manage/admissions/documents/<int:pk>/regenerate/", admission_document_views.admin_regenerate_admission_document, name="admin_regenerate_admission_document"),
+    path("manage/admissions/documents/<int:pk>/resend/", admission_document_views.admin_resend_admission_document, name="admin_resend_admission_document"),
+    path("manage/admissions/documents/<int:pk>/revoke/", admission_document_views.admin_revoke_admission_document, name="admin_revoke_admission_document"),
+    path("manage/admissions/documents/view/<int:doc_id>/", admission_document_views.admin_view_admission_document, name="admin_view_admission_document"),
+    path("manage/admissions/documents/download/<int:doc_id>/", admission_document_views.admin_download_admission_document, name="admin_download_admission_document"),
+    path("manage/admissions/attachments/<int:attachment_id>/verify/", admission_document_views.admin_verify_attachment, name="admin_verify_attachment"),
+    path("manage/admissions/templates/", admission_document_views.admin_templates_list, name="admin_templates_list"),
+    path("manage/admissions/templates/new/", admission_document_views.admin_template_editor, name="admin_template_editor"),
+    path("manage/admissions/templates/<int:pk>/edit/", admission_document_views.admin_template_editor, name="admin_template_editor"),
+    path("manage/admissions/templates/<int:pk>/preview/", admission_document_views.admin_template_preview, name="admin_template_preview"),
+
+    # Student Admission Documents & Application Attachments
+    path("me/admission-documents/", reporting_views.student_admission_documents, name="student_admission_documents"),
+    path("me/admission-documents/<int:doc_id>/view/", reporting_views.student_view_admission_document, name="student_view_admission_document"),
+    path("me/admission-documents/<int:doc_id>/download/", reporting_views.student_download_admission_document, name="student_download_admission_document"),
+    path("me/attachments/<int:attachment_id>/download/", reporting_views.student_download_attachment, name="student_download_attachment"),
+
 
     # Academics — Student
     path("academics/register/", academics_views.student_register_units, name="student_register_units"),
@@ -155,6 +214,9 @@ urlpatterns = [
     path("academics/supplementary/<int:course_id>/apply/", academics_views.student_supplementary_apply, name="student_supplementary_apply"),
     path("academics/provisional-transcript/", academics_views.student_provisional_transcript_view, name="student_provisional_transcript"),
     path("academics/academic-transcript/", academics_views.student_academic_transcript_view, name="student_academic_transcript"),
+    path("academics/progressive-report/", academics_views.student_progressive_report_view, name="student_progressive_report"),
+    path("academics/requests/", student_requests_views.student_requests, name="student_requests"),
+    path("academics/requests/resume/", student_requests_views.student_resume_studies, name="student_resume_studies"),
 
     # Academics — Admin
     path("manage/academics/", academics_views.admin_academics_dashboard, name="admin_academics_dashboard"),
@@ -166,6 +228,12 @@ urlpatterns = [
     path("manage/academics/nominal-rolls/<int:exam_id>/pdf/", academics_views.admin_exam_nominal_roll_pdf, name="admin_exam_nominal_roll_pdf"),
     path("manage/academics/transcripts/provisional/", academics_views.admin_provisional_transcripts, name="admin_provisional_transcripts"),
     path("manage/academics/transcripts/academic/", academics_views.admin_academic_transcripts, name="admin_academic_transcripts"),
+    path("manage/academics/progressive-reports/", academics_views.admin_progressive_reports, name="admin_progressive_reports"),
+    path("manage/academics/progressive-reports/<int:student_id>/", academics_views.progressive_report_detail_view, name="progressive_report_detail"),
+    path("manage/academics/progressive-reports/<int:student_id>/export/<str:fmt>/", academics_views.progressive_report_export_view, name="progressive_report_export"),
+    path("manage/academics/requests/", student_requests_views.admin_student_requests, name="admin_student_requests"),
+    path("manage/academics/requests/<int:pk>/", student_requests_views.admin_student_request_detail, name="admin_student_request_detail"),
+    path("manage/academics/document-controls/", academics_views.admin_document_controls, name="admin_document_controls"),
 
     # System Administration — Recycle Bin
     path("manage/recycle-bin/", recycle_bin_views.recycle_bin_dashboard, name="recycle_bin_dashboard"),

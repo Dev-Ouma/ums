@@ -12,7 +12,7 @@
     </div>
     <p class="text-muted mb-0">Official comprehensive financial statement and running transaction ledger.</p>
   </div>
-  <a href="{% url 'university:student_fee_statement_pdf' %}{% if request.user.role != 'STUDENT' and student %}?student_id={{ student.id }}{% endif %}" class="btn btn-primary rounded-pill px-4 py-2" target="_blank">
+  <a href="{% url 'university:student_fee_statement_pdf' %}?preview=1{% if request.user.role != 'STUDENT' and student %}?student_id={{ student.id }}{% endif %}" class="btn btn-primary rounded-pill px-4 py-2" target="_blank">
     <i class="fa-solid fa-file-pdf me-1"></i> Download Official Statement (PDF)
   </a>
 </div>
@@ -87,7 +87,7 @@
               <td class="text-end text-muted">—</td>
               <td class="text-end fw-bold text-success">KES {{ pmt.amount|intcomma }}</td>
               <td class="text-end">
-                <a href="{% url 'university:fee_receipt_pdf' pmt.pk %}" class="btn btn-sm btn-outline-success rounded-pill px-3" target="_blank">
+                <a href="{% url 'university:fee_receipt_pdf' pmt.pk %}?preview=1" class="btn btn-sm btn-outline-success rounded-pill px-3" target="_blank">
                   <i class="fa-solid fa-file-invoice me-1"></i> Receipt
                 </a>
               </td>

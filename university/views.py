@@ -1,9 +1,8 @@
+from university.document_views import present_pdf
 import json
-import os
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
-from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -11,16 +10,19 @@ from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Case, Count, F, IntegerField, Q, When
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from accounts.models import FacultyProfile, Role, StudentProfile
 
-from . import ai, course_io, faculty_io, fee_io, services, student_io, timetable_io
+from . import ai, course_io, faculty_io, fee_io, program_io, services, student_io, timetable_io
 from .decorators import role_required
+from .document_design import get_branding
 from .financial_services import (
     check_financial_clearance, generate_fee_receipt_pdf, generate_student_statement_pdf
 )
+from .audit_services import log_activity
 from .recycle_bin_services import move_to_recycle_bin
 from .forms import (
     AssignmentForm, ClassScheduleForm, CourseForm, DepartmentForm, EventForm,
@@ -29,7 +31,7 @@ from .forms import (
 from .models import (
     AcademicTerm, Assignment, Attendance, ClassSchedule, Course, Department,
     Enrollment, Event, Exam, ExamRoom, FeeInvoice, FeeStructure, Notice, Payment,
-    Program, Result, Submission,
+    Program, Result, Submission, School, AuditLog,
 )
 
 DAY_LABELS_MAP = dict(ClassSchedule.Day.choices)
@@ -106,13 +108,30 @@ def dashboard(request):
     return render(request, "dashboard/student_dashboard.html", ctx)
 
 
+@login_required
+def api_academic_performance(request):
+    if not (request.user.is_admin_role or request.user.is_superuser or request.user.is_faculty):
+        return JsonResponse({"error": "Forbidden"}, status=403)
+    term_id = request.GET.get("term")
+    dept_id = request.GET.get("department")
+    prog_id = request.GET.get("program")
+    sem = request.GET.get("semester")
+    data = services.academic_performance_data(
+        term_id=term_id or None,
+        department_id=dept_id or None,
+        program_id=prog_id or None,
+        semester=sem or None,
+    )
+    return JsonResponse(data)
+
+
 # ==========================================================================
 # Generic form / delete helpers (rendered with reusable templates)
 # ==========================================================================
 def _render_form(request, form, title, subtitle="", icon="fa-pen-to-square", back=None):
     return render(request, "dashboard/form_page.html", {
         "form": form, "form_title": title, "form_subtitle": subtitle,
-        "form_icon": icon, "back_url": back,
+        "form_icon": icon, "back_url": reverse(back) if back else None,
     })
 
 
@@ -123,7 +142,29 @@ def _confirm_delete(request, obj, label, back):
         messages.success(request, f"Moved {label} '{name}' to Recycle Bin.")
         return redirect(back)
     return render(request, "dashboard/confirm_delete.html", {
-        "object": obj, "label": label, "back_url": back,
+        "object": obj, "label": label, "back_url": reverse(back),
+    })
+
+
+def _pdf_disposition(request, filename):
+    """Inline by default (for iframe preview); attachment only when explicitly downloading."""
+    kind = "attachment" if request.GET.get("download") == "1" else "inline"
+    return f'{kind}; filename="{filename}"'
+
+
+def _render_pdf_viewer(request, title, subtitle, pdf_export_url_name, pdf_export_args=(), back_url=None,
+                       icon="fa-file-pdf"):
+    """Render a viewer page whose embedded iframe loads the real generated PDF —
+    the same 'preview before download' pattern used by the transcript module,
+    so the preview can never drift from the actual downloadable file."""
+    base = reverse(pdf_export_url_name, args=pdf_export_args)
+    qs = request.GET.urlencode()
+    pdf_url = f"{base}?{qs}" if qs else base
+    sep = "&" if qs else "?"
+    download_url = f"{pdf_url}{sep}download=1"
+    return render(request, "dashboard/pdf_viewer.html", {
+        "title": title, "subtitle": subtitle, "pdf_url": pdf_url,
+        "download_url": download_url, "back_url": back_url, "icon": icon,
     })
 
 
@@ -223,10 +264,9 @@ def student_export(request, fmt):
     fmt = fmt.lower().strip()
     students_qs, q, sort_by, order = _get_filtered_students_queryset(request)
 
-    site_name = "University Management System"
-    logo_path = os.path.join(settings.BASE_DIR, "static", "img", "ums-logo.png")
-    if not os.path.exists(logo_path):
-        logo_path = None
+    branding = get_branding()
+    site_name = branding["site_name"]
+    logo_path = branding["logo_path"]
 
     timestamp = timezone.now().strftime("%Y%m%d_%H%M")
 
@@ -254,8 +294,8 @@ def student_export(request, fmt):
             filter_text=filter_text,
         )
         resp = HttpResponse(data, content_type="application/pdf")
-        resp["Content-Disposition"] = f'attachment; filename="students_{timestamp}.pdf"'
-        return resp
+        resp["Content-Disposition"] = _pdf_disposition(request, f"students_{timestamp}.pdf")
+        return present_pdf(request, resp)
 
     else:
         raise Http404(f"Unsupported export format: {fmt}")
@@ -263,20 +303,11 @@ def student_export(request, fmt):
 
 @role_required(Role.ADMIN)
 def student_preview(request):
-    """In-browser print-friendly preview of the formatted student list."""
-    students_qs, q, sort_by, order = _get_filtered_students_queryset(request)
-    return render(
-        request,
-        "dashboard/student_preview.html",
-        {
-            "students": students_qs,
-            "total_count": students_qs.count(),
-            "q": q,
-            "sort_by": sort_by,
-            "order": order,
-            "generated_at": timezone.now(),
-        },
-    )
+    """Load the real generated student directory PDF in-browser before downloading."""
+    return _render_pdf_viewer(request, "Student Directory Preview",
+                              "Preview matches the downloadable PDF exactly.",
+                              "university:student_export", ["pdf"],
+                              back_url=reverse("university:admin_students"), icon="fa-user-graduate")
 
 
 @role_required(Role.ADMIN)
@@ -418,7 +449,7 @@ def student_delete(request, pk):
         messages.success(request, f"Moved student '{name}' to Recycle Bin.")
         return redirect("university:admin_students")
     return render(request, "dashboard/confirm_delete.html", {
-        "object": sp, "label": "student", "back_url": "university:admin_students",
+        "object": sp, "label": "student", "back_url": reverse("university:admin_students"),
     })
 
 
@@ -548,10 +579,9 @@ def faculty_export(request, fmt):
                 filter_parts.append(f"Dept: {dept.code}")
         filter_text = " · ".join(filter_parts) if filter_parts else None
 
-    site_name = "University Management System"
-    logo_path = os.path.join(settings.BASE_DIR, "static", "img", "ums-logo.png")
-    if not os.path.exists(logo_path):
-        logo_path = None
+    branding = get_branding()
+    site_name = branding["site_name"]
+    logo_path = branding["logo_path"]
 
     timestamp = timezone.now().strftime("%Y%m%d_%H%M")
 
@@ -578,8 +608,8 @@ def faculty_export(request, fmt):
             filter_text=filter_text,
         )
         resp = HttpResponse(data, content_type="application/pdf")
-        resp["Content-Disposition"] = f'attachment; filename="faculty_{timestamp}.pdf"'
-        return resp
+        resp["Content-Disposition"] = _pdf_disposition(request, f"faculty_{timestamp}.pdf")
+        return present_pdf(request, resp)
 
     else:
         raise Http404(f"Unsupported export format: {fmt}")
@@ -587,31 +617,11 @@ def faculty_export(request, fmt):
 
 @role_required(Role.ADMIN)
 def faculty_preview(request):
-    """In-browser print-friendly document preview of faculty directory."""
-    scope = request.GET.get("scope", "filtered").strip().lower()
-    if scope == "all":
-        faculty_qs = FacultyProfile.objects.select_related("user", "department").prefetch_related("courses").annotate(
-            n_courses=Count("courses", distinct=True)
-        ).order_by("employee_id")
-        q = ""
-        dept_id = ""
-    else:
-        faculty_qs, q, dept_id, sort_by, order = _get_filtered_faculty_queryset(request)
-
-    dept_obj = Department.objects.filter(pk=dept_id).first() if dept_id else None
-
-    return render(
-        request,
-        "dashboard/faculty_preview.html",
-        {
-            "faculty": faculty_qs,
-            "total_count": faculty_qs.count(),
-            "q": q,
-            "department": dept_obj,
-            "generated_at": timezone.now(),
-            "scope": scope,
-        },
-    )
+    """Load the real generated faculty directory PDF in-browser before downloading."""
+    return _render_pdf_viewer(request, "Faculty Directory Preview",
+                              "Preview matches the downloadable PDF exactly.",
+                              "university:faculty_export", ["pdf"],
+                              back_url=reverse("university:admin_faculty"), icon="fa-chalkboard-user")
 
 
 @role_required(Role.ADMIN)
@@ -748,7 +758,7 @@ def faculty_delete(request, pk):
         messages.success(request, f"Moved faculty '{name}' to Recycle Bin.")
         return redirect("university:admin_faculty")
     return render(request, "dashboard/confirm_delete.html", {
-        "object": fp, "label": "faculty", "back_url": "university:admin_faculty",
+        "object": fp, "label": "faculty", "back_url": reverse("university:admin_faculty"),
     })
 
 
@@ -800,15 +810,166 @@ def department_delete(request, pk):
     return _confirm_delete(request, dept, "department", "university:admin_departments")
 
 
+# ==========================================================================
+# PROGRAMMES (ADMIN CRUD, FILTERING, DIRECTORY & IMPORT/EXPORT)
+# ==========================================================================
+ALLOWED_PROGRAM_PAGE_SIZES = [10, 25, 50, 100]
+
+
+def _get_filtered_programs_queryset(request):
+    """Build filtered and sorted queryset for programmes."""
+    q = request.GET.get("q", "").strip()
+    school_id = request.GET.get("school", "").strip()
+    dept_id = request.GET.get("department", "").strip()
+    level_filter = request.GET.get("level", "").strip()
+    mode_filter = request.GET.get("study_mode", "").strip()
+    status_filter = request.GET.get("status", "").strip()
+    sort_by = request.GET.get("sort", "").strip().lower()
+    order = request.GET.get("order", "asc").strip().lower()
+
+    programs = Program.objects.select_related("department__school").annotate(
+        student_count=Count("students", distinct=True),
+        course_count=Count("courses", distinct=True)
+    )
+
+    if q:
+        programs = programs.filter(
+            Q(code__icontains=q) |
+            Q(name__icontains=q) |
+            Q(award_title__icontains=q) |
+            Q(department__code__icontains=q) |
+            Q(department__name__icontains=q) |
+            Q(department__school__name__icontains=q)
+        )
+
+    if school_id and school_id.isdigit():
+        programs = programs.filter(department__school_id=school_id)
+
+    if dept_id and dept_id.isdigit():
+        programs = programs.filter(department_id=dept_id)
+
+    if level_filter:
+        programs = programs.filter(level=level_filter)
+
+    if mode_filter:
+        programs = programs.filter(study_mode=mode_filter)
+
+    if status_filter:
+        programs = programs.filter(status=status_filter)
+
+    # Sorting
+    valid_sorts = {
+        "code": "code",
+        "name": "name",
+        "department": "department__name",
+        "school": "department__school__name",
+        "level": "level",
+        "students": "student_count",
+        "courses": "course_count",
+        "status": "status",
+        "created": "created_at",
+    }
+    sort_field = valid_sorts.get(sort_by, "name")
+    if order == "desc":
+        sort_field = f"-{sort_field}"
+
+    return programs.order_by(sort_field)
+
+
+@role_required(Role.ADMIN)
+def admin_programs(request):
+    """Admin directory for Academic Programmes with search, filtering, sorting, pagination."""
+    programs_qs = _get_filtered_programs_queryset(request)
+
+    # Stats counters
+    all_programs = Program.objects.all()
+    stats = {
+        "total": all_programs.count(),
+        "active": all_programs.filter(status=Program.Status.ACTIVE).count(),
+        "students": StudentProfile.objects.filter(program__isnull=False).count(),
+        "courses": Course.objects.filter(program__isnull=False).count(),
+    }
+
+    # Pagination
+    try:
+        page_size = int(request.GET.get("page_size", 25))
+        if page_size not in ALLOWED_PROGRAM_PAGE_SIZES:
+            page_size = 25
+    except ValueError:
+        page_size = 25
+
+    paginator = Paginator(programs_qs, page_size)
+    page = paginator.get_page(request.GET.get("page"))
+
+    schools = School.objects.all().order_by("name")
+    departments = Department.objects.select_related("school").order_by("name")
+
+    return render(request, "dashboard/admin_programs.html", {
+        "programs": page,
+        "stats": stats,
+        "schools": schools,
+        "departments": departments,
+        "levels": Program.LEVELS,
+        "study_modes": Program.StudyMode.choices,
+        "statuses": Program.Status.choices,
+        "selected_school": request.GET.get("school", ""),
+        "selected_dept": request.GET.get("department", ""),
+        "selected_level": request.GET.get("level", ""),
+        "selected_mode": request.GET.get("study_mode", ""),
+        "selected_status": request.GET.get("status", ""),
+        "q": request.GET.get("q", ""),
+        "sort": request.GET.get("sort", ""),
+        "order": request.GET.get("order", "asc"),
+        "page_size": page_size,
+        "allowed_page_sizes": ALLOWED_PROGRAM_PAGE_SIZES,
+    })
+
+
+@login_required
+def program_detail(request, pk):
+    """Detailed view for a single academic programme."""
+    p = get_object_or_404(
+        Program.objects.select_related("department__school").annotate(
+            student_count=Count("students", distinct=True),
+            course_count=Count("courses", distinct=True)
+        ),
+        pk=pk
+    )
+
+    courses = p.courses.select_related("department", "faculty__user").order_by("semester_no", "code")
+    students = p.students.select_related("user").order_by("roll_no")[:50]
+    fee_structures = p.fee_structures.select_related("term").order_by("-term__start_date")
+    recent_applications = p.applications.select_related("intake").order_by("-created_at")[:20]
+
+    return render(request, "dashboard/program_detail.html", {
+        "program": p,
+        "courses": courses,
+        "students": students,
+        "fee_structures": fee_structures,
+        "applications": recent_applications,
+        "is_admin": getattr(request.user, "role", None) == Role.ADMIN or getattr(request.user, "is_superuser", False),
+    })
+
+
 @role_required(Role.ADMIN)
 def program_create(request):
     form = ProgramForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         p = form.save()
-        messages.success(request, f"Program {p.name} created.")
-        return redirect("university:department_detail", pk=p.department_id)
-    return _render_form(request, form, "Add Program", "", "fa-graduation-cap",
-                        "university:admin_departments")
+        log_activity(
+            request=request,
+            user=request.user,
+            action=AuditLog.Action.CREATE,
+            module=AuditLog.Module.PROGRAMMES,
+            entity="Program",
+            entity_id=p.id,
+            description=f"Created programme {p.code} — {p.name}",
+            new_state={"code": p.code, "name": p.name, "department_id": p.department_id},
+        )
+        messages.success(request, f"Programme '{p.name}' ({p.code}) created successfully.")
+        return redirect("university:program_detail", pk=p.pk)
+    return _render_form(request, form, "Add Programme", "Register a new degree, diploma, or certificate programme", "fa-graduation-cap",
+                        "university:admin_programs")
 
 
 @role_required(Role.ADMIN)
@@ -817,16 +978,156 @@ def program_edit(request, pk):
     form = ProgramForm(request.POST or None, instance=p)
     if request.method == "POST" and form.is_valid():
         form.save()
-        messages.success(request, "Program updated.")
-        return redirect("university:department_detail", pk=p.department_id)
-    return _render_form(request, form, "Edit Program", p.name, "fa-pen",
-                        "university:admin_departments")
+        log_activity(
+            request=request,
+            user=request.user,
+            action=AuditLog.Action.UPDATE,
+            module=AuditLog.Module.PROGRAMMES,
+            entity="Program",
+            entity_id=p.id,
+            description=f"Updated programme {p.code} — {p.name}",
+            new_state={"code": p.code, "name": p.name},
+        )
+        messages.success(request, f"Programme '{p.name}' updated successfully.")
+        return redirect("university:program_detail", pk=p.pk)
+    return _render_form(request, form, "Edit Programme", p.name, "fa-pen",
+                        "university:admin_programs")
 
 
 @role_required(Role.ADMIN)
 def program_delete(request, pk):
     p = get_object_or_404(Program, pk=pk)
-    return _confirm_delete(request, p, "program", "university:admin_departments")
+    if request.method == "POST":
+        name = str(p)
+        move_to_recycle_bin(p, user=request.user, request=request)
+        log_activity(
+            request=request,
+            user=request.user,
+            action=AuditLog.Action.DELETE,
+            module=AuditLog.Module.PROGRAMMES,
+            entity="Program",
+            entity_id=p.id,
+            description=f"Deleted programme '{name}' to Recycle Bin.",
+            new_state={"code": p.code, "name": p.name},
+        )
+        messages.success(request, f"Moved programme '{name}' to Recycle Bin.")
+        return redirect("university:admin_programs")
+    return _confirm_delete(request, p, "programme", "university:admin_programs")
+
+
+@role_required(Role.ADMIN)
+def program_export(request, fmt):
+    programs = _get_filtered_programs_queryset(request)
+    fmt = fmt.lower().strip()
+    filename_base = f"Programmes_Export_{timezone.now().strftime('%Y%m%d_%H%M%S')}"
+
+    if fmt == "csv":
+        data = program_io.export_program_csv(programs)
+        resp = HttpResponse(data, content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = f'attachment; filename="{filename_base}.csv"'
+        return resp
+    elif fmt in ["excel", "xlsx"]:
+        data = program_io.export_program_excel(programs)
+        resp = HttpResponse(data, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        resp["Content-Disposition"] = f'attachment; filename="{filename_base}.xlsx"'
+        return resp
+    elif fmt == "pdf":
+        data = program_io.export_program_pdf(programs)
+        resp = HttpResponse(data, content_type="application/pdf")
+        resp["Content-Disposition"] = _pdf_disposition(request, f"{filename_base}.pdf")
+        return present_pdf(request, resp, "Programmes Directory")
+    else:
+        raise Http404("Unsupported export format.")
+
+
+@role_required(Role.ADMIN)
+def program_preview(request):
+    programs = _get_filtered_programs_queryset(request)
+    return _render_pdf_viewer(
+        request,
+        title="Programmes Directory",
+        subtitle=f"Previewing {programs.count()} programme records",
+        pdf_export_url_name="university:program_export",
+        pdf_export_args=["pdf"],
+        back_url=reverse("university:admin_programs"),
+        icon="fa-graduation-cap"
+    )
+
+
+@role_required(Role.ADMIN)
+def program_import(request):
+    preview_data = None
+    if request.method == "POST":
+        action = request.POST.get("action", "")
+        if action in ["upload", "preview"]:
+            file = request.FILES.get("file")
+            if not file:
+                messages.error(request, "Please select a file to import.")
+            else:
+                preview_data = program_io.parse_and_validate_program_import_file(file)
+                if "error" in preview_data:
+                    messages.error(request, preview_data["error"])
+                    preview_data = None
+                else:
+                    request.session["pending_program_import"] = preview_data
+        elif action == "commit":
+            stored_data = request.session.pop("pending_program_import", None)
+            if not stored_data or not stored_data.get("valid_rows"):
+                messages.error(request, "No valid programme records to commit.")
+                return redirect("university:program_import")
+            imported_count = program_io.commit_program_import(stored_data["valid_rows"], user=request.user)
+            messages.success(request, f"Successfully imported {imported_count} programmes.")
+            return redirect("university:admin_programs")
+        elif action == "cancel":
+            request.session.pop("pending_program_import", None)
+            messages.info(request, "Import cancelled.")
+            return redirect("university:program_import")
+
+    if preview_data is None and request.method == "GET":
+        preview_data = request.session.get("pending_program_import")
+
+    return render(request, "dashboard/program_import.html", {
+        "preview_data": preview_data,
+        "sample_row": program_io.SAMPLE_PROGRAM_ROW,
+        "columns": program_io.PROGRAM_IMPORT_COLUMNS,
+    })
+
+
+@role_required(Role.ADMIN)
+def program_import_template(request, fmt):
+    fmt = fmt.lower().strip()
+    data = program_io.generate_program_import_template(fmt=fmt)
+    if fmt == "excel":
+        resp = HttpResponse(data, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        resp["Content-Disposition"] = 'attachment; filename="Programmes_Import_Template.xlsx"'
+        return resp
+    resp = HttpResponse(data, content_type="text/csv; charset=utf-8")
+    resp["Content-Disposition"] = 'attachment; filename="Programmes_Import_Template.csv"'
+    return resp
+
+
+@login_required
+def api_academic_hierarchy(request):
+    """JSON API endpoint for dependent cascading dropdowns: School -> Department -> Programme."""
+    school_id = request.GET.get("school_id")
+    dept_id = request.GET.get("department_id")
+
+    if dept_id and dept_id.isdigit():
+        programs = list(Program.objects.filter(department_id=dept_id, status=Program.Status.ACTIVE).values("id", "code", "name", "level"))
+        return JsonResponse({"programs": programs})
+
+    if school_id and school_id.isdigit():
+        departments = list(Department.objects.filter(school_id=school_id).values("id", "code", "name"))
+        return JsonResponse({"departments": departments})
+
+    schools = list(School.objects.all().values("id", "code", "name"))
+    departments = list(Department.objects.all().values("id", "code", "name", "school_id"))
+    programs = list(Program.objects.filter(status=Program.Status.ACTIVE).values("id", "code", "name", "department_id", "level"))
+    return JsonResponse({
+        "schools": schools,
+        "departments": departments,
+        "programs": programs,
+    })
 
 
 # ==========================================================================
@@ -975,10 +1276,9 @@ def course_export(request, fmt):
             filter_parts.append(f"Status: {status_filter}")
         filter_text = " · ".join(filter_parts) if filter_parts else None
 
-    site_name = "University Management System"
-    logo_path = os.path.join(settings.BASE_DIR, "static", "img", "ums-logo.png")
-    if not os.path.exists(logo_path):
-        logo_path = None
+    branding = get_branding()
+    site_name = branding["site_name"]
+    logo_path = branding["logo_path"]
 
     timestamp = timezone.now().strftime("%Y%m%d_%H%M")
 
@@ -1005,8 +1305,8 @@ def course_export(request, fmt):
             filter_text=filter_text,
         )
         resp = HttpResponse(data, content_type="application/pdf")
-        resp["Content-Disposition"] = f'attachment; filename="courses_{timestamp}.pdf"'
-        return resp
+        resp["Content-Disposition"] = _pdf_disposition(request, f"courses_{timestamp}.pdf")
+        return present_pdf(request, resp)
 
     else:
         raise Http404(f"Unsupported export format: {fmt}")
@@ -1014,36 +1314,11 @@ def course_export(request, fmt):
 
 @role_required(Role.ADMIN)
 def course_preview(request):
-    """In-browser print-friendly document preview of course catalog."""
-    scope = request.GET.get("scope", "filtered").strip().lower()
-    if scope == "all":
-        courses_qs = Course.objects.select_related("department", "program", "faculty__user").annotate(
-            n=Count("enrollments", distinct=True)
-        ).order_by("code")
-        q = ""
-        dept_id = ""
-        prog_id = ""
-        status_filter = ""
-    else:
-        courses_qs, q, dept_id, prog_id, status_filter, sort_by, order = _get_filtered_courses_queryset(request)
-
-    dept_obj = Department.objects.filter(pk=dept_id).first() if dept_id else None
-    prog_obj = Program.objects.filter(pk=prog_id).first() if prog_id else None
-
-    return render(
-        request,
-        "dashboard/course_preview.html",
-        {
-            "courses": courses_qs,
-            "total_count": courses_qs.count(),
-            "q": q,
-            "department": dept_obj,
-            "program": prog_obj,
-            "status_filter": status_filter,
-            "generated_at": timezone.now(),
-            "scope": scope,
-        },
-    )
+    """Load the real generated course catalog PDF in-browser before downloading."""
+    return _render_pdf_viewer(request, "Course Catalog Preview",
+                              "Preview matches the downloadable PDF exactly.",
+                              "university:course_export", ["pdf"],
+                              back_url=reverse("university:admin_courses"), icon="fa-book")
 
 
 @role_required(Role.ADMIN)
@@ -1346,10 +1621,9 @@ def fee_export(request, fmt):
                 filter_parts.append(f"Term: {term.name}")
         filter_text = " · ".join(filter_parts) if filter_parts else None
 
-    site_name = "University Management System"
-    logo_path = os.path.join(settings.BASE_DIR, "static", "img", "ums-logo.png")
-    if not os.path.exists(logo_path):
-        logo_path = None
+    branding = get_branding()
+    site_name = branding["site_name"]
+    logo_path = branding["logo_path"]
 
     timestamp = timezone.now().strftime("%Y%m%d_%H%M")
 
@@ -1376,8 +1650,8 @@ def fee_export(request, fmt):
             filter_text=filter_text,
         )
         resp = HttpResponse(data, content_type="application/pdf")
-        resp["Content-Disposition"] = f'attachment; filename="fee_report_{timestamp}.pdf"'
-        return resp
+        resp["Content-Disposition"] = _pdf_disposition(request, f"fee_report_{timestamp}.pdf")
+        return present_pdf(request, resp)
 
     else:
         raise Http404(f"Unsupported export format: {fmt}")
@@ -1385,38 +1659,11 @@ def fee_export(request, fmt):
 
 @role_required(Role.ADMIN)
 def fee_preview(request):
-    """In-browser print-friendly document preview of fee invoices report."""
-    scope = request.GET.get("scope", "filtered").strip().lower()
-    if scope == "all":
-        invoices_qs = FeeInvoice.objects.select_related("student__user", "term").order_by("-issued_on", "-id")
-        q = ""
-        status_filter = ""
-        term_id = ""
-    else:
-        invoices_qs, q, status_filter, term_id, sort_by, order = _get_filtered_fees_queryset(request)
-
-    term_obj = AcademicTerm.objects.filter(pk=term_id).first() if term_id else None
-
-    total_billed = sum(float(i.amount) for i in invoices_qs)
-    total_paid = sum(float(i.amount_paid) for i in invoices_qs)
-    total_balance = sum(float(i.balance) for i in invoices_qs)
-
-    return render(
-        request,
-        "dashboard/fee_preview.html",
-        {
-            "invoices": invoices_qs,
-            "total_count": invoices_qs.count(),
-            "total_billed": total_billed,
-            "total_paid": total_paid,
-            "total_balance": total_balance,
-            "q": q,
-            "status_filter": status_filter,
-            "term": term_obj,
-            "generated_at": timezone.now(),
-            "scope": scope,
-        },
-    )
+    """Load the real generated fee invoices report PDF in-browser before downloading."""
+    return _render_pdf_viewer(request, "Fee Invoices Report Preview",
+                              "Preview matches the downloadable PDF exactly.",
+                              "university:fee_export", ["pdf"],
+                              back_url=reverse("university:admin_fees"), icon="fa-wallet")
 
 
 @role_required(Role.ADMIN)
@@ -1504,7 +1751,7 @@ def fee_receipt_pdf(request, pk):
     pdf_bytes = generate_fee_receipt_pdf(payment)
     resp = HttpResponse(pdf_bytes, content_type="application/pdf")
     resp["Content-Disposition"] = f'inline; filename="Receipt_REC-{payment.id:06d}.pdf"'
-    return resp
+    return present_pdf(request, resp)
 
 
 @login_required
@@ -1545,7 +1792,7 @@ def student_fee_statement_pdf(request):
     pdf_bytes = generate_student_statement_pdf(sp)
     resp = HttpResponse(pdf_bytes, content_type="application/pdf")
     resp["Content-Disposition"] = f'inline; filename="Statement_{sp.roll_no}.pdf"'
-    return resp
+    return present_pdf(request, resp)
 
 
 # ==========================================================================
@@ -1709,10 +1956,9 @@ def timetable_export(request, fmt):
             parts.append(f"Day: {DAY_LABELS_MAP.get(filters['day'], filters['day'])}")
         filter_text = " · ".join(parts) if parts else None
 
-    site_name = "University Management System"
-    logo_path = os.path.join(settings.BASE_DIR, "static", "img", "ums-logo.png")
-    if not os.path.exists(logo_path):
-        logo_path = None
+    branding = get_branding()
+    site_name = branding["site_name"]
+    logo_path = branding["logo_path"]
     timestamp = timezone.now().strftime("%Y%m%d_%H%M")
     schedules = _order_by_weekday(schedules)
 
@@ -1730,25 +1976,18 @@ def timetable_export(request, fmt):
         data = timetable_io.export_timetable_pdf(schedules, site_name=site_name, logo_path=logo_path,
                                                  filter_text=filter_text)
         resp = HttpResponse(data, content_type="application/pdf")
-        resp["Content-Disposition"] = f'attachment; filename="timetable_{timestamp}.pdf"'
-        return resp
+        resp["Content-Disposition"] = _pdf_disposition(request, f"timetable_{timestamp}.pdf")
+        return present_pdf(request, resp)
     raise Http404(f"Unsupported export format: {fmt}")
 
 
 @role_required(Role.ADMIN)
 def timetable_preview(request):
-    """In-browser print-friendly preview of the (filtered) timetable."""
-    scope = request.GET.get("scope", "filtered").strip().lower()
-    if scope == "all":
-        schedules = ClassSchedule.objects.select_related(
-            "course", "course__department", "course__program", "course__faculty__user", "room", "term")
-        term = None
-    else:
-        schedules, term, filters = _get_filtered_schedule_queryset(request)
-    return render(request, "dashboard/timetable_preview.html", {
-        "schedules": _order_by_weekday(schedules), "total_count": schedules.count(),
-        "term": term, "generated_at": timezone.now(), "scope": scope,
-    })
+    """Load the real generated timetable PDF in-browser before downloading."""
+    return _render_pdf_viewer(request, "Timetable Preview",
+                              "Preview matches the downloadable PDF exactly.",
+                              "university:timetable_export", ["pdf"],
+                              back_url=reverse("university:admin_timetable"), icon="fa-calendar-week")
 
 
 @role_required(Role.ADMIN)

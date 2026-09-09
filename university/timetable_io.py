@@ -10,6 +10,8 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from university.document_design import (ReportDocTemplate, document_styles, document_fonts,
+    PageNumberCanvas, letterhead, get_branding, finish_worksheet)
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -92,8 +94,8 @@ def export_timetable_excel(queryset, site_name="University Management System"):
     ws.title = "Timetable"
     ws.views.sheetView[0].showGridLines = True
 
-    primary_color = "4F46E5"
-    header_fill_color = "4338CA"
+    primary_color = "6C5CE7"
+    header_fill_color = "4834D4"
     zebra_color = "EEF2FF"
     border_color = "CBD5E1"
 
@@ -176,6 +178,7 @@ def export_timetable_excel(queryset, site_name="University Management System"):
     ws.freeze_panes = "A5"
 
     output = io.BytesIO()
+    finish_worksheet(ws, header_row=4)
     wb.save(output)
     output.seek(0)
     return output.getvalue()
@@ -183,46 +186,28 @@ def export_timetable_excel(queryset, site_name="University Management System"):
 
 def export_timetable_pdf(queryset, site_name="University Management System", logo_path=None, filter_text=None):
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
+    doc = ReportDocTemplate(buffer, pagesize=landscape(A4),
                             leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36)
-    styles = getSampleStyleSheet()
+    styles = document_styles()
 
-    title_style = ParagraphStyle("TTTitle", parent=styles["Normal"], fontName="Helvetica-Bold",
+    title_style = ParagraphStyle("TTTitle", parent=styles["Normal"], fontName="Quicksand-Bold",
                                  fontSize=15, leading=19, textColor=colors.HexColor("#1E293B"))
-    meta_style = ParagraphStyle("TTMeta", parent=styles["Normal"], fontName="Helvetica",
+    meta_style = ParagraphStyle("TTMeta", parent=styles["Normal"], fontName="Quicksand",
                                 fontSize=9, leading=13, textColor=colors.HexColor("#64748B"), alignment=2)
-    th_style = ParagraphStyle("TTTH", parent=styles["Normal"], fontName="Helvetica-Bold",
+    th_style = ParagraphStyle("TTTH", parent=styles["Normal"], fontName="Quicksand-Bold",
                               fontSize=8, leading=10, textColor=colors.white)
-    td_style = ParagraphStyle("TTTD", parent=styles["Normal"], fontName="Helvetica",
+    td_style = ParagraphStyle("TTTD", parent=styles["Normal"], fontName="Quicksand",
                               fontSize=8, leading=10, textColor=colors.HexColor("#1E293B"))
-    td_bold = ParagraphStyle("TTTDBold", parent=styles["Normal"], fontName="Helvetica-Bold",
-                             fontSize=8, leading=10, textColor=colors.HexColor("#4F46E5"))
+    td_bold = ParagraphStyle("TTTDBold", parent=styles["Normal"], fontName="Quicksand-Bold",
+                             fontSize=8, leading=10, textColor=colors.HexColor("#6C5CE7"))
     td_center = ParagraphStyle("TTTDCenter", parent=td_style, alignment=1)
 
     story = []
-    now_str = timezone.now().strftime("%d %b %Y, %H:%M")
-    filter_desc = f"<b>Filter:</b> {filter_text}<br/>" if filter_text else ""
-    info_html = f"<b>Generated:</b> {now_str}<br/><b>Total Sessions:</b> {queryset.count()}<br/>{filter_desc}"
-
-    header_content = Paragraph(f"<b>{site_name.upper()}</b><br/>"
-                               f"<font size='12' color='#4F46E5'>Weekly Class Timetable</font>", title_style)
-    if logo_path:
-        try:
-            logo_flowable = RLImage(logo_path, width=46, height=46)
-            header_table = Table([[logo_flowable, header_content, Paragraph(info_html, meta_style)]],
-                                 colWidths=[54, 450, 260])
-        except Exception:
-            header_table = Table([[header_content, Paragraph(info_html, meta_style)]], colWidths=[504, 260])
-    else:
-        header_table = Table([[header_content, Paragraph(info_html, meta_style)]], colWidths=[504, 260])
-
-    header_table.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    story.append(header_table)
-    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#4F46E5"), spaceAfter=12))
+    branding = get_branding()
+    branding.update(site_name=site_name, logo_path=logo_path or branding['logo_path'])
+    story.append(letterhead(doc.width, 'Timetable Report',
+        subtitle=f"Total records: {queryset.count()}", filter_text=filter_text, branding=branding))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#6C5CE7"), spaceAfter=12))
 
     headers = [Paragraph(f"<b>{h}</b>", th_style) for h in
               ["Day", "Time", "Course", "Lecturer", "Venue", "Programme"]]
@@ -246,7 +231,7 @@ def export_timetable_pdf(queryset, site_name="University Management System", log
 
     t = Table(data, colWidths=col_widths, repeatRows=1)
     t.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4F46E5")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#6C5CE7")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
         ("LEFTPADDING", (0, 0), (-1, -1), 5), ("RIGHTPADDING", (0, 0), (-1, -1), 5),
@@ -278,7 +263,7 @@ def generate_timetable_template_excel():
     ws.title = "Timetable Import Template"
     ws.views.sheetView[0].showGridLines = True
 
-    header_fill = PatternFill(start_color="4F46E5", end_color="4F46E5", fill_type="solid")
+    header_fill = PatternFill(start_color="6C5CE7", end_color="6C5CE7", fill_type="solid")
     header_font = Font(name="Arial", size=10, bold=True, color="FFFFFF")
     sample_font = Font(name="Arial", size=10, color="334155")
     sample_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")

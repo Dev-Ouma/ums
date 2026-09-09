@@ -1,3 +1,4 @@
+from university.document_views import present_pdf
 from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -7,6 +8,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from decimal import Decimal, InvalidOperation
+
 from university.decorators import role_required
 from accounts.models import Role
 from university.admissions_services import (
@@ -15,7 +18,12 @@ from university.admissions_services import (
     generate_application_number,
     matriculate_applicant,
 )
-from university.models import Application, Intake, Program
+from university.models import (
+    AcademicYear, Application, ApplicationAttachment,
+    ApplicationCustomField, ApplicationCustomFieldValue,
+    ApplicationFeePayment, Intake, Program
+)
+from university.settings_services import get_setting
 
 
 # ==============================================================================
@@ -28,13 +36,16 @@ def apply(request):
     active_intake = Intake.objects.filter(is_active=True).order_by("-start_date").first()
     if not active_intake:
         # Create a default active intake if none exists yet
+        active_ay = get_current_academic_year()
         active_intake = Intake.objects.create(
             name="September 2026 Regular Intake",
-            academic_year="2026/2027",
+            academic_year=active_ay,
             start_date=timezone.now().date(),
             end_date=timezone.now().date() + timedelta(days=90),
             is_active=True,
         )
+
+    custom_fields = ApplicationCustomField.objects.filter(is_active=True).order_by("display_order")
 
     if request.method == "POST":
         program_id = request.POST.get("program")
@@ -59,6 +70,7 @@ def apply(request):
             return render(request, "admissions/apply.html", {
                 "programs": programs,
                 "intake": active_intake,
+                "custom_fields": custom_fields,
                 "data": request.POST,
             })
 
@@ -82,15 +94,81 @@ def apply(request):
             status=Application.Status.SUBMITTED,
         )
 
+        # Save Custom Field Values
+        for cf in custom_fields:
+            cf_val = request.POST.get(f"custom_{cf.name}", "").strip()
+            if cf_val:
+                ApplicationCustomFieldValue.objects.create(
+                    application=application,
+                    field=cf,
+                    value=cf_val
+                )
+
+        # Process Application Attachments
+        file_mappings = [
+            ("kcse_document", ApplicationAttachment.DocType.KCSE_CERTIFICATE, "KCSE Result Slip / Certificate"),
+            ("id_document", ApplicationAttachment.DocType.NATIONAL_ID, "National ID / Birth Certificate / Passport"),
+            ("passport_photo", ApplicationAttachment.DocType.PASSPORT_PHOTO, "Passport Size Photograph"),
+            ("other_document", ApplicationAttachment.DocType.OTHER, "Other Supporting Document"),
+        ]
+
+        for input_name, doc_type, display_title in file_mappings:
+            uploaded = request.FILES.get(input_name)
+            if uploaded:
+                ApplicationAttachment.objects.create(
+                    application=application,
+                    document_type=doc_type,
+                    name=display_title,
+                    file=uploaded,
+                    file_name=uploaded.name,
+                    file_size=uploaded.size,
+                    mime_type=uploaded.content_type or "application/octet-stream",
+                    verification_status=ApplicationAttachment.VerificationStatus.PENDING,
+                    is_visible_to_student=True,
+                )
+
         messages.success(
             request,
-            f"Application submitted successfully! Your application reference number is {application.application_number}."
+            f"Application submitted successfully! Your application reference number is {application.application_number}. "
+            f"Please pay the application fee to complete your submission."
         )
-        return redirect(f"/admissions/status/?ref={application.application_number}")
+        return redirect("university:pay_application_fee", pk=application.pk)
 
     return render(request, "admissions/apply.html", {
         "programs": programs,
         "intake": active_intake,
+        "custom_fields": custom_fields,
+    })
+
+
+
+def pay_application_fee(request, pk):
+    """Public: pay the non-refundable application processing fee before the
+    application is queued for staff review."""
+    application = get_object_or_404(Application, pk=pk)
+    fee_amount = get_setting("application_fee_default", default=Decimal("1000.00"))
+
+    if application.fee_paid:
+        messages.info(request, "The application fee has already been paid for this application.")
+        return redirect(f"/admissions/status/?ref={application.application_number}")
+
+    if request.method == "POST":
+        method = request.POST.get("method", ApplicationFeePayment.Method.MPESA)
+        reference = request.POST.get("reference", "").strip()
+        if not reference:
+            messages.error(request, "Please enter the transaction reference number from your payment channel.")
+        else:
+            # No real payment gateway is integrated; the channel confirmation is
+            # simulated here, matching how other payments are recorded in this system.
+            ApplicationFeePayment.objects.create(
+                application=application, amount=fee_amount, method=method, reference=reference,
+                status=ApplicationFeePayment.Status.CONFIRMED, confirmed_at=timezone.now(),
+            )
+            messages.success(request, "Payment confirmed! Your application is now queued for processing.")
+            return redirect(f"/admissions/status/?ref={application.application_number}")
+
+    return render(request, "admissions/pay_fee.html", {
+        "application": application, "fee_amount": fee_amount, "methods": ApplicationFeePayment.Method.choices,
     })
 
 
@@ -121,19 +199,30 @@ def application_status(request):
 
 def download_admission_letter(request, pk):
     """Download official PDF admission offer letter for accepted applicants."""
-    app = get_object_or_404(Application.objects.select_related("program", "intake"), pk=pk)
+    app = get_object_or_404(Application.objects.select_related("program", "intake", "student"), pk=pk)
     if app.status not in [Application.Status.ACCEPTED, Application.Status.ENROLLED]:
         messages.warning(request, "Admission letter is available only for accepted applicants.")
         return redirect(f"/admissions/status/?ref={app.application_number}")
 
-    if not app.admitted_reg_no:
-        app.admitted_reg_no = assign_admitted_reg_no(app)
-        app.save(update_fields=["admitted_reg_no"])
+    from university.admission_document_services import generate_admission_document, build_admission_letter_pdf_bytes
+    doc = app.active_admission_document
+    if not doc:
+        user = request.user if request.user.is_authenticated else None
+        doc = generate_admission_document(app, user=user, reason="Generated on public download request")
 
-    pdf_data = generate_admission_letter_pdf(app)
+    if not doc.pdf_file:
+        pdf_data = build_admission_letter_pdf_bytes(doc)
+    else:
+        try:
+            pdf_data = doc.pdf_file.read()
+        except Exception:
+            pdf_data = build_admission_letter_pdf_bytes(doc)
+
     response = HttpResponse(pdf_data, content_type="application/pdf")
-    response["Content-Disposition"] = f'attachment; filename="Admission_Letter_{app.application_number}.pdf"'
-    return response
+    filename = f"Admission_Letter_{doc.document_reference.replace('/', '_')}.pdf"
+    response["Content-Disposition"] = f'inline; filename="{filename}"'
+    return present_pdf(request, response, title=f"Admission Letter - {doc.document_reference}")
+
 
 
 # ==============================================================================
@@ -219,6 +308,11 @@ def admin_admission_detail(request, pk):
         if reporting_date:
             app.reporting_date = reporting_date
 
+        if action in ("under_review", "accept") and not app.fee_paid:
+            messages.error(request, "The application fee has not been paid yet. "
+                                    "Processing cannot proceed until payment is confirmed.")
+            return redirect("university:admin_admission_detail", pk=app.pk)
+
         if action == "under_review":
             app.status = Application.Status.UNDER_REVIEW
             messages.info(request, f"Application {app.application_number} marked Under Review.")
@@ -227,7 +321,14 @@ def admin_admission_detail(request, pk):
             app.status = Application.Status.ACCEPTED
             if not app.admitted_reg_no:
                 app.admitted_reg_no = assign_admitted_reg_no(app)
-            messages.success(request, f"Applicant accepted! Assigned Reg No: {app.admitted_reg_no}")
+            app.save()
+            from university.admission_document_services import generate_admission_document
+            try:
+                generate_admission_document(app, user=request.user, reason="Generated upon application acceptance")
+            except Exception as e:
+                pass
+            messages.success(request, f"Applicant accepted! Assigned Reg No: {app.admitted_reg_no}. Admission letter generated.")
+            return redirect("university:admin_admission_detail", pk=app.pk)
 
         elif action == "reject":
             app.status = Application.Status.REJECTED
@@ -235,6 +336,7 @@ def admin_admission_detail(request, pk):
 
         app.save()
         return redirect("university:admin_admission_detail", pk=app.pk)
+
 
     return render(request, "admissions/admin_detail.html", {
         "app": app,
@@ -261,15 +363,22 @@ def admin_admission_matriculate(request, pk):
 @role_required(Role.ADMIN)
 def admin_intakes(request):
     """Admin: Manage university academic intake cycles."""
-    intakes = Intake.objects.all().order_by("-start_date")
+    intakes = Intake.objects.select_related("academic_year").order_by("-start_date")
+    academic_years = AcademicYear.objects.exclude(
+        status__in=[AcademicYear.Status.CLOSED, AcademicYear.Status.ARCHIVED]
+    ).order_by("-start_date")
+    current_year = academic_years.filter(is_current=True).first()
+
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
-        academic_year = request.POST.get("academic_year", "2026/2027").strip()
+        academic_year_id = request.POST.get("academic_year")
         start_date = request.POST.get("start_date")
         end_date = request.POST.get("end_date")
         is_active = request.POST.get("is_active") == "on"
 
-        if name and start_date and end_date:
+        academic_year = academic_years.filter(pk=academic_year_id).first() if academic_year_id else current_year
+
+        if name and start_date and end_date and academic_year:
             Intake.objects.create(
                 name=name,
                 academic_year=academic_year,
@@ -284,4 +393,6 @@ def admin_intakes(request):
 
     return render(request, "admissions/admin_intakes.html", {
         "intakes": intakes,
+        "academic_years": academic_years,
+        "current_year": current_year,
     })

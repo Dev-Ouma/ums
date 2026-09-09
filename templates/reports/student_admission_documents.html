@@ -1,0 +1,313 @@
+{% extends 'base_dashboard.html' %}
+{% load static %}
+
+{% block title %}Admission Documents & Application Attachments · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h4><i class="fa-solid fa-file-contract me-2 text-primary"></i>Admission Documents & Application Attachments</h4>
+    <p class="text-muted small mb-0">Your certified university letter of offer, academic admission records, and submitted application credentials.</p>
+  </div>
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <a href="{% url 'university:student_reports' %}" class="btn btn-light border rounded-pill px-3">
+      <i class="fa-solid fa-arrow-left me-1"></i> Back to Academic Reports
+    </a>
+  </div>
+</div>
+
+{% if messages %}
+  {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-4" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  {% endfor %}
+{% endif %}
+
+<!-- SECTION 1: OFFICIAL ADMISSION LETTER -->
+<div class="card card-ums border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+  <div class="card-header bg-white p-4 border-bottom d-flex justify-content-between align-items-start align-items-md-center flex-column flex-md-row gap-3">
+    <div>
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-1.5 rounded-pill fw-semibold">
+          <i class="fa-solid fa-stamp me-1"></i> Official University Document
+        </span>
+        {% if admission_letter %}
+          <span class="badge bg-success bg-opacity-10 text-success px-3 py-1.5 rounded-pill fw-semibold">
+            <i class="fa-solid fa-circle-check me-1"></i> {{ admission_letter.get_status_display }}
+          </span>
+          <span class="badge bg-secondary bg-opacity-10 text-secondary px-2.5 py-1.5 rounded-pill">
+            v{{ admission_letter.version }}
+          </span>
+        {% else %}
+          <span class="badge bg-warning bg-opacity-10 text-warning px-3 py-1.5 rounded-pill fw-semibold">
+            <i class="fa-solid fa-clock me-1"></i> Pending Issuance
+          </span>
+        {% endif %}
+      </div>
+      <h5 class="fw-bold mb-0 text-dark">University Letter of Offer (Admission Letter)</h5>
+    </div>
+
+    {% if admission_letter %}
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <a href="{% url 'university:student_view_admission_document' admission_letter.id %}?preview=1" class="btn btn-outline-primary rounded-pill px-3">
+          <i class="fa-solid fa-eye me-1"></i> Preview in Browser
+        </a>
+        <a href="{% url 'university:student_download_admission_document' admission_letter.id %}" class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm">
+          <i class="fa-solid fa-download me-1"></i> Download PDF
+        </a>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="card-body p-4">
+    {% if admission_letter %}
+      <div class="row g-4 mb-4">
+        <div class="col-md-3 col-sm-6">
+          <div class="p-3 bg-light rounded-3">
+            <small class="text-muted d-block mb-1">Document Reference</small>
+            <span class="fw-bold font-monospace text-primary">{{ admission_letter.document_reference }}</span>
+          </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+          <div class="p-3 bg-light rounded-3">
+            <small class="text-muted d-block mb-1">Assigned Student Reg No.</small>
+            <span class="fw-bold text-dark">{{ admission_letter.rendered_context.registration_number|default:student.roll_no }}</span>
+          </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+          <div class="p-3 bg-light rounded-3">
+            <small class="text-muted d-block mb-1">Academic Year / Term</small>
+            <span class="fw-semibold text-dark">{{ admission_letter.academic_year.name|default:"2026/2027" }} · {{ admission_letter.semester.name|default:"Semester 1" }}</span>
+          </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+          <div class="p-3 bg-light rounded-3">
+            <small class="text-muted d-block mb-1">Reporting Date</small>
+            <span class="fw-semibold text-success">
+              <i class="fa-solid fa-calendar-day me-1"></i>
+              {% if admission_letter.reporting_date %}
+                {{ admission_letter.reporting_date|date:"D, d M Y" }}
+              {% else %}
+                Scheduled with Faculty
+              {% endif %}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Summary Overview -->
+      <div class="p-3 border rounded-3 bg-white mb-3">
+        <div class="row align-items-center">
+          <div class="col-md-8">
+            <div class="d-flex align-items-center gap-3">
+              <div class="rounded-circle bg-primary bg-opacity-10 text-primary p-3 d-flex align-items-center justify-content-center" style="width:48px;height:48px;">
+                <i class="fa-solid fa-graduation-cap fa-lg"></i>
+              </div>
+              <div>
+                <h6 class="fw-bold mb-1">{{ student.program.name|default:"Undergraduate Degree Programme" }}</h6>
+                <p class="text-muted small mb-0">
+                  {{ student.program.department.faculty.name|default:"Faculty" }} &bull; {{ student.program.department.name|default:"Department" }}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4 text-md-end mt-3 mt-md-0">
+            <span class="small text-muted d-block">Issued on {{ admission_letter.issue_date|date:"d M Y" }}</span>
+            <small class="text-muted">Generated by Registrar's Office</small>
+          </div>
+        </div>
+      </div>
+
+      {% if historical_letters %}
+        <div class="accordion mt-3" id="versionAccordion">
+          <div class="accordion-item border rounded-3 overflow-hidden">
+            <h2 class="accordion-header" id="headingVersions">
+              <button class="accordion-button collapsed py-2.5 px-3 bg-light text-muted small" type="button" data-bs-toggle="collapse" data-bs-target="#collapseVersions" aria-expanded="false" aria-controls="collapseVersions">
+                <i class="fa-solid fa-clock-rotate-left me-2"></i> View Document Version History ({{ historical_letters.count }} Previous Version{{ historical_letters.count|pluralize }})
+              </button>
+            </h2>
+            <div id="collapseVersions" class="accordion-collapse collapse" aria-labelledby="headingVersions" data-bs-parent="#versionAccordion">
+              <div class="accordion-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-sm align-middle mb-0">
+                    <thead class="bg-light small">
+                      <tr>
+                        <th>Version</th>
+                        <th>Reference</th>
+                        <th>Issue Date</th>
+                        <th>Reason / Change</th>
+                        <th>Status</th>
+                        <th class="text-end">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody class="small">
+                      {% for h_doc in historical_letters %}
+                        <tr>
+                          <td><span class="badge bg-secondary">v{{ h_doc.version }}</span></td>
+                          <td class="font-monospace">{{ h_doc.document_reference }}</td>
+                          <td>{{ h_doc.issue_date|date:"d M Y" }}</td>
+                          <td>{{ h_doc.change_reason|default:"Archived version" }}</td>
+                          <td><span class="badge bg-light text-muted border">{{ h_doc.get_status_display }}</span></td>
+                          <td class="text-end">
+                            <a href="{% url 'university:student_view_admission_document' h_doc.id %}?preview=1" class="btn btn-xs btn-outline-secondary rounded-pill">
+                              <i class="fa-solid fa-eye me-1"></i> Preview
+                            </a>
+                            <a href="{% url 'university:student_download_admission_document' h_doc.id %}" class="btn btn-xs btn-light border rounded-pill">
+                              <i class="fa-solid fa-download"></i>
+                            </a>
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+    {% else %}
+      <div class="text-center py-5">
+        <div class="rounded-circle bg-light text-muted d-inline-flex align-items-center justify-content-center mb-3" style="width:64px;height:64px;">
+          <i class="fa-solid fa-file-circle-question fa-2x"></i>
+        </div>
+        <h6 class="fw-bold text-dark">No Admission Letter Currently Available</h6>
+        <p class="text-muted small mx-auto" style="max-width:440px;">
+          Your official admission letter is being prepared by the Admissions Registry. Once issued or published, it will be immediately available here for preview, download, and printing.
+        </p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- SECTION 2: SUBMITTED APPLICATION ATTACHMENTS -->
+<div class="card card-ums border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+  <div class="card-header bg-white p-4 border-bottom d-flex justify-content-between align-items-center">
+    <div>
+      <h5 class="fw-bold mb-1 text-dark">Submitted Application Documents</h5>
+      <p class="text-muted small mb-0">Original credentials and supporting certificates submitted during your application.</p>
+    </div>
+    <span class="badge bg-light text-dark border px-3 py-2 rounded-pill fw-semibold">
+      <i class="fa-solid fa-paperclip me-1 text-primary"></i> {{ attachments.count }} File{{ attachments.count|pluralize }} Attached
+    </span>
+  </div>
+
+  <div class="card-body p-0">
+    {% if attachments %}
+      <div class="table-responsive">
+        <table class="table align-middle table-hover mb-0">
+          <thead class="bg-light small text-uppercase text-muted">
+            <tr>
+              <th class="ps-4">Document Title</th>
+              <th>Category</th>
+              <th>File Type & Size</th>
+              <th>Submitted Date</th>
+              <th>Verification Status</th>
+              <th class="text-end pe-4">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for att in attachments %}
+              <tr>
+                <td class="ps-4">
+                  <div class="d-flex align-items-center gap-2.5">
+                    {% if "pdf" in att.mime_type or ".pdf" in att.file_name %}
+                      <span class="text-danger fs-4"><i class="fa-solid fa-file-pdf"></i></span>
+                    {% elif "image" in att.mime_type or ".jpg" in att.file_name or ".png" in att.file_name %}
+                      <span class="text-primary fs-4"><i class="fa-solid fa-file-image"></i></span>
+                    {% else %}
+                      <span class="text-secondary fs-4"><i class="fa-solid fa-file-lines"></i></span>
+                    {% endif %}
+                    <div>
+                      <div class="fw-bold text-dark">{{ att.name }}</div>
+                      <small class="text-muted font-monospace">{{ att.file_name|default:"document_file" }}</small>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <span class="badge bg-light text-dark border rounded-pill px-2.5 py-1 small">
+                    {{ att.get_document_type_display }}
+                  </span>
+                </td>
+                <td>
+                  <span class="small text-muted">{{ att.mime_type|slice:":20" }}</span><br/>
+                  <small class="text-muted">{{ att.file_size|filesizeformat }}</small>
+                </td>
+                <td>
+                  <span class="small text-dark">{{ att.uploaded_at|date:"d M Y" }}</span><br/>
+                  <small class="text-muted">{{ att.uploaded_at|date:"H:i" }}</small>
+                </td>
+                <td>
+                  {% if att.verification_status == "VERIFIED" %}
+                    <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-2.5 py-1.5 fw-semibold">
+                      <i class="fa-solid fa-circle-check me-1"></i> Verified
+                    </span>
+                  {% elif att.verification_status == "REJECTED" %}
+                    <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-2.5 py-1.5 fw-semibold">
+                      <i class="fa-solid fa-circle-xmark me-1"></i> Rejected
+                    </span>
+                    {% if att.verification_notes %}
+                      <small class="d-block text-danger mt-1">{{ att.verification_notes }}</small>
+                    {% endif %}
+                  {% elif att.verification_status == "FLAGGED" %}
+                    <span class="badge bg-warning bg-opacity-10 text-warning rounded-pill px-2.5 py-1.5 fw-semibold">
+                      <i class="fa-solid fa-triangle-exclamation me-1"></i> Flagged
+                    </span>
+                  {% else %}
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill px-2.5 py-1.5 fw-semibold">
+                      <i class="fa-solid fa-clock me-1"></i> Pending Review
+                    </span>
+                  {% endif %}
+                </td>
+                <td class="text-end pe-4">
+                  <a href="{% url 'university:student_download_attachment' att.id %}" class="btn btn-sm btn-outline-primary rounded-pill px-3" download>
+                    <i class="fa-solid fa-download me-1"></i> Download
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="text-center py-5">
+        <div class="rounded-circle bg-light text-muted d-inline-flex align-items-center justify-content-center mb-3" style="width:60px;height:60px;">
+          <i class="fa-solid fa-folder-open fa-2x"></i>
+        </div>
+        <h6 class="fw-bold text-dark">No Application Documents on File</h6>
+        <p class="text-muted small mx-auto" style="max-width:400px;">
+          No digital certificates or attachments were captured during your application submission. If you were admitted offline, please contact the Registrar's Office to submit original credentials.
+        </p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- SECTION 3: APPLICATION & TRANSMISSION DOSSIER -->
+{% if application %}
+<div class="card card-ums border-0 shadow-sm rounded-4 p-4">
+  <h6 class="fw-bold text-dark mb-3"><i class="fa-solid fa-circle-info text-primary me-2"></i>Application History & Official Record</h6>
+  <div class="row g-3 small">
+    <div class="col-md-3 col-sm-6">
+      <span class="text-muted d-block">Application Code:</span>
+      <span class="fw-semibold text-dark">{{ application.application_number }}</span>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <span class="text-muted d-block">Academic Intake:</span>
+      <span class="fw-semibold text-dark">{{ application.intake.name|default:"Regular Intake" }}</span>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <span class="text-muted d-block">Secondary School:</span>
+      <span class="fw-semibold text-dark">{{ application.secondary_school|default:"N/A" }}</span>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <span class="text-muted d-block">KCSE Mean Grade:</span>
+      <span class="badge bg-primary bg-opacity-10 text-primary">{{ application.kcse_mean_grade|default:"C+" }} ({{ application.kcse_year|default:"2025" }})</span>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

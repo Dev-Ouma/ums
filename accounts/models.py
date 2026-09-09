@@ -112,9 +112,16 @@ class User(AbstractUser):
 
 
 class StudentProfile(models.Model):
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active"
+        DEFERRED = "DEFERRED", "Deferred"
+        ON_LEAVE = "ON_LEAVE", "On Sick Leave"
+        WITHDRAWN = "WITHDRAWN", "Withdrawn"
+
     GENDER = [("M", "Male"), ("F", "Female"), ("O", "Other")]
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="student_profile")
     roll_no = models.CharField(max_length=20, unique=True)
+    status = models.CharField(max_length=15, choices=Status.choices, default=Status.ACTIVE, db_index=True)
     program = models.ForeignKey("university.Program", on_delete=models.SET_NULL,
                                 null=True, blank=True, related_name="students")
     current_semester = models.PositiveSmallIntegerField(default=1)
@@ -134,6 +141,10 @@ class StudentProfile(models.Model):
     @property
     def semester(self):
         return ((self.current_semester - 1) % 2) + 1 if self.current_semester else 1
+
+    @property
+    def is_active_student(self):
+        return self.status == self.Status.ACTIVE
 
     def get_absolute_url(self):
         return reverse("university:student_detail", args=[self.pk])

@@ -1,3 +1,4 @@
+from university.document_views import present_pdf
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -182,7 +183,7 @@ def attachment_intro_letter_pdf(request, pk):
 
     response = HttpResponse(pdf_bytes, content_type="application/pdf")
     response["Content-Disposition"] = f'inline; filename="{filename}"'
-    return response
+    return present_pdf(request, response)
 
 
 @login_required
@@ -198,7 +199,7 @@ def attachment_logbook_pdf(request, pk):
 
     response = HttpResponse(pdf_bytes, content_type="application/pdf")
     response["Content-Disposition"] = f'inline; filename="{filename}"'
-    return response
+    return present_pdf(request, response)
 
 
 # ==============================================================================

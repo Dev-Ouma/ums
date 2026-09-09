@@ -13,7 +13,33 @@
 </div>
 
 <div class="row g-4">
-  <!-- Report Link Cards -->
+  <!-- Admission Documents & Application Attachments Card -->
+  <div class="col-md-6 col-xl-4">
+    <div class="card card-ums card-lift h-100 p-3 border-primary border-opacity-25" style="background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);">
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <span class="icon-circle shadow-sm" style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); width:48px; height:48px; color:white;">
+          <i class="fa-solid fa-file-contract"></i>
+        </span>
+        <div>
+          <h6 class="fw-bold mb-0 text-primary">Admission Documents</h6>
+          <small class="text-muted">Letter of Offer & Application Files</small>
+        </div>
+      </div>
+      <p class="small text-muted mb-3">
+        Access your official University Admission Letter (view, print, download PDF) and submitted certificates (KCSE Slip, ID, Photos).
+      </p>
+      <div class="d-flex align-items-center justify-content-between small text-muted mb-3 bg-light p-2 rounded-3">
+        <span><i class="fa-solid fa-stamp text-success me-1"></i>{% if admission_letter %}Letter v{{ admission_letter.version }} Issued{% else %}Letter Pending{% endif %}</span>
+        <span><i class="fa-solid fa-paperclip me-1"></i>{{ attachments_count }} Attachment{{ attachments_count|pluralize }}</span>
+      </div>
+      <div class="mt-auto pt-2 border-top">
+        <a href="{% url 'university:student_admission_documents' %}" class="btn btn-sm btn-primary rounded-pill w-100 fw-semibold">
+          <i class="fa-solid fa-folder-open me-1"></i> Access Admission Documents
+        </a>
+      </div>
+    </div>
+  </div>
+
   <div class="col-md-6 col-xl-4">
     <div class="card card-ums card-lift h-100 p-3">
       <div class="d-flex align-items-center gap-3 mb-3">

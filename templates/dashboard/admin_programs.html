@@ -1,0 +1,351 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Programmes Directory · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4>
+      <i class="fa-solid fa-graduation-cap me-2 text-primary"></i>
+      Academic Programmes Management
+    </h4>
+    <p class="text-muted mb-0 small">
+      Central repository of all university degree, diploma, and TVET certificate programmes.
+    </p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap align-items-center">
+    <!-- Export Dropdown -->
+    <div class="dropdown">
+      <button class="btn btn-light border rounded-pill px-3 dropdown-toggle d-inline-flex align-items-center gap-1" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="fa-solid fa-file-export text-primary"></i> Export
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end shadow-sm rounded-3 py-2">
+        <li><span class="dropdown-header small text-muted text-uppercase fw-semibold">Export Filtered List</span></li>
+        <li>
+          <a class="dropdown-item py-2 d-flex align-items-center gap-2" href="{% url 'university:program_export' 'pdf' %}{% querystring %}">
+            <i class="fa-solid fa-file-pdf text-danger fa-fw"></i> PDF Document (.pdf)
+          </a>
+        </li>
+        <li>
+          <a class="dropdown-item py-2 d-flex align-items-center gap-2" href="{% url 'university:program_export' 'excel' %}{% querystring %}">
+            <i class="fa-solid fa-file-excel text-success fa-fw"></i> Excel Spreadsheet (.xlsx)
+          </a>
+        </li>
+        <li>
+          <a class="dropdown-item py-2 d-flex align-items-center gap-2" href="{% url 'university:program_export' 'csv' %}{% querystring %}">
+            <i class="fa-solid fa-file-csv text-info fa-fw"></i> CSV File (.csv)
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Web / Print Preview -->
+    <a href="{% url 'university:program_preview' %}{% querystring %}" target="_blank" class="btn btn-light border rounded-pill px-3 d-inline-flex align-items-center gap-1" title="View printable preview">
+      <i class="fa-solid fa-eye text-primary"></i> Preview
+    </a>
+
+    <!-- Bulk Import -->
+    <a href="{% url 'university:program_import' %}" class="btn btn-outline-primary rounded-pill px-3 d-inline-flex align-items-center gap-1">
+      <i class="fa-solid fa-file-import"></i> Bulk Import
+    </a>
+
+    <!-- Add Programme -->
+    <a href="{% url 'university:program_create' %}" class="btn btn-primary rounded-pill px-3 d-inline-flex align-items-center gap-1">
+      <i class="fa-solid fa-plus"></i> Add Programme
+    </a>
+  </div>
+</div>
+
+<!-- Stats Counter Row -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card card-ums p-3 border-0 shadow-sm">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <span class="text-muted x-small text-uppercase fw-bold">Total Programmes</span>
+          <h4 class="mb-0 fw-bold mt-1 text-dark">{{ stats.total }}</h4>
+        </div>
+        <div class="p-3 bg-primary bg-opacity-10 text-primary rounded-circle">
+          <i class="fa-solid fa-layer-group fs-5"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card card-ums p-3 border-0 shadow-sm">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <span class="text-muted x-small text-uppercase fw-bold">Active & Admitting</span>
+          <h4 class="mb-0 fw-bold mt-1 text-success">{{ stats.active }}</h4>
+        </div>
+        <div class="p-3 bg-success bg-opacity-10 text-success rounded-circle">
+          <i class="fa-solid fa-circle-check fs-5"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card card-ums p-3 border-0 shadow-sm">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <span class="text-muted x-small text-uppercase fw-bold">Enrolled Students</span>
+          <h4 class="mb-0 fw-bold mt-1 text-primary">{{ stats.students }}</h4>
+        </div>
+        <div class="p-3 bg-info bg-opacity-10 text-info rounded-circle">
+          <i class="fa-solid fa-user-graduate fs-5"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card card-ums p-3 border-0 shadow-sm">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <span class="text-muted x-small text-uppercase fw-bold">Curriculum Courses</span>
+          <h4 class="mb-0 fw-bold mt-1 text-secondary">{{ stats.courses }}</h4>
+        </div>
+        <div class="p-3 bg-secondary bg-opacity-10 text-secondary rounded-circle">
+          <i class="fa-solid fa-book-open fs-5"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Search & Filtering Bar -->
+<div class="card card-ums p-3 mb-4 border-0 shadow-sm">
+  <form method="get" class="row g-2 align-items-center" id="programFilterForm">
+    <!-- Keyword Search -->
+    <div class="col-md-3">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text bg-light border-end-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+        <input type="text" name="q" value="{{ q }}" class="form-control border-start-0 ps-0" placeholder="Search by code, title, department...">
+      </div>
+    </div>
+
+    <!-- School Filter -->
+    <div class="col-md-2">
+      <select name="school" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Faculties / Schools</option>
+        {% for s in schools %}
+          <option value="{{ s.id }}" {% if selected_school == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Department Filter -->
+    <div class="col-md-2">
+      <select name="department" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Departments</option>
+        {% for d in departments %}
+          <option value="{{ d.id }}" {% if selected_dept == d.id|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Level Filter -->
+    <div class="col-md-2">
+      <select name="level" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Award Levels</option>
+        {% for code, label in levels %}
+          <option value="{{ code }}" {% if selected_level == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Status Filter -->
+    <div class="col-md-2">
+      <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Statuses</option>
+        {% for code, label in statuses %}
+          <option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Actions -->
+    <div class="col-md-1 d-flex gap-1">
+      <button type="submit" class="btn btn-sm btn-primary flex-fill rounded-pill" title="Apply filters">
+        <i class="fa-solid fa-filter"></i>
+      </button>
+      <a href="{% url 'university:admin_programs' %}" class="btn btn-sm btn-outline-secondary rounded-pill" title="Reset filters">
+        <i class="fa-solid fa-rotate-left"></i>
+      </a>
+    </div>
+  </form>
+</div>
+
+<!-- Programme Directory Table -->
+<div class="card card-ums border-0 shadow-sm overflow-hidden">
+  <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+    <div>
+      <span class="fw-bold">Programmes</span>
+      <span class="badge bg-light text-muted ms-2">{{ programs.paginator.count }} found</span>
+    </div>
+    <div class="d-flex align-items-center gap-2 small">
+      <span class="text-muted">Rows per page:</span>
+      <select class="form-select form-select-sm" style="width: auto;" onchange="location.href='{% querystring page=1 %}page_size=' + this.value">
+        {% for ps in allowed_page_sizes %}
+          <option value="{{ ps }}" {% if page_size == ps %}selected{% endif %}>{{ ps }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3" style="width: 110px;">Code</th>
+          <th>Programme Name & Award Title</th>
+          <th>Faculty / School & Department</th>
+          <th class="text-center">Level / Type</th>
+          <th class="text-center">Duration</th>
+          <th class="text-center">Students</th>
+          <th class="text-center">Courses</th>
+          <th class="text-center">Status</th>
+          <th class="text-end pe-3">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in programs %}
+        <tr>
+          <!-- Code -->
+          <td class="ps-3">
+            <a href="{% url 'university:program_detail' p.pk %}" class="fw-bold text-primary font-monospace text-decoration-none">
+              {{ p.code }}
+            </a>
+          </td>
+
+          <!-- Title -->
+          <td>
+            <div class="fw-bold text-dark">
+              <a href="{% url 'university:program_detail' p.pk %}" class="text-dark text-decoration-none hover-primary">
+                {{ p.name }}
+              </a>
+            </div>
+            {% if p.award_title and p.award_title != p.name %}
+              <div class="x-small text-muted">{{ p.award_title }}</div>
+            {% endif %}
+          </td>
+
+          <!-- School & Dept -->
+          <td>
+            <div class="small fw-semibold text-secondary">{{ p.department.name }}</div>
+            <div class="x-small text-muted"><i class="fa-solid fa-building-columns me-1"></i>{{ p.faculty_name }}</div>
+          </td>
+
+          <!-- Level / Type -->
+          <td class="text-center">
+            <span class="badge bg-light text-dark border px-2 py-1 small">
+              {{ p.get_level_display }}
+            </span>
+            <div class="x-small text-muted mt-1">{{ p.get_study_mode_display }}</div>
+          </td>
+
+          <!-- Duration -->
+          <td class="text-center">
+            <span class="small fw-semibold">{{ p.duration_value }} {{ p.duration_unit }}</span>
+            <div class="x-small text-muted">{{ p.min_credits }} Credits</div>
+          </td>
+
+          <!-- Students -->
+          <td class="text-center">
+            <span class="badge bg-primary bg-opacity-10 text-primary px-2 py-1 rounded-pill">
+              {{ p.student_count }}
+            </span>
+          </td>
+
+          <!-- Courses -->
+          <td class="text-center">
+            <span class="badge bg-secondary bg-opacity-10 text-secondary px-2 py-1 rounded-pill">
+              {{ p.course_count }}
+            </span>
+          </td>
+
+          <!-- Status -->
+          <td class="text-center">
+            {% if p.status == 'Active' %}
+              <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1 rounded-pill">
+                <i class="fa-solid fa-circle fa-2xs me-1"></i>Active
+              </span>
+            {% elif p.status == 'Inactive' %}
+              <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 px-2 py-1 rounded-pill">
+                Inactive
+              </span>
+            {% else %}
+              <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1 rounded-pill">
+                Phased Out
+              </span>
+            {% endif %}
+          </td>
+
+          <!-- Actions -->
+          <td class="text-end pe-3">
+            <div class="btn-group btn-group-sm">
+              <a href="{% url 'university:program_detail' p.pk %}" class="btn btn-outline-primary" title="View details">
+                <i class="fa-solid fa-eye"></i>
+              </a>
+              <a href="{% url 'university:program_edit' p.pk %}" class="btn btn-outline-secondary" title="Edit programme">
+                <i class="fa-solid fa-pen"></i>
+              </a>
+              <a href="{% url 'university:program_delete' p.pk %}" class="btn btn-outline-danger" title="Delete programme">
+                <i class="fa-solid fa-trash"></i>
+              </a>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="9" class="text-center py-5 text-muted">
+            <div class="mb-3">
+              <i class="fa-solid fa-graduation-cap fa-3x text-light"></i>
+            </div>
+            <h6 class="fw-semibold">No Programmes Found</h6>
+            <p class="small text-muted mb-3">No academic programmes matched your current filters or search query.</p>
+            <a href="{% url 'university:program_create' %}" class="btn btn-sm btn-primary rounded-pill px-3">
+              <i class="fa-solid fa-plus me-1"></i>Add New Programme
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination Footer -->
+  {% if programs.has_other_pages %}
+  <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center">
+    <div class="small text-muted">
+      Showing {{ programs.start_index }} to {{ programs.end_index }} of {{ programs.paginator.count }} programmes
+    </div>
+    <nav>
+      <ul class="pagination pagination-sm mb-0">
+        {% if programs.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="{% querystring page=programs.previous_page_number %}">&laquo;</a>
+          </li>
+        {% else %}
+          <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+        {% endif %}
+
+        {% for p_num in programs.paginator.page_range %}
+          {% if p_num == programs.number %}
+            <li class="page-item active"><span class="page-link">{{ p_num }}</span></li>
+          {% elif p_num > programs.number|add:"-3" and p_num < programs.number|add:"3" %}
+            <li class="page-item"><a class="page-link" href="{% querystring page=p_num %}">{{ p_num }}</a></li>
+          {% endif %}
+        {% endfor %}
+
+        {% if programs.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="{% querystring page=programs.next_page_number %}">&raquo;</a>
+          </li>
+        {% else %}
+          <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+        {% endif %}
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

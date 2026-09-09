@@ -1,0 +1,146 @@
+{% extends "base_public.html" %}
+{% load static %}
+
+{% block title %}Official Document Verification · UMS{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+
+      <!-- Header Card -->
+      <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden">
+        <div class="card-body p-4 p-md-5 text-center bg-light">
+          <div class="d-inline-flex align-items-center justify-content-center bg-white shadow-sm rounded-circle mb-3" style="width: 72px; height: 72px;">
+            <i class="fa-solid fa-shield-halved text-primary fs-2"></i>
+          </div>
+          <h2 class="fw-bold text-dark mb-1">Academic Registry Document Verification</h2>
+          <p class="text-muted mb-0">Official online validation portal for degrees, transcripts, and examination records.</p>
+        </div>
+      </div>
+
+      <!-- Verification Result Section -->
+      {% if reference_no %}
+        {% if is_verified %}
+          <!-- VALID BADGE -->
+          <div class="card border-0 shadow-sm rounded-4 mb-4 border-start border-success border-5">
+            <div class="card-body p-4 p-md-5">
+              <div class="d-flex align-items-center gap-3 mb-4">
+                <div class="rounded-circle bg-success-subtle text-success p-3 d-flex align-items-center justify-content-center" style="width: 54px; height: 54px;">
+                  <i class="fa-solid fa-check fs-3"></i>
+                </div>
+                <div>
+                  <span class="badge bg-success px-3 py-2 text-uppercase mb-1" style="letter-spacing: .05em;">Certified Authentic</span>
+                  <h4 class="fw-bold text-dark mb-0">{{ status_label }}</h4>
+                </div>
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-sm table-borderless mb-0 align-middle">
+                  <tbody>
+                    <tr class="border-bottom">
+                      <th class="text-muted py-2" style="width: 35%;">Student Name</th>
+                      <td class="fw-bold text-dark py-2">{{ student.user.display_name }}</td>
+                    </tr>
+                    <tr class="border-bottom">
+                      <th class="text-muted py-2">Registration / Roll No</th>
+                      <td class="fw-semibold text-dark py-2"><code>{{ student.roll_no }}</code></td>
+                    </tr>
+                    <tr class="border-bottom">
+                      <th class="text-muted py-2">Programme of Study</th>
+                      <td class="text-dark py-2">{{ student.program.name }} ({{ student.program.code }})</td>
+                    </tr>
+                    <tr class="border-bottom">
+                      <th class="text-muted py-2">Department / Faculty</th>
+                      <td class="text-dark py-2">{{ student.program.department.name|default:"General" }}</td>
+                    </tr>
+                    <tr class="border-bottom">
+                      <th class="text-muted py-2">Cumulative GPA / Standing</th>
+                      <td class="text-dark py-2">
+                        <strong class="text-primary">{{ ctx.cgpa|default:"In Progress" }}</strong>
+                        {% if ctx.overall_standing %}
+                          <span class="badge bg-light text-dark border ms-2">{{ ctx.overall_standing }}</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                    <tr class="border-bottom">
+                      <th class="text-muted py-2">Document Serial Reference</th>
+                      <td class="text-dark py-2"><code class="text-primary">{{ reference_no }}</code></td>
+                    </tr>
+                    <tr class="border-bottom">
+                      <th class="text-muted py-2">Cryptographic Fingerprint</th>
+                      <td class="text-dark py-2">
+                        <span class="badge bg-dark font-monospace text-light px-2 py-1">SHA-256: {{ ctx.digest }}</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th class="text-muted py-2">Verified Timestamp</th>
+                      <td class="text-muted py-2">{{ verified_at|date:"d M Y, H:i:s T" }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="alert alert-success mt-4 mb-0 d-flex align-items-center gap-3 py-2 px-3 rounded-3">
+                <i class="fa-solid fa-circle-check fs-5"></i>
+                <small class="mb-0">This document record has been checked directly against the live Academic Registry ledger of the issuing university.</small>
+              </div>
+            </div>
+          </div>
+
+        {% elif status == "AMENDED" %}
+          <!-- AMENDED / SUPERSEDED BADGE -->
+          <div class="card border-0 shadow-sm rounded-4 mb-4 border-start border-warning border-5">
+            <div class="card-body p-4 p-md-5">
+              <div class="d-flex align-items-center gap-3 mb-3">
+                <div class="rounded-circle bg-warning-subtle text-warning p-3 d-flex align-items-center justify-content-center" style="width: 54px; height: 54px;">
+                  <i class="fa-solid fa-triangle-exclamation fs-3"></i>
+                </div>
+                <div>
+                  <span class="badge bg-warning text-dark px-3 py-2 text-uppercase mb-1">Record Superseded</span>
+                  <h4 class="fw-bold text-dark mb-0">{{ status_label }}</h4>
+                </div>
+              </div>
+              <p class="text-muted">A candidate with matching registration was found, but the certified marks or revision digest have been updated since this document was generated. Please request an updated, re-certified transcript from the Academic Registrar.</p>
+              <p class="mb-0"><strong>Candidate:</strong> {{ student.user.display_name }} ({{ student.roll_no }})</p>
+            </div>
+          </div>
+
+        {% else %}
+          <!-- INVALID / NOT FOUND BADGE -->
+          <div class="card border-0 shadow-sm rounded-4 mb-4 border-start border-danger border-5">
+            <div class="card-body p-4 p-md-5">
+              <div class="d-flex align-items-center gap-3 mb-3">
+                <div class="rounded-circle bg-danger-subtle text-danger p-3 d-flex align-items-center justify-content-center" style="width: 54px; height: 54px;">
+                  <i class="fa-solid fa-circle-xmark fs-3"></i>
+                </div>
+                <div>
+                  <span class="badge bg-danger px-3 py-2 text-uppercase mb-1">Unverified Record</span>
+                  <h4 class="fw-bold text-dark mb-0">Record Not Found</h4>
+                </div>
+              </div>
+              <p class="text-muted">No authentic certified document matches serial reference <code>{{ reference_no }}</code>. This document could not be authenticated by the Academic Registry ledger.</p>
+            </div>
+          </div>
+        {% endif %}
+      {% endif %}
+
+      <!-- Manual Lookup Form -->
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body p-4">
+          <h5 class="fw-bold mb-3"><i class="fa-solid fa-magnifying-glass me-2 text-primary"></i>Check Another Document Serial</h5>
+          <form method="get" action="{% url 'university:verify_document_query' %}" class="d-flex gap-2">
+            <input type="text" name="ref" value="{{ reference_no }}" class="form-control form-control-lg rounded-3" placeholder="e.g. UMS/TR/2026/UMS20260001-A4B7C9D0E1F2" required>
+            <button type="submit" class="btn btn-primary btn-lg px-4 rounded-3 d-flex align-items-center gap-2">
+              <i class="fa-solid fa-shield-check"></i>
+              <span>Verify</span>
+            </button>
+          </form>
+          <small class="text-muted d-block mt-2">Enter the full document serial reference printed on the transcript or under the QR verification box.</small>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

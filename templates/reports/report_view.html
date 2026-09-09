@@ -41,10 +41,9 @@
     <p class="text-muted small mb-0 mt-1">{{ meta.description }}</p>
   </div>
   <div class="d-flex gap-2 align-items-center flex-wrap">
-    <!-- Print Action -->
-    <button type="button" class="btn btn-light border rounded-pill px-3 d-inline-flex align-items-center gap-2" onclick="window.print()">
-      <i class="fa-solid fa-print text-secondary"></i> Print Report
-    </button>
+    <a class="btn btn-outline-primary rounded-pill px-3" href="{% url 'university:export_report' report_key 'pdf' %}?{{ request.GET.urlencode }}&amp;preview=1">
+      <i class="fa-solid fa-file-pdf me-1"></i>Preview &amp; Print
+    </a>
 
     <!-- Export Dropdown -->
     <div class="dropdown">
@@ -228,7 +227,7 @@
   <div class="print-header">
     <div class="d-flex justify-content-between align-items-start border-bottom pb-3 mb-3">
       <div>
-        <h4 class="fw-bold mb-0">NORTHERN INTERNATIONAL UNIVERSITY</h4>
+        <h4 class="fw-bold mb-0">{{ site_settings.site_name|default:"University Management System" }}</h4>
         <small class="text-muted">Office of the Registrar · Academic Affairs & Examinations Board</small>
       </div>
       <div class="text-end">

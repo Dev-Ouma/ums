@@ -9,6 +9,8 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from university.document_design import (ReportDocTemplate, document_styles, document_fonts,
+    PageNumberCanvas, letterhead, get_branding, finish_worksheet)
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -89,7 +91,7 @@ def export_course_csv(queryset):
             c.description or "—",
         ])
 
-    return buffer.getvalue().encode("utf-8-sig")
+    return buffer.getvalue().encode("utf-8")
 
 
 def export_course_excel(queryset, site_name="University Management System"):
@@ -99,8 +101,8 @@ def export_course_excel(queryset, site_name="University Management System"):
     ws.title = "Courses"
     ws.views.sheetView[0].showGridLines = True
 
-    primary_color = "4F46E5"      # Royal Indigo
-    header_fill_color = "4338CA"  # Deep Indigo
+    primary_color = "6C5CE7"      # Royal Indigo
+    header_fill_color = "4834D4"  # Deep Indigo
     zebra_color = "EEF2FF"        # Light Indigo tint
     border_color = "CBD5E1"
 
@@ -208,6 +210,7 @@ def export_course_excel(queryset, site_name="University Management System"):
     ws.freeze_panes = "A5"
 
     output = io.BytesIO()
+    finish_worksheet(ws, header_row=4)
     wb.save(output)
     output.seek(0)
     return output.getvalue()
@@ -216,7 +219,7 @@ def export_course_excel(queryset, site_name="University Management System"):
 def export_course_pdf(queryset, site_name="University Management System", logo_path=None, filter_text=None):
     """Generate high-quality branded PDF report for Courses in landscape A4."""
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
+    doc = ReportDocTemplate(
         buffer,
         pagesize=landscape(A4),
         leftMargin=36,
@@ -225,13 +228,13 @@ def export_course_pdf(queryset, site_name="University Management System", logo_p
         bottomMargin=36,
     )
 
-    styles = getSampleStyleSheet()
+    styles = document_styles()
 
     # Typography styles with Quicksand fallback
     title_style = ParagraphStyle(
         "CourseReportTitle",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=15,
         leading=19,
         textColor=colors.HexColor("#1E293B"),
@@ -239,7 +242,7 @@ def export_course_pdf(queryset, site_name="University Management System", logo_p
     meta_style = ParagraphStyle(
         "CourseReportMeta",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=9,
         leading=13,
         textColor=colors.HexColor("#64748B"),
@@ -248,7 +251,7 @@ def export_course_pdf(queryset, site_name="University Management System", logo_p
     th_style = ParagraphStyle(
         "CourseTH",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=8,
         leading=10,
         textColor=colors.white,
@@ -257,7 +260,7 @@ def export_course_pdf(queryset, site_name="University Management System", logo_p
     td_style = ParagraphStyle(
         "CourseTD",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=8,
         leading=10,
         textColor=colors.HexColor("#1E293B"),
@@ -265,15 +268,15 @@ def export_course_pdf(queryset, site_name="University Management System", logo_p
     td_bold = ParagraphStyle(
         "CourseTDBold",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=8,
         leading=10,
-        textColor=colors.HexColor("#4F46E5"),
+        textColor=colors.HexColor("#6C5CE7"),
     )
     td_center = ParagraphStyle(
         "CourseTDCenter",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=8,
         leading=10,
         textColor=colors.HexColor("#1E293B"),
@@ -281,37 +284,11 @@ def export_course_pdf(queryset, site_name="University Management System", logo_p
     )
 
     story = []
-
-    # 1. Header Banner
-    now_str = timezone.now().strftime("%d %b %Y, %H:%M")
-    filter_desc = f"<b>Filter:</b> {filter_text}<br/>" if filter_text else ""
-    info_html = f"<b>Generated:</b> {now_str}<br/><b>Total Courses:</b> {queryset.count()}<br/>{filter_desc}"
-
-    if logo_path:
-        try:
-            logo_flowable = RLImage(logo_path, width=46, height=46)
-            header_table = Table(
-                [[logo_flowable, Paragraph(f"<b>COURSE CATALOG & REGISTRY</b><br/><font color='#64748B' size='8'>{site_name}</font>", title_style), Paragraph(info_html, meta_style)]],
-                colWidths=[54, 450, 260],
-            )
-        except Exception:
-            header_table = Table(
-                [[Paragraph(f"<b>{site_name.upper()}</b><br/><font size='12' color='#4F46E5'>Official Course Catalog</font>", title_style), Paragraph(info_html, meta_style)]],
-                colWidths=[504, 260],
-            )
-    else:
-        header_table = Table(
-            [[Paragraph(f"<b>{site_name.upper()}</b><br/><font size='12' color='#4F46E5'>Official Course Catalog</font>", title_style), Paragraph(info_html, meta_style)]],
-            colWidths=[504, 260],
-        )
-
-    header_table.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    story.append(header_table)
-    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#4F46E5"), spaceAfter=12))
+    branding = get_branding()
+    branding.update(site_name=site_name, logo_path=logo_path or branding['logo_path'])
+    story.append(letterhead(doc.width, 'Course Catalog',
+        subtitle=f"Total records: {queryset.count()}", filter_text=filter_text, branding=branding))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#6C5CE7"), spaceAfter=12))
 
     # 2. Courses Table
     headers = [
@@ -357,7 +334,7 @@ def export_course_pdf(queryset, site_name="University Management System", logo_p
 
     t = Table(data, colWidths=col_widths, repeatRows=1)
     t.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4F46E5")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#6C5CE7")),
         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("TOPPADDING", (0, 0), (-1, -1), 5),
@@ -400,7 +377,7 @@ def generate_course_template_csv():
     ]
     writer.writerow(sample_values)
 
-    return buffer.getvalue().encode("utf-8-sig")
+    return buffer.getvalue().encode("utf-8")
 
 
 def generate_course_template_excel():
@@ -410,7 +387,7 @@ def generate_course_template_excel():
     ws.title = "Course Import Template"
     ws.views.sheetView[0].showGridLines = True
 
-    header_fill = PatternFill(start_color="4F46E5", end_color="4F46E5", fill_type="solid")
+    header_fill = PatternFill(start_color="6C5CE7", end_color="6C5CE7", fill_type="solid")
     header_font = Font(name="Arial", size=10, bold=True, color="FFFFFF")
     sample_font = Font(name="Arial", size=10, color="334155")
     sample_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")

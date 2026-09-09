@@ -13,10 +13,10 @@
     </div>
     {% if placement %}
       <div class="d-flex gap-2">
-        <a href="{% url 'university:attachment_intro_letter_pdf' placement.id %}" target="_blank" class="btn btn-outline-primary">
+        <a href="{% url 'university:attachment_intro_letter_pdf' placement.id %}?preview=1" target="_blank" class="btn btn-outline-primary">
           <i class="fa-solid fa-file-pdf me-1"></i> Introductory Letter (PDF)
         </a>
-        <a href="{% url 'university:attachment_logbook_pdf' placement.id %}" target="_blank" class="btn btn-outline-secondary">
+        <a href="{% url 'university:attachment_logbook_pdf' placement.id %}?preview=1" target="_blank" class="btn btn-outline-secondary">
           <i class="fa-solid fa-book me-1"></i> Compiled Logbook (PDF)
         </a>
       </div>

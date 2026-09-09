@@ -10,6 +10,8 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from university.document_design import (ReportDocTemplate, document_styles, document_fonts,
+    PageNumberCanvas, letterhead, get_branding, finish_worksheet)
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -94,7 +96,7 @@ def export_faculty_csv(queryset):
             joining,
         ])
 
-    return buffer.getvalue().encode("utf-8-sig")
+    return buffer.getvalue().encode("utf-8")
 
 
 def export_faculty_excel(queryset, site_name="University Management System"):
@@ -104,13 +106,13 @@ def export_faculty_excel(queryset, site_name="University Management System"):
     ws.title = "Faculty"
     ws.views.sheetView[0].showGridLines = True
 
-    primary_color = "009688"      # Faculty teal theme
-    header_fill_color = "00796B"  # Dark teal
-    zebra_color = "F0FDF4"
-    border_color = "D1D5DB"
+    primary_color = "6C5CE7"      # Faculty teal theme
+    header_fill_color = "4834D4"  # Dark teal
+    zebra_color = "EEF2FF"
+    border_color = "CBD5E1"
 
     font_title = Font(name="Arial", size=15, bold=True, color="FFFFFF")
-    font_sub = Font(name="Arial", size=10, italic=True, color="E6FFFA")
+    font_sub = Font(name="Arial", size=10, italic=True, color="E0E7FF")
     font_header = Font(name="Arial", size=11, bold=True, color="FFFFFF")
     font_data = Font(name="Arial", size=10, color="2B2B3A")
     font_bold_data = Font(name="Arial", size=10, bold=True, color="2B2B3A")
@@ -206,6 +208,7 @@ def export_faculty_excel(queryset, site_name="University Management System"):
     ws.freeze_panes = "A5"
 
     output = io.BytesIO()
+    finish_worksheet(ws, header_row=4)
     wb.save(output)
     output.seek(0)
     return output.getvalue()
@@ -214,7 +217,7 @@ def export_faculty_excel(queryset, site_name="University Management System"):
 def export_faculty_pdf(queryset, site_name="University Management System", logo_path=None, filter_text=None):
     """Generate high-quality branded PDF report for Faculty in landscape A4."""
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
+    doc = ReportDocTemplate(
         buffer,
         pagesize=landscape(A4),
         leftMargin=36,
@@ -223,26 +226,26 @@ def export_faculty_pdf(queryset, site_name="University Management System", logo_
         bottomMargin=45
     )
 
-    styles = getSampleStyleSheet()
+    styles = document_styles()
 
     title_style = ParagraphStyle(
         "FacultyReportTitle",
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=18,
         leading=22,
-        textColor=colors.HexColor("#2B2B3A"),
+        textColor=colors.HexColor("#1E293B"),
     )
     meta_style = ParagraphStyle(
         "FacultyReportMeta",
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=8.5,
         leading=12,
-        textColor=colors.HexColor("#009688"),
+        textColor=colors.HexColor("#6C5CE7"),
         alignment=2,
     )
     th_style = ParagraphStyle(
         "FacultyTH",
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=8.5,
         leading=11,
         textColor=colors.white,
@@ -250,59 +253,33 @@ def export_faculty_pdf(queryset, site_name="University Management System", logo_
     )
     td_style = ParagraphStyle(
         "FacultyTD",
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=8,
         leading=10.5,
-        textColor=colors.HexColor("#2B2B3A"),
+        textColor=colors.HexColor("#1E293B"),
     )
     td_bold = ParagraphStyle(
         "FacultyTDBold",
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=8,
         leading=10.5,
-        textColor=colors.HexColor("#2B2B3A"),
+        textColor=colors.HexColor("#1E293B"),
     )
     td_center = ParagraphStyle(
         "FacultyTDCenter",
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=8,
         leading=10.5,
-        textColor=colors.HexColor("#2B2B3A"),
+        textColor=colors.HexColor("#1E293B"),
         alignment=1,
     )
 
     story = []
-
-    # 1. Header Banner
-    logo_flowable = None
-    if logo_path:
-        try:
-            logo_flowable = RLImage(logo_path, width=2.4 * inch, height=0.6 * inch)
-        except Exception:
-            logo_flowable = None
-
-    now_str = timezone.now().strftime("%d %B %Y, %H:%M")
-    filter_desc = f"Filter: {filter_text} · " if filter_text else ""
-    info_html = f"<b>Generated:</b> {now_str}<br/><b>Total Faculty:</b> {queryset.count()}<br/>{filter_desc}"
-
-    if logo_flowable:
-        header_table = Table(
-            [[logo_flowable, Paragraph(f"<b>FACULTY DIRECTORY</b><br/><font color='#718096' size='8'>{site_name}</font>", title_style), Paragraph(info_html, meta_style)]],
-            colWidths=[2.5 * inch, 5.0 * inch, 3.2 * inch]
-        )
-    else:
-        header_table = Table(
-            [[Paragraph(f"<b>{site_name.upper()}</b><br/><font size='12' color='#009688'>Faculty Directory Report</font>", title_style), Paragraph(info_html, meta_style)]],
-            colWidths=[7.5 * inch, 3.2 * inch]
-        )
-
-    header_table.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    story.append(header_table)
-    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#009688"), spaceAfter=12))
+    branding = get_branding()
+    branding.update(site_name=site_name, logo_path=logo_path or branding['logo_path'])
+    story.append(letterhead(doc.width, 'Faculty Directory',
+        subtitle=f"Total records: {queryset.count()}", filter_text=filter_text, branding=branding))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#6C5CE7"), spaceAfter=12))
 
     # 2. Faculty Table
     table_headers = [
@@ -339,7 +316,7 @@ def export_faculty_pdf(queryset, site_name="University Management System", logo_
     t = Table(table_data, colWidths=col_widths, repeatRows=1)
 
     t_style = [
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#009688")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#6C5CE7")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -352,7 +329,7 @@ def export_faculty_pdf(queryset, site_name="University Management System", logo_
 
     for r in range(1, len(table_data)):
         if r % 2 == 0:
-            t_style.append(("BACKGROUND", (0, r), (-1, r), colors.HexColor("#F0FDF4")))
+            t_style.append(("BACKGROUND", (0, r), (-1, r), colors.HexColor("#EEF2FF")))
 
     t.setStyle(TableStyle(t_style))
     story.append(t)
@@ -388,7 +365,7 @@ def generate_faculty_template_csv():
         SAMPLE_FACULTY_ROW["specialization"],
     ]
     writer.writerow(sample_row)
-    return buffer.getvalue().encode("utf-8-sig")
+    return buffer.getvalue().encode("utf-8")
 
 
 def generate_faculty_template_excel():
@@ -398,16 +375,16 @@ def generate_faculty_template_excel():
     ws.title = "Faculty Import Template"
     ws.views.sheetView[0].showGridLines = True
 
-    header_fill = PatternFill(start_color="009688", end_color="009688", fill_type="solid")
-    sample_fill = PatternFill(start_color="F0FDF4", end_color="F0FDF4", fill_type="solid")
+    header_fill = PatternFill(start_color="6C5CE7", end_color="6C5CE7", fill_type="solid")
+    sample_fill = PatternFill(start_color="EEF2FF", end_color="EEF2FF", fill_type="solid")
     font_header = Font(name="Arial", size=11, bold=True, color="FFFFFF")
-    font_sample = Font(name="Arial", size=10, italic=True, color="00796B")
+    font_sample = Font(name="Arial", size=10, italic=True, color="4834D4")
 
     thin_border = Border(
-        left=Side(style="thin", color="D1D5DB"),
-        right=Side(style="thin", color="D1D5DB"),
-        top=Side(style="thin", color="D1D5DB"),
-        bottom=Side(style="thin", color="D1D5DB"),
+        left=Side(style="thin", color="CBD5E1"),
+        right=Side(style="thin", color="CBD5E1"),
+        top=Side(style="thin", color="CBD5E1"),
+        bottom=Side(style="thin", color="CBD5E1"),
     )
 
     headers = [col[1] for col in FACULTY_IMPORT_COLUMNS]

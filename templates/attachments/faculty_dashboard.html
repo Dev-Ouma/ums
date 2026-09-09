@@ -93,7 +93,7 @@
                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
                   {{ p.logbook_entries.count }} entries
                 </span>
-                <a href="{% url 'university:attachment_logbook_pdf' p.id %}" target="_blank" class="btn btn-sm btn-link text-decoration-none py-0 ms-1">
+                <a href="{% url 'university:attachment_logbook_pdf' p.id %}?preview=1" target="_blank" class="btn btn-sm btn-link text-decoration-none py-0 ms-1">
                   <i class="fa-solid fa-file-pdf"></i>
                 </a>
               </td>

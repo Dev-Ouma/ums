@@ -2,11 +2,58 @@
 {% block title %}Examinations · UMS{% endblock %}
 {% block content %}
 <style>
-.exam-nav{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.4rem}.exam-nav a{padding:.5rem .85rem;border:1px solid #dfe3ed;border-radius:.65rem;background:white;color:var(--primary);text-decoration:none}.exam-hero{display:flex;justify-content:space-between;gap:1rem;align-items:start;margin-bottom:1.4rem}.exam-hero p{color:#687184;margin:.5rem 0}.exam-card{background:#fff;border:1px solid #e3e7ef;border-radius:1rem;padding:1.35rem;margin-bottom:1.2rem}.exam-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem;margin-bottom:1.2rem}.exam-kpis div{background:white;border:1px solid #e3e7ef;border-radius:1rem;padding:1.1rem}.exam-kpis strong{display:block;font-size:1.7rem}.exam-kpis small{color:#687184}.exam-status{display:inline-block;padding:.35rem .65rem;background:#eef0fd;color:#494a87;border-radius:2rem;font-size:.78rem;font-weight:600}.exam-table td,.exam-table th{padding:.9rem .7rem;vertical-align:middle}.exam-muted{color:#687184;font-size:.85rem}.exam-actions{display:flex;gap:.7rem;flex-wrap:wrap}.exam-flow{display:flex;gap:.5rem;flex-wrap:wrap;margin:1rem 0;color:#5e6678;font-size:.85rem}.exam-flow span{background:#f1f3f8;border-radius:.4rem;padding:.45rem .65rem}.exam-errors{color:#a32626}.exam-empty{padding:2.5rem;text-align:center;color:#687184}details summary{cursor:pointer;color:var(--primary)}@media(max-width:750px){.exam-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.exam-hero{flex-direction:column}}@media print{.sidebar,.topbar,.ai-fab,.exam-nav,.no-print,.alert{display:none!important}.main{margin:0!important;width:100%!important}.content{padding:0!important}.exam-card{break-inside:avoid}body{background:#fff!important}.app{display:block!important}a{color:inherit!important;text-decoration:none!important}.table-responsive{overflow:visible!important}}
+.exam-nav { display: flex; gap: .6rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.exam-nav a { padding: .55rem 1rem; border: 1px solid #e2e8f0; border-radius: 9999px; background: #fff; color: var(--primary, #6C5CE7); font-weight: 600; font-size: .85rem; text-decoration: none; transition: all .2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
+.exam-nav a:hover, .exam-nav a.active { background: var(--primary, #6C5CE7); color: #fff; border-color: var(--primary, #6C5CE7); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(108,92,231,0.2); }
+.exam-hero { display: flex; justify-content: space-between; gap: 1.25rem; align-items: start; margin-bottom: 1.5rem; }
+.exam-hero h3 { font-weight: 700; color: #0f172a; margin-bottom: .25rem; }
+.exam-hero p { color: #64748b; margin: .35rem 0; font-size: .9rem; }
+.exam-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.25rem; box-shadow: 0 2px 8px rgba(15,23,42,0.03); transition: box-shadow .2s ease; }
+.exam-card:hover { box-shadow: 0 6px 18px rgba(15,23,42,0.06); }
+.exam-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.exam-kpis div { background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; padding: 1.25rem; box-shadow: 0 2px 6px rgba(0,0,0,0.02); }
+.exam-kpis strong { display: block; font-size: 1.85rem; font-weight: 700; color: #0f172a; margin-top: .25rem; }
+.exam-kpis small { color: #64748b; font-weight: 600; text-transform: uppercase; font-size: .75rem; letter-spacing: .5px; }
+.exam-status { display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .75rem; background: #eef0fd; color: #4834d4; border-radius: 9999px; font-size: .78rem; font-weight: 700; letter-spacing: .2px; }
+.exam-status.pass { background: #dcfce7; color: #15803d; }
+.exam-status.fail { background: #fee2e2; color: #b91c1c; }
+.exam-status.pending { background: #fef3c7; color: #b45309; }
+.exam-table td, .exam-table th { padding: .85rem .85rem; vertical-align: middle; }
+.exam-table th { font-weight: 700; font-size: .78rem; text-transform: uppercase; letter-spacing: .5px; color: #475569; background: #f8fafc; }
+.exam-muted { color: #64748b; font-size: .85rem; }
+.exam-actions { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; }
+.exam-flow { display: flex; gap: .5rem; flex-wrap: wrap; margin: 1rem 0; color: #475569; font-size: .85rem; }
+.exam-flow span { background: #f1f5f9; border-radius: .5rem; padding: .45rem .75rem; font-weight: 500; }
+.exam-errors { color: #b91c1c; font-weight: 600; }
+.exam-empty { padding: 3rem 1.5rem; text-align: center; color: #64748b; background: #f8fafc; border-radius: .85rem; }
+details summary { cursor: pointer; color: var(--primary, #6C5CE7); font-weight: 600; }
+@media (max-width: 750px) {
+  .exam-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .exam-hero { flex-direction: column; }
+}
+@media print {
+  .sidebar, .topbar, .ai-fab, .exam-nav, .no-print, .alert { display: none !important; }
+  .main { margin: 0 !important; width: 100% !important; padding: 0 !important; }
+  .content { padding: 0 !important; }
+  .exam-card { break-inside: avoid; border: 1px solid #cbd5e1 !important; box-shadow: none !important; margin-bottom: .8rem !important; }
+  body { background: #fff !important; }
+  .app { display: block !important; }
+  a { color: inherit !important; text-decoration: none !important; }
+  .table-responsive { overflow: visible !important; }
+}
 </style>
 <nav class="exam-nav no-print" aria-label="Examinations">
-<a href="{% url 'examinations:index' %}">Examinations & timetable</a>
-{% if user.is_admin_role or user.is_superuser %}<a href="{% url 'examinations:report' %}">Results & appeals</a><a href="{% url 'examinations:rooms' %}">Rooms</a><a href="{% url 'examinations:terms' %}">Academic terms</a><a href="{% url 'examinations:grading' %}">CUE Grading Scale</a>{% elif user.is_student %}<a href="{% url 'examinations:statement' %}">My results</a><a href="{% url 'examinations:admission' %}">Exam admission slip</a>{% endif %}
+  <a href="{% url 'examinations:index' %}"><i class="fa-solid fa-calendar-days me-1"></i>Examinations &amp; Timetable</a>
+  {% if user.is_admin_role or user.is_superuser %}
+    <a href="{% url 'examinations:report' %}"><i class="fa-solid fa-chart-line me-1"></i>Results &amp; Appeals</a>
+    <a href="{% url 'examinations:rooms' %}"><i class="fa-solid fa-door-open me-1"></i>Rooms</a>
+    <a href="{% url 'examinations:terms' %}"><i class="fa-solid fa-clock-rotate-left me-1"></i>Academic Terms</a>
+    <a href="{% url 'examinations:grading' %}"><i class="fa-solid fa-scale-balanced me-1"></i>CUE Grading Scale</a>
+  {% elif user.is_student %}
+    <a href="{% url 'examinations:statement' %}"><i class="fa-solid fa-award me-1"></i>My Results &amp; Statement</a>
+    <a href="{% url 'examinations:admission' %}"><i class="fa-solid fa-id-card me-1"></i>Exam Admission Slip</a>
+  {% endif %}
 </nav>
+
 {% block exam_content %}{% endblock %}
 {% endblock %}

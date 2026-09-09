@@ -1,0 +1,42 @@
+<div class="document-viewer shadow-sm rounded-4 overflow-hidden border">
+  <div class="document-viewer-bar bg-white px-3 py-2 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge bg-primary bg-opacity-10 text-primary px-2.5 py-1 rounded-pill small fw-semibold">
+        <i class="fa-solid fa-file-pdf me-1"></i>Official A4 Document Preview
+      </span>
+      <span class="small text-muted d-none d-md-inline">Generated dynamically from certified university database records</span>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" data-print-pdf>
+        <i class="fa-solid fa-print me-1"></i>Print Document
+      </button>
+      <a href="{{ pdf_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-light border rounded-pill px-3" title="Open in dedicated tab">
+        <i class="fa-solid fa-up-right-from-square me-1"></i>Full Window
+      </a>
+    </div>
+  </div>
+  <div class="document-frame-container" style="background:#1e293b; padding:12px 12px 16px;">
+    <iframe id="document-pdf-frame" title="{{ title }} PDF preview" src="{{ pdf_url }}#toolbar=1&amp;navpanes=1" style="display:block; width:100%; height:82vh; min-height:560px; border-radius:8px; border:none; box-shadow:0 8px 30px rgba(0,0,0,0.35);"></iframe>
+  </div>
+  <div class="bg-white px-3 py-2 border-top small text-muted d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span><i class="fa-solid fa-circle-info me-1 text-primary"></i>Use the embedded PDF controls to zoom, navigate pages, and inspect document layout.</span>
+    <span>If preview does not render in your browser, <a href="{{ pdf_url }}" target="_blank" rel="noopener" class="text-primary fw-semibold">open directly</a>.</span>
+  </div>
+</div>
+<script>
+document.querySelectorAll('[data-print-pdf]').forEach(function (button) {
+  button.addEventListener('click', function () {
+    const frame = document.getElementById('document-pdf-frame');
+    try {
+      if (frame && frame.contentWindow) {
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+      } else {
+        window.open('{{ pdf_url }}', '_blank', 'noopener');
+      }
+    } catch (error) {
+      window.open('{{ pdf_url }}', '_blank', 'noopener');
+    }
+  });
+});
+</script>

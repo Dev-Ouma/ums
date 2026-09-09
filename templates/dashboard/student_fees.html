@@ -189,7 +189,7 @@
               <td class="font-monospace text-muted small">{{ pmt.reference }}</td>
               <td class="fw-bold text-success">KES {{ pmt.amount|floatformat:0|intcomma }}</td>
               <td class="text-end">
-                <a href="{% url 'university:fee_receipt_pdf' pmt.pk %}" class="btn btn-sm btn-outline-success rounded-pill px-3" target="_blank">
+                <a href="{% url 'university:fee_receipt_pdf' pmt.pk %}?preview=1" class="btn btn-sm btn-outline-success rounded-pill px-3" target="_blank">
                   <i class="fa-solid fa-file-pdf me-1"></i> PDF Receipt
                 </a>
               </td>

@@ -1,0 +1,117 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Review Request · {{ req.student.roll_no }} · Academics · UMS{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h4><i class="fa-solid fa-file-circle-question me-2" style="color:var(--primary)"></i>Review {{ req.get_request_type_display }} Request</h4>
+    <small class="text-muted">{{ req.student.roll_no }} · {{ req.student.user.display_name }}</small>
+  </div>
+  <a href="{% url 'university:admin_student_requests' %}" class="btn btn-sm btn-outline-primary rounded-pill">
+    <i class="fa-solid fa-arrow-left me-1"></i>Back to Requests
+  </a>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card card-ums p-4">
+      <div class="text-center mb-3">
+        <img src="{{ req.student.user.avatar }}" class="rounded-circle mx-auto mb-2" width="70" height="70">
+        <h6 class="fw-bold mb-0">{{ req.student.user.display_name }}</h6>
+        <span class="badge-soft badge rounded-pill mt-1">{{ req.student.roll_no }}</span>
+      </div>
+      <hr>
+      <div class="small">
+        <div class="mb-2"><strong>Programme:</strong> {{ req.student.program.name|default:'—' }}</div>
+        <div class="mb-2"><strong>Current Status:</strong>
+          <span class="badge rounded-pill
+            {% if req.student.status == 'ACTIVE' %}bg-success
+            {% elif req.student.status == 'DEFERRED' %}bg-warning text-dark
+            {% elif req.student.status == 'ON_LEAVE' %}bg-info text-dark
+            {% else %}bg-danger{% endif %}">{{ req.student.get_status_display }}</span>
+        </div>
+        <div class="mb-2"><strong>Request Type:</strong> {{ req.get_request_type_display }}</div>
+        <div class="mb-2"><strong>Submitted:</strong> {{ req.submitted_at|date:"d M Y H:i" }}</div>
+        {% if req.start_date %}<div class="mb-2"><strong>Period:</strong> {{ req.start_date|date:"d M Y" }} – {{ req.end_date|date:"d M Y" }}</div>{% endif %}
+        <div class="mb-2">
+          <strong>Status:</strong>
+          <span class="badge rounded-pill
+            {% if req.status == 'APPROVED' %}bg-success
+            {% elif req.status == 'REJECTED' %}bg-danger
+            {% elif req.status == 'UNDER_REVIEW' %}bg-info text-dark
+            {% else %}bg-secondary{% endif %}">{{ req.get_status_display }}</span>
+        </div>
+        {% if req.decided_at %}
+          <div class="mb-2 text-muted"><strong>Decided:</strong> {{ req.decided_at|date:"d M Y H:i" }} by {{ req.reviewed_by.display_name|default:"Administrator" }}</div>
+        {% endif %}
+        {% if req.supporting_document %}
+          <div class="mb-2"><a href="{{ req.supporting_document.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary rounded-pill w-100"><i class="fa-solid fa-paperclip me-1"></i>View Supporting Document</a></div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if req.status == 'PENDING' or req.status == 'UNDER_REVIEW' %}
+    <div class="card card-ums p-4 mt-3">
+      <h6 class="fw-bold mb-3"><i class="fa-solid fa-gavel me-2 text-primary"></i>Administrative Decision</h6>
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Review Comments</label>
+          <textarea name="comments" class="form-control form-control-sm" rows="3" placeholder="Enter decision rationale, conditions, or notes..."></textarea>
+        </div>
+        <div class="d-grid gap-2">
+          {% if req.status == 'PENDING' %}
+          <button type="submit" name="action" value="review" class="btn btn-sm btn-outline-info rounded-pill py-2">
+            <i class="fa-solid fa-magnifying-glass me-1"></i>Mark as Under Review
+          </button>
+          {% endif %}
+          <button type="submit" name="action" value="approve" class="btn btn-sm btn-success rounded-pill py-2"
+                  onclick="return confirm('Approve this {{ req.get_request_type_display|lower }} request? This will update the student status.');">
+            <i class="fa-solid fa-circle-check me-1"></i>Approve
+          </button>
+          <button type="submit" name="action" value="reject" class="btn btn-sm btn-outline-danger rounded-pill py-2"
+                  onclick="return confirm('Reject this request?');">
+            <i class="fa-solid fa-circle-xmark me-1"></i>Reject
+          </button>
+        </div>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card card-ums p-4 mb-4">
+      <h6 class="fw-bold mb-2"><i class="fa-solid fa-comment-dots me-2 text-primary"></i>Reason Provided by Student</h6>
+      <p class="mb-0">{{ req.reason|linebreaksbr }}</p>
+      {% if req.review_comments %}
+        <hr>
+        <h6 class="fw-bold mb-2"><i class="fa-solid fa-reply me-2 text-primary"></i>Reviewer Comments</h6>
+        <p class="mb-0 text-muted">{{ req.review_comments|linebreaksbr }}</p>
+      {% endif %}
+    </div>
+
+    <div class="card card-ums">
+      <div class="card-header fw-semibold"><i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>Other Requests by This Student</div>
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead class="table-light"><tr><th class="ps-3">Type</th><th>Submitted</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for h in history %}
+            <tr>
+              <td class="ps-3">{{ h.get_request_type_display }}</td>
+              <td class="small text-muted">{{ h.submitted_at|date:"d M Y" }}</td>
+              <td><span class="badge rounded-pill
+                {% if h.status == 'APPROVED' %}bg-success
+                {% elif h.status == 'REJECTED' %}bg-danger
+                {% elif h.status == 'UNDER_REVIEW' %}bg-info text-dark
+                {% else %}bg-secondary{% endif %}">{{ h.get_status_display }}</span></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-center py-4 text-muted">No other requests on record.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,471 @@
+{% extends "base_dashboard.html" %}
+{% load static %}
+
+{% block title %}{{ academic_year.name }} · Academic Year & Semesters · UMS{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-4 py-3">
+
+  <!-- Breadcrumb & Header Navigation -->
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1">
+          <li class="breadcrumb-item"><a href="{% url 'university:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'university:admin_academic_years' %}" class="text-decoration-none">Academic Calendar</a></li>
+          <li class="breadcrumb-item active" aria-current="page">{{ academic_year.name }}</li>
+        </ol>
+      </nav>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <h2 class="h3 fw-bold mb-0 text-dark">{{ academic_year.name }}</h2>
+        <span class="badge bg-light text-dark font-monospace border px-2 py-1">{{ academic_year.code }}</span>
+        {% if academic_year.is_current %}
+          <span class="badge bg-success rounded-pill px-3 py-1"><i class="fa-solid fa-circle-check me-1"></i>Current Master Year</span>
+        {% elif academic_year.status == 'PUBLISHED' %}
+          <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-3 py-1">Published</span>
+        {% elif academic_year.status == 'DRAFT' %}
+          <span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill px-3 py-1">Draft</span>
+        {% elif academic_year.status == 'CLOSED' %}
+          <span class="badge bg-dark rounded-pill px-3 py-1">Closed</span>
+        {% endif %}
+      </div>
+      <p class="text-muted small mb-0 mt-1">
+        Period: {{ academic_year.start_date|date:"d M Y" }} &ndash; {{ academic_year.end_date|date:"d M Y" }}
+        {% if academic_year.reference_no %}&bull; Ref: <span class="font-monospace">{{ academic_year.reference_no }}</span>{% endif %}
+      </p>
+    </div>
+
+    <!-- Actions toolbar -->
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <button type="button" class="btn btn-primary rounded-pill px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalAddSemester">
+        <i class="fa-solid fa-plus me-1"></i> Add Semester
+      </button>
+
+      {% if not academic_year.is_current %}
+      <form method="post" action="{% url 'university:academic_year_action' academic_year.pk 'set_current' %}" onsubmit="return confirm('Set {{ academic_year.name }} as the authoritative CURRENT academic year?');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-success rounded-pill px-3 shadow-sm">
+          <i class="fa-solid fa-circle-check me-1"></i> Set as Current
+        </button>
+      </form>
+      {% endif %}
+
+      {% if academic_year.status == 'DRAFT' %}
+      <form method="post" action="{% url 'university:academic_year_action' academic_year.pk 'publish' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-primary rounded-pill px-3 shadow-sm">
+          <i class="fa-solid fa-upload me-1"></i> Publish
+        </button>
+      </form>
+      {% elif academic_year.status == 'PUBLISHED' and not academic_year.is_current %}
+      <form method="post" action="{% url 'university:academic_year_action' academic_year.pk 'unpublish' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-warning rounded-pill px-3 shadow-sm">
+          <i class="fa-solid fa-rotate-left me-1"></i> Unpublish
+        </button>
+      </form>
+      {% endif %}
+
+      {% if academic_year.status in 'CURRENT,PUBLISHED' %}
+      <form method="post" action="{% url 'university:academic_year_action' academic_year.pk 'close' %}" onsubmit="return confirm('Close Academic Year {{ academic_year.name }}? Child semesters will also be concluded.');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-secondary rounded-pill px-3 shadow-sm">
+          <i class="fa-solid fa-lock me-1"></i> Close
+        </button>
+      </form>
+      {% elif academic_year.status == 'CLOSED' %}
+      <form method="post" action="{% url 'university:academic_year_action' academic_year.pk 'reopen' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-success rounded-pill px-3 shadow-sm">
+          <i class="fa-solid fa-lock-open me-1"></i> Reopen
+        </button>
+      </form>
+      {% endif %}
+
+      <a href="{% url 'university:academic_year_edit' academic_year.pk %}" class="btn btn-outline-secondary rounded-pill px-3 shadow-sm">
+        <i class="fa-solid fa-pen-to-square me-1"></i> Edit
+      </a>
+    </div>
+  </div>
+
+  <!-- Semesters / Sessions Table -->
+  <div class="card border-0 shadow-sm rounded-4 bg-white mb-4 overflow-hidden">
+    <div class="card-header bg-white border-0 py-3 px-4 d-flex justify-content-between align-items-center">
+      <div>
+        <h5 class="fw-bold mb-0 d-flex align-items-center gap-2">
+          <i class="fa-solid fa-clock text-primary"></i> Semesters & Academic Sessions
+        </h5>
+        <small class="text-muted">Defined study periods under Academic Year {{ academic_year.name }}. Only one semester can be Current at a time.</small>
+      </div>
+      <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#modalAddSemester">
+        <i class="fa-solid fa-plus me-1"></i> New Semester
+      </button>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="bg-light text-muted small text-uppercase">
+          <tr>
+            <th class="ps-4">Semester / Term</th>
+            <th>Type</th>
+            <th class="text-center">Sem No.</th>
+            <th>Semester Dates</th>
+            <th>Unit Registration Window</th>
+            <th>Examination Window</th>
+            <th class="text-center">Status</th>
+            <th class="text-center">Current</th>
+            <th class="text-end pe-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sem in semesters %}
+          <tr class="{% if sem.is_current %}table-primary bg-opacity-25{% endif %}">
+            <td class="ps-4">
+              <div class="fw-bold text-dark">{{ sem.name }}</div>
+              <div class="text-muted small font-monospace">
+                {{ sem.registrations_count }} Student Registrations &bull; {{ sem.exams_count }} Exams
+              </div>
+            </td>
+
+            <td><span class="badge bg-light text-dark border">{{ sem.get_term_type_display }}</span></td>
+            <td class="text-center fw-semibold">{{ sem.semester_number }}</td>
+
+            <td class="small">
+              <div>{{ sem.start_date|date:"d M Y" }} &ndash;</div>
+              <div>{{ sem.end_date|date:"d M Y" }}</div>
+            </td>
+
+            <td class="small">
+              {% if sem.registration_start_date and sem.registration_end_date %}
+                <div>{{ sem.registration_start_date|date:"d M Y" }} &ndash;</div>
+                <div>{{ sem.registration_end_date|date:"d M Y" }}</div>
+                {% if sem.is_registration_open %}
+                  <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-2" style="font-size: 0.68rem;">Open Now</span>
+                {% else %}
+                  <span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill px-2" style="font-size: 0.68rem;">Closed</span>
+                {% endif %}
+              {% else %}
+                <span class="text-muted fst-italic">Full Semester</span>
+              {% endif %}
+            </td>
+
+            <td class="small">
+              {% if sem.exam_start_date and sem.exam_end_date %}
+                <div>{{ sem.exam_start_date|date:"d M Y" }} &ndash;</div>
+                <div>{{ sem.exam_end_date|date:"d M Y" }}</div>
+                {% if sem.is_exam_period %}
+                  <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-2" style="font-size: 0.68rem;">In Progress</span>
+                {% endif %}
+              {% else %}
+                <span class="text-muted fst-italic">Not Scheduled</span>
+              {% endif %}
+            </td>
+
+            <td class="text-center">
+              {% if sem.status == 'CURRENT' %}
+                <span class="badge bg-success rounded-pill px-2 py-1">Current</span>
+              {% elif sem.status == 'PUBLISHED' %}
+                <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-2 py-1">Published</span>
+              {% elif sem.status == 'DRAFT' %}
+                <span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill px-2 py-1">Draft</span>
+              {% elif sem.status == 'CLOSED' %}
+                <span class="badge bg-dark rounded-pill px-2 py-1">Closed</span>
+              {% endif %}
+            </td>
+
+            <td class="text-center">
+              {% if sem.is_current %}
+                <span class="badge bg-success rounded-circle p-1" title="Active operational semester"><i class="fa-solid fa-check"></i></span>
+              {% else %}
+                <span class="text-muted small">&mdash;</span>
+              {% endif %}
+            </td>
+
+            <td class="text-end pe-4">
+              <div class="dropdown">
+                <button class="btn btn-sm btn-light rounded-circle shadow-none" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  <i class="fa-solid fa-ellipsis-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 rounded-3">
+                  <li>
+                    <a class="dropdown-item" href="{% url 'university:semester_edit' sem.pk %}">
+                      <i class="fa-solid fa-pen-to-square me-2 text-primary"></i> Edit Semester Dates
+                    </a>
+                  </li>
+
+                  {% if not sem.is_current and academic_year.status in 'CURRENT,PUBLISHED' %}
+                  <li>
+                    <form method="post" action="{% url 'university:semester_action' sem.pk 'set_current' %}">
+                      {% csrf_token %}
+                      <button type="submit" class="dropdown-item text-success">
+                        <i class="fa-solid fa-circle-check me-2"></i> Set as Current Semester
+                      </button>
+                    </form>
+                  </li>
+                  {% endif %}
+
+                  {% if sem.status == 'DRAFT' and academic_year.status in 'CURRENT,PUBLISHED' %}
+                  <li>
+                    <form method="post" action="{% url 'university:semester_action' sem.pk 'publish' %}">
+                      {% csrf_token %}
+                      <button type="submit" class="dropdown-item text-primary">
+                        <i class="fa-solid fa-upload me-2"></i> Publish Semester
+                      </button>
+                    </form>
+                  </li>
+                  {% elif sem.status == 'PUBLISHED' and not sem.is_current %}
+                  <li>
+                    <form method="post" action="{% url 'university:semester_action' sem.pk 'unpublish' %}">
+                      {% csrf_token %}
+                      <button type="submit" class="dropdown-item text-warning">
+                        <i class="fa-solid fa-rotate-left me-2"></i> Unpublish to Draft
+                      </button>
+                    </form>
+                  </li>
+                  {% endif %}
+
+                  {% if sem.status in 'CURRENT,PUBLISHED' %}
+                  <li>
+                    <form method="post" action="{% url 'university:semester_action' sem.pk 'close' %}" onsubmit="return confirm('Close semester {{ sem.name }}?');">
+                      {% csrf_token %}
+                      <button type="submit" class="dropdown-item text-secondary">
+                        <i class="fa-solid fa-lock me-2"></i> Close Semester
+                      </button>
+                    </form>
+                  </li>
+                  {% elif sem.status == 'CLOSED' %}
+                  <li>
+                    <form method="post" action="{% url 'university:semester_action' sem.pk 'reopen' %}">
+                      {% csrf_token %}
+                      <button type="submit" class="dropdown-item text-success">
+                        <i class="fa-solid fa-lock-open me-2"></i> Reopen Semester
+                      </button>
+                    </form>
+                  </li>
+                  {% endif %}
+
+                  {% if not sem.is_current %}
+                  <li><hr class="dropdown-divider"></li>
+                  <li>
+                    <a class="dropdown-item text-danger" href="{% url 'university:semester_delete' sem.pk %}">
+                      <i class="fa-solid fa-trash-can me-2"></i> Move to Recycle Bin
+                    </a>
+                  </li>
+                  {% endif %}
+                </ul>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="9" class="text-center py-5">
+              <div class="text-muted">
+                <i class="fa-solid fa-clock-rotate-left fs-2 mb-2 d-block text-secondary"></i>
+                No semesters registered under this Academic Year yet.
+                <div class="mt-2">
+                  <button type="button" class="btn btn-sm btn-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#modalAddSemester">
+                    Add Semester 1
+                  </button>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Student Registration Numbering Configuration Card -->
+  <div class="card border-0 shadow-sm rounded-4 bg-white mb-4">
+    <div class="card-header bg-white border-0 py-3 px-4">
+      <h5 class="fw-bold mb-0 d-flex align-items-center gap-2">
+        <i class="fa-solid fa-id-card-clip text-primary"></i> Student Registration Numbering Engine
+      </h5>
+      <small class="text-muted">Academic Year and institutional configuration strictly control student registration/roll numbers across admissions and student profiles.</small>
+    </div>
+    <div class="card-body px-4 pb-4">
+      <form method="post" action="{% url 'university:admin_save_numbering_config' %}">
+        {% csrf_token %}
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Format Template Pattern <span class="text-danger">*</span></label>
+            <input type="text" id="idPatternInput" name="pattern" value="{{ numbering_config.pattern }}" class="form-control font-monospace rounded-3" required>
+            <div class="form-text small">Available tokens: <code>{PROG}</code>, <code>{SEQ:03d}</code>, <code>{SEQ:04d}</code>, <code>{YEAR_END}</code>, <code>{YEAR}</code>, <code>{DEPT}</code>, <code>{INST}</code>. Standard institutional format: <code>{PROG}/{SEQ:03d}/{YEAR_END}</code> (e.g. <strong>ST01/001/2026</strong>).</div>
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold">Institution Prefix</label>
+            <input type="text" name="prefix" value="{{ numbering_config.prefix }}" class="form-control font-monospace rounded-3">
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold">Sequence Digits (Padding)</label>
+            <input type="number" min="3" max="8" name="padding" value="{{ numbering_config.padding }}" class="form-control rounded-3">
+          </div>
+
+          <!-- Live Sample Preview -->
+          <div class="col-12">
+            <div class="p-3 bg-light rounded-4 border d-flex flex-column flex-md-row justify-content-between align-items-center gap-3">
+              <div>
+                <span class="text-muted small fw-semibold d-block">Live Generated Sample for {{ academic_year.name }}:</span>
+                <span id="previewDisplay" class="h4 fw-bold font-monospace text-primary mb-0">{{ sample_number }}</span>
+              </div>
+              <div class="d-flex gap-2">
+                <button type="button" id="btnTestPattern" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                  <i class="fa-solid fa-arrows-rotate me-1"></i> Refresh Preview
+                </button>
+                <button type="submit" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm">
+                  <i class="fa-solid fa-floppy-disk me-1"></i> Save Pattern
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<!-- Modal Add Semester -->
+<div class="modal fade" id="modalAddSemester" tabindex="-1" aria-labelledby="modalAddSemesterLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <form method="post" action="{% url 'university:semester_create' academic_year.pk %}">
+        {% csrf_token %}
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold" id="modalAddSemesterLabel">
+            <i class="fa-solid fa-clock text-primary me-2"></i> Add Semester to {{ academic_year.name }}
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-4">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Semester Name <span class="text-danger">*</span></label>
+              <input type="text" name="name" class="form-control rounded-3" placeholder="e.g. Semester 1 (Fall 2026)" required>
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold">Type</label>
+              <select name="term_type" class="form-select rounded-3">
+                <option value="SEMESTER" selected>Semester</option>
+                <option value="TRIMESTER">Trimester</option>
+                <option value="TERM">Term</option>
+                <option value="SUMMER">Summer / Special</option>
+              </select>
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold">Semester Number</label>
+              <input type="number" min="1" max="6" name="semester_number" value="1" class="form-control rounded-3" required>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Semester Start Date <span class="text-danger">*</span></label>
+              <input type="date" name="start_date" value="{{ academic_year.start_date|date:'Y-m-d' }}" class="form-control rounded-3" required>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Semester End Date <span class="text-danger">*</span></label>
+              <input type="date" name="end_date" value="{{ academic_year.end_date|date:'Y-m-d' }}" class="form-control rounded-3" required>
+            </div>
+
+            <!-- Registration Window -->
+            <div class="col-12 mt-3">
+              <div class="fw-semibold small text-primary mb-1"><i class="fa-solid fa-clipboard-check me-1"></i> Student Unit Registration Window</div>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold text-muted">Registration Opens</label>
+              <input type="date" name="registration_start_date" value="{{ academic_year.start_date|date:'Y-m-d' }}" class="form-control rounded-3">
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold text-muted">Registration Cut-off</label>
+              <input type="date" name="registration_end_date" class="form-control rounded-3">
+            </div>
+
+            <!-- Examination Window -->
+            <div class="col-12 mt-3">
+              <div class="fw-semibold small text-danger mb-1"><i class="fa-solid fa-file-pen me-1"></i> Examination Period Window</div>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold text-muted">Exams Begin</label>
+              <input type="date" name="exam_start_date" class="form-control rounded-3">
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold text-muted">Exams Conclude</label>
+              <input type="date" name="exam_end_date" class="form-control rounded-3">
+            </div>
+
+            <div class="col-md-6 mt-3">
+              <label class="form-label small fw-semibold">Status</label>
+              <select name="status" class="form-select rounded-3">
+                <option value="DRAFT">Draft</option>
+                <option value="PUBLISHED" selected>Published</option>
+                <option value="CURRENT">Current (Active)</option>
+              </select>
+            </div>
+
+            <div class="col-md-6 mt-3 d-flex align-items-end">
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" name="is_current" id="modalSemIsCurrent">
+                <label class="form-check-label small fw-semibold" for="modalSemIsCurrent">Set as CURRENT Active Semester</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary rounded-pill px-4 shadow-sm">Save Semester</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const patternInput = document.getElementById("idPatternInput");
+  const previewDisplay = document.getElementById("previewDisplay");
+  const testBtn = document.getElementById("btnTestPattern");
+
+  function updatePreview() {
+    const pat = patternInput.value;
+    fetch("{% url 'university:api_numbering_preview' %}?pattern=" + encodeURIComponent(pat) + "&academic_year_id={{ academic_year.id }}")
+      .then(res => res.json())
+      .then(data => {
+        if (data.preview) {
+          previewDisplay.textContent = data.preview;
+          previewDisplay.classList.remove("text-danger");
+          previewDisplay.classList.add("text-primary");
+        } else if (data.error) {
+          previewDisplay.textContent = "Error: " + data.error;
+          previewDisplay.classList.remove("text-primary");
+          previewDisplay.classList.add("text-danger");
+        }
+      })
+      .catch(err => console.error("Failed to preview pattern", err));
+  }
+
+  if (patternInput) {
+    patternInput.addEventListener("input", debounce(updatePreview, 400));
+  }
+  if (testBtn) {
+    testBtn.addEventListener("click", updatePreview);
+  }
+
+  function debounce(func, wait) {
+    let timeout;
+    return function (...args) {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+  }
+});
+</script>
+{% endblock %}

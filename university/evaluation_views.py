@@ -1,3 +1,4 @@
+from university.document_views import present_pdf
 """
 Evaluation Views — Course & Lecturer QA Survey
 ==============================================
@@ -286,6 +287,6 @@ def admin_evaluation_export(request, fmt):
         buf = generate_evaluation_pdf(term=term)
         resp = HttpResponse(buf.read(), content_type="application/pdf")
         resp["Content-Disposition"] = f'attachment; filename="evaluation_report_{term_label}.pdf"'
-        return resp
+        return present_pdf(request, resp)
 
     raise Http404(f"Unknown export format: {fmt}")

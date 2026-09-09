@@ -1,0 +1,400 @@
+{% extends "base_dashboard.html" %}
+{% load static %}
+
+{% block title %}Academic Calendar & Years · Management · UMS{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-4 py-3">
+
+  <!-- Top Header Breadcrumb & Actions -->
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1">
+          <li class="breadcrumb-item"><a href="{% url 'university:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'university:admin_academic_years' %}" class="text-decoration-none">Management</a></li>
+          <li class="breadcrumb-item active" aria-current="page">Academic Calendar</li>
+        </ol>
+      </nav>
+      <h2 class="h3 fw-bold mb-1 d-flex align-items-center gap-2">
+        <i class="fa-solid fa-calendar-days text-primary"></i> Academic Year & Calendar Setup
+      </h2>
+      <p class="text-muted small mb-0">Central institutional source of truth governing student registrations, examinations, admissions, and numbering.</p>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2">
+      <button type="button" class="btn btn-primary rounded-pill px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalAddAcademicYear">
+        <i class="fa-solid fa-plus me-1"></i> Add Academic Year
+      </button>
+      <a href="{% url 'university:admin_setups_dashboard' %}?tab=academic" class="btn btn-outline-secondary rounded-pill px-3 shadow-sm">
+        <i class="fa-solid fa-sliders me-1"></i> Calendar Settings
+      </a>
+    </div>
+  </div>
+
+  <!-- KPI Analytics Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3 d-flex align-items-center gap-3">
+          <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-3 d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
+            <i class="fa-solid fa-calendar-check fs-4"></i>
+          </div>
+          <div>
+            <div class="text-muted small fw-semibold">Current Academic Year</div>
+            <div class="h5 fw-bold mb-0 text-dark">
+              {% if current_year %}{{ current_year.name }}{% else %}<span class="text-muted fst-italic">None Set</span>{% endif %}
+            </div>
+            <span class="badge bg-success bg-opacity-10 text-success rounded-pill mt-1" style="font-size: 0.7rem;">Active Master</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3 d-flex align-items-center gap-3">
+          <div class="rounded-3 bg-info bg-opacity-10 text-info p-3 d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
+            <i class="fa-solid fa-clock-rotate-left fs-4"></i>
+          </div>
+          <div>
+            <div class="text-muted small fw-semibold">Current Active Semester</div>
+            <div class="h5 fw-bold mb-0 text-dark">
+              {% if current_semester %}{{ current_semester.name }}{% else %}<span class="text-muted fst-italic">None Set</span>{% endif %}
+            </div>
+            <span class="badge bg-info bg-opacity-10 text-info rounded-pill mt-1" style="font-size: 0.7rem;">Operational</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3 d-flex align-items-center gap-3">
+          <div class="rounded-3 {% if active_context.is_registration_open %}bg-success bg-opacity-10 text-success{% else %}bg-warning bg-opacity-10 text-warning{% endif %} p-3 d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
+            <i class="fa-solid fa-clipboard-check fs-4"></i>
+          </div>
+          <div>
+            <div class="text-muted small fw-semibold">Unit Registration Window</div>
+            <div class="h6 fw-bold mb-0">
+              {% if active_context.is_registration_open %}
+                <span class="text-success">OPEN</span>
+              {% else %}
+                <span class="text-secondary">CLOSED</span>
+              {% endif %}
+            </div>
+            <small class="text-muted" style="font-size: 0.72rem;">
+              {% if active_context.registration_end_date %}Closes {{ active_context.registration_end_date|date:"d M Y" }}{% else %}No active window{% endif %}
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3 d-flex align-items-center gap-3">
+          <div class="rounded-3 bg-secondary bg-opacity-10 text-secondary p-3 d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
+            <i class="fa-solid fa-layer-group fs-4"></i>
+          </div>
+          <div>
+            <div class="text-muted small fw-semibold">Total Academic Years</div>
+            <div class="h5 fw-bold mb-0 text-dark">{{ total_count }}</div>
+            <small class="text-muted" style="font-size: 0.72rem;">{{ published_count }} published / current</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Search & Filter Controls -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
+    <div class="card-body p-3">
+      <form method="get" class="row g-2 align-items-center">
+        <div class="col-12 col-md-5">
+          <div class="input-group">
+            <span class="input-group-text bg-light border-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+            <input type="text" name="q" value="{{ q }}" class="form-control bg-light border-0" placeholder="Search by name, code, reference...">
+          </div>
+        </div>
+
+        <div class="col-6 col-md-3">
+          <select name="status" class="form-select bg-light border-0" onchange="this.form.submit()">
+            <option value="">All Statuses</option>
+            {% for code, label in statuses %}
+              <option value="{{ code }}" {% if status_filter == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-6 col-md-2">
+          <button type="submit" class="btn btn-outline-primary w-100 rounded-pill">Filter</button>
+        </div>
+
+        {% if q or status_filter %}
+        <div class="col-12 col-md-2">
+          <a href="{% url 'university:admin_academic_years' %}" class="btn btn-link text-muted p-0 text-decoration-none small">
+            <i class="fa-solid fa-xmark me-1"></i> Clear Filters
+          </a>
+        </div>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+
+  <!-- Academic Years Table -->
+  <div class="card border-0 shadow-sm rounded-4 bg-white overflow-hidden">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="bg-light text-muted small text-uppercase">
+          <tr>
+            <th class="ps-4">Academic Year</th>
+            <th>Code</th>
+            <th>Start Date</th>
+            <th>End Date</th>
+            <th class="text-center">Status</th>
+            <th class="text-center">Current</th>
+            <th class="text-center">Semesters</th>
+            <th>Description</th>
+            <th class="text-end pe-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ay in academic_years %}
+          <tr class="{% if ay.is_current %}table-primary bg-opacity-25{% endif %}">
+            <td class="ps-4">
+              <a href="{% url 'university:academic_year_detail' ay.pk %}" class="fw-bold text-decoration-none text-dark d-flex align-items-center gap-2">
+                <i class="fa-regular fa-calendar text-primary"></i> {{ ay.name }}
+              </a>
+              {% if ay.reference_no %}
+                <div class="text-muted font-monospace" style="font-size: 0.72rem;">Ref: {{ ay.reference_no }}</div>
+              {% endif %}
+            </td>
+
+            <td><span class="badge bg-light text-dark font-monospace border">{{ ay.code }}</span></td>
+
+            <td class="small">{{ ay.start_date|date:"d M Y" }}</td>
+            <td class="small">{{ ay.end_date|date:"d M Y" }}</td>
+
+            <td class="text-center">
+              {% if ay.status == 'CURRENT' %}
+                <span class="badge bg-success rounded-pill px-2 py-1"><i class="fa-solid fa-circle-check me-1"></i>Current</span>
+              {% elif ay.status == 'PUBLISHED' %}
+                <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-2 py-1">Published</span>
+              {% elif ay.status == 'DRAFT' %}
+                <span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill px-2 py-1">Draft</span>
+              {% elif ay.status == 'CLOSED' %}
+                <span class="badge bg-dark rounded-pill px-2 py-1">Closed</span>
+              {% elif ay.status == 'ARCHIVED' %}
+                <span class="badge bg-light text-muted border rounded-pill px-2 py-1">Archived</span>
+              {% endif %}
+            </td>
+
+            <td class="text-center">
+              {% if ay.is_current %}
+                <span class="badge bg-success rounded-circle p-1" title="Currently active institutional year"><i class="fa-solid fa-check"></i></span>
+              {% else %}
+                <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+
+            <td class="text-center">
+              <a href="{% url 'university:academic_year_detail' ay.pk %}" class="btn btn-sm btn-light border rounded-pill px-2">
+                <i class="fa-solid fa-clock me-1 text-primary"></i> {{ ay.total_semesters }} Semesters
+              </a>
+            </td>
+
+            <td class="small text-muted text-truncate" style="max-width: 220px;">
+              {{ ay.description|default:"—" }}
+            </td>
+
+            <td class="text-end pe-4">
+              <div class="dropdown">
+                <button class="btn btn-sm btn-light rounded-circle shadow-none" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  <i class="fa-solid fa-ellipsis-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 rounded-3">
+                  <li>
+                    <a class="dropdown-item" href="{% url 'university:academic_year_detail' ay.pk %}">
+                      <i class="fa-solid fa-eye me-2 text-info"></i> View & Manage Semesters
+                    </a>
+                  </li>
+                  <li>
+                    <a class="dropdown-item" href="{% url 'university:academic_year_edit' ay.pk %}">
+                      <i class="fa-solid fa-pen-to-square me-2 text-primary"></i> Edit Academic Year
+                    </a>
+                  </li>
+
+                  <li><hr class="dropdown-divider"></li>
+
+                  {% if not ay.is_current %}
+                  <li>
+                    <form method="post" action="{% url 'university:academic_year_action' ay.pk 'set_current' %}" onsubmit="return confirm('Make {{ ay.name }} the authoritative CURRENT academic year across the university?');">
+                      {% csrf_token %}
+                      <button type="submit" class="dropdown-item text-success">
+                        <i class="fa-solid fa-circle-check me-2"></i> Set as Current Year
+                      </button>
+                    </form>
+                  </li>
+                  {% endif %}
+
+                  {% if ay.status == 'DRAFT' %}
+                  <li>
+                    <form method="post" action="{% url 'university:academic_year_action' ay.pk 'publish' %}">
+                      {% csrf_token %}
+                      <button type="submit" class="dropdown-item text-primary">
+                        <i class="fa-solid fa-upload me-2"></i> Publish Academic Year
+                      </button>
+                    </form>
+                  </li>
+                  {% elif ay.status == 'PUBLISHED' and not ay.is_current %}
+                  <li>
+                    <form method="post" action="{% url 'university:academic_year_action' ay.pk 'unpublish' %}">
+                      {% csrf_token %}
+                      <button type="submit" class="dropdown-item text-warning">
+                        <i class="fa-solid fa-rotate-left me-2"></i> Unpublish to Draft
+                      </button>
+                    </form>
+                  </li>
+                  {% endif %}
+
+                  {% if ay.status in 'CURRENT,PUBLISHED' %}
+                  <li>
+                    <form method="post" action="{% url 'university:academic_year_action' ay.pk 'close' %}" onsubmit="return confirm('Close Academic Year {{ ay.name }}? Normal registrations and exams will be concluded.');">
+                      {% csrf_token %}
+                      <button type="submit" class="dropdown-item text-secondary">
+                        <i class="fa-solid fa-lock me-2"></i> Close Academic Year
+                      </button>
+                    </form>
+                  </li>
+                  {% elif ay.status == 'CLOSED' %}
+                  <li>
+                    <form method="post" action="{% url 'university:academic_year_action' ay.pk 'reopen' %}">
+                      {% csrf_token %}
+                      <button type="submit" class="dropdown-item text-success">
+                        <i class="fa-solid fa-lock-open me-2"></i> Reopen Academic Year
+                      </button>
+                    </form>
+                  </li>
+                  {% endif %}
+
+                  {% if not ay.is_current %}
+                  <li><hr class="dropdown-divider"></li>
+                  <li>
+                    <a class="dropdown-item text-danger" href="{% url 'university:academic_year_delete' ay.pk %}">
+                      <i class="fa-solid fa-trash-can me-2"></i> Move to Recycle Bin
+                    </a>
+                  </li>
+                  {% endif %}
+                </ul>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="9" class="text-center py-5">
+              <div class="text-muted">
+                <i class="fa-solid fa-calendar-xmark fs-2 mb-2 d-block text-secondary"></i>
+                No academic years found matching your search.
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="card-footer bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+      <small class="text-muted">Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }} records</small>
+      <nav>
+        <ul class="pagination pagination-sm mb-0">
+          {% if page_obj.has_previous %}
+          <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">Previous</a></li>
+          {% endif %}
+          <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+          {% if page_obj.has_next %}
+          <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">Next</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- Modal Quick Add Academic Year -->
+<div class="modal fade" id="modalAddAcademicYear" tabindex="-1" aria-labelledby="modalAddAcademicYearLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <form method="post" action="{% url 'university:academic_year_create' %}">
+        {% csrf_token %}
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold" id="modalAddAcademicYearLabel">
+            <i class="fa-solid fa-calendar-plus text-primary me-2"></i> Register New Academic Year
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-4">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Academic Year Name <span class="text-danger">*</span></label>
+              <input type="text" name="name" class="form-control rounded-3" placeholder="e.g. 2027/2028" required>
+              <small class="text-muted">Standard institutional format (e.g. 2026/2027 or 2026–2027).</small>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Code / Identifier</label>
+              <input type="text" name="code" class="form-control rounded-3" placeholder="e.g. AY-2027-2028">
+              <small class="text-muted">Leave blank to auto-generate from name.</small>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Start Date <span class="text-danger">*</span></label>
+              <input type="date" name="start_date" class="form-control rounded-3" required>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">End Date <span class="text-danger">*</span></label>
+              <input type="date" name="end_date" class="form-control rounded-3" required>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Lifecycle Status</label>
+              <select name="status" class="form-select rounded-3">
+                <option value="DRAFT">Draft</option>
+                <option value="PUBLISHED" selected>Published</option>
+                <option value="CURRENT">Current (Active Master)</option>
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Senate / Gazette Reference</label>
+              <input type="text" name="reference_no" class="form-control rounded-3" placeholder="e.g. GAZ/AY/2027/01">
+            </div>
+
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Description / Notes</label>
+              <textarea name="description" class="form-control rounded-3" rows="2" placeholder="Institutional guidelines or calendar description..."></textarea>
+            </div>
+
+            <div class="col-12">
+              <div class="form-check form-switch mt-1">
+                <input class="form-check-input" type="checkbox" name="is_current" id="modalIsCurrent">
+                <label class="form-check-label fw-semibold small" for="modalIsCurrent">Set immediately as the single CURRENT academic year</label>
+              </div>
+              <small class="text-muted">Setting this as Current will atomically switch other years to non-current.</small>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary rounded-pill px-4 shadow-sm">Save & Configure Semesters</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

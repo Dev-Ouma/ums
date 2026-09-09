@@ -1,3 +1,5 @@
+from university.document_views import present_pdf
+from university.reporting_services import generate_report_pdf, generate_report_excel
 import csv
 import io
 from collections import Counter
@@ -13,7 +15,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from accounts.models import StudentProfile
-from .models import AcademicTerm, Course, Exam, ExamAppeal, ExamRoom, Result
+from .models import AcademicTerm, Course, Exam, ExamAppeal, ExamRoom, Result, DocumentReleaseControl
+from .document_access_services import check_document_access
 from .examination_forms import ExaminationForm, RoomForm, TermForm
 from . import examination_services as workflow
 
@@ -311,9 +314,38 @@ def statement(request, student_id=None):
             else:
                 raise PermissionDenied
     term = request.GET.get('term', '')
+    term_obj = AcademicTerm.objects.filter(pk=term).first() if term.isdigit() else None
+
+    # Access control & release window check
+    allowed, reason, control, is_bypass = check_document_access(
+        student, DocumentReleaseControl.DocumentType.RESULTS_STATEMENT, term=term_obj, user=request.user
+    )
+    if not allowed:
+        return render(request, 'documents/locked.html', {
+            'student': student,
+            'title': 'Result Statement Unavailable',
+            'reason': reason,
+            'control': control,
+        }, status=403)
+
     res = workflow.student_statement(student, term if term.isdigit() else None)
     results, groups = res[0], res[1]
     gpa = getattr(res, 'gpa', 0.0)
+    if request.GET.get('format') in ('pdf', 'excel'):
+        data = {'title': 'Student Result Statement', 'key': 'Results',
+            'generated_at': timezone.now(), 'generated_by': request.user.display_name,
+            'meta': {'orientation': 'landscape'},
+            'columns': ['Course', 'Term', 'Assessment', 'Marks', 'Maximum', 'Weight (%)', 'Grade', 'Grade Point', 'Outcome', 'Approval State'],
+            'rows': [[r.exam.course.code, str(r.exam.term or ''), r.exam.name, r.marks_obtained, r.exam.max_marks, r.exam.weight, r.grade, r.grade_point, r.outcome, r.exam.get_status_display()] for r in results],
+            'applied_filters': [f'Term: {term}'] if term else []}
+        data['title'] += f' · {student.user.display_name} · {student.roll_no}'
+        if request.GET.get('format') == 'pdf':
+            response = HttpResponse(generate_report_pdf(data), content_type='application/pdf')
+            response['Content-Disposition'] = 'attachment; filename="results.pdf"'
+            return present_pdf(request, response, data['title'])
+        response = HttpResponse(generate_report_excel(data), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = 'attachment; filename="results.xlsx"'
+        return response
     if request.GET.get('format') == 'csv':
         return csv_response('student-results.csv', ['Course', 'Term', 'Assessment', 'Marks', 'Maximum', 'Weight (%)', 'Grade', 'Grade Point', 'Outcome'], ([r.exam.course.code, str(r.exam.term or ''), r.exam.name, r.marks_obtained, r.exam.max_marks, r.exam.weight, r.grade, r.grade_point, r.outcome] for r in results))
     return render(request, 'examinations/statement.html', {'student': student, 'results': results, 'groups': groups, 'gpa': gpa, 'terms': AcademicTerm.objects.all(), 'selected_term': term, 'own': student.user_id == request.user.pk})
@@ -383,6 +415,20 @@ def report(request):
     qs = Result.objects.filter(exam__status=Exam.Status.PUBLISHED).select_related('student__user', 'exam__course', 'exam__term')
     if term.isdigit():
         qs = qs.filter(exam__term_id=term)
+    if request.GET.get('format') in ('pdf', 'excel'):
+        data = {'title': 'Published Examination Results', 'key': 'Results',
+            'generated_at': timezone.now(), 'generated_by': request.user.display_name,
+            'meta': {'orientation': 'landscape'},
+            'columns': ['Registration Number', 'Student', 'Course', 'Term', 'Assessment', 'Marks', 'Maximum', 'Weight (%)', 'Grade', 'Outcome', 'Approval State'],
+            'rows': [[r.student.roll_no, r.student.user.display_name, r.exam.course.code, str(r.exam.term or ''), r.exam.name, r.marks_obtained, r.exam.max_marks, r.exam.weight, r.grade, r.outcome, r.exam.get_status_display()] for r in qs],
+            'applied_filters': [f'Term: {term}'] if term else []}
+        if request.GET.get('format') == 'pdf':
+            response = HttpResponse(generate_report_pdf(data), content_type='application/pdf')
+            response['Content-Disposition'] = 'attachment; filename="results.pdf"'
+            return present_pdf(request, response, data['title'])
+        response = HttpResponse(generate_report_excel(data), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = 'attachment; filename="results.xlsx"'
+        return response
     if request.GET.get('format') == 'csv':
         return csv_response('published-examination-results.csv', ['Roll number', 'Student', 'Course', 'Term', 'Assessment', 'Marks', 'Maximum', 'Weight (%)', 'Grade', 'Outcome'], ([r.student.roll_no, r.student.user.display_name, r.exam.course.code, str(r.exam.term or ''), r.exam.name, r.marks_obtained, r.exam.max_marks, r.exam.weight, r.grade, r.outcome] for r in qs))
     rows = list(qs)

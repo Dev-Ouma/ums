@@ -38,7 +38,7 @@
       <!-- Application Form -->
       <div class="card border-0 shadow-sm rounded-4">
         <div class="card-body p-4 p-md-5">
-          <form method="post" action="{% url 'university:admissions_apply' %}">
+          <form method="post" action="{% url 'university:admissions_apply' %}" enctype="multipart/form-data">
             {% csrf_token %}
 
             <!-- SECTION 1: Programme Selection -->
@@ -149,7 +149,90 @@
               </div>
             </div>
 
-            <!-- SECTION 4: Declaration & Submission -->
+            {% if custom_fields %}
+            <!-- SECTION 4: Additional Information -->
+            <div class="mb-5">
+              <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
+                <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">4</div>
+                <h5 class="fw-bold mb-0 text-dark">Additional Institutional Information</h5>
+              </div>
+              <div class="row g-3">
+                {% for cf in custom_fields %}
+                  <div class="col-md-6">
+                    <label class="form-label fw-semibold">{{ cf.label }} {% if cf.is_required %}<span class="text-danger">*</span>{% endif %}</label>
+                    {% if cf.field_type == "SELECT" %}
+                      <select name="custom_{{ cf.name }}" class="form-select rounded-3" {% if cf.is_required %}required{% endif %}>
+                        <option value="" selected disabled>-- Select {{ cf.label }} --</option>
+                        {% for choice in cf.get_choices %}
+                          <option value="{{ choice }}">{{ choice }}</option>
+                        {% endfor %}
+                      </select>
+                    {% elif cf.field_type == "TEXTAREA" %}
+                      <textarea name="custom_{{ cf.name }}" class="form-control rounded-3" rows="2" placeholder="{{ cf.help_text }}" {% if cf.is_required %}required{% endif %}></textarea>
+                    {% elif cf.field_type == "NUMBER" %}
+                      <input type="number" name="custom_{{ cf.name }}" class="form-control rounded-3" placeholder="{{ cf.help_text }}" {% if cf.is_required %}required{% endif %}>
+                    {% else %}
+                      <input type="text" name="custom_{{ cf.name }}" class="form-control rounded-3" placeholder="{{ cf.help_text }}" {% if cf.is_required %}required{% endif %}>
+                    {% endif %}
+                    {% if cf.help_text %}<div class="form-text text-muted">{{ cf.help_text }}</div>{% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+
+            <!-- SECTION {% if custom_fields %}5{% else %}4{% endif %}: Document Attachments -->
+            <div class="mb-5">
+              <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
+                <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">{% if custom_fields %}5{% else %}4{% endif %}</div>
+                <h5 class="fw-bold mb-0 text-dark">Required Document Attachments</h5>
+              </div>
+              <p class="text-muted small mb-4">Please attach digital copies of your original credentials. Formats accepted: PDF, JPG, PNG (Max 5MB per file).</p>
+              
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <div class="p-3 border rounded-3 bg-light">
+                    <label class="form-label fw-semibold mb-1">
+                      <i class="fa-solid fa-file-lines text-primary me-1"></i> KCSE Result Slip / Certificate <span class="text-danger">*</span>
+                    </label>
+                    <input type="file" name="kcse_document" class="form-control rounded-3" accept=".pdf,.jpg,.jpeg,.png" required>
+                    <div class="form-text">Official slip or KNEC certificate</div>
+                  </div>
+                </div>
+
+                <div class="col-md-6">
+                  <div class="p-3 border rounded-3 bg-light">
+                    <label class="form-label fw-semibold mb-1">
+                      <i class="fa-solid fa-id-card text-primary me-1"></i> National ID / Birth Certificate / Passport <span class="text-danger">*</span>
+                    </label>
+                    <input type="file" name="id_document" class="form-control rounded-3" accept=".pdf,.jpg,.jpeg,.png" required>
+                    <div class="form-text">Both sides of ID or clear certificate page</div>
+                  </div>
+                </div>
+
+                <div class="col-md-6">
+                  <div class="p-3 border rounded-3 bg-light">
+                    <label class="form-label fw-semibold mb-1">
+                      <i class="fa-solid fa-image text-primary me-1"></i> Passport Size Photograph <span class="text-danger">*</span>
+                    </label>
+                    <input type="file" name="passport_photo" class="form-control rounded-3" accept=".jpg,.jpeg,.png" required>
+                    <div class="form-text">Recent colour photo with white background (Max 2MB)</div>
+                  </div>
+                </div>
+
+                <div class="col-md-6">
+                  <div class="p-3 border rounded-3 bg-light">
+                    <label class="form-label fw-semibold mb-1">
+                      <i class="fa-solid fa-file-circle-check text-muted me-1"></i> Other Supporting Document (Optional)
+                    </label>
+                    <input type="file" name="other_document" class="form-control rounded-3" accept=".pdf,.jpg,.jpeg,.png">
+                    <div class="form-text">Leaving cert, transcript, sponsorship letter</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SECTION {% if custom_fields %}6{% else %}5{% endif %}: Declaration & Submission -->
             <div class="p-4 rounded-4 bg-light mb-4 border">
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="declaration" required>

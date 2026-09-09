@@ -1,3 +1,4 @@
+from xml.sax.saxutils import escape
 import csv
 import io
 from datetime import datetime, date
@@ -11,6 +12,8 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from university.document_design import (ReportDocTemplate, document_styles, document_fonts,
+    PageNumberCanvas, letterhead, get_branding, finish_worksheet, sanitize_csv_value)
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape, portrait
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -42,6 +45,10 @@ from university.models import (
     RecycleBinItem,
     ClassSchedule,
     GradingScale,
+    Application,
+    ApplicationAttachment,
+    IssuedAdmissionDocument,
+    DocumentDeliveryLog,
 )
 from accounts.models import User, StudentProfile, FacultyProfile
 from university.audit_services import log_activity
@@ -101,9 +108,36 @@ REPORT_CATEGORIES = [
         "color": "#2d3436",
         "description": "User activity ledgers, audit trail forensic logs, and recycle bin deletion recovery logs."
     },
+    {
+        "id": "admissions",
+        "title": "Admissions & Documents",
+        "icon": "fa-folder-tree",
+        "color": "#1e3a8a",
+        "description": "Admission letter issuance, document delivery tracking, and application attachment verification."
+    },
 ]
 
 REPORT_REGISTRY = {
+    # --- Admissions & Document Reports ---
+    "admission_documents_status": {
+        "key": "admission_documents_status",
+        "category": "admissions",
+        "title": "Admission Documents & Letter Issuance Status",
+        "description": "Comprehensive audit of issued admission letters, pending letters, version controls, and transmission delivery logs.",
+        "icon": "fa-file-invoice",
+        "orientation": "landscape",
+        "filters": ["program", "status", "q"]
+    },
+    "application_attachments_audit": {
+        "key": "application_attachments_audit",
+        "category": "admissions",
+        "title": "Application Attachments & Verification Audit",
+        "description": "Inspection register of applicant-submitted credentials (KCSE slips, National IDs, photos) and verification states.",
+        "icon": "fa-paperclip",
+        "orientation": "landscape",
+        "filters": ["program", "status", "q"]
+    },
+
     # --- Student Reports ---
     "student_register": {
         "key": "student_register",
@@ -304,6 +338,8 @@ def build_report_data(report_key, params, user=None):
         "timetable_by_venue": _query_timetable_by_venue,
         "user_activity_audit": _query_user_activity_audit,
         "recycle_bin_audit": _query_recycle_bin_audit,
+        "admission_documents_status": _query_admission_documents_status,
+        "application_attachments_audit": _query_application_attachments_audit,
     }
 
     handler = handler_map.get(report_key)
@@ -1166,42 +1202,147 @@ def _query_recycle_bin_audit(params, user):
     }
 
 
+def _query_admission_documents_status(params, user):
+    qs = Application.objects.select_related("program", "intake", "student").prefetch_related("issued_documents", "issued_documents__delivery_logs").all().order_by("-created_at")
+
+    applied_filters = []
+    if params.get("program"):
+        qs = qs.filter(program_id=params["program"])
+        prog = Program.objects.filter(pk=params["program"]).first()
+        if prog: applied_filters.append(f"Programme: {prog.code}")
+
+    if params.get("status"):
+        qs = qs.filter(status=params["status"])
+        applied_filters.append(f"Status: {params['status']}")
+
+    if params.get("q"):
+        q = params["q"].strip()
+        qs = qs.filter(Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(application_number__icontains=q) | Q(admitted_reg_no__icontains=q) | Q(email__icontains=q))
+        applied_filters.append(f"Search: '{q}'")
+
+    total_apps = qs.count()
+    total_issued = 0
+    total_pending = 0
+    total_resent = 0
+
+    columns = ["#", "App Ref", "Applicant Name", "Programme", "Intake", "Status", "Letter Status", "Letter Ref", "Version", "Reporting Date", "Deliveries"]
+    rows = []
+    for idx, app in enumerate(qs, start=1):
+        doc = app.issued_documents.filter(is_current_version=True).first()
+        if doc and doc.status != "REVOKED":
+            total_issued += 1
+            letter_status = "Issued"
+            letter_ref = doc.document_reference
+            ver_str = f"v{doc.version}"
+            rep_date = doc.reporting_date.strftime("%d %b %Y") if doc.reporting_date else "—"
+            del_count = doc.delivery_logs.count()
+            if del_count > 0:
+                total_resent += del_count
+            deliv_str = f"{del_count} sent" if del_count else "Not sent"
+        elif doc and doc.status == "REVOKED":
+            letter_status = "Revoked"
+            letter_ref = doc.document_reference
+            ver_str = f"v{doc.version}"
+            rep_date = "—"
+            deliv_str = "—"
+        else:
+            total_pending += 1
+            letter_status = "Pending"
+            letter_ref = "—"
+            ver_str = "—"
+            rep_date = app.reporting_date.strftime("%d %b %Y") if app.reporting_date else "—"
+            deliv_str = "—"
+
+        rows.append([
+            str(idx),
+            app.application_number,
+            app.full_name,
+            app.program.code if app.program else "—",
+            app.intake.name if app.intake else "Regular",
+            app.get_status_display(),
+            letter_status,
+            letter_ref,
+            ver_str,
+            rep_date,
+            deliv_str,
+        ])
+
+    kpis = [
+        {"label": "Total Applications", "val": total_apps, "icon": "fa-users-rectangle", "color": "#1e3a8a"},
+        {"label": "Letters Issued", "val": total_issued, "icon": "fa-file-circle-check", "color": "#00b894"},
+        {"label": "Letters Pending", "val": total_pending, "icon": "fa-clock", "color": "#f39c12"},
+        {"label": "Dispatches Logged", "val": total_resent, "icon": "fa-paper-plane", "color": "#6c5ce7"},
+    ]
+
+    return {
+        "title": "Admission Documents & Letter Issuance Status",
+        "applied_filters": applied_filters,
+        "kpis": kpis,
+        "columns": columns,
+        "rows": rows,
+    }
+
+
+def _query_application_attachments_audit(params, user):
+    qs = ApplicationAttachment.objects.select_related("application", "application__program", "verified_by").all().order_by("-uploaded_at")
+
+    applied_filters = []
+    if params.get("program"):
+        qs = qs.filter(application__program_id=params["program"])
+        prog = Program.objects.filter(pk=params["program"]).first()
+        if prog: applied_filters.append(f"Programme: {prog.code}")
+
+    if params.get("status"):
+        qs = qs.filter(verification_status=params["status"])
+        applied_filters.append(f"Verification: {params['status']}")
+
+    if params.get("q"):
+        q = params["q"].strip()
+        qs = qs.filter(Q(application__first_name__icontains=q) | Q(application__last_name__icontains=q) | Q(application__application_number__icontains=q) | Q(name__icontains=q))
+        applied_filters.append(f"Search: '{q}'")
+
+    total_files = qs.count()
+    verified_count = qs.filter(verification_status="VERIFIED").count()
+    rejected_count = qs.filter(verification_status="REJECTED").count()
+    pending_count = qs.filter(verification_status="PENDING").count()
+
+    columns = ["#", "App Ref", "Applicant Name", "Programme", "Document Title", "Category", "File Size", "Uploaded At", "Status", "Verified By"]
+    rows = []
+    for idx, att in enumerate(qs, start=1):
+        rows.append([
+            str(idx),
+            att.application.application_number,
+            att.application.full_name,
+            att.application.program.code if att.application.program else "—",
+            att.name,
+            att.get_document_type_display(),
+            f"{round(att.file_size / 1024, 1)} KB" if att.file_size else "—",
+            att.uploaded_at.strftime("%d %b %Y"),
+            att.get_verification_status_display(),
+            att.verified_by.display_name if (att.verified_by and hasattr(att.verified_by, "display_name")) else (att.verified_by.username if att.verified_by else "—"),
+        ])
+
+    kpis = [
+        {"label": "Uploaded Files", "val": total_files, "icon": "fa-paperclip", "color": "#1e3a8a"},
+        {"label": "Verified & Approved", "val": verified_count, "icon": "fa-circle-check", "color": "#00b894"},
+        {"label": "Pending Verification", "val": pending_count, "icon": "fa-clock", "color": "#f39c12"},
+        {"label": "Rejected Files", "val": rejected_count, "icon": "fa-circle-xmark", "color": "#e74c3c"},
+    ]
+
+    return {
+        "title": "Application Attachments & Verification Audit",
+        "applied_filters": applied_filters,
+        "kpis": kpis,
+        "columns": columns,
+        "rows": rows,
+    }
+
+
 # ==============================================================================
 # 3. EXPORT ENGINES: PDF, EXCEL, CSV
 # ==============================================================================
 
-class NumberedCanvas(canvas.Canvas):
-    """Two-pass canvas for dynamic 'Page X of Y' numbering in ReportLab."""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._saved_page_states = []
-
-    def showPage(self):
-        self._saved_page_states.append(dict(self.__dict__))
-        self._startPage()
-
-    def save(self):
-        num_pages = len(self._saved_page_states)
-        for state in self._saved_page_states:
-            self.__dict__.update(state)
-            self.draw_page_number(num_pages)
-            canvas.Canvas.showPage(self)
-        canvas.Canvas.save(self)
-
-    def draw_page_number(self, page_count):
-        self.saveState()
-        self.setFont("Helvetica", 8)
-        self.setFillColor(colors.HexColor("#718096"))
-
-        # Footer divider line
-        self.setStrokeColor(colors.HexColor("#E2E8F0"))
-        self.setLineWidth(0.5)
-        self.line(36, 32, self._pagesize[0] - 36, 32)
-
-        footer_text = f"Official University Report · Page {self._pageNumber} of {page_count}"
-        self.drawString(36, 20, "NORTHERN INTERNATIONAL UNIVERSITY · REGISTRAR'S ACADEMIC BOARD")
-        self.drawRightString(self._pagesize[0] - 36, 20, footer_text)
-        self.restoreState()
+NumberedCanvas = PageNumberCanvas
 
 
 def generate_report_pdf(report_data):
@@ -1213,7 +1354,7 @@ def generate_report_pdf(report_data):
     orientation = report_data.get("meta", {}).get("orientation", "portrait")
     pagesize = landscape(A4) if orientation == "landscape" else portrait(A4)
 
-    doc = SimpleDocTemplate(
+    doc = ReportDocTemplate(
         buffer,
         pagesize=pagesize,
         leftMargin=36,
@@ -1222,7 +1363,7 @@ def generate_report_pdf(report_data):
         bottomMargin=45
     )
 
-    styles = getSampleStyleSheet()
+    styles = document_styles()
     meta_style = ParagraphStyle(
         "ReportMeta",
         parent=styles["Normal"],
@@ -1236,7 +1377,7 @@ def generate_report_pdf(report_data):
         fontSize=7.5,
         leading=9.5,
         textColor=colors.white,
-        fontName="Helvetica-Bold"
+        fontName="Quicksand-Bold"
     )
     cell_style = ParagraphStyle(
         "TableCell",
@@ -1248,27 +1389,15 @@ def generate_report_pdf(report_data):
 
     elements = []
 
-    # 1. Header Banner
-    header_data = [
-        [
-            Paragraph("<b>NORTHERN INTERNATIONAL UNIVERSITY</b><br/><font size=7 color='#718096'>Excellence, Integrity and Innovation · ISO 9001:2015 Certified</font>", meta_style),
-            Paragraph(f"<b>{report_data['title'].upper()}</b><br/><font size=7 color='#718096'>Generated on {report_data['generated_at'].strftime('%d %b %Y %H:%M')} by {report_data['generated_by']}</font>", meta_style)
-        ]
-    ]
-    avail_width = pagesize[0] - 72
-    hdr_table = Table(header_data, colWidths=[avail_width * 0.5, avail_width * 0.5])
-    hdr_table.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-    ]))
-    elements.append(hdr_table)
+    avail_width = doc.width
+    elements.append(letterhead(doc.width, report_data['title'],
+        generated_at=report_data['generated_at'], generated_by=report_data['generated_by']))
     elements.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#6C5CE7"), spaceAfter=10))
 
     # 2. Active Filter summary
     if report_data.get("applied_filters"):
         filter_str = "  |  ".join(report_data["applied_filters"])
-        filter_para = Paragraph(f"<b>Applied Filters:</b> {filter_str}", meta_style)
+        filter_para = Paragraph(f"<b>Applied Filters:</b> {escape(filter_str)}", meta_style)
         elements.append(filter_para)
         elements.append(Spacer(1, 8))
 
@@ -1280,9 +1409,9 @@ def generate_report_pdf(report_data):
         num_cols = len(cols)
         col_width = avail_width / num_cols
 
-        table_data = [[Paragraph(f"<b>{c}</b>", table_hdr_style) for c in cols]]
+        table_data = [[Paragraph(escape(str(c)), table_hdr_style) for c in cols]]
         for r in raw_rows:
-            table_data.append([Paragraph(str(val), cell_style) for val in r])
+            table_data.append([Paragraph(escape(str(val)), cell_style) for val in r])
 
         t = Table(table_data, colWidths=[col_width] * num_cols, repeatRows=1)
         t_style = [
@@ -1306,21 +1435,8 @@ def generate_report_pdf(report_data):
     else:
         elements.append(Paragraph("No records found matching the specified filter criteria.", meta_style))
 
-    # Endorsement block
-    elements.append(Spacer(1, 15))
-    elements.append(KeepTogether([
-        HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#CBD5E0"), spaceAfter=10),
-        Table([
-            [
-                Paragraph("<b>Prepared By:</b> ___________________________<br/><font size=7 color='#718096'>University Examination Officer</font>", meta_style),
-                Paragraph("<b>Verified By:</b> ___________________________<br/><font size=7 color='#718096'>Dean of Academic Affairs</font>", meta_style),
-                Paragraph("<b>Senate Endorsement:</b> ___________________________<br/><font size=7 color='#718096'>Registrar (Academic & Student Affairs)</font>", meta_style),
-            ]
-        ], colWidths=[avail_width / 3] * 3, style=[
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ])
-    ]))
+    elements.append(Spacer(1, 12))
+    elements.append(Paragraph(f"Records: {len(raw_rows)} · Generated by {escape(str(report_data['generated_by']))}", meta_style))
 
     doc.build(elements, canvasmaker=NumberedCanvas)
     buffer.seek(0)
@@ -1344,26 +1460,27 @@ def generate_report_excel(report_data):
     thin_border = Border(left=border_side, right=border_side, top=border_side, bottom=border_side)
 
     # 1. University Banner
-    ws.merge_cells("A1:G1")
-    ws["A1"] = "NORTHERN INTERNATIONAL UNIVERSITY — OFFICIAL REPORT"
-    ws["A1"].font = Font(name="Calibri", size=13, bold=True, color="FFFFFF")
+    last_col = get_column_letter(max(1, len(report_data.get("columns", []))))
+    ws.merge_cells(f"A1:{last_col}1")
+    ws["A1"] = get_branding()["site_name"].upper() + " — OFFICIAL REPORT"
+    ws["A1"].font = Font(name="Quicksand", size=13, bold=True, color="FFFFFF")
     ws["A1"].fill = brand_fill
     ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[1].height = 32
 
     # 2. Title & metadata
-    ws.merge_cells("A2:G2")
+    ws.merge_cells(f"A2:{last_col}2")
     ws["A2"] = report_data.get("title", "Report").upper()
-    ws["A2"].font = Font(name="Calibri", size=11, bold=True, color="2D2A4A")
+    ws["A2"].font = Font(name="Quicksand", size=11, bold=True, color="2D2A4A")
     ws["A2"].alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[2].height = 22
 
     gen_meta = f"Generated: {report_data['generated_at'].strftime('%Y-%m-%d %H:%M')} | User: {report_data['generated_by']}"
     if report_data.get("applied_filters"):
         gen_meta += f" | Filters: {', '.join(report_data['applied_filters'])}"
-    ws.merge_cells("A3:G3")
+    ws.merge_cells(f"A3:{last_col}3")
     ws["A3"] = gen_meta
-    ws["A3"].font = Font(name="Calibri", size=9, italic=True, color="718096")
+    ws["A3"].font = Font(name="Quicksand", size=9, italic=True, color="718096")
     ws["A3"].alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[3].height = 18
 
@@ -1374,7 +1491,7 @@ def generate_report_excel(report_data):
 
     for c_idx, col_name in enumerate(cols, start=1):
         cell = ws.cell(row=start_row, column=c_idx, value=col_name)
-        cell.font = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
+        cell.font = Font(name="Quicksand", size=10, bold=True, color="FFFFFF")
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal="center", vertical="center")
         cell.border = thin_border
@@ -1385,7 +1502,7 @@ def generate_report_excel(report_data):
         is_alt = (r_idx % 2 == 0)
         for c_idx, val in enumerate(row_data, start=1):
             cell = ws.cell(row=r_idx, column=c_idx, value=val)
-            cell.font = Font(name="Calibri", size=9.5)
+            cell.font = Font(name="Quicksand", size=9.5)
             cell.alignment = Alignment(horizontal="left", vertical="center")
             cell.border = thin_border
             if is_alt:
@@ -1399,6 +1516,7 @@ def generate_report_excel(report_data):
         ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
 
     buf = io.BytesIO()
+    finish_worksheet(ws, header_row=5)
     wb.save(buf)
     buf.seek(0)
     return buf.getvalue()
@@ -1406,23 +1524,16 @@ def generate_report_excel(report_data):
 
 def generate_report_csv(report_data):
     """
-    Generates a streaming CSV response with UTF-8 BOM encoding.
+    Generates a streaming CSV response with UTF-8 BOM encoding and formula escaping.
     """
     output = io.StringIO()
     # Write UTF-8 BOM
     output.write('\ufeff')
     writer = csv.writer(output)
 
-    # Header comments
-    writer.writerow([f"# NORTHERN INTERNATIONAL UNIVERSITY - {report_data['title'].upper()}"])
-    writer.writerow([f"# Generated: {report_data['generated_at'].strftime('%Y-%m-%d %H:%M')} by {report_data['generated_by']}"])
-    if report_data.get("applied_filters"):
-        writer.writerow([f"# Applied Filters: {', '.join(report_data['applied_filters'])}"])
-    writer.writerow([])
-
     # Table columns and rows
     writer.writerow(report_data.get("columns", []))
     for row in report_data.get("rows", []):
-        writer.writerow(row)
+        writer.writerow([sanitize_csv_value(val) for val in row])
 
     return output.getvalue().encode('utf-8')

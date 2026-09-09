@@ -1,3 +1,4 @@
+from university.document_views import present_pdf
 from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -91,7 +92,7 @@ def student_degree_certificate_pdf(request):
     response = HttpResponse(pdf_bytes, content_type="application/pdf")
     clean_roll = sp.roll_no.replace("/", "_")
     response["Content-Disposition"] = f'inline; filename="Degree_Certificate_{clean_roll}.pdf"'
-    return response
+    return present_pdf(request, response)
 
 
 @login_required
@@ -107,7 +108,7 @@ def student_clearance_certificate_pdf(request):
     response = HttpResponse(pdf_bytes, content_type="application/pdf")
     clean_roll = sp.roll_no.replace("/", "_")
     response["Content-Disposition"] = f'inline; filename="Clearance_Certificate_{clean_roll}.pdf"'
-    return response
+    return present_pdf(request, response)
 
 
 # ==============================================================================

@@ -1,110 +1,240 @@
 {% extends 'examinations/base.html' %}
 {% block exam_content %}
-<div class="exam-hero">
-  <div>
-    <h3>Academic Result Slip &amp; Transcript</h3>
-    <p>{{ student.user.display_name }} · Reg/Roll: <strong>{{ student.roll_no }}</strong> · Program: <strong>{{ student.program|default:'Degree' }}</strong></p>
-    <div class="d-flex gap-2 flex-wrap align-items-center mt-2">
-      <span class="exam-status bg-primary text-white"><i class="fa-solid fa-graduation-cap me-1"></i>Cumulative GPA: <strong>{{ gpa|floatformat:2|default:"N/A" }}</strong></span>
+<!-- Student Profile & Results Header -->
+<div class="card card-ums border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+  <div class="row align-items-center g-3">
+    <div class="col-md-7">
+      <div class="d-flex align-items-center gap-3">
+        <div class="rounded-4 bg-primary text-white d-inline-flex p-3 shadow-sm">
+          <i class="fa-solid fa-graduation-cap fa-2x"></i>
+        </div>
+        <div>
+          <h3 class="fw-bold mb-1 text-dark">{{ student.user.display_name }}</h3>
+          <p class="text-muted small mb-0">
+            Reg / Roll No: <strong class="text-primary font-monospace">{{ student.roll_no }}</strong> &nbsp;·&nbsp;
+            Programme: <strong>{{ student.program.name|default:'Degree Programme' }}</strong>
+            {% if student.program.department %} &nbsp;·&nbsp; {{ student.program.department.name }}{% endif %}
+          </p>
+        </div>
+      </div>
+      <div class="d-flex gap-2 flex-wrap align-items-center mt-3">
+        <span class="exam-status bg-primary text-white px-3 py-1">
+          <i class="fa-solid fa-award me-1"></i>Cumulative GPA: <strong>{{ gpa|floatformat:2|default:"N/A" }}</strong> / 4.00
+        </span>
+        {% if gpa >= 3.6 %}
+          <span class="exam-status pass"><i class="fa-solid fa-circle-check me-1"></i>First Class Honours Equivalent</span>
+        {% elif gpa >= 3.0 %}
+          <span class="exam-status pass"><i class="fa-solid fa-circle-check me-1"></i>Second Class (Upper Division)</span>
+        {% elif gpa >= 2.0 %}
+          <span class="exam-status pass"><i class="fa-solid fa-circle-check me-1"></i>Good Academic Standing</span>
+        {% elif gpa > 0 %}
+          <span class="exam-status fail"><i class="fa-solid fa-triangle-exclamation me-1"></i>Academic Probation / Warning</span>
+        {% endif %}
+      </div>
     </div>
-  </div>
-  <div class="exam-actions no-print">
-    <a class="btn btn-outline-primary" href="{% url 'university:student_academic_transcript' %}"><i class="fa-solid fa-scroll me-1"></i>Official Transcript</a>
-    <button class="btn btn-primary" onclick="window.print()"><i class="fa-solid fa-print me-1"></i>Print Result Slip</button>
-    <a class="btn btn-outline-secondary" href="?format=csv&term={{ selected_term }}"><i class="fa-solid fa-download me-1"></i>Export CSV</a>
+    <div class="col-md-5 text-md-end no-print">
+      <div class="exam-actions justify-content-md-end">
+        <a class="btn btn-outline-primary rounded-pill px-3" href="{% url 'examinations:transcript_document' student.pk 'academic' %}">
+          <i class="fa-solid fa-scroll me-1"></i>Official Transcript
+        </a>
+        <a class="btn btn-primary rounded-pill px-3" href="?format=pdf&amp;preview=1&amp;term={{ selected_term }}">
+          <i class="fa-solid fa-print me-1"></i>Preview &amp; Print
+        </a>
+        <div class="dropdown">
+          <button class="btn btn-light border rounded-pill px-3 dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            <i class="fa-solid fa-download me-1"></i>Export
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow-sm rounded-3">
+            <li><a class="dropdown-item py-2" href="?format=pdf&amp;term={{ selected_term }}&amp;download=1"><i class="fa-solid fa-file-pdf text-danger me-2"></i>Download PDF</a></li>
+            <li><a class="dropdown-item py-2" href="?format=excel&amp;term={{ selected_term }}"><i class="fa-solid fa-file-excel text-success me-2"></i>Export Excel (.xlsx)</a></li>
+            <li><a class="dropdown-item py-2" href="?format=csv&amp;term={{ selected_term }}"><i class="fa-solid fa-file-csv text-info me-2"></i>Export CSV (.csv)</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
-<form class="exam-actions no-print mb-3" method="get">
-  <select name="term" class="form-select" style="max-width:300px" aria-label="Academic term">
-    <option value="">All academic terms</option>
-    {% for t in terms %}
-    <option value="{{ t.pk }}" {% if selected_term == t.pk|stringformat:'s' %}selected{% endif %}>{{ t.name }}</option>
-    {% endfor %}
-  </select>
-  <button class="btn btn-outline-primary">Filter</button>
-</form>
+<!-- Academic Term Filter Toolbar -->
+<div class="card card-ums border-0 shadow-sm rounded-4 p-3 mb-4 bg-white no-print">
+  <form class="d-flex gap-3 align-items-center flex-wrap" method="get">
+    <div class="d-flex align-items-center gap-2">
+      <label class="small text-muted fw-semibold mb-0"><i class="fa-solid fa-filter me-1 text-primary"></i>Filter Academic Term:</label>
+      <select name="term" class="form-select form-select-sm rounded-pill" style="min-width:260px;" aria-label="Academic term">
+        <option value="">All Academic Terms (Cumulative)</option>
+        {% for t in terms %}
+        <option value="{{ t.pk }}" {% if selected_term == t.pk|stringformat:'s' %}selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-sm btn-primary rounded-pill px-3">Apply Filter</button>
+    {% if selected_term %}
+      <a href="{% url 'examinations:statement' %}{% if own %}{% else %}{{ student.pk }}/{% endif %}" class="btn btn-sm btn-light border rounded-pill px-3">Clear</a>
+    {% endif %}
+    <span class="ms-auto small text-muted">Showing <strong>{{ groups|length }}</strong> course unit{{ groups|length|pluralize }}</span>
+  </form>
+</div>
 
+<!-- Course Units Results Cards -->
 {% for g in groups %}
 <div class="exam-card">
-  <div class="exam-hero mb-2">
+  <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
     <div>
-      <h5 class="mb-1">{{ g.course.code }} · {{ g.course.title }}</h5>
-      <span class="exam-muted">{{ g.term }}</span>
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <span class="badge bg-primary bg-opacity-10 text-primary font-monospace px-2 py-1 rounded-3 fw-bold">{{ g.course.code }}</span>
+        <h5 class="fw-bold mb-0 text-dark">{{ g.course.title }}</h5>
+      </div>
+      <div class="d-flex align-items-center gap-2 small text-muted">
+        <span><i class="fa-solid fa-calendar me-1"></i>{{ g.term|default:'Term Unassigned' }}</span>
+        <span>&nbsp;·&nbsp;</span>
+        <span><i class="fa-solid fa-cubes me-1"></i>{{ g.course.credits }} Credit Unit{{ g.course.credits|pluralize }}</span>
+      </div>
     </div>
     <div class="text-end">
-      <strong>{% if g.complete %}{{ g.total|floatformat:2 }} / 100 · Grade {{ g.grade }} ({{ g.grade_point|floatformat:1 }} GP){% else %}Incomplete{% endif %}</strong><br>
-      <span class="exam-status {% if g.outcome == 'Pass' %}bg-success text-white{% elif g.outcome == 'Fail' %}bg-danger text-white{% else %}bg-secondary text-white{% endif %}">{{ g.outcome }}</span>
+      {% if g.complete %}
+        <div class="d-inline-flex align-items-center gap-2">
+          <span class="fs-5 fw-bold text-dark">{{ g.total|floatformat:1 }}%</span>
+          <span class="badge {% if g.grade == 'A' %}bg-success{% elif g.grade == 'B' %}bg-primary{% elif g.grade == 'C' %}bg-warning text-dark{% elif g.grade == 'D' %}bg-secondary{% else %}bg-danger{% endif %} fs-6 px-3 py-1 rounded-pill">
+            Grade {{ g.grade }}
+          </span>
+          <span class="badge bg-light text-dark border px-2 py-1 rounded-pill small">
+            {{ g.grade_point|floatformat:1 }} GP
+          </span>
+        </div>
+        <div class="mt-1">
+          <span class="exam-status {% if g.outcome == 'Pass' %}pass{% elif g.outcome == 'Fail' %}fail{% else %}pending{% endif %}">
+            <i class="fa-solid {% if g.outcome == 'Pass' %}fa-circle-check{% elif g.outcome == 'Fail' %}fa-circle-xmark{% else %}fa-clock{% endif %} me-1"></i>
+            {{ g.outcome }}
+          </span>
+        </div>
+      {% else %}
+        <span class="badge bg-secondary px-3 py-2 rounded-pill">Assessment Incomplete</span>
+        <div class="small text-muted mt-1">Pending remaining papers</div>
+      {% endif %}
     </div>
   </div>
+
   <div class="table-responsive">
-    <table class="table exam-table align-middle">
-      <thead><tr>
-        <th>Assessment Component</th>
-        <th>Marks Recorded</th>
-        <th>Component Weight</th>
-        <th>Weighted Contribution</th>
-        <th>CUE Grade</th>
-        <th>Outcome</th>
-      </tr></thead>
+    <table class="table exam-table academic-record-table align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Assessment Component</th>
+          <th>Marks Recorded</th>
+          <th class="text-center">Weight</th>
+          <th class="text-center">Contribution</th>
+          <th class="text-center">Grade / GP</th>
+          <th class="text-end">Moderation &amp; Approval</th>
+        </tr>
+      </thead>
       <tbody>
         {% for c in g.components %}
         <tr>
           <td>
             <strong>{{ c.result.exam.name }}</strong>
-            {% if c.effective.pk != c.result.pk %}<br><small class="text-warning">Supplementary: {{ c.effective.exam.name }}</small>{% endif %}
+            {% if c.effective.pk != c.result.pk %}
+              <span class="badge bg-warning text-dark ms-2"><i class="fa-solid fa-repeat me-1"></i>Supplementary Sitting</span>
+            {% endif %}
             {% if c.result.exam.cat_max_marks and c.result.exam.exam_max_marks %}
-            <br><small class="text-muted">CAT: {{ c.effective.cat_marks|default_if_none:'—' }}/{{ c.result.exam.cat_max_marks|floatformat:0 }} · Exam: {{ c.effective.exam_marks|default_if_none:'—' }}/{{ c.result.exam.exam_max_marks|floatformat:0 }}</small>
+              <div class="small text-muted mt-1">
+                Continuous Assessment: <strong>{{ c.effective.cat_marks|default_if_none:'—' }}</strong>/{{ c.result.exam.cat_max_marks|floatformat:0 }} &nbsp;·&nbsp;
+                Final Examination: <strong>{{ c.effective.exam_marks|default_if_none:'—' }}</strong>/{{ c.result.exam.exam_max_marks|floatformat:0 }}
+              </div>
             {% endif %}
           </td>
           <td>
             {% if c.effective.attendance == 'ABSENT' %}
-              <span class="badge bg-secondary">Absent</span>
+              <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1">Absent</span>
             {% else %}
-              <strong>{{ c.effective.marks_obtained }}</strong> / {{ c.effective.exam.max_marks }}
+              <strong class="fs-6">{{ c.effective.marks_obtained|default_if_none:'—' }}</strong> / {{ c.effective.exam.max_marks }}
             {% endif %}
           </td>
-          <td>{{ c.result.exam.weight|floatformat:0 }}%</td>
-          <td>{{ c.contribution|floatformat:2 }}%</td>
-          <td><span class="badge {% if c.effective.grade == 'A' %}bg-success{% elif c.effective.grade == 'B' %}bg-primary{% elif c.effective.grade == 'C' %}bg-warning text-dark{% elif c.effective.grade == 'D' %}bg-info text-dark{% else %}bg-danger{% endif %}">{{ c.effective.grade }} ({{ c.effective.grade_point|floatformat:1 }} GP)</span></td>
-          <td>{{ c.effective.outcome }}</td>
+          <td class="text-center">{{ c.result.exam.weight|floatformat:0 }}%</td>
+          <td class="text-center fw-semibold text-primary">{{ c.contribution|floatformat:2 }}%</td>
+          <td class="text-center">
+            <span class="badge {% if c.effective.grade == 'A' %}bg-success{% elif c.effective.grade == 'B' %}bg-primary{% elif c.effective.grade == 'C' %}bg-warning text-dark{% elif c.effective.grade == 'D' %}bg-secondary{% else %}bg-danger{% endif %} rounded-pill px-2 py-1">
+              {{ c.effective.grade }} ({{ c.effective.grade_point|floatformat:1 }})
+            </span>
+          </td>
+          <td class="text-end">
+            <span class="badge bg-light text-dark border px-2 py-1">
+              <i class="fa-solid fa-shield-halved me-1 text-primary"></i>{{ c.effective.exam.get_status_display }}
+            </span>
+            <div class="small text-muted mt-1">{{ c.effective.outcome }}</div>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
   {% if not g.complete %}
-  <p class="exam-muted mb-0">Published components cover {{ g.weight|floatformat:0 }}%. A combined course result is issued after all components are published.</p>
+    <p class="exam-muted small mt-2 mb-0">
+      <i class="fa-solid fa-info-circle me-1"></i>Published assessments cover {{ g.weight|floatformat:0 }}% of course total. Combined final course grade is issued upon publication of all papers.
+    </p>
   {% endif %}
 </div>
 {% empty %}
-<div class="exam-card exam-empty">No published results yet. Results appear here once approved and published.</div>
+<div class="exam-card exam-empty">
+  <div class="py-4">
+    <i class="fa-solid fa-file-signature fa-3x text-muted mb-3 d-block opacity-50"></i>
+    <h5 class="fw-bold text-dark">No published results yet</h5>
+    <p class="exam-muted mb-0">Results appear here once approved and published.</p>
+  </div>
+</div>
 {% endfor %}
 
-<div class="exam-card"><h6>Grading &amp; calculation notes</h6><p class="exam-muted mb-0">Grades follow each examination's saved grading scale. GPA weights complete course results by credits. View Transcripts &amp; reports for the applicable grading legends, academic history and calculation notes.</p></div>
+<!-- Official Notes & Scale Reference -->
+<div class="card card-ums border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+  <h6 class="fw-bold text-dark mb-2"><i class="fa-solid fa-circle-info me-2 text-primary"></i>Grading Regulations &amp; Senate Computation Standards</h6>
+  <p class="exam-muted small mb-0">
+    All published course grades conform to the Kenyan Commission for University Education (CUE) standards and institutional examination bylaws.
+    Semester Grade Point Average (GPA) is weighted by course unit credit values. Cumulative Grade Point Average (CGPA) represents the cumulative performance across all completed sessions.
+    For official registry verification or formal transcripts, please use the Official Transcript export.
+  </p>
+</div>
 
+<!-- Academic Appeals Section (if own profile) -->
 {% if own %}
-<div class="exam-card no-print mt-3">
-  <h5>Result Appeals</h5>
-  <p class="exam-muted">Request an academic review of a published assessment. Accepted appeals reopen the marks sheet for correction and follow the standard moderation and approval workflow.</p>
+<div class="card card-ums border-0 shadow-sm rounded-4 p-4 mb-4 bg-white no-print">
+  <h5 class="fw-bold text-dark mb-1"><i class="fa-solid fa-scale-balanced me-2 text-primary"></i>Academic Result Appeals</h5>
+  <p class="exam-muted small mb-3">
+    In accordance with university examination regulations, students may request an academic review of published assessment marks within the prescribed appeal window.
+    Approved appeals reopen the marks sheet for departmental moderation and Senate reconsideration.
+  </p>
   {% for r in results %}
-  <details class="border-bottom py-3">
-    <summary>{{ r.exam.course.code }} · {{ r.exam.name }} · Grade {{ r.grade }} ({{ r.marks_obtained }}/{{ r.exam.max_marks }})</summary>
-    {% for a in r.appeals.all %}
-    <div class="my-2"><span class="exam-status">{{ a.get_status_display }}</span> {{ a.reason }}
-      {% if a.resolution %}<br>Resolution: {{ a.resolution }}{% endif %}
+  <details class="border rounded-3 p-3 mb-2 bg-light">
+    <summary class="d-flex justify-content-between align-items-center">
+      <span>
+        <strong class="font-monospace text-primary">{{ r.exam.course.code }}</strong> · {{ r.exam.name }}
+        &nbsp;·&nbsp; Grade <strong>{{ r.grade }}</strong> ({{ r.marks_obtained }}/{{ r.exam.max_marks }})
+      </span>
+      <span class="small text-muted">Click to appeal</span>
+    </summary>
+    <div class="mt-3 pt-3 border-top">
+      {% for a in r.appeals.all %}
+      <div class="alert alert-light border mb-2 small">
+        <div class="d-flex justify-content-between">
+          <span class="exam-status {% if a.status == 'APPROVED' %}pass{% elif a.status == 'REJECTED' %}fail{% else %}pending{% endif %}">
+            Status: {{ a.get_status_display }}
+          </span>
+        </div>
+        <div class="mt-1"><strong>Reason:</strong> {{ a.reason }}</div>
+        {% if a.resolution %}<div class="text-success mt-1"><strong>Resolution:</strong> {{ a.resolution }}</div>{% endif %}
+      </div>
+      {% endfor %}
+      <form class="mt-2" method="post" action="{% url 'examinations:appeal' r.pk %}">
+        {% csrf_token %}
+        <label for="reason-{{ r.pk }}" class="form-label small fw-semibold text-dark">Reason for appeal / mark remarking request:</label>
+        <textarea class="form-control mb-2" id="reason-{{ r.pk }}" name="reason" maxlength="2000" rows="3" required placeholder="State specific reasons, discrepancies, or documentary grounds regarding this assessment result..."></textarea>
+        <button class="btn btn-sm btn-outline-primary rounded-pill px-3">
+          <i class="fa-solid fa-paper-plane me-1"></i>Submit Formal Appeal
+        </button>
+      </form>
     </div>
-    {% endfor %}
-    <form class="mt-3" method="post" action="{% url 'examinations:appeal' r.pk %}">
-      {% csrf_token %}
-      <label for="reason-{{ r.pk }}">Reason for review</label>
-      <textarea class="form-control mb-2" id="reason-{{ r.pk }}" name="reason" maxlength="2000" required placeholder="State reasons or discrepancies regarding this result..."></textarea>
-      <button class="btn btn-outline-primary">Submit appeal</button>
-    </form>
   </details>
   {% empty %}
-  <p>No published assessments to appeal.</p>
+  <p class="text-muted small mb-0">No published assessments available for appeal.</p>
   {% endfor %}
 </div>
 {% endif %}
 {% endblock %}
+

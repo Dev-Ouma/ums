@@ -1,0 +1,56 @@
+{% extends "base_dashboard.html" %}
+{% load static %}
+
+{% block title %}Document Unavailable · UMS{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-7 col-lg-6">
+      <div class="card border-0 shadow-sm rounded-4 text-center overflow-hidden">
+        <div class="card-header bg-danger-subtle border-0 py-4">
+          <div class="d-inline-flex align-items-center justify-content-center bg-white text-danger shadow-sm rounded-circle p-3" style="width: 72px; height: 72px;">
+            <i class="fa-solid fa-lock fs-2"></i>
+          </div>
+        </div>
+        <div class="card-body p-4 p-md-5">
+          <span class="badge bg-danger-subtle text-danger px-3 py-2 text-uppercase mb-2" style="letter-spacing: .05em;">Access Restricted</span>
+          <h3 class="fw-bold text-dark mb-2">{{ title|default:"Document Issuance Locked" }}</h3>
+          
+          <div class="alert alert-warning text-start rounded-3 my-4 py-3 px-4 border-0 bg-warning-subtle text-warning-emphasis">
+            <div class="d-flex gap-3 align-items-start">
+              <i class="fa-solid fa-circle-info fs-5 mt-1"></i>
+              <div>
+                <strong class="d-block mb-1">Reason for Lock:</strong>
+                <p class="mb-0">{{ reason }}</p>
+              </div>
+            </div>
+          </div>
+
+          {% if control and control.require_financial_clearance %}
+            <div class="card bg-light border-0 rounded-3 p-3 mb-4 text-start">
+              <h6 class="fw-bold mb-1"><i class="fa-solid fa-receipt me-2 text-primary"></i>Financial Clearance Needed</h6>
+              <p class="small text-muted mb-2">You can clear outstanding fees online or submit proof of payment to the Finance Office.</p>
+              <a href="{% url 'university:student_fees' %}" class="btn btn-primary btn-sm rounded-pill px-3">
+                <i class="fa-solid fa-credit-card me-1"></i> Go to Fee Portal
+              </a>
+            </div>
+          {% endif %}
+
+          <div class="d-flex justify-content-center gap-2">
+            <a href="javascript:history.back()" class="btn btn-outline-secondary rounded-pill px-4">
+              <i class="fa-solid fa-arrow-left me-1"></i> Go Back
+            </a>
+            <a href="{% url 'university:student_dashboard' %}" class="btn btn-primary rounded-pill px-4">
+              <i class="fa-solid fa-house me-1"></i> Student Dashboard
+            </a>
+          </div>
+        </div>
+        <div class="card-footer bg-light border-0 py-3 text-muted small">
+          Academic Registry · University Management System
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

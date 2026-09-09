@@ -1,0 +1,216 @@
+{% extends 'base_dashboard.html' %}
+{% load static %}
+
+{% block title %}{% if template %}Edit Template: {{ template.name }}{% else %}New Admission Letter Template{% endif %} · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h4><i class="fa-solid fa-pen-nib me-2 text-primary"></i>{% if template %}Edit Template: {{ template.name }} (v{{ template.version }}){% else %}Create Admission Letter Template{% endif %}</h4>
+    <p class="text-muted small mb-0">Configure letter content, paragraphs, terms, fee instructions, and dynamic evaluation placeholders.</p>
+  </div>
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <a href="{% url 'university:admin_templates_list' %}" class="btn btn-light border rounded-pill px-3">
+      <i class="fa-solid fa-arrow-left me-1"></i> Back to Templates
+    </a>
+    {% if template %}
+      <a href="{% url 'university:admin_template_preview' template.id %}" target="_blank" class="btn btn-outline-primary rounded-pill px-3">
+        <i class="fa-solid fa-eye me-1"></i> Live Preview
+      </a>
+    {% endif %}
+  </div>
+</div>
+
+{% if messages %}
+  {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-4" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  {% endfor %}
+{% endif %}
+
+<form method="post">
+  {% csrf_token %}
+  <div class="row g-4">
+    <!-- LEFT COLUMN: TEMPLATE FIELDS -->
+    <div class="col-lg-8">
+      <div class="card card-ums border-0 shadow-sm rounded-4 p-4 mb-4">
+        <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">1. Template Profile & Metadata</h6>
+        <div class="row g-3">
+          <div class="col-md-8">
+            <label class="form-label fw-semibold">Template Name <span class="text-danger">*</span></label>
+            <input type="text" name="name" class="form-control rounded-3" value="{{ template.name|default:'Standard Undergraduate Admission Letter' }}" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Document Type</label>
+            <select name="document_type" class="form-select rounded-3">
+              <option value="ADMISSION_LETTER" {% if not template or template.document_type == 'ADMISSION_LETTER' %}selected{% endif %}>Official Admission Letter</option>
+              <option value="PROVISIONAL_OFFER" {% if template.document_type == 'PROVISIONAL_OFFER' %}selected{% endif %}>Provisional Letter of Offer</option>
+              <option value="ACCEPTANCE_FORM" {% if template.document_type == 'ACCEPTANCE_FORM' %}selected{% endif %}>Acceptance Form</option>
+              <option value="CALLING_LETTER" {% if template.document_type == 'CALLING_LETTER' %}selected{% endif %}>Reporting & Calling Letter</option>
+            </select>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Target Programme</label>
+            <select name="program" class="form-select rounded-3">
+              <option value="">-- Universal (All Programmes) --</option>
+              {% for p in programs %}
+                <option value="{{ p.id }}" {% if template.program_id == p.id %}selected{% endif %}>{{ p.code }} — {{ p.name }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">Leave blank to apply this template across all academic programmes.</div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Target Academic Year</label>
+            <select name="academic_year" class="form-select rounded-3">
+              <option value="">-- Universal (All Academic Years) --</option>
+              {% for ay in academic_years %}
+                <option value="{{ ay.id }}" {% if template.academic_year_id == ay.id %}selected{% endif %}>{{ ay.name }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">Leave blank to apply universally across academic years.</div>
+          </div>
+
+          <div class="col-md-6 pt-2">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="is_active" id="isActive" {% if not template or template.is_active %}checked{% endif %}>
+              <label class="form-check-label fw-semibold" for="isActive">Template is Active</label>
+            </div>
+          </div>
+
+          <div class="col-md-6 pt-2">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="is_default" id="isDefault" {% if template.is_default %}checked{% endif %}>
+              <label class="form-check-label fw-semibold" for="isDefault">Set as Institutional Default</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-ums border-0 shadow-sm rounded-4 p-4 mb-4">
+        <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">2. Letter Content & Placeholders</h6>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label fw-semibold">Letterhead Header Banner Title</label>
+            <input type="text" name="header_title" class="form-control rounded-3" value="{{ template.header_title|default:'OFFICE OF THE REGISTRAR (ACADEMIC AFFAIRS)' }}" required>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Salutation Template</label>
+            <input type="text" name="salutation_template" class="form-control rounded-3" value="{{ template.salutation_template|default:'Dear {{student_name}},' }}" required>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Subject Line Template</label>
+            <input type="text" name="subject_template" class="form-control rounded-3" value="{{ template.subject_template|default:'LETTER OF OFFER: ADMISSION TO {{programme_name}} ({{programme_code}})' }}" required>
+          </div>
+
+          <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label class="form-label fw-semibold mb-0">Main Body Paragraphs</label>
+              <small class="text-muted">Separate paragraphs with double enter (blank line)</small>
+            </div>
+            <textarea name="body_template" id="bodyTemplateInput" class="form-control rounded-3 font-monospace" rows="8" required>{{ template.body_template|default:"I am pleased to inform you that following your application, the University Admissions Board has offered you admission into the {{programme_name}} in the {{faculty_name}} for the {{intake}} commencing in {{academic_year}} ({{semester}}).\n\nYou are required to report to the Main Campus for orientation, document verification, and formal registration on {{reporting_date}} at 8:00 AM. Failure to report within two weeks of the scheduled date without prior written approval from the Registrar will result in the forfeiture of this offer." }}</textarea>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-semibold">Mandatory Conditions & Guidelines</label>
+            <textarea name="terms_and_conditions" class="form-control rounded-3 font-monospace" rows="4">{{ template.terms_and_conditions|default:"1. This offer of provisional admission is subject to physical verification of your original KCSE / High School certificates, National ID card / passport, and birth certificate.\n2. All registered students are bound by the University Charter, Statutes, Rules and Regulations governing Student Conduct and Discipline.\n3. At least 75% of first-semester fees must be paid prior to biometric registration and unit enrolment.\n4. The university reserves the right to withdraw this offer at any time should any submitted documents or academic qualifications be found fraudulent or falsified." }}</textarea>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-semibold">Fee Payment Instructions</label>
+            <textarea name="fee_schedule_instructions" class="form-control rounded-3 font-monospace" rows="3">{{ template.fee_schedule_instructions|default:"Tuition and statutory fees must be deposited directly to the University Bank Account:\n• Depository Bank: {{bank_name}}\n• Account Number: {{bank_account}} ({{bank_branch}})\n• M-Pesa Paybill: {{mpesa_paybill}} (Account: {{application_number}})\n• Estimated First Semester Total: {{total_fees}} (Tuition: {{tuition_fee}})\nCheques and cash payments at campus counters are strictly not accepted." }}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-ums border-0 shadow-sm rounded-4 p-4 mb-4">
+        <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">3. Signatory & Verification Block</h6>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Authorized Signatory Full Name</label>
+            <input type="text" name="signatory_name" class="form-control rounded-3" value="{{ template.signatory_name|default:'Dr. Margaret Omolo, PhD' }}" required>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Signatory Title / Designation</label>
+            <input type="text" name="signatory_title" class="form-control rounded-3" value="{{ template.signatory_title|default:'Registrar, Academic & Student Affairs' }}" required>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-semibold">Online Verification Base URL</label>
+            <input type="text" name="verification_base_url" class="form-control rounded-3" value="{{ template.verification_base_url|default:'https://ums.ac.ke/verify-admission/' }}">
+            <div class="form-text">Reference number will be appended automatically to generate the verification link.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center mb-5">
+        <a href="{% url 'university:admin_templates_list' %}" class="btn btn-light px-4 py-2 rounded-pill">Cancel</a>
+        <button type="submit" class="btn btn-primary px-5 py-2.5 rounded-pill fw-semibold shadow-sm">
+          <i class="fa-solid fa-floppy-disk me-1"></i> Save Document Template
+        </button>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN: DYNAMIC TOKENS HELPER ACCORDION -->
+    <div class="col-lg-4">
+      <div class="card card-ums border-0 shadow-sm rounded-4 p-3 position-sticky" style="top: 20px;">
+        <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
+          <h6 class="fw-bold text-dark mb-0"><i class="fa-solid fa-code text-primary me-2"></i>Token Cheat-Sheet</h6>
+          <small class="text-muted">Click to copy</small>
+        </div>
+        <p class="small text-muted mb-3">
+          Click any badge to copy the placeholder code and paste into your template.
+        </p>
+
+        <div class="accordion accordion-flush" id="tokensSideAccordion" style="max-height: 60vh; overflow-y: auto;">
+          {% for category, tokens in tokens_catalog.items %}
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="heading{{ forloop.counter }}">
+                <button class="accordion-button {% if not forloop.first %}collapsed{% endif %} py-2 px-0 small fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ forloop.counter }}">
+                  {{ category }} ({{ tokens|length }})
+                </button>
+              </h2>
+              <div id="collapse{{ forloop.counter }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" data-bs-parent="#tokensSideAccordion">
+                <div class="accordion-body px-0 py-2">
+                  <div class="d-flex flex-column gap-1.5">
+                    {% for token_key, token_desc in tokens %}
+                      <div class="p-1.5 border rounded-2 bg-light d-flex justify-content-between align-items-center">
+                        <div>
+                          <code class="fw-bold text-dark small font-monospace">&#123;&#123;{{ token_key }}&#125;&#125;</code>
+                          <div class="text-muted" style="font-size:0.72rem;">{{ token_desc }}</div>
+                        </div>
+                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill copy-token-btn" data-token="&#123;&#123;{{ token_key }}&#125;&#125;" title="Copy">
+                          <i class="fa-solid fa-copy"></i>
+                        </button>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+document.querySelectorAll('.copy-token-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const token = btn.getAttribute('data-token');
+    navigator.clipboard.writeText(token).then(() => {
+      const orig = btn.innerHTML;
+      btn.innerHTML = '<i class="fa-solid fa-check text-success"></i>';
+      setTimeout(() => btn.innerHTML = orig, 1000);
+    });
+  });
+});
+</script>
+{% endblock %}

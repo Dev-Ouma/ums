@@ -165,10 +165,10 @@
                     <i class="fa-solid fa-user-plus me-1"></i> Supervisor
                   </button>
 
-                  <a href="{% url 'university:attachment_intro_letter_pdf' p.id %}" target="_blank" class="btn btn-sm btn-light border" title="Official Introductory Letter PDF">
+                  <a href="{% url 'university:attachment_intro_letter_pdf' p.id %}?preview=1" target="_blank" class="btn btn-sm btn-light border" title="Official Introductory Letter PDF">
                     <i class="fa-solid fa-file-pdf text-danger"></i>
                   </a>
-                  <a href="{% url 'university:attachment_logbook_pdf' p.id %}" target="_blank" class="btn btn-sm btn-light border" title="Compiled Logbook PDF">
+                  <a href="{% url 'university:attachment_logbook_pdf' p.id %}?preview=1" target="_blank" class="btn btn-sm btn-light border" title="Compiled Logbook PDF">
                     <i class="fa-solid fa-book text-primary"></i>
                   </a>
                 </div>

@@ -35,7 +35,7 @@
         {% for itk in intakes %}
           <tr>
             <td class="ps-4 fw-bold text-dark">{{ itk.name }}</td>
-            <td><span class="badge bg-light text-dark border">{{ itk.academic_year }}</span></td>
+            <td><span class="badge bg-light text-dark border">{{ itk.academic_year.name|default:"—" }}</span></td>
             <td>{{ itk.start_date|date:"d M Y" }}</td>
             <td>{{ itk.end_date|date:"d M Y" }}</td>
             <td>
@@ -78,7 +78,18 @@
           </div>
           <div class="mb-3">
             <label class="form-label fw-semibold small">Academic Year</label>
-            <input type="text" name="academic_year" class="form-control rounded-3" value="2026/2027" required>
+            <select name="academic_year" class="form-select rounded-3" required>
+              {% for ay in academic_years %}
+                <option value="{{ ay.pk }}" {% if ay.pk == current_year.pk %}selected{% endif %}>
+                  {{ ay.name }}{% if ay.is_current %} — Current{% endif %}
+                </option>
+              {% empty %}
+                <option value="" disabled>No academic years defined</option>
+              {% endfor %}
+            </select>
+            <div class="form-text small">
+              Pulled from <a href="{% url 'university:admin_academic_years' %}">Academic Years</a>. Defaults to the current year.
+            </div>
           </div>
           <div class="row g-2 mb-3">
             <div class="col-6">
