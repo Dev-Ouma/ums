@@ -5,10 +5,11 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.db.models import Q
 from django.utils import timezone
 
 from university.document_design import (ReportDocTemplate, document_styles, document_fonts,
-    PageNumberCanvas, letterhead, get_branding, finish_worksheet, PRIMARY, PRIMARY_DARK, INK, MUTED, BORDER, ZEBRA)
+    PageNumberCanvas, letterhead, get_branding, finish_worksheet, make_qr_drawing, PRIMARY, PRIMARY_DARK, INK, MUTED, BORDER, ZEBRA)
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -165,24 +166,35 @@ def generate_fee_receipt_pdf(payment):
     story.append(Spacer(1, 8))
     story.append(HRFlowable(width="100%", thickness=1.5, color=primary_color, spaceAfter=15))
 
-    student = payment.invoice.student
-    user = student.user
+    student = payment.student or (payment.invoice.student if payment.invoice else None)
+    user = student.user if student else None
     receipt_no = f"REC-{payment.id:06d}"
     paid_dt = payment.paid_on.strftime("%d %B %Y") if payment.paid_on else timezone.now().strftime("%d %B %Y")
+    inv_title = payment.invoice.title if payment.invoice else "Direct Student Fee Payment"
+    inv_balance_str = f"KES {payment.invoice.balance:,.2f}" if payment.invoice else "Allocated Across Fees"
+
+    verify_url = f"https://ums.ac.ke/finance/receipt/{payment.reference or payment.id}/"
+    qr_drawing = make_qr_drawing(verify_url, size=52.0)
 
     header_table_data = [
         [Paragraph(f"<b>Receipt No:</b> {receipt_no}", body_style),
-         Paragraph(f"<b>Date:</b> {paid_dt}", ParagraphStyle("RDate", parent=body_style, alignment=2))],
-        [Paragraph(f"<b>Student Reg No:</b> <b>{student.roll_no}</b>", body_style),
-         Paragraph(f"<b>Payment Method:</b> {payment.method}", ParagraphStyle("RMethod", parent=body_style, alignment=2))],
-        [Paragraph(f"<b>Student Name:</b> {user.display_name}", body_style),
-         Paragraph(f"<b>Transaction Ref:</b> {payment.reference}", ParagraphStyle("RRef", parent=body_style, alignment=2))],
-        [Paragraph(f"<b>Programme:</b> {student.program.name if student.program else '—'}", body_style),
-         Paragraph(f"<b>Invoice:</b> {payment.invoice.title}", ParagraphStyle("RInv", parent=body_style, alignment=2))],
+         Paragraph(f"<b>Date:</b> {paid_dt}", ParagraphStyle("RDate", parent=body_style, alignment=2)),
+         qr_drawing or ""],
+        [Paragraph(f"<b>Student Reg No:</b> <b>{student.roll_no if student else 'N/A'}</b>", body_style),
+         Paragraph(f"<b>Payment Method:</b> {payment.method}", ParagraphStyle("RMethod", parent=body_style, alignment=2)),
+         Paragraph("<font size='6' color='#64748b'>Scan to Verify</font>", ParagraphStyle("QRLbl", parent=body_style, alignment=1))],
+        [Paragraph(f"<b>Student Name:</b> {user.display_name if user else 'N/A'}", body_style),
+         Paragraph(f"<b>Transaction Ref:</b> {payment.reference}", ParagraphStyle("RRef", parent=body_style, alignment=2)),
+         ""],
+        [Paragraph(f"<b>Programme:</b> {student.program.name if (student and student.program) else '—'}", body_style),
+         Paragraph(f"<b>Invoice / Purpose:</b> {inv_title}", ParagraphStyle("RInv", parent=body_style, alignment=2)),
+         ""],
     ]
-    htable = Table(header_table_data, colWidths=[270, 245])
+    htable = Table(header_table_data, colWidths=[240, 215, 60])
     htable.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("SPAN", (2, 0), (2, 0)),
+        ("ALIGN", (2, 0), (2, 1), "CENTER"),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
         ("TOPPADDING", (0, 0), (-1, -1), 3),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
@@ -194,12 +206,12 @@ def generate_fee_receipt_pdf(payment):
     # Payment Breakdown Table
     breakdown_data = [
         [Paragraph("<b>Item Description</b>", body_bold), Paragraph("<b>Amount (KES)</b>", ParagraphStyle("THRight", parent=body_bold, alignment=2))],
-        [Paragraph(f"Payment received towards {payment.invoice.title}", body_style),
+        [Paragraph(f"Payment received towards {inv_title}", body_style),
          Paragraph(f"{payment.amount:,.2f}", ParagraphStyle("TDRight", parent=body_style, alignment=2))],
         [Paragraph("<b>Total Amount Paid:</b>", body_bold),
          Paragraph(f"<b>KES {payment.amount:,.2f}</b>", ParagraphStyle("TotalRight", parent=body_bold, alignment=2, textColor=colors.HexColor("#047857")))],
         [Paragraph("Remaining Invoice Balance:", body_style),
-         Paragraph(f"KES {payment.invoice.balance:,.2f}", ParagraphStyle("BalRight", parent=body_style, alignment=2))],
+         Paragraph(inv_balance_str, ParagraphStyle("BalRight", parent=body_style, alignment=2))],
     ]
     btable = Table(breakdown_data, colWidths=[360, 155])
     btable.setStyle(TableStyle([
@@ -215,7 +227,7 @@ def generate_fee_receipt_pdf(payment):
     story.append(Spacer(1, 20))
 
     # Overall Student Financial Position
-    clearance = check_financial_clearance(student)
+    clearance = check_financial_clearance(student) if student else {"is_cleared": True, "balance": Decimal('0.00')}
     status_text = "ACCOUNT FULLY CLEARED" if clearance["is_cleared"] else f"OUTSTANDING BALANCE: KES {clearance['balance']:,.2f}"
     status_color = colors.HexColor("#047857") if clearance["is_cleared"] else colors.HexColor("#b91c1c")
 
@@ -324,17 +336,25 @@ def generate_student_statement_pdf(student):
 
     user = student.user
     today_str = timezone.now().strftime("%d %B %Y %H:%M")
+    verify_url = f"https://ums.ac.ke/finance/statement/{student.roll_no}/"
+    qr_drawing = make_qr_drawing(verify_url, size=52.0)
+
     info_data = [
         [Paragraph(f"<b>Student Name:</b> {user.display_name}", body_style),
-         Paragraph(f"<b>Statement Date:</b> {today_str}", ParagraphStyle("RD", parent=body_style, alignment=2))],
+         Paragraph(f"<b>Statement Date:</b> {today_str}", ParagraphStyle("RD", parent=body_style, alignment=2)),
+         qr_drawing or ""],
         [Paragraph(f"<b>Registration No:</b> <b>{student.roll_no}</b>", body_style),
-         Paragraph(f"<b>Year of Study:</b> Year {student.year_of_study or 1} Semester {student.semester or 1}", ParagraphStyle("RY", parent=body_style, alignment=2))],
+         Paragraph(f"<b>Year of Study:</b> Year {student.year_of_study or 1} Semester {student.semester or 1}", ParagraphStyle("RY", parent=body_style, alignment=2)),
+         Paragraph("<font size='6' color='#64748b'>Scan to Verify</font>", ParagraphStyle("QRLbl", parent=body_style, alignment=1))],
         [Paragraph(f"<b>Programme:</b> {student.program.name if student.program else '—'}", body_style),
-         Paragraph(f"<b>Department:</b> {student.program.department.name if (student.program and student.program.department) else '—'}", ParagraphStyle("RDept", parent=body_style, alignment=2))],
+         Paragraph(f"<b>Department:</b> {student.program.department.name if (student.program and student.program.department) else '—'}", ParagraphStyle("RDept", parent=body_style, alignment=2)),
+         ""],
     ]
-    itable = Table(info_data, colWidths=[280, 243])
+    itable = Table(info_data, colWidths=[240, 225, 58])
     itable.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("SPAN", (2, 0), (2, 0)),
+        ("ALIGN", (2, 0), (2, -1), "CENTER"),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
         ("TOPPADDING", (0, 0), (-1, -1), 2),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
@@ -356,12 +376,17 @@ def generate_student_statement_pdf(student):
             "sort_key": (inv.issued_on, 0, inv.id),
         })
 
-    payments = Payment.objects.filter(invoice__student=student).select_related("invoice").order_by("paid_on", "id")
+    payments = Payment.objects.filter(
+        Q(student=student) | Q(invoice__student=student),
+        status=Payment.Status.SUCCESSFUL
+    ).select_related("invoice", "fee_account").distinct().order_by("paid_on", "id")
     for pmt in payments:
+        inv_title = pmt.invoice.title if pmt.invoice else "Tuition & Fee Allocation"
+        ref_text = pmt.provider_reference or pmt.internal_reference or f"REC-{pmt.id:04d}"
         transactions.append({
             "date": pmt.paid_on,
-            "ref": f"{pmt.reference} (REC-{pmt.id:04d})",
-            "description": f"Payment: {pmt.method} for {pmt.invoice.title}",
+            "ref": ref_text,
+            "description": f"Payment: {pmt.method} ({inv_title})",
             "debit": Decimal("0.00"),
             "credit": pmt.amount,
             "sort_key": (pmt.paid_on, 1, pmt.id),

@@ -1,7 +1,10 @@
+import csv
 import decimal
 from decimal import Decimal
+import io
 import json
 import logging
+from datetime import datetime
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -12,7 +15,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_safe
 
-from accounts.models import Role
+from accounts.models import Role, StudentProfile
 from university.models import (
     AuditLog,
     FeeAccount,
@@ -520,6 +523,7 @@ def fee_reconciliation_dashboard(request):
         "summary": summary,
         "statuses": PaymentReconciliation.Status.choices,
         "selected_status": status_filter,
+        "fee_accounts": FeeAccount.objects.filter(status=FeeAccount.Status.ACTIVE).order_by("name"),
     })
 
 
@@ -538,4 +542,165 @@ def fee_reconciliation_match(request, pk):
     recon.save()
 
     messages.success(request, f"Reconciliation record {recon.provider_reference} marked as Matched.")
+    return redirect("university:fee_reconciliation_dashboard")
+
+
+@login_required
+@_finance_admin_required
+@require_POST
+def fee_reconciliation_import(request):
+    """
+    Batch statement importer for Kenyan bank spreadsheets (KCB, Equity, Co-op, Absa)
+    and Safaricom M-Pesa CSV/XLSX exports.
+    """
+    account_id = request.POST.get("fee_account_id")
+    uploaded_file = request.FILES.get("statement_file")
+
+    if not account_id or not uploaded_file:
+        messages.error(request, "Please select a Fee Account and choose a valid statement file (CSV or Excel).")
+        return redirect("university:fee_reconciliation_dashboard")
+
+    fee_account = get_object_or_404(FeeAccount, pk=account_id)
+    filename = uploaded_file.name.lower()
+
+    rows_data = []
+    if filename.endswith(".csv"):
+        try:
+            content = uploaded_file.read().decode("utf-8-sig")
+        except UnicodeDecodeError:
+            uploaded_file.seek(0)
+            content = uploaded_file.read().decode("latin-1")
+        reader = csv.reader(io.StringIO(content))
+        rows_data = [r for r in reader if any(field.strip() for field in r)]
+    elif filename.endswith((".xlsx", ".xls")):
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(uploaded_file, data_only=True)
+            ws = wb.active
+            for r in ws.iter_rows(values_only=True):
+                if any(r):
+                    rows_data.append([str(c) if c is not None else "" for c in r])
+        except Exception as e:
+            messages.error(request, f"Unable to read Excel workbook: {e}")
+            return redirect("university:fee_reconciliation_dashboard")
+    else:
+        messages.error(request, "Unsupported file format. Please upload a .csv or .xlsx bank statement.")
+        return redirect("university:fee_reconciliation_dashboard")
+
+    if not rows_data:
+        messages.error(request, "The uploaded statement file is empty.")
+        return redirect("university:fee_reconciliation_dashboard")
+
+    # Detect header row and column mapping
+    header_idx = -1
+    col_map = {}
+    for idx, row in enumerate(rows_data[:15]):
+        row_lower = [str(c).strip().lower() for c in row]
+        has_ref = any(any(k in c for k in ["ref", "receipt", "trans id", "transid", "code", "document"]) for c in row_lower)
+        has_amt = any(any(k in c for k in ["amount", "credit", "paid in", "deposit", "total"]) for c in row_lower)
+        if has_ref and has_amt:
+            header_idx = idx
+            for c_idx, cell in enumerate(row_lower):
+                if any(k in cell for k in ["ref", "receipt", "trans id", "transid", "document"]) and "provider_ref" not in col_map:
+                    col_map["provider_ref"] = c_idx
+                elif any(k in cell for k in ["amount", "credit", "paid in", "deposit"]) and "amount" not in col_map:
+                    col_map["amount"] = c_idx
+                elif any(k in cell for k in ["date", "time", "completion"]) and "date" not in col_map:
+                    col_map["date"] = c_idx
+                elif any(k in cell for k in ["student", "reg", "roll", "account", "particulars", "bill", "details"]) and "student" not in col_map:
+                    col_map["student"] = c_idx
+            break
+
+    if header_idx == -1 or "amount" not in col_map or "provider_ref" not in col_map:
+        col_map = {"date": 0, "provider_ref": 1, "student": 2, "amount": 3}
+        data_rows = rows_data
+    else:
+        data_rows = rows_data[header_idx + 1:]
+
+    matched = 0
+    unmatched = 0
+    mismatches = 0
+    reviews = 0
+    total_processed = 0
+
+    for row in data_rows:
+        if len(row) <= max(col_map.values()):
+            continue
+
+        raw_ref = str(row[col_map["provider_ref"]]).strip()
+        if not raw_ref or raw_ref.lower() in ["total", "subtotal", "balance", "none", "nan", "null"]:
+            continue
+
+        raw_amt = str(row[col_map["amount"]]).replace(",", "").replace("KES", "").replace("Ksh", "").replace("$", "").strip()
+        try:
+            amt = Decimal(raw_amt)
+            if amt <= 0:
+                continue
+        except (decimal.InvalidOperation, ValueError):
+            continue
+
+        raw_date = str(row[col_map.get("date", 0)]).strip() if "date" in col_map else ""
+        trans_date = timezone.now()
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d"):
+            try:
+                dt = datetime.strptime(raw_date[:19], fmt)
+                trans_date = timezone.make_aware(dt, timezone.get_current_timezone())
+                break
+            except Exception:
+                pass
+
+        raw_student = str(row[col_map.get("student", 0)]).strip() if "student" in col_map else ""
+
+        internal_payment = Payment.objects.filter(
+            Q(reference__iexact=raw_ref) | Q(provider_reference__iexact=raw_ref) | Q(internal_reference__iexact=raw_ref)
+        ).first()
+
+        if not internal_payment and raw_student:
+            internal_payment = Payment.objects.filter(
+                student__roll_no__iexact=raw_student,
+                amount=amt,
+                status=Payment.Status.SUCCESSFUL
+            ).first()
+
+        if internal_payment:
+            if abs(internal_payment.amount - amt) < Decimal("0.01"):
+                status = PaymentReconciliation.Status.MATCHED
+                notes = f"Auto-matched with Payment #{internal_payment.id} ({internal_payment.reference})."
+                matched += 1
+            else:
+                status = PaymentReconciliation.Status.AMOUNT_MISMATCH
+                notes = f"Amount mismatch: Bank shows KES {amt:,.2f} while ledger shows KES {internal_payment.amount:,.2f}."
+                mismatches += 1
+        else:
+            student = StudentProfile.objects.filter(roll_no__iexact=raw_student).first() if raw_student else None
+            if student:
+                status = PaymentReconciliation.Status.UNMATCHED
+                notes = f"Received for student {student.user.get_full_name()} ({student.roll_no}), pending ledger allocation."
+                unmatched += 1
+            else:
+                status = PaymentReconciliation.Status.REQUIRES_REVIEW
+                notes = f"Unallocated transaction. Student identifier '{raw_student}' could not be matched."
+                reviews += 1
+
+        PaymentReconciliation.objects.update_or_create(
+            fee_account=fee_account,
+            provider_reference=raw_ref,
+            defaults={
+                "payment": internal_payment,
+                "internal_reference": internal_payment.reference if internal_payment else "",
+                "amount": amt,
+                "status": status,
+                "transaction_date": trans_date,
+                "reconciled_at": timezone.now(),
+                "reconciled_by": request.user,
+                "notes": notes,
+            }
+        )
+        total_processed += 1
+
+    messages.success(
+        request,
+        f"Bank statement imported successfully: {total_processed} transactions processed "
+        f"({matched} matched, {unmatched} unmatched, {mismatches} amount mismatches, {reviews} flagged for review)."
+    )
     return redirect("university:fee_reconciliation_dashboard")

@@ -146,6 +146,7 @@ urlpatterns = [
     # Reconciliation Control Center
     path("finance/fee-accounts/reconciliation/", fee_account_views.fee_reconciliation_dashboard, name="fee_reconciliation_dashboard"),
     path("finance/fee-accounts/reconciliation/<int:pk>/match/", fee_account_views.fee_reconciliation_match, name="fee_reconciliation_match"),
+    path("finance/fee-accounts/reconciliation/import/", fee_account_views.fee_reconciliation_import, name="fee_reconciliation_import"),
 
     # Secure Payment Callbacks / Webhooks
     path("api/payments/callback/mpesa/", fee_payment_views.mpesa_callback, name="mpesa_callback"),
