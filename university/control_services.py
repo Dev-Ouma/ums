@@ -115,12 +115,36 @@ def evaluate(user=None, *, path='', route='', namespace='', write=False, login=F
 
 
 def current_status():
-    rows = list(restrictions_at())
+    now = timezone.now()
+    rows = list(restrictions_at(now))
     kinds = {r.kind for r in rows}
     status = next((label for kind,label in [('EMERGENCY','Emergency Lockdown'),('LOCKDOWN','Lockdown'),('EMERGENCY_MAINTENANCE','Emergency Maintenance'),('MAINTENANCE','Maintenance'),('MODULE','Restricted'),('ROLE','Restricted'),('READ_ONLY','Read Only')] if kind in kinds),'Operational')
     if status == 'Operational' and (SystemModule.objects.exclude(status='ENABLED').exists() or SystemSubmodule.objects.exclude(status='ENABLED').exists() or SystemFeature.objects.exclude(status='ENABLED').exists()):
         status = 'Restricted'
-    return {'status':status,'maintenance':bool(kinds & {'MAINTENANCE','EMERGENCY_MAINTENANCE'}),'lockdown':bool(kinds & {'MODULE','ROLE','LOCKDOWN','EMERGENCY'}),'read_only':'READ_ONLY' in kinds}
+
+    upcoming = SystemRestriction.objects.filter(status='SCHEDULED', starts_at__gt=now).order_by('starts_at').first()
+    upcoming_data = None
+    if upcoming:
+        secs = max(0, int((upcoming.starts_at - now).total_seconds()))
+        upcoming_data = {
+            'title': upcoming.title,
+            'starts_at': upcoming.starts_at.isoformat(),
+            'seconds_until': secs,
+            'minutes_until': secs // 60,
+            'message': upcoming.public_message or upcoming.description or "Scheduled maintenance",
+        }
+
+    active_msg = rows[0].public_message if rows and rows[0].public_message else ""
+
+    return {
+        'status': status,
+        'maintenance': bool(kinds & {'MAINTENANCE','EMERGENCY_MAINTENANCE'}),
+        'lockdown': bool(kinds & {'MODULE','ROLE','LOCKDOWN','EMERGENCY'}),
+        'read_only': 'READ_ONLY' in kinds,
+        'upcoming': upcoming_data,
+        'active_message': active_msg,
+        'message': active_msg,
+    }
 
 
 @transaction.atomic

@@ -1,1 +1,111 @@
-{% extends 'control/base.html' %}{% block control_content %}<div class="card card-ums p-4"><h4>System health</h4><p class="text-muted">Current checks and last reported service activity.</p><table class="table"><tbody>{% for name,value in checks %}<tr><th>{{ name }}</th><td>{{ value }}</td></tr>{% endfor %}<tr><th>Availability</th><td>{{ state.status }}</td></tr></tbody></table></div>{% endblock %}
+{% extends 'control/base.html' %}
+{% load static %}
+
+{% block control_content %}
+<div class="row g-4">
+  <!-- System Diagnostics Card -->
+  <div class="col-lg-7">
+    <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h5 class="fw-bold mb-1 text-dark">
+            <i class="fa-solid fa-heart-pulse me-2 text-primary"></i>System Health &amp; Diagnostics
+          </h5>
+          <p class="text-muted small mb-0">Live infrastructure checks and service telemetry.</p>
+        </div>
+        <span class="badge bg-light text-dark border px-3 py-1.5 fw-semibold">
+          Status: <strong class="text-success">{{ state.status }}</strong>
+        </span>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <tbody class="border-top-0">
+            {% for name, value in checks %}
+            <tr>
+              <th class="ps-3 text-secondary fw-semibold" style="width: 45%;">{{ name }}</th>
+              <td class="pe-3">
+                {% if value == 'Connected' or value == 'Responding' %}
+                  <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1 fw-bold">
+                    <i class="fa-solid fa-circle-check me-1"></i> {{ value }}
+                  </span>
+                {% elif value == 'Unavailable' or value == 'Failed' %}
+                  <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2.5 py-1 fw-bold">
+                    <i class="fa-solid fa-circle-xmark me-1"></i> {{ value }}
+                  </span>
+                {% else %}
+                  <span class="fw-medium text-dark">{{ value }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+            <tr>
+              <th class="ps-3 text-secondary fw-semibold">Overall Availability</th>
+              <td class="pe-3">
+                <span class="control-badge {% if state.status == 'Operational' %}OPERATIONAL{% elif state.status == 'Maintenance' %}MAINTENANCE{% else %}RESTRICTED{% endif %}">
+                  {{ state.status }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pre-Maintenance Backups & Snapshots -->
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm rounded-4 p-4 bg-white h-100">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h5 class="fw-bold mb-1 text-dark">
+            <i class="fa-solid fa-box-archive me-2 text-warning"></i>Pre-Maintenance Snapshots
+          </h5>
+          <p class="text-muted small mb-0">Safe immutable database copies before maintenance.</p>
+        </div>
+      </div>
+
+      <form method="post" action="{% url 'control:backup_create' %}" class="mb-4">
+        {% csrf_token %}
+        <button class="btn btn-warning text-dark w-100 fw-bold py-2.5 shadow-sm d-flex align-items-center justify-content-center gap-2">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Create Pre-Maintenance Snapshot</span>
+        </button>
+        <small class="text-muted text-center d-block mt-1.5" style="font-size: 0.76rem;">
+          Preserves primary database file into secure <code>media/backups/</code>.
+        </small>
+      </form>
+
+      <h6 class="fw-bold text-secondary mb-2 small text-uppercase" style="letter-spacing: 0.08em;">Recent Snapshots</h6>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Snapshot File</th>
+              <th>Size</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in backups %}
+            <tr>
+              <td class="small fw-semibold text-truncate" style="max-width: 170px;" title="{{ b.name }}">
+                <i class="fa-solid fa-file-zipper me-1 text-muted"></i>{{ b.name }}
+              </td>
+              <td class="small text-muted">{{ b.size_mb }} MB</td>
+              <td class="small text-muted">{{ b.created_at|date:"d M, H:i" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="3" class="text-center py-4 text-muted small">
+                No snapshots stored yet. Click above to create one before scheduling maintenance.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

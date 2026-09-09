@@ -41,7 +41,10 @@ class SystemControlMiddleware:
             route,namespace='',''
         # Narrow recovery surface, still subject to per-action authorization and CSRF.
         recovery=namespace=='control' and any(permitted(request.user,p) for p in ['maintenance.deactivate','lockdown.deactivate'])
-        exempt=(namespace=='accounts' and route in {'login','logout'}) or (namespace=='control' and route=='status')
+        exempt=((namespace=='accounts' and route in {'login','logout'}) or
+                (namespace=='control' and route=='status') or
+                route=='public_status' or
+                request.path_info.startswith('/status/'))
         if recovery or exempt:
             response=self.get_response(request)
             response['Cache-Control']='no-store, private'

@@ -2,6 +2,8 @@
 Comprehensive Automated Tests for System Admin Module Management & Availability System.
 """
 
+import io
+import json
 from decimal import Decimal
 from django.test import TestCase, Client
 from django.urls import reverse
@@ -288,3 +290,52 @@ class ModuleManagementTestCase(TestCase):
         data = res_api.json()
         self.assertEqual(data["module_code"], "academics")
         self.assertIn("requires", data)
+
+    def test_admin_modules_export_json(self):
+        """Admin can export system module configuration as JSON."""
+        self.client.force_login(self.admin_user)
+        res = self.client.get(reverse("university:admin_modules_export_json"))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res["Content-Type"], "application/json")
+        data = json.loads(res.content)
+        self.assertIn("modules", data)
+        self.assertIn("exported_at", data)
+        codes = [m["code"] for m in data["modules"]]
+        self.assertIn("academics", codes)
+        self.assertIn("finance", codes)
+        # Verify nested submodules and features are present
+        acad_mod = next(m for m in data["modules"] if m["code"] == "academics")
+        self.assertIn("submodules", acad_mod)
+
+    def test_admin_modules_import_json(self):
+        """Admin can import updated module configuration via JSON file upload."""
+        self.client.force_login(self.admin_user)
+        # 1. Fetch export data
+        res_exp = self.client.get(reverse("university:admin_modules_export_json"))
+        config_data = json.loads(res_exp.content)
+
+        # 2. Modify timetable module in config
+        for m in config_data["modules"]:
+            if m["code"] == "timetable":
+                m["status"] = ModuleStatus.MAINTENANCE
+                m["status_message"] = "Imported maintenance window test"
+
+        payload = io.BytesIO(json.dumps(config_data).encode("utf-8"))
+        payload.name = "modules_config.json"
+
+        # 3. Upload JSON to import endpoint
+        res = self.client.post(
+            reverse("university:admin_modules_import_json"),
+            {"config_file": payload},
+            follow=True,
+        )
+        self.assertEqual(res.status_code, 200)
+
+        # 4. Verify timetable status was updated in database
+        tt_mod = SystemModule.objects.get(code="timetable")
+        self.assertEqual(tt_mod.status, ModuleStatus.MAINTENANCE)
+        self.assertEqual(tt_mod.status_message, "Imported maintenance window test")
+
+        # 5. Verify AuditLog was recorded
+        log = AuditLog.objects.filter(module=AuditLog.Module.MODULE_MGMT, action=AuditLog.Action.MODULES_BULK_UPDATE).latest("timestamp")
+        self.assertIn("Imported module availability configuration", log.description)

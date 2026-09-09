@@ -6,12 +6,15 @@ maintenance modes, and cross-module dependencies.
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from accounts.models import Role
+from university.models import AuditLog
 from university.module_models import (
     ModuleStatus,
     SystemModule,
@@ -28,6 +31,7 @@ from university.module_services import (
     disable_all_configurable_modules,
     check_module_dependencies,
     seed_system_modules,
+    invalidate_module_cache,
 )
 
 
@@ -310,3 +314,131 @@ def admin_module_dependencies_api(request, pk):
         "requires": requires,
         "required_by": required_by,
     })
+
+
+@login_required
+@_admin_required
+def admin_modules_export_json(request):
+    """
+    Exports the current module, submodule, feature, and dependency configuration as JSON.
+    """
+    import json
+    from django.http import HttpResponse
+
+    data = {
+        "exported_at": timezone.now().isoformat(),
+        "exported_by": request.user.username,
+        "modules": [],
+    }
+
+    modules = SystemModule.objects.prefetch_related("submodules", "submodules__features").all()
+    for mod in modules:
+        mod_dict = {
+            "code": mod.code,
+            "name": mod.name,
+            "category": mod.category,
+            "status": mod.status,
+            "status_message": mod.status_message,
+            "is_critical": mod.is_critical,
+            "submodules": [],
+        }
+        for sub in mod.submodules.all():
+            sub_dict = {
+                "code": sub.code,
+                "name": sub.name,
+                "status": sub.status,
+                "status_message": sub.status_message,
+                "is_critical": sub.is_critical,
+                "features": [],
+            }
+            for feat in sub.features.all():
+                feat_dict = {
+                    "code": feat.code,
+                    "name": feat.name,
+                    "status": feat.status,
+                    "status_message": feat.status_message,
+                }
+                sub_dict["features"].append(feat_dict)
+            mod_dict["submodules"].append(sub_dict)
+        data["modules"].append(mod_dict)
+
+    timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+    response = HttpResponse(json.dumps(data, indent=2), content_type="application/json")
+    response["Content-Disposition"] = f'attachment; filename="ums_module_config_{timestamp}.json"'
+    return response
+
+
+@login_required
+@_admin_required
+@require_POST
+def admin_modules_import_json(request):
+    """
+    Imports and applies module, submodule, and feature statuses from an uploaded JSON configuration.
+    """
+    import json
+    uploaded_file = request.FILES.get("config_file")
+    if not uploaded_file:
+        messages.error(request, "Please select a valid JSON configuration file to import.")
+        return redirect("university:admin_modules")
+
+    try:
+        data = json.loads(uploaded_file.read().decode("utf-8"))
+    except Exception as e:
+        messages.error(request, f"Failed to parse JSON file: {str(e)}")
+        return redirect("university:admin_modules")
+
+    modules_data = data.get("modules", [])
+    if not modules_data:
+        messages.error(request, "Uploaded JSON does not contain valid module configuration.")
+        return redirect("university:admin_modules")
+
+    updated_count = 0
+    with transaction.atomic():
+        for mod_item in modules_data:
+            mod_code = mod_item.get("code")
+            mod_status = mod_item.get("status")
+            mod_msg = mod_item.get("status_message", "")
+            if mod_code and mod_status:
+                m = SystemModule.objects.filter(code=mod_code).first()
+                if m and (not m.is_critical or mod_status == ModuleStatus.ENABLED):
+                    m.status = mod_status
+                    m.status_message = mod_msg
+                    m.save(update_fields=["status", "status_message", "updated_at"])
+                    updated_count += 1
+
+            for sub_item in mod_item.get("submodules", []):
+                sub_code = sub_item.get("code")
+                sub_status = sub_item.get("status")
+                sub_msg = sub_item.get("status_message", "")
+                if sub_code and sub_status:
+                    s = SystemSubmodule.objects.filter(code=sub_code).first()
+                    if s and (not s.is_critical or sub_status == ModuleStatus.ENABLED):
+                        s.status = sub_status
+                        s.status_message = sub_msg
+                        s.save(update_fields=["status", "status_message", "updated_at"])
+
+                for feat_item in sub_item.get("features", []):
+                    feat_code = feat_item.get("code")
+                    feat_status = feat_item.get("status")
+                    feat_msg = feat_item.get("status_message", "")
+                    if feat_code and feat_status:
+                        f = SystemFeature.objects.filter(code=feat_code).first()
+                        if f:
+                            f.status = feat_status
+                            f.status_message = feat_msg
+                            f.save(update_fields=["status", "status_message", "updated_at"])
+
+        invalidate_module_cache()
+        from .audit_services import log_activity
+        log_activity(
+            request=request,
+            user=request.user,
+            action=AuditLog.Action.MODULES_BULK_UPDATE,
+            module=AuditLog.Module.MODULE_MGMT,
+            entity="SystemModule",
+            entity_id="IMPORT_JSON",
+            description=f"Imported module availability configuration ({updated_count} modules updated).",
+        )
+
+    messages.success(request, f"Successfully imported module configuration ({updated_count} modules synchronized).")
+    return redirect("university:admin_modules")

@@ -659,12 +659,224 @@ const UmsCommandPalette = {
   }
 };
 
-// ---------- 6. INITIALIZATION HOOKS ----------
+// ---------- 6. LIVE SYSTEM CONTROL HEARTBEAT & FORM DRAFT AUTO-SAVE ----------
+const UmsSystemHeartbeat = {
+  intervalId: null,
+  pollFrequencyMs: 45000, // 45 seconds
+  bannerEl: null,
+
+  init() {
+    // Only run if user is in an active session
+    this.checkStatus();
+    this.intervalId = setInterval(() => {
+      if (!document.hidden) {
+        this.checkStatus();
+      }
+    }, this.pollFrequencyMs);
+  },
+
+  async checkStatus() {
+    try {
+      const res = await fetch('/system-control/status/', {
+        headers: { 'Accept': 'application/json' },
+        cache: 'no-store'
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      this.handleState(data);
+    } catch (e) {
+      // Offline or network error; fail silently
+    }
+  },
+
+  handleState(data) {
+    const isRestricted = data.maintenance || data.lockdown || data.read_only;
+    const upcoming = data.upcoming;
+
+    // Check if an urgent scheduled maintenance is within 15 minutes
+    if (upcoming && upcoming.seconds_until <= 900 && !isRestricted) {
+      const minutesLeft = Math.max(1, Math.ceil(upcoming.seconds_until / 60));
+      this.showBanner(
+        `Scheduled system maintenance begins in ~${minutesLeft} minute${minutesLeft === 1 ? '' : 's'}. Please save your active work immediately.`,
+        'warning',
+        'fa-triangle-exclamation'
+      );
+      return;
+    }
+
+    if (data.lockdown) {
+      this.showBanner(
+        `SYSTEM LOCKDOWN ACTIVE: ${data.active_message || 'Access to specific operations is restricted for security.'}`,
+        'danger',
+        'fa-shield-halved'
+      );
+      return;
+    }
+
+    if (data.read_only) {
+      this.showBanner(
+        `READ-ONLY MODE: System modifications are temporarily suspended. Viewing is still permitted.`,
+        'info',
+        'fa-database'
+      );
+      return;
+    }
+
+    if (data.maintenance) {
+      this.showBanner(
+        `MAINTENANCE OVERLAY ACTIVE: ${data.active_message || 'The system is currently undergoing scheduled updates.'}`,
+        'warning',
+        'fa-screwdriver-wrench'
+      );
+      return;
+    }
+
+    // If operational, dismiss banner if it was showing a transient warning
+    this.hideBanner();
+  },
+
+  showBanner(message, type, icon) {
+    if (!this.bannerEl) {
+      this.bannerEl = document.createElement('div');
+      this.bannerEl.id = 'umsLiveStatusBanner';
+      this.bannerEl.style.cssText = `
+        position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+        z-index: 99999; max-width: 90%; width: 680px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15); border-radius: 12px;
+        animation: umsSlideDown 0.3s ease;
+      `;
+      document.body.appendChild(this.bannerEl);
+
+      const style = document.createElement('style');
+      style.textContent = `@keyframes umsSlideDown { from { transform: translate(-50%, -100%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }`;
+      document.head.appendChild(style);
+    }
+
+    const bgMap = {
+      warning: 'background: #fffbeb; border: 1px solid #fde68a; color: #92400e;',
+      danger: 'background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;',
+      info: 'background: #f0f9ff; border: 1px solid #bae6fd; color: #075985;'
+    };
+
+    this.bannerEl.style.cssText += bgMap[type] || bgMap.warning;
+    this.bannerEl.innerHTML = `
+      <div class="d-flex align-items-center justify-content-between p-3">
+        <div class="d-flex align-items-center gap-2.5">
+          <i class="fa-solid ${icon} fs-5"></i>
+          <span class="fw-semibold small">${message}</span>
+        </div>
+        <button type="button" class="btn-close ms-2" style="font-size: 0.75rem;" onclick="document.getElementById('umsLiveStatusBanner').remove();" aria-label="Dismiss"></button>
+      </div>
+    `;
+  },
+
+  hideBanner() {
+    if (this.bannerEl) {
+      this.bannerEl.remove();
+      this.bannerEl = null;
+    }
+  }
+};
+
+const UmsFormAutoSave = {
+  debounceTimer: null,
+
+  init() {
+    const forms = document.querySelectorAll('form[method="post"]:not([data-no-autosave])');
+    forms.forEach((form, idx) => {
+      // Don't auto-save sensitive password or login forms
+      if (form.querySelector('input[type="password"]')) return;
+
+      const key = `ums_draft_${location.pathname}_f${idx}`;
+      this.checkDraft(form, key);
+
+      form.addEventListener('input', () => {
+        clearTimeout(this.debounceTimer);
+        this.debounceTimer = setTimeout(() => this.saveDraft(form, key), 600);
+      });
+
+      form.addEventListener('submit', () => {
+        localStorage.removeItem(key);
+      });
+    });
+  },
+
+  saveDraft(form, key) {
+    const data = {};
+    const elements = form.elements;
+    for (let el of elements) {
+      if (!el.name || el.type === 'password' || el.type === 'hidden' || el.type === 'file') continue;
+      if (el.type === 'checkbox' || el.type === 'radio') {
+        if (el.checked) data[el.name] = el.value;
+      } else {
+        data[el.name] = el.value;
+      }
+    }
+    if (Object.keys(data).length > 0) {
+      localStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), data }));
+    }
+  },
+
+  checkDraft(form, key) {
+    const saved = localStorage.getItem(key);
+    if (!saved) return;
+    try {
+      const parsed = JSON.parse(saved);
+      // Discard drafts older than 24 hours
+      if (Date.now() - parsed.savedAt > 24 * 3600 * 1000) {
+        localStorage.removeItem(key);
+        return;
+      }
+
+      // Render restore prompt banner above form
+      const alert = document.createElement('div');
+      alert.className = 'alert alert-info d-flex align-items-center justify-content-between py-2 px-3 mb-3 rounded-3';
+      alert.style.fontSize = '0.85rem';
+      alert.innerHTML = `
+        <div class="d-flex align-items-center gap-2">
+          <i class="fa-solid fa-clock-rotate-left text-info"></i>
+          <span>You have an unsubmitted draft from ${new Date(parsed.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.</span>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-sm btn-info text-white fw-semibold px-2 py-0.5" style="font-size: 0.78rem;">Restore Draft</button>
+          <button type="button" class="btn-close" style="font-size: 0.65rem;" aria-label="Dismiss"></button>
+        </div>
+      `;
+
+      alert.querySelector('.btn-info').addEventListener('click', () => {
+        for (const [name, val] of Object.entries(parsed.data)) {
+          const field = form.elements[name];
+          if (field) {
+            if (field.type === 'checkbox' || field.type === 'radio') {
+              field.checked = (field.value === val);
+            } else {
+              field.value = val;
+            }
+          }
+        }
+        alert.remove();
+      });
+
+      alert.querySelector('.btn-close').addEventListener('click', () => {
+        localStorage.removeItem(key);
+        alert.remove();
+      });
+
+      form.prepend(alert);
+    } catch (e) {
+      localStorage.removeItem(key);
+    }
+  }
+};
+
+// ---------- 7. INITIALIZATION HOOKS ----------
 document.addEventListener('DOMContentLoaded', () => {
   UmsTables.initLiveFilter();
   UmsTables.initSortableHeaders();
   UmsBulkActions.init();
   UmsCommandPalette.init();
+  UmsSystemHeartbeat.init();
+  UmsFormAutoSave.init();
 
   // Mobile sidebar auto-close on link click
   if (window.innerWidth < 992) {
