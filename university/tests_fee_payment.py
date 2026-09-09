@@ -89,16 +89,19 @@ class StudentPayFeesViewTests(FeePaymentTestBase):
         self.assertEqual(self.invoice.status, FeeInvoice.PAID)
         self.assertEqual(self.invoice.balance, Decimal("0.00"))
 
-    def test_overpayment_is_capped_to_balance(self):
+    def test_overpayment_creates_credit_balance(self):
+        """Overpayment is stored in full—excess becomes a credit on the student's account."""
         self.client.post(reverse("university:student_fees"), {
             "invoice_id": self.invoice.id,
-            "amount": "999999",
+            "amount": "15000",
             "method": "Card / Online",
             "reference": "CARD-000222",
         })
         self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.amount_paid, Decimal("10000.00"))
-        self.assertEqual(self.invoice.balance, Decimal("0.00"))
+        self.assertEqual(self.invoice.amount_paid, Decimal("15000.00"))
+        self.assertEqual(self.invoice.balance, Decimal("-5000.00"))
+        self.assertEqual(self.invoice.credit, Decimal("5000.00"))
+        self.assertEqual(self.invoice.status, FeeInvoice.OVERPAID)
 
     def test_invalid_amount_records_no_payment(self):
         resp = self.client.post(reverse("university:student_fees"), {
@@ -183,13 +186,16 @@ class AdminRecordPaymentViewTests(FeePaymentTestBase):
         self.assertEqual(pmt.amount, Decimal("6000.00"))
         self.assertEqual(pmt.method, "Front-desk")
 
-    def test_admin_overpayment_is_capped_to_balance(self):
+    def test_admin_overpayment_creates_credit(self):
+        """Admin overpayment is recorded in full and creates credit on the student account."""
         self.client.post(reverse("university:record_payment", args=[self.invoice.pk]), {
             "amount": "50000",
         })
         self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.amount_paid, Decimal("10000.00"))
-        self.assertEqual(self.invoice.status, FeeInvoice.PAID)
+        self.assertEqual(self.invoice.amount_paid, Decimal("50000.00"))
+        self.assertEqual(self.invoice.balance, Decimal("-40000.00"))
+        self.assertEqual(self.invoice.credit, Decimal("40000.00"))
+        self.assertEqual(self.invoice.status, FeeInvoice.OVERPAID)
 
     def test_admin_can_download_any_receipt(self):
         self.client.post(reverse("university:record_payment", args=[self.invoice.pk]), {"amount": "10000"})

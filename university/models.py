@@ -785,8 +785,8 @@ class Result(models.Model):
 
 
 class FeeInvoice(models.Model):
-    PAID, PARTIAL, UNPAID = "PAID", "PARTIAL", "UNPAID"
-    STATUS = [(PAID, "Paid"), (PARTIAL, "Partial"), (UNPAID, "Unpaid")]
+    PAID, PARTIAL, UNPAID, OVERPAID = "PAID", "PARTIAL", "UNPAID", "OVERPAID"
+    STATUS = [(PAID, "Paid"), (PARTIAL, "Partial"), (UNPAID, "Unpaid"), (OVERPAID, "Overpaid")]
     student = models.ForeignKey("accounts.StudentProfile", on_delete=models.CASCADE,
                                 related_name="invoices")
     term = models.ForeignKey(AcademicTerm, on_delete=models.SET_NULL, null=True, blank=True)
@@ -801,10 +801,19 @@ class FeeInvoice(models.Model):
 
     @property
     def balance(self):
+        """Positive = amount owed, negative = credit/overpayment on this invoice."""
         return self.amount - self.amount_paid
 
     @property
+    def credit(self):
+        """Returns the overpayment credit amount (always >= 0)."""
+        bal = self.balance
+        return abs(bal) if bal < 0 else Decimal("0.00")
+
+    @property
     def status(self):
+        if self.amount_paid > self.amount:
+            return self.OVERPAID
         if self.amount_paid >= self.amount:
             return self.PAID
         if self.amount_paid > 0:

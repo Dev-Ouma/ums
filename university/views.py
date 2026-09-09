@@ -1755,12 +1755,15 @@ def record_payment(request, pk):
     except (InvalidOperation, TypeError):
         amount = Decimal("0")
     if amount > 0:
-        amount = min(amount, invoice.balance)
         invoice.amount_paid += amount
         invoice.save()
         Payment.objects.create(invoice=invoice, amount=amount, method="Front-desk",
                                reference=f"TXN-{timezone.now().strftime('%H%M%S')}")
-        messages.success(request, f"Recorded KES {amount:,.0f} against {invoice.title}.")
+        if amount > invoice.amount - (invoice.amount_paid - amount):
+            credit = invoice.credit
+            messages.success(request, f"Recorded KES {amount:,.0f} against {invoice.title}. Credit of KES {credit:,.0f} applied to student account.")
+        else:
+            messages.success(request, f"Recorded KES {amount:,.0f} against {invoice.title}.")
     return redirect("university:admin_fees")
 
 
@@ -2498,11 +2501,13 @@ def student_fees(request):
             amt = Decimal("0.00")
 
         if amt > 0:
-            amt = min(amt, invoice.balance)
             invoice.amount_paid += amt
             invoice.save()
             pmt = Payment.objects.create(invoice=invoice, amount=amt, method=method, reference=reference)
-            messages.success(request, f"Payment of KES {amt:,.2f} recorded successfully (Ref: {reference}). Receipt REC-{pmt.id:06d} generated.")
+            if invoice.credit > 0:
+                messages.success(request, f"Payment of KES {amt:,.2f} recorded successfully (Ref: {reference}). Receipt REC-{pmt.id:06d} generated. Credit of KES {invoice.credit:,.2f} applied to your account.")
+            else:
+                messages.success(request, f"Payment of KES {amt:,.2f} recorded successfully (Ref: {reference}). Receipt REC-{pmt.id:06d} generated.")
         else:
             messages.error(request, "Please enter a valid payment amount.")
         return redirect("university:student_fees")

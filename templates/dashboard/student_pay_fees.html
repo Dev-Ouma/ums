@@ -30,11 +30,19 @@
     <div class="card-body p-4 p-md-5">
       <div class="row align-items-center g-3">
         <div class="col-md-7">
-          <span class="text-white-50 small text-uppercase fw-semibold tracking-wider">Total Outstanding Balance</span>
-          <div class="d-flex align-items-baseline gap-2 mt-1">
-            <span class="fs-4 text-warning fw-bold">{{ balance.currency }}</span>
-            <span class="display-5 fw-bold tracking-tight text-white">{{ balance.balance|floatformat:2|intcomma }}</span>
-          </div>
+          {% if balance.has_credit or balance.balance < 0 %}
+            <span class="badge bg-info-subtle text-info border border-info-subtle text-uppercase fw-semibold tracking-wider mb-1 px-2.5 py-1">Account In Credit</span>
+            <div class="d-flex align-items-baseline gap-2 mt-1">
+              <span class="fs-4 text-info fw-bold">{{ balance.currency }}</span>
+              <span class="display-5 fw-bold tracking-tight text-info">+{{ balance.credit|floatformat:2|intcomma }}</span>
+            </div>
+          {% else %}
+            <span class="text-white-50 small text-uppercase fw-semibold tracking-wider">Total Outstanding Balance</span>
+            <div class="d-flex align-items-baseline gap-2 mt-1">
+              <span class="fs-4 text-warning fw-bold">{{ balance.currency }}</span>
+              <span class="display-5 fw-bold tracking-tight text-white">{{ balance.balance|floatformat:2|intcomma }}</span>
+            </div>
+          {% endif %}
           <p class="text-white-50 small mb-0 mt-2">
             Student: <strong>{{ student.user.display_name }}</strong> &bull; Reg: <code>{{ student.roll_no }}</code>
           </p>
@@ -52,8 +60,10 @@
             <hr class="my-2 border-secondary opacity-50">
             <div class="d-flex justify-content-between small">
               <span class="text-white-50">Account Status:</span>
-              {% if balance.balance <= 0 %}
-                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5 rounded-pill">Cleared</span>
+              {% if balance.has_credit or balance.balance < 0 %}
+                <span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-0.5 rounded-pill"><i class="fa-solid fa-circle-plus me-1"></i>In Credit / Overpaid</span>
+              {% elif balance.balance <= 0 %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i>Cleared</span>
               {% else %}
                 <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-0.5 rounded-pill">Pending Dues</span>
               {% endif %}
@@ -75,6 +85,12 @@
           <span>Amount to Pay</span>
           <span class="text-muted small fw-normal">Currency: <b>{{ balance.currency }}</b></span>
         </label>
+        {% if balance.has_credit or balance.balance < 0 %}
+          <div class="alert alert-info py-2.5 px-3 rounded-3 small mb-3 d-flex align-items-center gap-2 border-0 bg-info bg-opacity-10 text-dark">
+            <i class="fa-solid fa-circle-info text-info fs-5"></i>
+            <span>You have an account credit of <strong>{{ balance.currency }} {{ balance.credit|floatformat:2|intcomma }}</strong>. Any additional payment will increase your credit balance.</span>
+          </div>
+        {% endif %}
         <div class="input-group input-group-lg shadow-sm rounded-3 overflow-hidden border">
           <span class="input-group-text bg-light text-dark fw-bold border-0 px-3">{{ balance.currency }}</span>
           <input
@@ -91,6 +107,7 @@
             autocomplete="off"
           >
         </div>
+        <small class="text-muted d-block mt-1.5">You may pay any amount. Excess payments create or increase an account credit balance.</small>
 
         {% if balance.balance > 0 %}
         <!-- Quick Preset Amount Buttons -->

@@ -81,7 +81,11 @@ def check_financial_clearance(student, term=None, threshold_pct=100.0):
     is_cleared = (balance <= Decimal("0.00")) or (pct >= threshold_pct)
 
     if is_cleared:
-        msg = f"Financially cleared for examinations ({pct:.1f}% paid)."
+        if balance < Decimal("0.00"):
+            credit = abs(balance)
+            msg = f"Financially cleared for examinations ({pct:.1f}% paid). Account credit: KES {credit:,.2f}."
+        else:
+            msg = f"Financially cleared for examinations ({pct:.1f}% paid)."
     else:
         msg = f"Financial clearance pending. Outstanding balance: KES {balance:,.2f} ({pct:.1f}% paid). Clearance requires {threshold_pct:.0f}%."
 
@@ -90,6 +94,8 @@ def check_financial_clearance(student, term=None, threshold_pct=100.0):
         "total_billed": total_billed,
         "total_paid": total_paid,
         "balance": balance,
+        "credit": abs(balance) if balance < Decimal("0.00") else Decimal("0.00"),
+        "has_credit": balance < Decimal("0.00"),
         "percentage_paid": round(pct, 1),
         "clearance_message": msg,
     }
@@ -171,7 +177,16 @@ def generate_fee_receipt_pdf(payment):
     receipt_no = f"REC-{payment.id:06d}"
     paid_dt = payment.paid_on.strftime("%d %B %Y") if payment.paid_on else timezone.now().strftime("%d %B %Y")
     inv_title = payment.invoice.title if payment.invoice else "Direct Student Fee Payment"
-    inv_balance_str = f"KES {payment.invoice.balance:,.2f}" if payment.invoice else "Allocated Across Fees"
+    if payment.invoice:
+        if payment.invoice.balance < Decimal("0.00"):
+            inv_balance_str = f"CREDIT: KES {payment.invoice.credit:,.2f}"
+            bal_label = "Invoice Account Credit:"
+        else:
+            inv_balance_str = f"KES {payment.invoice.balance:,.2f}"
+            bal_label = "Remaining Invoice Balance:"
+    else:
+        inv_balance_str = "Allocated Across Fees"
+        bal_label = "Remaining Invoice Balance:"
 
     verify_url = f"https://ums.ac.ke/finance/receipt/{payment.reference or payment.id}/"
     qr_drawing = make_qr_drawing(verify_url, size=52.0)
@@ -210,7 +225,7 @@ def generate_fee_receipt_pdf(payment):
          Paragraph(f"{payment.amount:,.2f}", ParagraphStyle("TDRight", parent=body_style, alignment=2))],
         [Paragraph("<b>Total Amount Paid:</b>", body_bold),
          Paragraph(f"<b>KES {payment.amount:,.2f}</b>", ParagraphStyle("TotalRight", parent=body_bold, alignment=2, textColor=colors.HexColor("#047857")))],
-        [Paragraph("Remaining Invoice Balance:", body_style),
+        [Paragraph(bal_label, body_style),
          Paragraph(inv_balance_str, ParagraphStyle("BalRight", parent=body_style, alignment=2))],
     ]
     btable = Table(breakdown_data, colWidths=[360, 155])
@@ -227,9 +242,16 @@ def generate_fee_receipt_pdf(payment):
     story.append(Spacer(1, 20))
 
     # Overall Student Financial Position
-    clearance = check_financial_clearance(student) if student else {"is_cleared": True, "balance": Decimal('0.00')}
-    status_text = "ACCOUNT FULLY CLEARED" if clearance["is_cleared"] else f"OUTSTANDING BALANCE: KES {clearance['balance']:,.2f}"
-    status_color = colors.HexColor("#047857") if clearance["is_cleared"] else colors.HexColor("#b91c1c")
+    clearance = check_financial_clearance(student) if student else {"is_cleared": True, "balance": Decimal('0.00'), "has_credit": False, "credit": Decimal('0.00')}
+    if clearance.get("has_credit"):
+        status_text = f"ACCOUNT IN CREDIT: KES {clearance['credit']:,.2f}"
+        status_color = colors.HexColor("#0284c7")
+    elif clearance["is_cleared"]:
+        status_text = "ACCOUNT FULLY CLEARED"
+        status_color = colors.HexColor("#047857")
+    else:
+        status_text = f"OUTSTANDING BALANCE: KES {clearance['balance']:,.2f}"
+        status_color = colors.HexColor("#b91c1c")
 
     pos_data = [
         [Paragraph("<b>Overall Student Account Status:</b>", body_style),

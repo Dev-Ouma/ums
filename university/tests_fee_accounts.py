@@ -369,6 +369,46 @@ class PaymentConfirmationAndAllocationTests(FeeAccountIntegrationTestBase):
         self.assertEqual(receipt1.receipt_number, receipt2.receipt_number)
         self.assertEqual(FeeReceipt.objects.filter(payment=payment).count(), 1)
 
+    def test_payment_confirmation_overpayment_creates_credit_balance(self):
+        # Total due across invoice1 (45,000) and invoice2 (5,000) is 50,000.
+        # Pay 60,000 -> excess 10,000 should create credit balance
+        payment = Payment.objects.create(
+            student=self.student,
+            fee_account=self.paybill,
+            amount=Decimal("60000.00"),
+            currency="KES",
+            method="M-Pesa Paybill",
+            status=Payment.Status.PENDING,
+            academic_year=self.academic_year,
+            term=self.term,
+        )
+
+        receipt = process_payment_confirmation(
+            payment=payment,
+            provider_reference="MPESA-OVERPAY-001",
+        )
+
+        self.invoice1.refresh_from_db()
+        self.invoice2.refresh_from_db()
+        # invoice1 should be fully paid (45,000)
+        self.assertEqual(self.invoice1.amount_paid, Decimal("45000.00"))
+        self.assertEqual(self.invoice1.status, FeeInvoice.PAID)
+
+        # invoice2 should receive remaining 15,000 (5,000 due + 10,000 overpayment)
+        self.assertEqual(self.invoice2.amount_paid, Decimal("15000.00"))
+        self.assertEqual(self.invoice2.balance, Decimal("-10000.00"))
+        self.assertEqual(self.invoice2.credit, Decimal("10000.00"))
+        self.assertEqual(self.invoice2.status, FeeInvoice.OVERPAID)
+
+        # Receipt remaining balance should be negative
+        self.assertEqual(receipt.remaining_balance, Decimal("-10000.00"))
+
+        # Overall student balance summary should reflect credit
+        bal = get_student_balance_summary(self.student)
+        self.assertEqual(bal["balance"], Decimal("-10000.00"))
+        self.assertEqual(bal["credit"], Decimal("10000.00"))
+        self.assertTrue(bal["has_credit"])
+
 
 class AdminFinanceOperationsTests(FeeAccountIntegrationTestBase):
     def setUp(self):
