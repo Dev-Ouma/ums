@@ -1,2 +1,24 @@
-{% if system_state.status != 'Operational' %}<div class="alert {% if system_state.read_only %}alert-warning{% else %}alert-danger{% endif %} m-3" role="status"><strong>{{ system_state.status }}</strong>{% if system_state.read_only %} — Changes cannot be made at this time.{% endif %}</div>{% endif %}
-{% for n in system_banners %}<div class="alert {% if n.priority == 'CRITICAL' %}alert-danger{% elif n.priority == 'HIGH' %}alert-warning{% else %}alert-info{% endif %} m-3" role="status"><strong>{{ n.rendered_title }}</strong><div style="white-space:pre-wrap">{{ n.rendered_body }}</div></div>{% endfor %}
+{% if system_state.status != 'Operational' %}
+<div class="alert {% if system_state.read_only %}alert-info{% else %}alert-danger{% endif %} alert-dismissible fade show m-3 rounded-3 shadow-sm border-0" role="status">
+  <div class="d-flex align-items-center gap-2">
+    <i class="fa-solid {% if system_state.read_only %}fa-circle-info{% else %}fa-triangle-exclamation{% endif %} fs-5"></i>
+    <div>
+      <strong>{{ system_state.status }}</strong>
+      {% if system_state.read_only %} &mdash; Changes cannot be made at this time.{% endif %}
+    </div>
+  </div>
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+{% for n in system_banners %}
+<div class="alert {% if n.priority == 'CRITICAL' %}alert-danger{% elif n.priority == 'HIGH' %}alert-warning{% else %}alert-info{% endif %} alert-dismissible fade show m-3 rounded-3 shadow-sm border-0" role="status">
+  <div class="d-flex align-items-center gap-2">
+    <i class="fa-solid fa-bell fs-5"></i>
+    <div>
+      <strong>{{ n.rendered_title }}</strong>
+      <div style="white-space:pre-wrap" class="mt-0.5">{{ n.rendered_body }}</div>
+    </div>
+  </div>
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endfor %}
