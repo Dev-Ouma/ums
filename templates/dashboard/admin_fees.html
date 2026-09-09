@@ -192,11 +192,17 @@
           </td>
           <td class="text-end fw-semibold">KES {{ i.amount|floatformat:0|intcomma }}</td>
           <td class="text-end text-success">KES {{ i.amount_paid|floatformat:0|intcomma }}</td>
-          <td class="text-end fw-bold {% if i.balance > 0 %}text-danger{% else %}text-muted{% endif %}">
-            KES {{ i.balance|floatformat:0|intcomma }}
+          <td class="text-end fw-bold {% if i.balance > 0 %}text-danger{% elif i.balance < 0 %}text-info{% else %}text-muted{% endif %}">
+            {% if i.balance < 0 %}
+              <i class="fa-solid fa-circle-plus me-1"></i>KES {{ i.balance|floatformat:0|intcomma|cut:"-" }} credit
+            {% else %}
+              KES {{ i.balance|floatformat:0|intcomma }}
+            {% endif %}
           </td>
           <td class="text-center">
-            {% if i.status == 'PAID' %}
+            {% if i.status == 'OVERPAID' %}
+              <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill px-3 py-1">OVERPAID</span>
+            {% elif i.status == 'PAID' %}
               <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1">PAID</span>
             {% elif i.status == 'PARTIAL' %}
               <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-3 py-1">PARTIAL</span>
@@ -205,15 +211,11 @@
             {% endif %}
           </td>
           <td class="text-center pe-4">
-            {% if i.balance > 0 %}
               <form method="post" action="{% url 'university:record_payment' i.id %}" class="d-flex gap-1 justify-content-center pay-fee-row">
                 {% csrf_token %}
-                <input name="amount" type="number" step="0.01" max="{{ i.balance }}" class="form-control form-control-sm rounded-pill" style="width:95px" placeholder="Amount" aria-label="Payment amount (KES)" required>
+                <input name="amount" type="number" step="0.01" min="1" class="form-control form-control-sm rounded-pill" style="width:95px" placeholder="Amount" aria-label="Payment amount (KES)" required>
                 <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold">Pay</button>
               </form>
-            {% else %}
-              <span class="badge bg-success-subtle text-success rounded-pill px-3 py-2"><i class="fa-solid fa-check me-1"></i> Cleared</span>
-            {% endif %}
           </td>
         </tr>
         {% empty %}

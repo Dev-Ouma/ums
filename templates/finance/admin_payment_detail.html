@@ -159,7 +159,11 @@
                   </span>
                 </td>
                 <td class="pe-4 text-end fw-semibold">
-                  {{ alloc.invoice.currency }} {{ alloc.invoice.balance|floatformat:2|intcomma }}
+                  {% if alloc.invoice.balance < 0 %}
+                    <span class="text-success fw-bold">+ {{ alloc.invoice.currency }} {{ alloc.invoice.credit|floatformat:2|intcomma }} (Credit)</span>
+                  {% else %}
+                    {{ alloc.invoice.currency }} {{ alloc.invoice.balance|floatformat:2|intcomma }}
+                  {% endif %}
                 </td>
               </tr>
               {% empty %}

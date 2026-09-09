@@ -52,18 +52,21 @@ def get_active_fee_accounts_for_student(student) -> List[FeeAccount]:
 
 def get_student_balance_summary(student) -> Dict[str, Any]:
     """
-    Calculates total billed, total paid, and net balance due for a student.
-    Formula: Opening Balance + Charges - Successful Payments - Credits = Outstanding Balance.
+    Calculates total billed, total paid, and net balance for a student.
+    Formula: Total Billed - Total Paid = Balance.
+    Positive balance = amount owed. Negative balance = credit (overpayment).
     """
     invoices = FeeInvoice.objects.filter(student=student)
     total_billed = sum((inv.amount for inv in invoices), Decimal("0.00"))
     total_paid = sum((inv.amount_paid for inv in invoices), Decimal("0.00"))
-    balance = max(Decimal("0.00"), total_billed - total_paid)
+    balance = total_billed - total_paid
 
     return {
         "total_billed": total_billed,
         "total_paid": total_paid,
         "balance": balance,
+        "credit": abs(balance) if balance < Decimal("0.00") else Decimal("0.00"),
+        "has_credit": balance < Decimal("0.00"),
         "currency": "KES",
     }
 
@@ -280,9 +283,12 @@ def allocate_payment_to_invoices(payment: Payment) -> List[PaymentAllocation]:
     """
     Distributes the payment amount across the student's unpaid invoices
     (from oldest due date to newest). Updates invoice amount_paid and status.
+    If payment exceeds all unpaid balances, the remaining unallocated amount
+    is credited to the target invoice (payment.invoice or most recent invoice),
+    creating a credit balance (overpayment).
     """
     student = payment.student
-    invoices = FeeInvoice.objects.filter(student=student).order_by("due_date", "id")
+    invoices = list(FeeInvoice.objects.filter(student=student).order_by("due_date", "id"))
 
     allocations = []
     unallocated_amount = payment.amount
@@ -307,6 +313,25 @@ def allocate_payment_to_invoices(payment: Payment) -> List[PaymentAllocation]:
 
         if unallocated_amount <= Decimal("0.00"):
             break
+
+    # If payment exceeds all outstanding invoice balances, credit excess to target invoice
+    if unallocated_amount > Decimal("0.00"):
+        target_inv = payment.invoice or (invoices[-1] if invoices else None)
+        if target_inv:
+            target_inv.amount_paid += unallocated_amount
+            target_inv.save(update_fields=["amount_paid"])
+            existing_alloc = next((a for a in allocations if a.invoice_id == target_inv.id), None)
+            if existing_alloc:
+                existing_alloc.amount += unallocated_amount
+                existing_alloc.save(update_fields=["amount"])
+            else:
+                alloc = PaymentAllocation.objects.create(
+                    payment=payment,
+                    invoice=target_inv,
+                    amount=unallocated_amount,
+                    allocated_at=timezone.now(),
+                )
+                allocations.append(alloc)
 
     # If payment wasn't attached to a primary invoice, link to the first allocated invoice
     if not payment.invoice_id and allocations:

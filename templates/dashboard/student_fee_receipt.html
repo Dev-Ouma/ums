@@ -105,10 +105,17 @@
             </div>
             <hr class="my-1.5">
             <div class="d-flex justify-content-between fw-bold text-dark fs-6">
-              <span>Remaining Balance:</span>
-              <span class="{% if receipt.remaining_balance > 0 %}text-danger{% else %}text-success{% endif %}">
-                {{ payment.currency }} {{ receipt.remaining_balance|floatformat:2|intcomma }}
-              </span>
+              {% if receipt.remaining_balance < 0 %}
+                <span>Remaining Account Credit:</span>
+                <span class="text-success">
+                  + {{ payment.currency }} {{ receipt.remaining_balance|floatformat:2|intcomma|cut:"-" }}
+                </span>
+              {% else %}
+                <span>Remaining Balance:</span>
+                <span class="{% if receipt.remaining_balance > 0 %}text-danger{% else %}text-success{% endif %}">
+                  {{ payment.currency }} {{ receipt.remaining_balance|floatformat:2|intcomma }}
+                </span>
+              {% endif %}
             </div>
           </div>
         </div>
