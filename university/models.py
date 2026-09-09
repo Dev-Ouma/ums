@@ -879,6 +879,24 @@ class FeeAccount(models.Model):
     def __str__(self):
         return f"{self.name} ({self.get_account_type_display()}) - {self.account_identifier}"
 
+    @property
+    def paybill_account_number_display(self):
+        """Human-readable description of how the M-Pesa Paybill Account No is resolved in Kenya."""
+        if self.account_type != self.AccountType.MPESA_PAYBILL:
+            return ""
+        config = self.configuration or {}
+        fmt = config.get("account_ref_format", "STUDENT_REG_NO")
+        if fmt == "FIXED_ACCOUNT":
+            return config.get("fixed_account_number") or "Fixed Account"
+        elif fmt == "PREFIX_REG_NO":
+            prefix = config.get("account_ref_prefix", "")
+            return f"{prefix}[Student Reg No]"
+        elif fmt == "INVOICE_NUMBER":
+            return "[Invoice Number]"
+        elif fmt == "PAYMENT_REFERENCE":
+            return "[Payment Ref]"
+        return "Student Reg No (e.g. BSE/2026/001)"
+
 
 class Payment(models.Model):
     class Status(models.TextChoices):

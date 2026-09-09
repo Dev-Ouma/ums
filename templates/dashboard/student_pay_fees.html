@@ -138,7 +138,14 @@
 
                 <div class="small text-muted mb-1">
                   {% if acc.account_type == 'MPESA_PAYBILL' %}
-                    <i class="fa-solid fa-mobile-screen-button text-success me-1"></i> Paybill No: <b>{{ acc.account_identifier }}</b>
+                    <div class="d-flex flex-wrap gap-1 align-items-center mb-1">
+                      <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-0.5" style="font-size: 0.8rem;">
+                        <i class="fa-solid fa-mobile-screen-button me-1"></i> Paybill: <b>{{ acc.account_identifier }}</b>
+                      </span>
+                      <span class="badge bg-light text-dark border rounded-pill px-2 py-0.5" style="font-size: 0.8rem;">
+                        Account No: <b>{% if acc.configuration.account_ref_format == 'FIXED_ACCOUNT' %}{{ acc.configuration.fixed_account_number|default:acc.account_identifier }}{% elif acc.configuration.account_ref_format == 'PREFIX_REG_NO' %}{{ acc.configuration.account_ref_prefix }}{{ student.roll_no }}{% else %}{{ student.roll_no }}{% endif %}</b>
+                      </span>
+                    </div>
                   {% elif acc.account_type == 'MPESA_TILL' %}
                     <i class="fa-solid fa-store text-success me-1"></i> Till No: <b>{{ acc.account_identifier }}</b>
                   {% elif acc.account_type == 'CARD_GATEWAY' %}

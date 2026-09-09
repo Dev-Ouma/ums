@@ -158,7 +158,22 @@
 
             <!-- Account Number / Identifier -->
             <td>
-              <code class="fw-bold fs-6 text-dark">{{ acc.account_identifier }}</code>
+              {% if acc.account_type == 'MPESA_PAYBILL' %}
+                <div class="d-flex align-items-baseline gap-1">
+                  <span class="text-muted small">Paybill:</span>
+                  <code class="fw-bold fs-6 text-dark">{{ acc.account_identifier }}</code>
+                </div>
+                <div class="small text-secondary mt-0.5">
+                  <span class="text-muted">Account No:</span> <b class="text-dark">{{ acc.paybill_account_number_display }}</b>
+                </div>
+              {% elif acc.account_type == 'MPESA_TILL' %}
+                <div class="d-flex align-items-baseline gap-1">
+                  <span class="text-muted small">Till No:</span>
+                  <code class="fw-bold fs-6 text-dark">{{ acc.account_identifier }}</code>
+                </div>
+              {% else %}
+                <code class="fw-bold fs-6 text-dark">{{ acc.account_identifier }}</code>
+              {% endif %}
               {% if acc.account_name %}
                 <small class="text-muted d-block">{{ acc.account_name }}</small>
               {% endif %}

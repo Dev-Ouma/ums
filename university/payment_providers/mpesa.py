@@ -29,7 +29,23 @@ class MpesaProviderAdapter(BasePaymentProviderAdapter):
 
         is_paybill = self.fee_account.account_type == "MPESA_PAYBILL"
         shortcode = self.fee_account.account_identifier
-        account_ref = payment.student.roll_no if payment.student else payment.internal_reference
+
+        # Resolve Kenyan Paybill Account Number (Account Reference)
+        config = self.fee_account.configuration or {}
+        ref_format = config.get("account_ref_format", "STUDENT_REG_NO")
+        student_roll = payment.student.roll_no if payment.student else payment.internal_reference
+
+        if ref_format == "FIXED_ACCOUNT":
+            account_ref = config.get("fixed_account_number") or shortcode
+        elif ref_format == "PREFIX_REG_NO":
+            prefix = config.get("account_ref_prefix", "")
+            account_ref = f"{prefix}{student_roll}"
+        elif ref_format == "INVOICE_NUMBER":
+            account_ref = payment.invoice.invoice_number if payment.invoice else payment.internal_reference
+        elif ref_format == "PAYMENT_REFERENCE":
+            account_ref = payment.internal_reference
+        else:  # STUDENT_REG_NO (standard Kenyan university model)
+            account_ref = student_roll
 
         instructions = {
             "type": "M-Pesa Paybill" if is_paybill else "M-Pesa Buy Goods / Till",

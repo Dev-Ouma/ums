@@ -103,7 +103,12 @@ def fee_account_create(request):
         config = {}
         if account_type in [FeeAccount.AccountType.MPESA_PAYBILL, FeeAccount.AccountType.MPESA_TILL]:
             config["callback_url"] = request.POST.get("callback_url", "/api/payments/callback/mpesa/").strip()
+            config["validation_url"] = request.POST.get("validation_url", "").strip()
             config["account_ref_format"] = request.POST.get("account_ref_format", "STUDENT_REG_NO").strip()
+            config["fixed_account_number"] = request.POST.get("fixed_account_number", "").strip()
+            config["account_ref_prefix"] = request.POST.get("account_ref_prefix", "").strip()
+            config["consumer_key"] = request.POST.get("consumer_key", "").strip()
+            config["passkey"] = request.POST.get("passkey", "").strip()
         elif account_type == FeeAccount.AccountType.CARD_GATEWAY:
             config["callback_url"] = request.POST.get("callback_url", "/api/payments/callback/card/").strip()
             config["merchant_name"] = request.POST.get("merchant_name", "").strip()
@@ -192,7 +197,16 @@ def fee_account_edit(request, pk):
         config = account.configuration or {}
         if account.account_type in [FeeAccount.AccountType.MPESA_PAYBILL, FeeAccount.AccountType.MPESA_TILL]:
             config["callback_url"] = request.POST.get("callback_url", config.get("callback_url", "")).strip()
+            config["validation_url"] = request.POST.get("validation_url", config.get("validation_url", "")).strip()
             config["account_ref_format"] = request.POST.get("account_ref_format", "STUDENT_REG_NO").strip()
+            config["fixed_account_number"] = request.POST.get("fixed_account_number", "").strip()
+            config["account_ref_prefix"] = request.POST.get("account_ref_prefix", "").strip()
+            consumer_key = request.POST.get("consumer_key", "").strip()
+            if consumer_key and not consumer_key.startswith("••••"):
+                config["consumer_key"] = consumer_key
+            passkey = request.POST.get("passkey", "").strip()
+            if passkey and not passkey.startswith("••••"):
+                config["passkey"] = passkey
         elif account.account_type == FeeAccount.AccountType.CARD_GATEWAY:
             config["callback_url"] = request.POST.get("callback_url", config.get("callback_url", "")).strip()
         elif account.account_type == FeeAccount.AccountType.BANK_ACCOUNT:
