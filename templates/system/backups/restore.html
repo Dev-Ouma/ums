@@ -1,0 +1,251 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}Restore & Disaster Recovery · System Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-3 px-md-4">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1 small">
+          <li class="breadcrumb-item"><a href="{% url 'university:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'university:backup_dashboard' %}" class="text-decoration-none">System Backups</a></li>
+          <li class="breadcrumb-item active" aria-current="page">Restore &amp; Recovery</li>
+        </ol>
+      </nav>
+      <h2 class="fw-bold mb-0 text-danger">
+        <i class="fa-solid fa-shield-virus me-2"></i>Disaster Recovery &amp; System Restoration
+      </h2>
+      <p class="text-muted small mb-0 mt-1">Controlled restoration of the university application state from verified backup archives.</p>
+    </div>
+    <div>
+      <a href="{% url 'university:backup_dashboard' %}" class="btn btn-outline-secondary rounded-pill px-3 fw-semibold">
+        <i class="fa-solid fa-arrow-left me-1"></i> Back to Dashboard
+      </a>
+    </div>
+  </div>
+
+  <!-- Critical Safety Alert Banner -->
+  <div class="alert alert-danger border-0 rounded-4 shadow-sm p-4 mb-4" role="alert">
+    <div class="d-flex align-items-start gap-3">
+      <div class="display-6 text-danger">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <div>
+        <h5 class="alert-heading fw-bold mb-1">Critical Disaster Recovery Warning</h5>
+        <p class="small mb-2" style="line-height: 1.6;">
+          Restoring a backup will roll back the application database and/or uploaded files to the exact state captured at that snapshot.
+          Any data modified after that snapshot will be replaced.
+        </p>
+        <ul class="small mb-0 ps-3 text-secondary">
+          <li><strong>Automatic Safeguard:</strong> The system automatically creates an emergency pre-restore snapshot before applying changes.</li>
+          <li><strong>Maintenance Mode:</strong> The university portal is temporarily locked to read-only/maintenance during restoration to block user writes.</li>
+          <li><strong>Required Authorization:</strong> Only elevated System Administrators can initiate restoration, requiring explicit typed confirmation and an institutional reason.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Available Restore Points Grid -->
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white mb-4">
+    <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+      <span class="fw-bold text-dark">
+        <i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>Available Verified Restore Points
+      </span>
+      <span class="small text-muted">{{ available_points.count }} restore points available</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light text-muted small text-uppercase">
+          <tr>
+            <th class="ps-4">Restore Point</th>
+            <th>Type</th>
+            <th>Created</th>
+            <th>Size</th>
+            <th>Verification</th>
+            <th class="pe-4 text-end">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pt in available_points %}
+          <tr>
+            <td class="ps-4">
+              <span class="fw-bold text-dark d-block">{{ pt.backup_id }}</span>
+              <span class="small text-muted">{{ pt.schedule.name|default:pt.get_trigger_type_display }}</span>
+            </td>
+            <td>
+              <span class="badge bg-light text-dark border">{{ pt.get_backup_type_display }}</span>
+            </td>
+            <td>
+              <span class="small text-secondary">{{ pt.created_at|date:"d M Y H:i:s" }}</span>
+            </td>
+            <td>
+              <span class="small fw-semibold text-dark">{{ pt.file_size_display }}</span>
+            </td>
+            <td>
+              {% if pt.verification_status == 'PASSED' %}
+                <span class="text-success small fw-semibold"><i class="fa-solid fa-circle-check me-1"></i>Verified</span>
+              {% else %}
+                <span class="text-warning small fw-semibold"><i class="fa-solid fa-circle-question me-1"></i>{{ pt.verification_status }}</span>
+              {% endif %}
+            </td>
+            <td class="pe-4 text-end">
+              <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-semibold" 
+                      data-bs-toggle="modal" data-bs-target="#restoreConfirmModal"
+                      data-backup-id="{{ pt.id }}" data-backup-code="{{ pt.backup_id }}" data-backup-date="{{ pt.created_at|date:'d M Y H:i' }}">
+                <i class="fa-solid fa-rotate-left me-1"></i> Restore From This Point
+              </button>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="text-center py-5 text-muted">
+              <i class="fa-solid fa-database fa-3x text-muted mb-3 d-block opacity-25"></i>
+              <h6 class="fw-bold">No Valid Restore Points Available</h6>
+              <p class="small mb-0">You must have at least one successful backup archive on storage to perform restoration.</p>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Restoration History Table -->
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white mb-4">
+    <div class="card-header bg-white py-3 px-4 border-bottom">
+      <span class="fw-bold text-dark">
+        <i class="fa-solid fa-clock me-2 text-primary"></i>Historical Restoration Log
+      </span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light text-muted small text-uppercase">
+          <tr>
+            <th class="ps-4">Restore ID</th>
+            <th>Source Backup</th>
+            <th>Scope</th>
+            <th>Initiated By</th>
+            <th>Date &amp; Duration</th>
+            <th>Status</th>
+            <th class="pe-4 text-end">Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rh in restore_history %}
+          <tr>
+            <td class="ps-4">
+              <span class="fw-bold text-dark d-block">{{ rh.restore_id }}</span>
+              <span class="small text-muted font-monospace">{{ rh.created_at|date:"d M Y H:i" }}</span>
+            </td>
+            <td>
+              <span class="small text-dark fw-semibold">{{ rh.backup.backup_id }}</span>
+            </td>
+            <td>
+              <span class="badge bg-light text-dark border">{{ rh.get_restore_type_display }}</span>
+            </td>
+            <td>
+              <span class="small text-secondary">{{ rh.requested_by.display_name|default:rh.requested_by.username }}</span>
+            </td>
+            <td>
+              <span class="small text-secondary">{{ rh.started_at|date:"H:i:s"|default:"—" }}</span>
+            </td>
+            <td>
+              {% if rh.status == 'COMPLETED' %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2">Completed</span>
+              {% elif rh.status == 'FAILED' %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2">Failed</span>
+              {% elif rh.status == 'IN_PROGRESS' or rh.status == 'VALIDATING' %}
+                <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-2">In Progress</span>
+              {% else %}
+                <span class="badge bg-secondary-subtle text-secondary border rounded-pill px-2">{{ rh.status }}</span>
+              {% endif %}
+            </td>
+            <td class="pe-4 text-end">
+              <span class="small text-muted" title="{{ rh.reason }}">{{ rh.reason|truncatewords:6 }}</span>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="7" class="text-center py-4 text-muted small">No past disaster restorations on record.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal: Restore Confirmation Safety Form -->
+  <div class="modal fade" id="restoreConfirmModal" tabindex="-1" aria-labelledby="restoreConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
+        <form method="post" action="{% url 'university:backup_restore_start' %}">
+          {% csrf_token %}
+          <input type="hidden" name="backup_id" id="modal_backup_id">
+          
+          <div class="modal-header border-0 bg-danger text-white px-4 pt-4 pb-3">
+            <h5 class="modal-title fw-bold" id="restoreConfirmModalLabel">
+              <i class="fa-solid fa-triangle-exclamation me-2"></i>Confirm System Restoration
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body px-4 py-3">
+            <div class="p-3 bg-danger bg-opacity-10 border border-danger border-opacity-25 rounded-3 mb-3 text-danger small">
+              <strong>Source Point:</strong> <span id="modal_backup_code" class="fw-bold"></span> (<span id="modal_backup_date"></span>)
+              <div class="mt-1">Restoring will overwrite current operational tables with snapshot data.</div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small fw-semibold text-muted text-uppercase">Restore Scope</label>
+              <select name="restore_type" class="form-select rounded-3" required>
+                <option value="FULL" selected>Full System State (Database + Media Files)</option>
+                <option value="DATABASE">Database Only (Tables &amp; Transactions)</option>
+                <option value="FILES">Uploaded Files &amp; Media Documents Only</option>
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small fw-semibold text-muted text-uppercase">Institutional Justification / Reason <span class="text-danger">*</span></label>
+              <textarea name="reason" class="form-control rounded-3" rows="2" placeholder="Document why this disaster recovery procedure is authorized..." required></textarea>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small fw-semibold text-muted text-uppercase">
+                Type <code class="text-danger">RESTORE-SYSTEM-DATABASE</code> to Confirm <span class="text-danger">*</span>
+              </label>
+              <input type="text" name="confirmation_text" class="form-control rounded-3 font-monospace" placeholder="RESTORE-SYSTEM-DATABASE" required autocomplete="off">
+              <div class="form-text small">Exact phrase match is required to prevent accidental execution.</div>
+            </div>
+          </div>
+          <div class="modal-footer border-0 px-4 pb-4 pt-2">
+            <button type="button" class="btn btn-light rounded-pill px-3 fw-semibold" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-danger rounded-pill px-4 fw-semibold shadow-sm">
+              <i class="fa-solid fa-play me-1"></i> Proceed With Restoration
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const restoreModal = document.getElementById('restoreConfirmModal');
+  if (restoreModal) {
+    restoreModal.addEventListener('show.bs.modal', function(event) {
+      const button = event.relatedTarget;
+      const backupId = button.getAttribute('data-backup-id');
+      const backupCode = button.getAttribute('data-backup-code');
+      const backupDate = button.getAttribute('data-backup-date');
+      
+      document.getElementById('modal_backup_id').value = backupId;
+      document.getElementById('modal_backup_code').textContent = backupCode;
+      document.getElementById('modal_backup_date').textContent = backupDate;
+    });
+  }
+</script>
+{% endblock %}

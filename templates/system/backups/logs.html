@@ -1,0 +1,144 @@
+{% extends 'base_dashboard.html' %}
+
+{% block title %}Operational Backup Logs · System Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-3 px-md-4">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1 small">
+          <li class="breadcrumb-item"><a href="{% url 'university:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'university:backup_dashboard' %}" class="text-decoration-none">System Backups</a></li>
+          <li class="breadcrumb-item active" aria-current="page">Operational Logs</li>
+        </ol>
+      </nav>
+      <h2 class="fw-bold mb-0 text-dark">
+        <i class="fa-solid fa-terminal me-2 text-primary"></i>Operational Backup Logs
+      </h2>
+      <p class="text-muted small mb-0 mt-1">Granular execution tracing for backup packagers, storage probes, retention pruners, and disaster restores.</p>
+    </div>
+    <div>
+      <a href="{% url 'university:backup_dashboard' %}" class="btn btn-outline-secondary rounded-pill px-3 fw-semibold">
+        <i class="fa-solid fa-arrow-left me-1"></i> Back to Dashboard
+      </a>
+    </div>
+  </div>
+
+  <!-- Filter Card -->
+  <div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-4">
+    <form method="get" class="row g-2 align-items-center">
+      <div class="col-md-5">
+        <input type="text" name="component" class="form-control bg-light border-0 rounded-pill" placeholder="Filter by component (e.g. DATABASE, RETENTION)..." value="{{ component_query }}">
+      </div>
+      <div class="col-md-4">
+        <select name="level" class="form-select bg-light border-0 rounded-pill">
+          <option value="">All Log Levels</option>
+          {% for code, label in levels %}
+            <option value="{{ code }}" {% if selected_level == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3 d-flex gap-2">
+        <button type="submit" class="btn btn-primary rounded-pill w-100 fw-semibold">Filter</button>
+        {% if selected_level or component_query %}
+          <a href="{% url 'university:backup_logs' %}" class="btn btn-outline-secondary rounded-pill px-3" title="Clear Filter">
+            <i class="fa-solid fa-xmark"></i>
+          </a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+
+  <!-- Logs Table -->
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white mb-4">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 font-monospace small">
+        <thead class="table-light text-muted small text-uppercase font-sans-serif">
+          <tr>
+            <th class="ps-4">Timestamp</th>
+            <th>Level</th>
+            <th>Component</th>
+            <th>Job / Context</th>
+            <th class="pe-4">Operational Message</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td class="ps-4 text-nowrap text-secondary">
+              {{ log.timestamp|date:"d M Y H:i:s" }}
+            </td>
+            <td>
+              {% if log.level == 'ERROR' %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill">ERROR</span>
+              {% elif log.level == 'SUCCESS' %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">SUCCESS</span>
+              {% elif log.level == 'WARNING' %}
+                <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill">WARNING</span>
+              {% else %}
+                <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill">INFO</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge bg-light text-dark border">{{ log.component }}</span>
+            </td>
+            <td>
+              {% if log.job %}
+                <a href="{% url 'university:backup_detail' log.job.pk %}" class="text-primary text-decoration-none fw-bold">
+                  {{ log.job.backup_id }}
+                </a>
+              {% elif log.restore_job %}
+                <span class="text-danger fw-bold">{{ log.restore_job.restore_id }}</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="pe-4 text-break">
+              {{ log.message }}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" class="text-center py-5 text-muted">
+              <i class="fa-solid fa-terminal fa-3x text-muted mb-3 d-block opacity-25"></i>
+              <h6 class="fw-bold">No Operational Logs Found</h6>
+              <p class="small mb-0">Operational execution events will appear here as backup jobs run.</p>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if logs.has_other_pages %}
+    <div class="card-footer bg-white py-3 px-4 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <small class="text-muted">
+        Page {{ logs.number }} of {{ logs.paginator.num_pages }}
+      </small>
+      <nav aria-label="Page navigation">
+        <ul class="pagination pagination-sm mb-0">
+          {% if logs.has_previous %}
+            <li class="page-item">
+              <a class="page-link rounded-start-pill" href="?page={{ logs.previous_page_number }}{% if selected_level %}&level={{ selected_level }}{% endif %}{% if component_query %}&component={{ component_query }}{% endif %}">Previous</a>
+            </li>
+          {% endif %}
+          <li class="page-item active">
+            <span class="page-link">{{ logs.number }}</span>
+          </li>
+          {% if logs.has_next %}
+            <li class="page-item">
+              <a class="page-link rounded-end-pill" href="?page={{ logs.next_page_number }}{% if selected_level %}&level={{ selected_level }}{% endif %}{% if component_query %}&component={{ component_query }}{% endif %}">Next</a>
+            </li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

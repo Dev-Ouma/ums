@@ -1,0 +1,118 @@
+{% extends 'base_dashboard.html' %}
+
+{% block title %}Backup Settings & Policies · System Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-3 px-md-4">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1 small">
+          <li class="breadcrumb-item"><a href="{% url 'university:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'university:backup_dashboard' %}" class="text-decoration-none">System Backups</a></li>
+          <li class="breadcrumb-item active" aria-current="page">Settings &amp; Policies</li>
+        </ol>
+      </nav>
+      <h2 class="fw-bold mb-0 text-dark">
+        <i class="fa-solid fa-sliders me-2 text-primary"></i>Backup Policies &amp; Configuration
+      </h2>
+      <p class="text-muted small mb-0 mt-1">Configure automated retention thresholds, storage warnings, health alert intervals, and notification dispatches.</p>
+    </div>
+    <div>
+      <a href="{% url 'university:backup_dashboard' %}" class="btn btn-outline-secondary rounded-pill px-3 fw-semibold">
+        <i class="fa-solid fa-arrow-left me-1"></i> Back to Dashboard
+      </a>
+    </div>
+  </div>
+
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
+        <div class="card-header bg-white py-3 px-4 border-bottom">
+          <span class="fw-bold text-dark">
+            <i class="fa-solid fa-gear me-2 text-primary"></i>Global System Policies
+          </span>
+        </div>
+        <form method="post" class="card-body p-4">
+          {% csrf_token %}
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold text-muted text-uppercase">Default Storage Target</label>
+              <select name="default_storage" class="form-select rounded-3">
+                {% for st in storages %}
+                  <option value="{{ st.id }}" {% if settings.default_storage_id == st.id %}selected{% endif %}>{{ st.name }} ({{ st.get_storage_type_display }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold text-muted text-uppercase">Default Retention Policy</label>
+              <select name="default_retention" class="form-select rounded-3">
+                {% for rp in retentions %}
+                  <option value="{{ rp.id }}" {% if settings.default_retention_id == rp.id %}selected{% endif %}>{{ rp.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold text-muted text-uppercase">Storage Capacity Warning Threshold (%)</label>
+              <input type="number" name="storage_warning_threshold" class="form-control rounded-3" value="{{ settings.storage_warning_threshold_percent }}" min="50" max="99">
+              <div class="form-text small">Triggers warning status when disk utilization exceeds this percentage.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold text-muted text-uppercase">Health Overdue Threshold (Hours)</label>
+              <input type="number" name="health_overdue_threshold" class="form-control rounded-3" value="{{ settings.health_overdue_threshold_hours }}" min="12" max="168">
+              <div class="form-text small">Alerts administrators if no verified backup is taken within this duration.</div>
+            </div>
+          </div>
+
+          <!-- Safety Locks -->
+          <div class="p-3 bg-light rounded-3 border mb-4">
+            <span class="small fw-bold text-dark d-block mb-2 text-uppercase" style="letter-spacing: 0.05em;">Disaster Recovery Guardrails</span>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" name="require_maintenance_on_restore" id="id_maint_check" {% if settings.require_maintenance_on_restore %}checked{% endif %}>
+              <label class="form-check-label small text-dark fw-semibold" for="id_maint_check">
+                Mandate Automatic System Maintenance / Read-Only Mode during restorations
+              </label>
+              <div class="form-text small">Blocks student and faculty portal write attempts while database snapshot is being applied.</div>
+            </div>
+          </div>
+
+          <!-- Notification Settings -->
+          <div class="p-3 bg-light rounded-3 border mb-4">
+            <span class="small fw-bold text-dark d-block mb-2 text-uppercase" style="letter-spacing: 0.05em;">Alert Notifications</span>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" name="notify_on_failure" id="id_notif_fail" {% if settings.notify_on_failure %}checked{% endif %}>
+              <label class="form-check-label small text-dark" for="id_notif_fail">
+                Dispatch high-priority alert notices on backup failure
+              </label>
+            </div>
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" name="notify_on_success" id="id_notif_succ" {% if settings.notify_on_success %}checked{% endif %}>
+              <label class="form-check-label small text-dark" for="id_notif_succ">
+                Dispatch routine confirmation notices on backup completion
+              </label>
+            </div>
+            <div>
+              <label class="form-label small fw-semibold text-muted text-uppercase">Notification Recipient Emails</label>
+              <input type="text" name="notification_emails" class="form-control rounded-3" value="{{ settings.notification_emails }}" placeholder="admin@ums.ac.ke, sysops@ums.ac.ke">
+              <div class="form-text small">Comma-separated email addresses for system health alerts.</div>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-end gap-2">
+            <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm">
+              <i class="fa-solid fa-floppy-disk me-1"></i> Save Configuration
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

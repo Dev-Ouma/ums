@@ -12,6 +12,7 @@ db.sqlite3-journal
 db.*.sqlite3
 /media/
 /staticfiles/
+/backups/
 
 # IDE / OS / Agent files
 .vscode/

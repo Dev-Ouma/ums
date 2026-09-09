@@ -1,0 +1,262 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}Backup History · System Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-3 px-md-4">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1 small">
+          <li class="breadcrumb-item"><a href="{% url 'university:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'university:backup_dashboard' %}" class="text-decoration-none">System Backups</a></li>
+          <li class="breadcrumb-item active" aria-current="page">History</li>
+        </ol>
+      </nav>
+      <h2 class="fw-bold mb-0 text-dark">
+        <i class="fa-solid fa-list-check me-2 text-primary"></i>Backup History Ledger
+      </h2>
+      <p class="text-muted small mb-0 mt-1">Complete historical ledger of all automated and manual system backup archives.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <button type="button" class="btn btn-primary rounded-pill px-3 shadow-sm fw-semibold" data-bs-toggle="modal" data-bs-target="#createBackupModal">
+        <i class="fa-solid fa-plus me-1"></i> Create Backup Now
+      </button>
+      <a href="{% url 'university:backup_export' %}?format=csv" class="btn btn-outline-secondary rounded-pill px-3 fw-semibold">
+        <i class="fa-solid fa-file-csv me-1"></i> Export CSV
+      </a>
+      <a href="{% url 'university:backup_export' %}?format=xlsx" class="btn btn-outline-secondary rounded-pill px-3 fw-semibold">
+        <i class="fa-solid fa-file-excel me-1"></i> Export Excel
+      </a>
+    </div>
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-4">
+    <form method="get" class="row g-2 align-items-center">
+      <div class="col-md-4">
+        <input type="text" name="q" class="form-control bg-light border-0 rounded-pill" placeholder="Search by Backup ID..." value="{{ search_query }}">
+      </div>
+      <div class="col-md-3">
+        <select name="status" class="form-select bg-light border-0 rounded-pill">
+          <option value="">All Statuses</option>
+          {% for code, label in statuses %}
+            <option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <select name="type" class="form-select bg-light border-0 rounded-pill">
+          <option value="">All Scopes</option>
+          {% for code, label in types %}
+            <option value="{{ code }}" {% if selected_type == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 d-flex gap-2">
+        <button type="submit" class="btn btn-primary rounded-pill w-100 fw-semibold">Filter</button>
+        {% if selected_status or selected_type or search_query %}
+          <a href="{% url 'university:backup_history' %}" class="btn btn-outline-secondary rounded-pill px-3" title="Clear Filters">
+            <i class="fa-solid fa-xmark"></i>
+          </a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+
+  <!-- History Table -->
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white mb-4">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light text-muted small text-uppercase">
+          <tr>
+            <th class="ps-4">Backup ID</th>
+            <th>Schedule</th>
+            <th>Type</th>
+            <th>Started</th>
+            <th>Completed</th>
+            <th>Size</th>
+            <th>Status</th>
+            <th>Storage</th>
+            <th class="pe-4 text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for job in jobs %}
+          <tr>
+            <td class="ps-4">
+              <a href="{% url 'university:backup_detail' job.pk %}" class="fw-bold text-dark text-decoration-none">
+                {{ job.backup_id }}
+              </a>
+              {% if job.is_protected %}
+                <span class="badge bg-warning-subtle text-warning border rounded-pill ms-1" title="Protected from retention cleanup">
+                  <i class="fa-solid fa-lock"></i> Protected
+                </span>
+              {% endif %}
+              <div class="small text-muted" style="font-size: 0.72rem;">{{ job.get_trigger_type_display }}</div>
+            </td>
+            <td>
+              {% if job.schedule %}
+                <span class="small text-dark fw-semibold">{{ job.schedule.name }}</span>
+              {% else %}
+                <span class="small text-muted">Manual On-Demand</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge bg-light text-dark border">{{ job.get_backup_type_display }}</span>
+            </td>
+            <td>
+              <span class="small text-secondary">{{ job.started_at|date:"d M Y H:i:s"|default:"—" }}</span>
+            </td>
+            <td>
+              <span class="small text-secondary">{{ job.completed_at|date:"d M Y H:i:s"|default:"—" }}</span>
+            </td>
+            <td>
+              <span class="small fw-semibold text-dark">{{ job.file_size_display }}</span>
+              <div class="small text-muted" style="font-size: 0.7rem;">{{ job.duration_seconds }}s</div>
+            </td>
+            <td>
+              {% if job.status == 'SUCCESSFUL' %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2">Successful</span>
+              {% elif job.status == 'FAILED' %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2">Failed</span>
+              {% elif job.status == 'RUNNING' %}
+                <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-2">Running...</span>
+              {% elif job.status == 'EXPIRED' %}
+                <span class="badge bg-secondary-subtle text-muted border rounded-pill px-2">Expired</span>
+              {% else %}
+                <span class="badge bg-secondary-subtle text-secondary border rounded-pill px-2">{{ job.status }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="small text-secondary">{{ job.storage.name|default:"Local Server" }}</span>
+            </td>
+            <td class="pe-4 text-end">
+              <div class="dropdown">
+                <button class="btn btn-sm btn-light border rounded-pill px-2 py-1" type="button" data-bs-toggle="dropdown">
+                  <i class="fa-solid fa-ellipsis-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 small">
+                  <li><a class="dropdown-item py-2" href="{% url 'university:backup_detail' job.pk %}"><i class="fa-solid fa-eye me-2 text-primary"></i>View Details</a></li>
+                  {% if job.is_available %}
+                    <li><a class="dropdown-item py-2" href="{% url 'university:backup_download' job.pk %}"><i class="fa-solid fa-download me-2 text-success"></i>Download Archive</a></li>
+                    <li>
+                      <form method="post" action="{% url 'university:backup_verify' job.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="dropdown-item py-2"><i class="fa-solid fa-shield-check me-2 text-info"></i>Verify Checksum</button>
+                      </form>
+                    </li>
+                    <li>
+                      <form method="post" action="{% url 'university:backup_toggle_protect' job.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="dropdown-item py-2">
+                          <i class="fa-solid fa-lock me-2 text-warning"></i>{% if job.is_protected %}Unprotect{% else %}Lock from Retention{% endif %}
+                        </button>
+                      </form>
+                    </li>
+                  {% endif %}
+                  <li><hr class="dropdown-divider"></li>
+                  <li>
+                    <form method="post" action="{% url 'university:backup_delete' job.pk %}" onsubmit="return confirm('Permanently delete backup {{ job.backup_id }}?');">
+                      {% csrf_token %}
+                      <button type="submit" class="dropdown-item py-2 text-danger"><i class="fa-solid fa-trash me-2"></i>Delete Permanently</button>
+                    </form>
+                  </li>
+                </ul>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="9" class="text-center py-5 text-muted">
+              <i class="fa-solid fa-database fa-3x text-muted mb-3 d-block opacity-25"></i>
+              <h6 class="fw-bold">No Backup Records Found</h6>
+              <p class="small mb-0">Adjust your filter criteria or generate a new system backup.</p>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if jobs.has_other_pages %}
+    <div class="card-footer bg-white py-3 px-4 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <small class="text-muted">
+        Page {{ jobs.number }} of {{ jobs.paginator.num_pages }} ({{ jobs.paginator.count }} total backups)
+      </small>
+      <nav aria-label="Page navigation">
+        <ul class="pagination pagination-sm mb-0">
+          {% if jobs.has_previous %}
+            <li class="page-item">
+              <a class="page-link rounded-start-pill" href="?page={{ jobs.previous_page_number }}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_type %}&type={{ selected_type }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}">Previous</a>
+            </li>
+          {% endif %}
+          <li class="page-item active">
+            <span class="page-link">{{ jobs.number }}</span>
+          </li>
+          {% if jobs.has_next %}
+            <li class="page-item">
+              <a class="page-link rounded-end-pill" href="?page={{ jobs.next_page_number }}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_type %}&type={{ selected_type }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}">Next</a>
+            </li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Modal: Create Backup Now -->
+  <div class="modal fade" id="createBackupModal" tabindex="-1" aria-labelledby="createBackupModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
+        <form method="post" action="{% url 'university:backup_create_now' %}">
+          {% csrf_token %}
+          <div class="modal-header border-0 bg-light px-4 pt-4 pb-3">
+            <h5 class="modal-title fw-bold text-dark" id="createBackupModalLabel">
+              <i class="fa-solid fa-database me-2 text-primary"></i>Create On-Demand Backup
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body px-4 py-3">
+            <div class="mb-3">
+              <label class="form-label small fw-semibold text-muted text-uppercase">Backup Scope</label>
+              <select name="backup_type" class="form-select rounded-3" required>
+                <option value="FULL" selected>Full System (Database + Uploaded Files + Config)</option>
+                <option value="DATABASE">Database Only (Fast snapshot)</option>
+                <option value="FILES">Uploaded Documents &amp; Media Only</option>
+                <option value="CONFIG">System Configuration &amp; Setups Only</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold text-muted text-uppercase">Storage Target</label>
+              <select name="storage_destination" class="form-select rounded-3">
+                <option value="">Default Storage Destination</option>
+                {% for st in storages %}
+                  <option value="{{ st.id }}">{{ st.name }} ({{ st.get_storage_type_display }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" name="is_protected" id="id_is_protected_hist">
+              <label class="form-check-label small text-dark fw-semibold" for="id_is_protected_hist">
+                Lock / Protect this backup (Exempt from automated retention deletion)
+              </label>
+            </div>
+          </div>
+          <div class="modal-footer border-0 px-4 pb-4 pt-2">
+            <button type="button" class="btn btn-light rounded-pill px-3 fw-semibold" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm">
+              <i class="fa-solid fa-play me-1"></i> Start Backup Execution
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

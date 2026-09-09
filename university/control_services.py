@@ -304,6 +304,11 @@ def tick():
         if old!=n.status:
             n.save(update_fields=['status','updated_at']); audit(n,n.status,before={'status':old})
     ControlHeartbeat.objects.update_or_create(key='scheduler',defaults={'last_success_at':now})
+    try:
+        from .backup_services import backup_tick
+        backup_tick()
+    except Exception:
+        pass
 
 
 def deliver_messages():

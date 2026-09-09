@@ -63,11 +63,21 @@ DEFAULT_PERMISSIONS = [
     ("reports.senate_marksheet", "Generate Senate Consolidated Marksheets", "Reports", "Compile and export official Board of Examiners master sheets."),
     ("reports.export_files", "Export Reports (PDF/Excel/CSV)", "Reports", "Download printable PDF, Excel, and CSV datasets."),
 
-    # --- System Administration & Governance ---
     ("admin.manage_settings", "Manage System Settings & Setups", "Administration", "Configure university branding, academic rules, and system toggles."),
     ("admin.view_audit_logs", "Inspect Audit Trail Ledgers", "Administration", "Forensic analysis of user activity, state changes, and logins."),
     ("admin.manage_recycle_bin", "Manage Recycle Bin & Restore", "Administration", "Inspect and restore soft-deleted university records."),
     ("admin.manage_roles_permissions", "Manage Roles & Permissions", "Administration", "Configure staff roles, assign permissions, and set user overrides."),
+
+    # --- System Backups & Disaster Recovery ---
+    ("backups.view", "View Backups & Storage Dashboard", "Backups", "Access backup dashboard, history, schedules, and health metrics."),
+    ("backups.create", "Create & Run On-Demand Backups", "Backups", "Execute manual database, files, or full system backups."),
+    ("backups.manage_schedules", "Manage Automated Backup Schedules", "Backups", "Create, edit, pause, and delete recurring backup schedules."),
+    ("backups.download", "Download Backup Archives", "Backups", "Download encrypted or compressed backup archives."),
+    ("backups.verify", "Verify Backup Integrity", "Backups", "Run cryptographic and database verification checks on backup archives."),
+    ("backups.restore", "Restore System from Backup", "Backups", "Execute full or selective system restorations with elevated safety locks."),
+    ("backups.delete", "Delete Backup Archives", "Backups", "Permanently remove backup archives and storage artifacts."),
+    ("backups.manage_storage", "Configure Backup Storage Destinations", "Backups", "Configure local, network, and cloud storage targets."),
+    ("backups.manage_settings", "Manage Backup Policies & Settings", "Backups", "Configure retention rules, health thresholds, and storage alerts."),
 ]
 
 # System control grants never inherit the ADMIN base-role default.

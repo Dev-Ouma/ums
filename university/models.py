@@ -1409,6 +1409,11 @@ class AuditLog(models.Model):
         SUBMODULE_STATUS_CHANGE = "SUBMODULE_STATUS_CHANGE", "Submodule Status Changed"
         FEATURE_STATUS_CHANGE = "FEATURE_STATUS_CHANGE", "Feature Status Changed"
         MODULES_BULK_UPDATE = "MODULES_BULK_UPDATE", "Modules Bulk Status Updated"
+        BACKUP_CREATE = "BACKUP_CREATE", "Backup Created"
+        BACKUP_RESTORE = "BACKUP_RESTORE", "Backup Restored"
+        BACKUP_VERIFY = "BACKUP_VERIFY", "Backup Verified"
+        BACKUP_DELETE = "BACKUP_DELETE", "Backup Deleted"
+        BACKUP_SCHEDULE = "BACKUP_SCHEDULE", "Backup Scheduled"
 
     class Module(models.TextChoices):
         STUDENTS = "Students", "Students"
@@ -1426,6 +1431,7 @@ class AuditLog(models.Model):
         CONFIG = "System Configuration", "System Configuration"
         NOTICES = "Notices & Events", "Notices & Events"
         MODULE_MGMT = "Module Management", "Module Management"
+        BACKUPS = "System Backups", "System Backups & Recovery"
 
     timestamp = models.DateTimeField(default=timezone.now, db_index=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="audit_logs")
@@ -2300,3 +2306,14 @@ class ApplicationCustomFieldValue(models.Model):
 
 from .module_models import SystemModule, SystemSubmodule, SystemFeature, ModuleDependency  # noqa: E402,F401
 from .control_models import SystemRestriction, MessageTemplate, MessageDelivery, ControlNotification, ControlHeartbeat  # noqa: E402,F401
+from .backup_models import (  # noqa: E402,F401
+    BackupStorage,
+    BackupRetentionPolicy,
+    BackupSchedule,
+    BackupJob,
+    BackupArtifact,
+    BackupVerification,
+    BackupRestoreJob,
+    BackupLog,
+    BackupSetting,
+)

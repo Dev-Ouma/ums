@@ -67,7 +67,7 @@ SYSTEM_MODULES_CATALOG = [
         "is_critical": True,
         "sort_order": 2,
         "target_roles": ["ADMIN"],
-        "route_prefixes": ["university:admin_modules", "university:admin_setups_dashboard", "university:staff_permissions_dashboard", "university:audit_dashboard", "university:recycle_bin_dashboard"],
+        "route_prefixes": ["university:admin_modules", "university:admin_setups_dashboard", "university:staff_permissions_dashboard", "university:audit_dashboard", "university:recycle_bin_dashboard", "university:backup_dashboard"],
         "submodules": [
             {
                 "code": "module_mgmt",
@@ -113,6 +113,22 @@ SYSTEM_MODULES_CATALOG = [
                 "is_critical": False,
                 "route_names": ["recycle_bin_dashboard", "recycle_bin_detail", "recycle_bin_restore", "recycle_bin_bulk_restore", "recycle_bin_purge", "recycle_bin_bulk_purge"],
                 "path_patterns": ["/manage/recycle-bin/"],
+            },
+            {
+                "code": "system_backups",
+                "name": "System Backups & Disaster Recovery",
+                "description": "Automated recurring schedules, database snapshots, media packaging, and safe recovery.",
+                "icon": "fa-solid fa-database",
+                "is_critical": True,
+                "route_names": [
+                    "backup_dashboard", "backup_schedules", "backup_schedule_create", "backup_schedule_edit",
+                    "backup_schedule_toggle", "backup_schedule_run_now", "backup_schedule_delete",
+                    "backup_history", "backup_create_now", "backup_detail", "backup_verify", "backup_download",
+                    "backup_delete", "backup_toggle_protect", "backup_storage", "backup_storage_test",
+                    "backup_restore_dashboard", "backup_restore_start", "backup_settings", "backup_logs",
+                    "backup_export"
+                ],
+                "path_patterns": ["/system-admin/backups/"],
             },
         ],
     },
