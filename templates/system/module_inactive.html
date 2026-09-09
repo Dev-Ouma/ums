@@ -1,0 +1,137 @@
+{% extends user.is_authenticated|yesno:'base_dashboard.html,base.html' %}
+{% load static %}
+
+{% block title %}
+  {% if status == 'MAINTENANCE' %}
+    Under Maintenance &bull; {{ module_name|default:"System Module" }}
+  {% elif status == 'COMING_SOON' %}
+    Coming Soon &bull; {{ module_name|default:"System Module" }}
+  {% else %}
+    Module Offline &bull; {{ module_name|default:"System Module" }}
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-8 col-xl-7">
+      
+      <!-- INACTIVE / MAINTENANCE CARD -->
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden text-center p-4 p-md-5 bg-white position-relative"
+           style="border-top: 5px solid {% if status == 'MAINTENANCE' %}#f59e0b{% elif status == 'COMING_SOON' %}#6366f1{% else %}#64748b{% endif %} !important;">
+        
+        <!-- Top Status Pill -->
+        <div class="mb-4">
+          {% if status == 'MAINTENANCE' %}
+            <span class="badge rounded-pill px-3 py-2 fw-semibold" style="background:#fffbeb; color:#b45309; border:1px solid #fde68a; font-size:0.85rem;">
+              <i class="fa-solid fa-screwdriver-wrench me-1.5"></i> Scheduled Maintenance
+            </span>
+          {% elif status == 'COMING_SOON' %}
+            <span class="badge rounded-pill px-3 py-2 fw-semibold" style="background:#eef2ff; color:#4338ca; border:1px solid #c7d2fe; font-size:0.85rem;">
+              <i class="fa-solid fa-wand-magic-sparkles me-1.5"></i> Feature In Development &bull; Coming Soon
+            </span>
+          {% else %}
+            <span class="badge rounded-pill px-3 py-2 fw-semibold" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; font-size:0.85rem;">
+              <i class="fa-solid fa-lock me-1.5"></i> Module Offline &bull; Temporarily Inactive
+            </span>
+          {% endif %}
+        </div>
+
+        <!-- Center Glowing Icon -->
+        <div class="d-inline-flex align-items-center justify-content-center rounded-circle mx-auto mb-4"
+             style="width: 100px; height: 100px; 
+             {% if status == 'MAINTENANCE' %}
+               background: radial-gradient(circle, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.05) 70%); color: #d97706;
+             {% elif status == 'COMING_SOON' %}
+               background: radial-gradient(circle, rgba(99, 102, 241, 0.18) 0%, rgba(99, 102, 241, 0.05) 70%); color: #4f46e5;
+             {% else %}
+               background: radial-gradient(circle, rgba(100, 116, 139, 0.18) 0%, rgba(100, 116, 139, 0.05) 70%); color: #475569;
+             {% endif %}
+             font-size: 2.75rem; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);">
+          {% if status == 'MAINTENANCE' %}
+            <i class="fa-solid fa-wrench fa-bounce" style="--fa-animation-duration: 2.5s;"></i>
+          {% elif status == 'COMING_SOON' %}
+            <i class="fa-solid fa-rocket fa-beat-fade" style="--fa-animation-duration: 2.5s;"></i>
+          {% else %}
+            <i class="fa-solid fa-shield-halved"></i>
+          {% endif %}
+        </div>
+
+        <!-- Heading & Subtitle -->
+        <h3 class="fw-bold text-dark mb-2">
+          {% if submodule_name and submodule_name != module_name %}
+            {{ submodule_name }}
+          {% else %}
+            {{ module_name|default:"Requested Module" }}
+          {% endif %}
+        </h3>
+
+        <div class="text-muted mb-4 fs-6">
+          {% if status == 'MAINTENANCE' %}
+            This module is currently undergoing routine maintenance, performance optimizations, or data reconciliation.
+          {% elif status == 'COMING_SOON' %}
+            We're putting the finishing touches on this feature! It will be available shortly as part of our academic session roadmap.
+          {% else %}
+            Access to this operational area is temporarily offline or has been restricted by system administration policy.
+          {% endif %}
+        </div>
+
+        <!-- Custom Administrator Notice Box -->
+        {% if status_message %}
+        <div class="p-3.5 rounded-3 text-start mb-4 mx-auto w-100" 
+             style="max-width: 580px; 
+             {% if status == 'MAINTENANCE' %}
+               background: #fffdf5; border-left: 4px solid #f59e0b; border: 1px solid #fef3c7; border-left-width: 4px;
+             {% elif status == 'COMING_SOON' %}
+               background: #fafafe; border-left: 4px solid #6366f1; border: 1px solid #e0e7ff; border-left-width: 4px;
+             {% else %}
+               background: #f8fafc; border-left: 4px solid #64748b; border: 1px solid #e2e8f0; border-left-width: 4px;
+             {% endif %}">
+          <div class="d-flex align-items-start gap-2.5">
+            <i class="fa-solid fa-circle-info mt-1 
+               {% if status == 'MAINTENANCE' %}text-warning{% elif status == 'COMING_SOON' %}text-primary{% else %}text-secondary{% endif %}"></i>
+            <div>
+              <div class="fw-semibold text-dark small text-uppercase letter-spacing-1">Administrator Notice</div>
+              <div class="text-secondary small mt-0.5" style="white-space: pre-line;">{{ status_message }}</div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Module Hierarchy Breadcrumb Strip -->
+        <div class="d-inline-flex align-items-center gap-2 py-1.5 px-3 rounded-pill bg-light border text-muted small mx-auto mb-4" style="font-size: 0.78rem;">
+          <i class="{{ module_icon|default:'fa-solid fa-cube' }} text-primary"></i>
+          <span class="fw-semibold text-dark">{{ module_name }}</span>
+          {% if submodule_name and submodule_name != module_name %}
+            <i class="fa-solid fa-chevron-right text-muted" style="font-size: 0.65rem;"></i>
+            <span>{{ submodule_name }}</span>
+          {% endif %}
+        </div>
+
+        <!-- Actions -->
+        <div class="d-flex flex-column flex-sm-row justify-content-center align-items-center gap-2 pt-2">
+          <a href="{% url 'university:dashboard' %}" class="btn btn-primary rounded-pill px-4 py-2 fw-semibold shadow-sm w-100 w-sm-auto">
+            <i class="fa-solid fa-house me-1.5"></i> Return to Dashboard
+          </a>
+          <a href="{% url 'university:notices' %}" class="btn btn-outline-secondary rounded-pill px-4 py-2 fw-semibold w-100 w-sm-auto">
+            <i class="fa-solid fa-bullhorn me-1.5"></i> Campus Notices
+          </a>
+
+          {% if user.is_staff or user.is_superuser or user.role == 'ADMIN' %}
+          <a href="{% url 'university:admin_modules' %}" class="btn btn-dark rounded-pill px-4 py-2 fw-semibold w-100 w-sm-auto" title="Manage module status as Administrator">
+            <i class="fa-solid fa-cubes-stacked me-1.5"></i> Module Management
+          </a>
+          {% endif %}
+        </div>
+
+        <!-- System Timestamp & Reference -->
+        <div class="text-muted mt-4 pt-2 border-top small" style="font-size: 0.75rem;">
+          University Management System &bull; Status Ref: <code class="text-secondary">{{ module_code|default:'module' }}:{{ status }}</code>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

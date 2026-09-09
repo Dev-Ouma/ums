@@ -67,6 +67,17 @@ DEFAULT_PERMISSIONS = [
     ("admin.manage_roles_permissions", "Manage Roles & Permissions", "Administration", "Configure staff roles, assign permissions, and set user overrides."),
 ]
 
+# System control grants never inherit the ADMIN base-role default.
+DEFAULT_PERMISSIONS += [
+    (f"control.{group}.{action}", f"{action.title()} {group.title()}", f"System {group.title()}", "Explicit system-control permission.")
+    for group, actions in {
+        "maintenance": ["view", "create", "edit", "schedule", "activate", "deactivate", "bypass"],
+        "lockdown": ["view", "activate", "deactivate", "emergency", "bypass"],
+        "messages": ["view", "create", "edit", "publish", "unpublish", "delete"],
+        "health": ["view"],
+    }.items() for action in actions
+]
+
 
 # ==============================================================================
 # 2. DEFAULT SYSTEM ROLES DEFINITION
@@ -262,6 +273,10 @@ def has_user_permission(user, permission_code):
     if has_role_perm:
         return True
 
+    # Security controls require explicit grants; ordinary admin labels never bypass.
+    if permission_code.startswith("control."):
+        return False
+
     # Check Base System Role Defaults
     user_role = getattr(user, "role", "")
     if user_role == Role.ADMIN or getattr(user, "is_admin_role", False):
@@ -341,7 +356,7 @@ def get_user_effective_permissions(user):
         elif perm.id in role_perm_map:
             granted = True
             source = f"Role: {', '.join(role_perm_map[perm.id])}"
-        elif is_admin:
+        elif is_admin and not perm.code.startswith("control."):
             granted = True
             source = "Administrator Base Access"
         elif is_faculty and perm.code in faculty_defaults:

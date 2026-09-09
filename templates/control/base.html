@@ -1,0 +1,214 @@
+{% extends 'base_dashboard.html' %}
+{% load static %}
+
+{% block title %}System Maintenance, Messages & Lockdown &bull; UMS{% endblock %}
+
+{% block extra_css %}
+<style>
+  .control-cockpit-header {
+    background: linear-gradient(135deg, #ffffff 0%, #f8faff 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 1.5rem 1.75rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.04);
+  }
+  .control-nav-pills {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    background: #f1f5f9;
+    padding: 0.4rem;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+  }
+  .control-nav-pills .nav-link {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #475569;
+    padding: 0.55rem 1rem;
+    border-radius: 9px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+  }
+  .control-nav-pills .nav-link:hover {
+    color: #1e293b;
+    background: rgba(255, 255, 255, 0.6);
+  }
+  .control-nav-pills .nav-link.active {
+    color: #4338ca;
+    background: #ffffff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  }
+  .control-stat-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 1.25rem 1.4rem;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .control-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.06);
+  }
+  .control-stat-card .stat-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    color: #64748b;
+    margin-bottom: 0.35rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .control-stat-card .stat-value {
+    font-size: 1.65rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.2;
+  }
+  .control-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 9999px;
+    padding: 0.35rem 0.85rem;
+    font-weight: 700;
+    font-size: 0.78rem;
+    letter-spacing: 0.02em;
+  }
+  .control-badge.OPERATIONAL { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+  .control-badge.MAINTENANCE, .control-badge.SCHEDULED { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+  .control-badge.READ_ONLY { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+  .control-badge.RESTRICTED { background: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
+  .control-badge.LOCKDOWN, .control-badge.EMERGENCY, .control-badge.CRITICAL { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+  .control-badge.ACTIVE { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+  .control-badge.COMPLETED, .control-badge.PUBLISHED { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+  
+  .pulsing-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .pulsing-dot.green { background: #22c55e; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); animation: pulse-green 2s infinite; }
+  .pulsing-dot.amber { background: #f59e0b; box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); animation: pulse-amber 2s infinite; }
+  .pulsing-dot.red { background: #ef4444; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); animation: pulse-red 2s infinite; }
+
+  @keyframes pulse-green {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+  }
+  @keyframes pulse-amber {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+  }
+  @keyframes pulse-red {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  }
+
+  .control-table td { vertical-align: middle; }
+  .control-prose { white-space: pre-wrap; overflow-wrap: anywhere; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  
+  <!-- Executive Control Cockpit Header -->
+  <div class="control-cockpit-header d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+    <div>
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <span class="badge bg-light text-secondary border px-2.5 py-1 fw-semibold" style="font-size: 0.75rem;">
+          <i class="fa-solid fa-shield-halved me-1 text-primary"></i> System Administration
+        </span>
+        <span class="badge bg-light text-secondary border px-2.5 py-1 fw-semibold" style="font-size: 0.75rem;">
+          Control Center
+        </span>
+      </div>
+      <h2 class="h3 fw-bold mb-1 text-dark">System Maintenance, Messages &amp; Lockdown</h2>
+      <p class="text-muted mb-0 small">
+        Centralized management of system availability, scheduled maintenance windows, emergency security lockdowns, and broadcast messages.
+      </p>
+    </div>
+
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <!-- Live Status Indicator -->
+      <div class="control-badge {% if system_state.status == 'Operational' %}OPERATIONAL{% elif system_state.status == 'Maintenance' %}MAINTENANCE{% elif system_state.status == 'Read Only' %}READ_ONLY{% elif 'Lockdown' in system_state.status %}LOCKDOWN{% else %}RESTRICTED{% endif %} shadow-sm">
+        <span class="pulsing-dot {% if system_state.status == 'Operational' %}green{% elif system_state.status == 'Maintenance' %}amber{% else %}red{% endif %}"></span>
+        <span>STATUS: <strong>{{ system_state.status|upper }}</strong></span>
+      </div>
+
+      {% if can_control_maintenance or can_control_lockdown %}
+      <a href="{% url 'control:restriction_create' %}" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1.5 fw-semibold shadow-sm">
+        <i class="fa-solid fa-plus"></i>
+        <span>New Incident / Schedule</span>
+      </a>
+      {% endif %}
+
+      {% if can_control_messages %}
+      <a href="{% url 'control:message_create' %}" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1.5 fw-semibold">
+        <i class="fa-solid fa-bullhorn"></i>
+        <span>New Message</span>
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Primary Sub-Navigation Tabs -->
+  <div class="control-nav-pills" role="navigation" aria-label="System control sections">
+    {% if can_control_maintenance or can_control_lockdown %}
+    <a href="{% url 'control:dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'dashboard' and not request.GET.section %}active{% endif %}">
+      <i class="fa-solid fa-gauge-high"></i>
+      <span>System Status</span>
+    </a>
+    <a href="{% url 'control:dashboard' %}?section=maintenance" class="nav-link {% if request.resolver_match.url_name == 'dashboard' and request.GET.section == 'maintenance' %}active{% endif %}">
+      <i class="fa-solid fa-screwdriver-wrench"></i>
+      <span>Maintenance Mode</span>
+    </a>
+    <a href="{% url 'control:dashboard' %}?section=lockdown" class="nav-link {% if request.resolver_match.url_name == 'dashboard' and request.GET.section == 'lockdown' %}active{% endif %}">
+      <i class="fa-solid fa-shield-cat"></i>
+      <span>Lockdown &amp; Security</span>
+    </a>
+    {% endif %}
+
+    {% if can_control_messages %}
+    <a href="{% url 'control:messages' %}" class="nav-link {% if request.resolver_match.url_name == 'messages' or request.resolver_match.url_name == 'message_detail' or request.resolver_match.url_name == 'message_create' or request.resolver_match.url_name == 'message_edit' %}active{% endif %}">
+      <i class="fa-solid fa-message"></i>
+      <span>System Messages</span>
+    </a>
+    <a href="{% url 'control:templates' %}" class="nav-link {% if request.resolver_match.url_name == 'templates' or request.resolver_match.url_name == 'template_create' or request.resolver_match.url_name == 'template_edit' %}active{% endif %}">
+      <i class="fa-solid fa-file-lines"></i>
+      <span>Message Templates</span>
+    </a>
+    {% endif %}
+
+    {% if can_control_health %}
+    <a href="{% url 'control:health' %}" class="nav-link {% if request.resolver_match.url_name == 'health' %}active{% endif %}">
+      <i class="fa-solid fa-heart-pulse"></i>
+      <span>System Health</span>
+    </a>
+    {% endif %}
+
+    <a href="{% url 'university:admin_modules' %}" class="nav-link ms-auto text-muted">
+      <i class="fa-solid fa-cubes-stacked"></i>
+      <span>Module Management &rarr;</span>
+    </a>
+  </div>
+
+  <!-- Content Block -->
+  {% block control_content %}{% endblock %}
+
+</div>
+{% endblock %}

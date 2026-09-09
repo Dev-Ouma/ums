@@ -100,3 +100,41 @@ class DocumentReleaseControlAdmin(admin.ModelAdmin):
     list_filter = ("document_type", "is_open", "require_financial_clearance", "term")
     search_fields = ("document_type", "notes")
 
+
+from .module_models import SystemModule, SystemSubmodule, SystemFeature, ModuleDependency
+
+
+class SystemSubmoduleInline(admin.TabularInline):
+    model = SystemSubmodule
+    extra = 0
+    fields = ("name", "code", "status", "is_critical", "sort_order")
+
+
+@admin.register(SystemModule)
+class SystemModuleAdmin(admin.ModelAdmin):
+    list_display = ("name", "code", "category", "status", "is_critical", "submodules_count", "sort_order")
+    list_filter = ("status", "category", "is_critical")
+    search_fields = ("name", "code", "description")
+    inlines = [SystemSubmoduleInline]
+
+
+@admin.register(SystemSubmodule)
+class SystemSubmoduleAdmin(admin.ModelAdmin):
+    list_display = ("name", "code", "module", "status", "is_critical", "features_count")
+    list_filter = ("status", "module", "is_critical")
+    search_fields = ("name", "code", "description")
+
+
+@admin.register(SystemFeature)
+class SystemFeatureAdmin(admin.ModelAdmin):
+    list_display = ("name", "code", "submodule", "action_code", "status", "is_critical")
+    list_filter = ("status", "is_critical")
+    search_fields = ("name", "code", "action_code")
+
+
+@admin.register(ModuleDependency)
+class ModuleDependencyAdmin(admin.ModelAdmin):
+    list_display = ("source_module", "target_module", "dependency_type", "description")
+    list_filter = ("dependency_type",)
+    search_fields = ("source_module__name", "target_module__name", "description")
+

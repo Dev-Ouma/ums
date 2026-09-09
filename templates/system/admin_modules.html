@@ -1,0 +1,717 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}Module Management &bull; System Administration · UMS{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+
+  <!-- PAGE HEADER & BREADCRUMB -->
+  <div class="page-head d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <h4 class="mb-0 fw-bold text-dark">
+          <i class="fa-solid fa-cubes-stacked text-primary me-2"></i>Module Management
+        </h4>
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1 font-monospace" style="font-size:0.75rem;">
+          System Architecture Cockpit
+        </span>
+      </div>
+      <small class="text-muted">
+        System Admin &bull; Control availability, maintenance modes, dynamic features, and dependency trees across the entire university.
+      </small>
+    </div>
+
+    <!-- GLOBAL ACTION BUTTONS -->
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3 fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalEnableAll">
+        <i class="fa-solid fa-circle-check me-1.5"></i> Enable All
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalDisableAll">
+        <i class="fa-solid fa-power-off me-1.5"></i> Disable Configurable
+      </button>
+    </div>
+  </div>
+
+  <!-- STATS CARDS ROW -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-semibold">Total Modules</span>
+          <span class="badge bg-light text-dark rounded-circle p-2"><i class="fa-solid fa-layer-group text-primary"></i></span>
+        </div>
+        <div class="h3 fw-bold mb-0 text-dark">{{ stats.total }}</div>
+        <small class="text-muted mt-1" style="font-size:0.75rem;">{{ stats.total_submodules }} Submodules &bull; {{ stats.total_features }} Features</small>
+      </div>
+    </div>
+
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 border-start border-3 border-success">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-semibold">Active / Online</span>
+          <span class="badge bg-success-subtle text-success rounded-circle p-2"><i class="fa-solid fa-circle-check"></i></span>
+        </div>
+        <div class="h3 fw-bold mb-0 text-success">{{ stats.active }}</div>
+        <small class="text-muted mt-1" style="font-size:0.75rem;">Fully accessible to roles</small>
+      </div>
+    </div>
+
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 border-start border-3 border-warning">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-semibold">Maintenance</span>
+          <span class="badge bg-warning-subtle text-warning rounded-circle p-2"><i class="fa-solid fa-screwdriver-wrench"></i></span>
+        </div>
+        <div class="h3 fw-bold mb-0 text-warning">{{ stats.maintenance }}</div>
+        <small class="text-muted mt-1" style="font-size:0.75rem;">Undergoing upgrades / repair</small>
+      </div>
+    </div>
+
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 border-start border-3 border-info">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-semibold">Coming Soon</span>
+          <span class="badge bg-info-subtle text-info rounded-circle p-2"><i class="fa-solid fa-rocket"></i></span>
+        </div>
+        <div class="h3 fw-bold mb-0 text-info">{{ stats.coming_soon }}</div>
+        <small class="text-muted mt-1" style="font-size:0.75rem;">Roadmap features</small>
+      </div>
+    </div>
+
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 border-start border-3 border-secondary">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-semibold">Disabled / Offline</span>
+          <span class="badge bg-secondary-subtle text-secondary rounded-circle p-2"><i class="fa-solid fa-ban"></i></span>
+        </div>
+        <div class="h3 fw-bold mb-0 text-secondary">{{ stats.disabled }}</div>
+        <small class="text-muted mt-1" style="font-size:0.75rem;">Data preserved &bull; locked</small>
+      </div>
+    </div>
+
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 border-start border-3 border-dark">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-semibold">Critical Core</span>
+          <span class="badge bg-dark-subtle text-dark rounded-circle p-2"><i class="fa-solid fa-shield-halved"></i></span>
+        </div>
+        <div class="h3 fw-bold mb-0 text-dark">{{ stats.critical }}</div>
+        <small class="text-muted mt-1" style="font-size:0.75rem;">Protected system infrastructure</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEARCH & BULK ACTION FILTER BAR -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white p-3">
+    <form method="get" class="row g-2 align-items-center">
+      <div class="col-md-5">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-light border-end-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+          <input type="text" name="q" value="{{ search_query }}" class="form-control border-start-0" placeholder="Search module, code, submodule, or feature keyword...">
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <select name="category" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="">All Categories</option>
+          {% for cat in categories %}
+            <option value="{{ cat }}" {% if selected_category == cat %}selected{% endif %}>{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-3">
+        <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="">All Operational Statuses</option>
+          {% for st_val, st_lbl in status_choices %}
+            <option value="{{ st_val }}" {% if selected_status == st_val %}selected{% endif %}>{{ st_lbl }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-1 d-flex gap-1">
+        <button type="submit" class="btn btn-sm btn-primary w-100 rounded-pill"><i class="fa-solid fa-filter"></i></button>
+        {% if search_query or selected_status or selected_category %}
+          <a href="{% url 'university:admin_modules' %}" class="btn btn-sm btn-light border rounded-pill" title="Clear Filters"><i class="fa-solid fa-xmark"></i></a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+
+  <!-- BULK SELECTION ACTIONS STRIP -->
+  <form id="bulkForm" method="post" action="{% url 'university:admin_modules_bulk' %}">
+    {% csrf_token %}
+    <div id="bulkBar" class="alert alert-primary d-none align-items-center justify-content-between rounded-4 py-2 px-3 shadow-sm mb-3">
+      <div class="d-flex align-items-center gap-2">
+        <i class="fa-solid fa-check-double fs-5"></i>
+        <span class="fw-semibold small"><span id="selectedCount">0</span> modules selected</span>
+      </div>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <button type="submit" name="bulk_action" value="enable_selected" class="btn btn-sm btn-success rounded-pill px-3 py-1">
+          <i class="fa-solid fa-circle-check me-1"></i> Enable Selected
+        </button>
+        <button type="submit" name="bulk_action" value="maintenance_selected" class="btn btn-sm btn-warning text-dark rounded-pill px-3 py-1">
+          <i class="fa-solid fa-screwdriver-wrench me-1"></i> Set Maintenance
+        </button>
+        <button type="submit" name="bulk_action" value="coming_soon_selected" class="btn btn-sm btn-info text-dark rounded-pill px-3 py-1">
+          <i class="fa-solid fa-rocket me-1"></i> Set Coming Soon
+        </button>
+        <button type="submit" name="bulk_action" value="disable_selected" class="btn btn-sm btn-danger rounded-pill px-3 py-1">
+          <i class="fa-solid fa-ban me-1"></i> Disable Selected
+        </button>
+      </div>
+    </div>
+
+    <!-- MODULES HIERARCHY TABLE -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="font-size:0.875rem;">
+          <thead class="table-light text-uppercase fw-semibold" style="font-size:0.75rem; letter-spacing:0.5px;">
+            <tr>
+              <th style="width: 40px;" class="text-center">
+                <input type="checkbox" id="selectAll" class="form-check-input">
+              </th>
+              <th>Module / Subsystem</th>
+              <th>Category</th>
+              <th class="text-center">Submodules</th>
+              <th class="text-center">Features</th>
+              <th class="text-center">Dependencies</th>
+              <th class="text-center">Status</th>
+              <th class="text-end" style="min-width: 140px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for mod in modules %}
+            <!-- MODULE MASTER ROW -->
+            <tr class="{% if not mod.is_active %}table-light opacity-75{% endif %}">
+              <td class="text-center">
+                {% if not mod.is_critical %}
+                  <input type="checkbox" name="selected_modules" value="{{ mod.code }}" class="form-check-input mod-checkbox">
+                {% else %}
+                  <i class="fa-solid fa-shield text-muted" title="Protected core module"></i>
+                {% endif %}
+              </td>
+              <td>
+                <div class="d-flex align-items-center gap-2.5">
+                  <div class="rounded-3 p-2 d-flex align-items-center justify-content-center shadow-xs"
+                       style="width: 38px; height: 38px; background: {% if mod.status == 'ENABLED' %}#f0fdf4; color: #16a34a;{% elif mod.status == 'MAINTENANCE' %}#fffbeb; color: #d97706;{% elif mod.status == 'COMING_SOON' %}#eef2ff; color: #4f46e5;{% else %}#f1f5f9; color: #64748b;{% endif %}; font-size: 1.1rem;">
+                    <i class="{{ mod.icon }}"></i>
+                  </div>
+                  <div>
+                    <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                      <span class="fw-bold text-dark fs-6">{{ mod.name }}</span>
+                      {% if mod.is_critical %}
+                        <span class="badge bg-dark-subtle text-dark border border-dark-subtle rounded-pill px-2 py-0.5" style="font-size:0.65rem;" title="Critical infrastructure: Protected from deactivation">
+                          <i class="fa-solid fa-lock me-1"></i>CRITICAL CORE
+                        </span>
+                      {% endif %}
+                    </div>
+                    <div class="text-muted small mt-0.5" style="font-size:0.78rem;">
+                      <code>{{ mod.code }}</code> &bull; {{ mod.description|truncatechars:70 }}
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="badge bg-light text-secondary border rounded-pill px-2.5 py-1" style="font-size: 0.72rem;">
+                  {{ mod.category }}
+                </span>
+              </td>
+              <td class="text-center">
+                <span class="badge bg-primary-subtle text-primary rounded-pill px-2.5 py-1 fw-semibold">
+                  {{ mod.active_submodules_count }} / {{ mod.submodules_count }}
+                </span>
+              </td>
+              <td class="text-center">
+                <span class="badge bg-info-subtle text-info rounded-pill px-2.5 py-1 fw-semibold">
+                  {{ mod.active_features_count }} / {{ mod.features_count }}
+                </span>
+              </td>
+              <td class="text-center">
+                {% with req_count=mod.dependencies_as_source.count dep_count=mod.dependencies_as_target.count %}
+                  {% if req_count > 0 or dep_count > 0 %}
+                    <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-0.5"
+                            onclick="showDependencies('{{ mod.id }}', '{{ mod.name }}')"
+                            title="View dependencies">
+                      <i class="fa-solid fa-diagram-project me-1"></i>
+                      {{ req_count }} req &bull; {{ dep_count }} dep
+                    </button>
+                  {% else %}
+                    <span class="text-muted small">&ndash;</span>
+                  {% endif %}
+                {% endwith %}
+              </td>
+              <td class="text-center">
+                {% if mod.status == 'ENABLED' %}
+                  <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1">
+                    <i class="fa-solid fa-circle-check me-1"></i>Active
+                  </span>
+                {% elif mod.status == 'MAINTENANCE' %}
+                  <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-2.5 py-1">
+                    <i class="fa-solid fa-screwdriver-wrench me-1"></i>Maintenance
+                  </span>
+                {% elif mod.status == 'COMING_SOON' %}
+                  <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill px-2.5 py-1">
+                    <i class="fa-solid fa-rocket me-1"></i>Coming Soon
+                  </span>
+                {% else %}
+                  <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill px-2.5 py-1">
+                    <i class="fa-solid fa-ban me-1"></i>Disabled
+                  </span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <div class="d-flex align-items-center justify-content-end gap-1.5">
+                  <!-- Accordion Toggle for Submodules -->
+                  <button type="button" class="btn btn-sm btn-light border rounded-pill px-2.5 py-1"
+                          data-bs-toggle="collapse" data-bs-target="#subCollapse{{ mod.id }}"
+                          aria-expanded="false" title="Expand Submodules &amp; Features">
+                    <i class="fa-solid fa-chevron-down small"></i>
+                  </button>
+
+                  <!-- Configure Modal Trigger -->
+                  <button type="button" class="btn btn-sm btn-light border rounded-pill px-2.5 py-1 text-dark fw-medium"
+                          onclick="openConfigureModal('{{ mod.id }}', '{{ mod.name }}', '{{ mod.status }}', '{{ mod.status_message|escapejs }}', {{ mod.is_critical|yesno:'true,false' }})"
+                          title="Configure Module Availability">
+                    <i class="fa-solid fa-sliders me-1 text-muted"></i> Configure
+                  </button>
+
+                  <!-- Quick Toggle Switch -->
+                  {% if not mod.is_critical %}
+                    <form method="post" action="{% url 'university:admin_module_toggle' mod.id %}" class="d-inline">
+                      {% csrf_token %}
+                      {% if mod.status == 'ENABLED' %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-circle p-1" style="width:30px; height:30px;" title="Disable Module">
+                          <i class="fa-solid fa-power-off"></i>
+                        </button>
+                      {% else %}
+                        <button type="submit" class="btn btn-sm btn-outline-success rounded-circle p-1" style="width:30px; height:30px;" title="Enable Module">
+                          <i class="fa-solid fa-check"></i>
+                        </button>
+                      {% endif %}
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+
+            <!-- SUBMODULES ACCORDION CONTAINER -->
+            <tr class="collapse" id="subCollapse{{ mod.id }}">
+              <td colspan="8" class="p-0 border-0">
+                <div class="p-3 bg-light border-bottom border-top">
+                  <div class="fw-semibold text-dark small mb-2 d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-folder-tree text-primary"></i>
+                    <span>Submodules &amp; Granular Features under <strong>{{ mod.name }}</strong></span>
+                  </div>
+
+                  <div class="row g-2">
+                    {% for sub in mod.submodules.all %}
+                    <div class="col-md-6 col-xl-4">
+                      <div class="card border shadow-xs rounded-3 p-2.5 bg-white h-100">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-1.5">
+                          <div class="d-flex align-items-center gap-2">
+                            <i class="{{ sub.icon }} text-primary"></i>
+                            <span class="fw-bold text-dark small">{{ sub.name }}</span>
+                          </div>
+                          <!-- Submodule Status Badge -->
+                          <div>
+                            {% if sub.status == 'ENABLED' %}
+                              <span class="badge bg-success-subtle text-success rounded-pill px-2 py-0.5" style="font-size:0.65rem;">Active</span>
+                            {% elif sub.status == 'MAINTENANCE' %}
+                              <span class="badge bg-warning-subtle text-warning rounded-pill px-2 py-0.5" style="font-size:0.65rem;">Maint</span>
+                            {% elif sub.status == 'COMING_SOON' %}
+                              <span class="badge bg-info-subtle text-info rounded-pill px-2 py-0.5" style="font-size:0.65rem;">Soon</span>
+                            {% else %}
+                              <span class="badge bg-secondary-subtle text-secondary rounded-pill px-2 py-0.5" style="font-size:0.65rem;">Offline</span>
+                            {% endif %}
+                          </div>
+                        </div>
+
+                        <div class="text-muted small mb-2" style="font-size:0.75rem;">
+                          <code>{{ sub.code }}</code> &bull; {{ sub.description|default:"No description" }}
+                        </div>
+
+                        <!-- Features Pill Strip if any -->
+                        {% if sub.features.all %}
+                        <div class="border-top pt-1.5 mt-auto">
+                          <div class="text-muted fw-semibold mb-1" style="font-size:0.7rem;">GRANULAR FEATURES:</div>
+                          <div class="d-flex flex-wrap gap-1">
+                            {% for feat in sub.features.all %}
+                            <form method="post" action="{% url 'university:admin_feature_toggle' feat.id %}" class="d-inline">
+                              {% csrf_token %}
+                              <button type="submit" class="btn btn-xs rounded-pill px-2 py-0.5 d-inline-flex align-items-center gap-1
+                                      {% if feat.status == 'ENABLED' %}btn-light border text-success{% else %}btn-secondary bg-opacity-10 border-0 text-muted text-decoration-line-through{% endif %}"
+                                      style="font-size:0.7rem;" title="Click to toggle feature">
+                                <i class="fa-solid {% if feat.status == 'ENABLED' %}fa-toggle-on text-success{% else %}fa-toggle-off text-muted{% endif %}"></i>
+                                <span>{{ feat.name }}</span>
+                              </button>
+                            </form>
+                            {% endfor %}
+                          </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Submodule Toggle Form -->
+                        <div class="d-flex justify-content-between align-items-center pt-2 mt-2 border-top">
+                          <small class="text-muted" style="font-size:0.7rem;">Submodule Control</small>
+                          <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-0.5" style="font-size:0.72rem;"
+                                  onclick="openSubmoduleModal('{{ sub.id }}', '{{ sub.name }}', '{{ sub.status }}', '{{ sub.status_message|escapejs }}')">
+                            <i class="fa-solid fa-pen-to-square me-1"></i> Edit Status
+                          </button>
+                        </div>
+
+                      </div>
+                    </div>
+                    {% empty %}
+                    <div class="col-12 text-muted small py-2">No child submodules registered.</div>
+                    {% endfor %}
+                  </div>
+
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="8" class="text-center py-5 text-muted">
+                <i class="fa-solid fa-cubes-stacked fa-3x mb-3 d-block opacity-25"></i>
+                No matching modules found. Try adjusting search filters.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </form>
+
+</div>
+
+<!-- ======================================================================= -->
+<!-- MODAL: CONFIGURE MODULE AVAILABILITY -->
+<!-- ======================================================================= -->
+<div class="modal fade" id="modalConfigModule" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <form id="formConfigModule" method="post" action="">
+        {% csrf_token %}
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold text-dark">
+            <i class="fa-solid fa-sliders text-primary me-2"></i><span id="modalModName">Configure Module</span>
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-3">
+
+          <div id="criticalNotice" class="alert alert-dark d-none py-2 px-3 small rounded-3 mb-3">
+            <i class="fa-solid fa-shield-halved me-1.5"></i>
+            <strong>Critical Core Module:</strong> This module is required for essential system operations and cannot be disabled.
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-uppercase">Operational Status</label>
+            <div class="d-flex flex-column gap-2" id="statusOptionsContainer">
+              <label class="d-flex align-items-center gap-2 p-2.5 rounded-3 border cursor-pointer hover-bg-light">
+                <input type="radio" name="status" value="ENABLED" class="form-check-input mt-0" id="st_enabled">
+                <div>
+                  <div class="fw-bold text-success small"><i class="fa-solid fa-circle-check me-1"></i> Active / Enabled</div>
+                  <small class="text-muted" style="font-size:0.75rem;">Fully available to authorized students, staff, and administrators.</small>
+                </div>
+              </label>
+
+              <label class="d-flex align-items-center gap-2 p-2.5 rounded-3 border cursor-pointer hover-bg-light non-critical-opt">
+                <input type="radio" name="status" value="MAINTENANCE" class="form-check-input mt-0" id="st_maintenance">
+                <div>
+                  <div class="fw-bold text-warning small"><i class="fa-solid fa-screwdriver-wrench me-1"></i> Under Maintenance</div>
+                  <small class="text-muted" style="font-size:0.75rem;">Shows a branded "Under Scheduled Maintenance" screen with notice &amp; ETA.</small>
+                </div>
+              </label>
+
+              <label class="d-flex align-items-center gap-2 p-2.5 rounded-3 border cursor-pointer hover-bg-light non-critical-opt">
+                <input type="radio" name="status" value="COMING_SOON" class="form-check-input mt-0" id="st_coming_soon">
+                <div>
+                  <div class="fw-bold text-primary small"><i class="fa-solid fa-wand-magic-sparkles me-1"></i> Coming Soon...</div>
+                  <small class="text-muted" style="font-size:0.75rem;">Shows a branded "Feature Coming Soon" screen with upcoming roadmap notice.</small>
+                </div>
+              </label>
+
+              <label class="d-flex align-items-center gap-2 p-2.5 rounded-3 border cursor-pointer hover-bg-light non-critical-opt">
+                <input type="radio" name="status" value="DISABLED" class="form-check-input mt-0" id="st_disabled">
+                <div>
+                  <div class="fw-bold text-secondary small"><i class="fa-solid fa-ban me-1"></i> Disabled / Offline</div>
+                  <small class="text-muted" style="font-size:0.75rem;">Safely deactivated. Data is preserved but routes &amp; menus are offline.</small>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-uppercase">Custom User Notice Message</label>
+            <textarea name="status_message" id="modalModMessage" rows="2" class="form-control"
+                      placeholder="e.g. Undergoing scheduled database reconciliation for the new semester. Expected return at 18:00 EAT."></textarea>
+            <small class="text-muted" style="font-size:0.75rem;">Displayed prominently to users when accessing this module while inactive or under maintenance.</small>
+          </div>
+
+          <div class="form-check">
+            <input type="checkbox" name="cascade_submodules" value="1" class="form-check-input" id="cascadeCheck" checked>
+            <label class="form-check-label small fw-medium" for="cascadeCheck">
+              Cascade status to all child submodules &amp; features
+            </label>
+          </div>
+
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ======================================================================= -->
+<!-- MODAL: CONFIGURE SUBMODULE -->
+<!-- ======================================================================= -->
+<div class="modal fade" id="modalConfigSubmodule" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <form id="formConfigSubmodule" method="post" action="">
+        {% csrf_token %}
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold text-dark">
+            <i class="fa-solid fa-circle-dot text-primary me-2"></i><span id="modalSubName">Configure Submodule</span>
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-3">
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-uppercase">Submodule Status</label>
+            <select name="status" id="subStatusSelect" class="form-select">
+              <option value="ENABLED">Active / Enabled</option>
+              <option value="MAINTENANCE">Under Maintenance</option>
+              <option value="COMING_SOON">Coming Soon...</option>
+              <option value="DISABLED">Disabled / Inactive</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-uppercase">Notice Message</label>
+            <textarea name="status_message" id="modalSubMessage" rows="2" class="form-control" placeholder="Optional notice for users..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">Update Submodule</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ======================================================================= -->
+<!-- MODAL: DEPENDENCY GRAPH INSPECTOR -->
+<!-- ======================================================================= -->
+<div class="modal fade" id="modalDependencies" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold text-dark">
+          <i class="fa-solid fa-diagram-project text-primary me-2"></i><span id="depModalTitle">Module Dependencies</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body py-3">
+        <div class="mb-3">
+          <div class="fw-semibold text-dark small text-uppercase mb-2">Requires (Prerequisites):</div>
+          <div id="requiresList" class="d-flex flex-column gap-1.5"></div>
+        </div>
+        <div class="border-top pt-3">
+          <div class="fw-semibold text-dark small text-uppercase mb-2">Required By (Dependents):</div>
+          <div id="requiredByList" class="d-flex flex-column gap-1.5"></div>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================================================================= -->
+<!-- MODAL: CONFIRM ENABLE ALL -->
+<!-- ======================================================================= -->
+<div class="modal fade" id="modalEnableAll" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <form method="post" action="{% url 'university:admin_modules_bulk' %}">
+        {% csrf_token %}
+        <input type="hidden" name="bulk_action" value="enable_all">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold text-success">
+            <i class="fa-solid fa-circle-check me-2"></i>Enable All University Modules
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-3">
+          <p class="text-secondary mb-0">
+            Are you sure you want to enable <strong>all university modules, submodules, and features</strong>? All operational routes and navigation items will become accessible to authorized roles immediately.
+          </p>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success rounded-pill px-4 fw-semibold">Confirm Enable All</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ======================================================================= -->
+<!-- MODAL: CONFIRM DISABLE CONFIGURABLE -->
+<!-- ======================================================================= -->
+<div class="modal fade" id="modalDisableAll" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <form method="post" action="{% url 'university:admin_modules_bulk' %}">
+        {% csrf_token %}
+        <input type="hidden" name="bulk_action" value="disable_all">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold text-danger">
+            <i class="fa-solid fa-triangle-exclamation me-2"></i>Disable All Configurable Modules
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-3">
+          <div class="alert alert-warning py-2 px-3 small rounded-3 mb-3">
+            <i class="fa-solid fa-shield-halved me-1"></i>
+            <strong>Safety Protection:</strong> Critical system modules (Authentication, System Administration, Audit Trails) will remain online to prevent lockout.
+          </div>
+          <p class="text-secondary mb-3">
+            This will deactivate all configurable academic, financial, examination, and student service modules. Existing data remains 100% safe and intact in the database.
+          </p>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold text-uppercase">Notice Message for Users</label>
+            <input type="text" name="status_message" class="form-control form-control-sm"
+                   placeholder="e.g. Institutional system maintenance underway. Online services will resume shortly."
+                   value="Institutional system maintenance underway. Online services will resume shortly.">
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger rounded-pill px-4 fw-semibold">Confirm Disable All</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Selection & Bulk Bar handler
+  const selectAll = document.getElementById('selectAll');
+  const checkboxes = document.querySelectorAll('.mod-checkbox');
+  const bulkBar = document.getElementById('bulkBar');
+  const selectedCount = document.getElementById('selectedCount');
+
+  function updateBulkBar() {
+    const checked = document.querySelectorAll('.mod-checkbox:checked');
+    selectedCount.textContent = checked.length;
+    if (checked.length > 0) {
+      bulkBar.classList.remove('d-none');
+      bulkBar.classList.add('d-flex');
+    } else {
+      bulkBar.classList.add('d-none');
+      bulkBar.classList.remove('d-flex');
+    }
+  }
+
+  if (selectAll) {
+    selectAll.addEventListener('change', function() {
+      checkboxes.forEach(cb => cb.checked = selectAll.checked);
+      updateBulkBar();
+    });
+  }
+
+  checkboxes.forEach(cb => {
+    cb.addEventListener('change', function() {
+      updateBulkBar();
+      if (!this.checked && selectAll) selectAll.checked = false;
+    });
+  });
+
+  // Open Configure Module Modal
+  function openConfigureModal(id, name, status, message, isCritical) {
+    document.getElementById('modalModName').textContent = name;
+    document.getElementById('modalModMessage').value = message || '';
+    document.getElementById('formConfigModule').action = `/manage/system/modules/${id}/update/`;
+
+    const critNotice = document.getElementById('criticalNotice');
+    const nonCritOpts = document.querySelectorAll('.non-critical-opt');
+
+    if (isCritical) {
+      critNotice.classList.remove('d-none');
+      nonCritOpts.forEach(el => el.classList.add('opacity-50', 'pe-none'));
+    } else {
+      critNotice.classList.add('d-none');
+      nonCritOpts.forEach(el => el.classList.remove('opacity-50', 'pe-none'));
+    }
+
+    // Set active radio
+    const radio = document.querySelector(`input[name="status"][value="${status}"]`);
+    if (radio) radio.checked = true;
+
+    new bootstrap.Modal(document.getElementById('modalConfigModule')).show();
+  }
+
+  // Open Submodule Modal
+  function openSubmoduleModal(id, name, status, message) {
+    document.getElementById('modalSubName').textContent = name;
+    document.getElementById('modalSubMessage').value = message || '';
+    document.getElementById('subStatusSelect').value = status;
+    document.getElementById('formConfigSubmodule').action = `/manage/system/modules/submodule/${id}/update/`;
+    new bootstrap.Modal(document.getElementById('modalConfigSubmodule')).show();
+  }
+
+  // Show Dependencies AJAX Modal
+  function showDependencies(id, name) {
+    document.getElementById('depModalTitle').textContent = `Dependencies &bull; ${name}`;
+    const reqList = document.getElementById('requiresList');
+    const depList = document.getElementById('requiredByList');
+    reqList.innerHTML = '<div class="spinner-border spinner-border-sm text-primary"></div>';
+    depList.innerHTML = '<div class="spinner-border spinner-border-sm text-primary"></div>';
+
+    new bootstrap.Modal(document.getElementById('modalDependencies')).show();
+
+    fetch(`/manage/system/modules/${id}/dependencies/`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.requires.length === 0) {
+          reqList.innerHTML = '<div class="text-muted small">No prerequisite modules required.</div>';
+        } else {
+          reqList.innerHTML = data.requires.map(r => `
+            <div class="p-2 rounded border bg-light small d-flex justify-content-between align-items-center">
+              <div>
+                <strong>${r.name}</strong> <code class="text-muted">(${r.code})</code>
+                <div class="text-muted" style="font-size:0.75rem;">${r.description || 'Required prerequisite'}</div>
+              </div>
+              <span class="badge ${r.status === 'ENABLED' ? 'bg-success' : 'bg-danger'} rounded-pill">${r.status}</span>
+            </div>
+          `).join('');
+        }
+
+        if (data.required_by.length === 0) {
+          depList.innerHTML = '<div class="text-muted small">No other modules depend on this module.</div>';
+        } else {
+          depList.innerHTML = data.required_by.map(d => `
+            <div class="p-2 rounded border bg-light small d-flex justify-content-between align-items-center">
+              <div>
+                <strong>${d.name}</strong> <code class="text-muted">(${d.code})</code>
+                <div class="text-muted" style="font-size:0.75rem;">${d.description || 'Dependent module'}</div>
+              </div>
+              <span class="badge ${d.status === 'ENABLED' ? 'bg-success' : 'bg-danger'} rounded-pill">${d.status}</span>
+            </div>
+          `).join('');
+        }
+      });
+  }
+</script>
+
+{% endblock %}

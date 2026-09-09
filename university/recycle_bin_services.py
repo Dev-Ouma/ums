@@ -261,6 +261,14 @@ def restore_from_recycle_bin(item_id, user=None, request=None):
                 session_type=data.get("session_type", "LECTURE"),
             )
 
+    elif content_type == "SystemMessage":
+        from .control_services import require_permission
+        require_permission(actor, 'messages.edit')
+        restored_obj = Notice.objects.get(pk=item.object_id, status='DELETED')
+        restored_obj.status = 'DRAFT'
+        restored_obj.updated_by = actor
+        restored_obj.save(update_fields=['status', 'updated_by', 'updated_at'])
+
     elif content_type == "Notice":
         restored_obj = Notice.objects.create(
             title=data.get("title", "Restored Notice"),
