@@ -56,7 +56,7 @@ class LastSeenMiddleware:
     def __call__(self, request):
         response = self.get_response(request)
         user = getattr(request, "user", None)
-        if user is None or not user.is_authenticated:
+        if user is None or not user.is_authenticated or getattr(request, "control_read_only", None):
             return response
 
         now = timezone.now()

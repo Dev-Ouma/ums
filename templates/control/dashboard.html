@@ -1,0 +1,295 @@
+{% extends 'control/base.html' %}
+{% load static %}
+
+{% block control_content %}
+<!-- 1. Central Status Overview Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-lg-4 col-xl-2">
+    <div class="control-stat-card shadow-sm border-0" style="border-left: 4px solid {% if state.status == 'Operational' %}#22c55e{% elif state.status == 'Maintenance' %}#f59e0b{% elif state.status == 'Read Only' %}#0ea5e9{% else %}#ef4444{% endif %} !important;">
+      <div class="stat-label">
+        <span>System Status</span>
+        <i class="fa-solid fa-server text-muted"></i>
+      </div>
+      <div class="stat-value fs-4" style="color: {% if state.status == 'Operational' %}#15803d{% elif state.status == 'Maintenance' %}#b45309{% elif state.status == 'Read Only' %}#0369a1{% else %}#b91c1c{% endif %};">
+        {{ state.status }}
+      </div>
+      <small class="text-muted d-block mt-1">Backend Enforced</small>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-lg-4 col-xl-2">
+    <div class="control-stat-card shadow-sm border-0" style="border-left: 4px solid {% if state.maintenance %}#f59e0b{% else %}#94a3b8{% endif %} !important;">
+      <div class="stat-label">
+        <span>Maintenance</span>
+        <i class="fa-solid fa-screwdriver-wrench text-muted"></i>
+      </div>
+      <div class="stat-value">
+        {% if state.maintenance %}
+          <span class="text-warning">ON</span>
+        {% else %}
+          <span class="text-secondary">OFF</span>
+        {% endif %}
+      </div>
+      <small class="text-muted d-block mt-1">{% if state.maintenance %}Active overlay{% else %}Normal operation{% endif %}</small>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-lg-4 col-xl-2">
+    <div class="control-stat-card shadow-sm border-0" style="border-left: 4px solid {% if state.lockdown %}#ef4444{% else %}#94a3b8{% endif %} !important;">
+      <div class="stat-label">
+        <span>Lockdown</span>
+        <i class="fa-solid fa-lock text-muted"></i>
+      </div>
+      <div class="stat-value">
+        {% if state.lockdown %}
+          <span class="text-danger">ON</span>
+        {% else %}
+          <span class="text-secondary">OFF</span>
+        {% endif %}
+      </div>
+      <small class="text-muted d-block mt-1">{% if state.lockdown %}Access restricted{% else %}Unrestricted{% endif %}</small>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-lg-4 col-xl-2">
+    <div class="control-stat-card shadow-sm border-0" style="border-left: 4px solid {% if state.read_only %}#0ea5e9{% else %}#94a3b8{% endif %} !important;">
+      <div class="stat-label">
+        <span>Read-Only</span>
+        <i class="fa-solid fa-database text-muted"></i>
+      </div>
+      <div class="stat-value">
+        {% if state.read_only %}
+          <span class="text-info">ON</span>
+        {% else %}
+          <span class="text-secondary">OFF</span>
+        {% endif %}
+      </div>
+      <small class="text-muted d-block mt-1">{% if state.read_only %}Writes blocked{% else %}Read &amp; Write{% endif %}</small>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-lg-4 col-xl-2">
+    <div class="control-stat-card shadow-sm border-0">
+      <div class="stat-label">
+        <span>Active Users</span>
+        <i class="fa-solid fa-users text-muted"></i>
+      </div>
+      <div class="stat-value text-primary">
+        {{ active_users }}
+      </div>
+      <small class="text-muted d-block mt-1">Past 15 minutes</small>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-lg-4 col-xl-2">
+    <div class="control-stat-card shadow-sm border-0">
+      <div class="stat-label">
+        <span>Last Incident</span>
+        <i class="fa-solid fa-clock-rotate-left text-muted"></i>
+      </div>
+      <div class="stat-value fs-6 text-truncate" title="{{ last_incident.title|default:'None' }}">
+        {{ last_incident.title|default:'None' }}
+      </div>
+      <small class="text-muted d-block mt-1">
+        {% if last_incident %}{{ last_incident.completed_at|date:"M d, H:i" }}{% else %}No recorded events{% endif %}
+      </small>
+    </div>
+  </div>
+</div>
+
+<!-- 2. Upcoming Maintenance Notice Banner with Live Countdown -->
+{% if upcoming %}
+<div class="alert alert-warning border-0 shadow-sm rounded-4 p-4 mb-4" style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border-left: 6px solid #f59e0b !important;">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+    <div>
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <span class="badge bg-warning text-dark px-2 py-1 fw-bold text-uppercase" style="font-size: 0.72rem;">
+          <i class="fa-solid fa-clock me-1"></i> Scheduled Maintenance
+        </span>
+        <span class="text-muted small">Window: {{ upcoming.starts_at|date:"l, d M Y &bull; H:i" }} &rarr; {{ upcoming.ends_at|date:"H:i e" }}</span>
+      </div>
+      <h4 class="h5 fw-bold text-dark mb-1">{{ upcoming.title }}</h4>
+      <p class="text-secondary small mb-0">{{ upcoming.public_message|default:upcoming.description|truncatechars:180 }}</p>
+    </div>
+    
+    <div class="bg-white rounded-3 px-3 py-2 border shadow-sm text-center">
+      <span class="text-uppercase text-muted fw-bold d-block" style="font-size: 0.68rem; letter-spacing: 0.08em;">Begins In</span>
+      <strong class="fs-4 text-warning fw-bold font-monospace" data-countdown="{{ upcoming.starts_at|date:'c' }}">
+        {{ upcoming.starts_at|timeuntil }}
+      </strong>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- 3. Incident History & Control Management Table -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white mb-4">
+  <div class="card-header bg-white py-3.5 px-4 border-bottom d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+    <div>
+      <h5 class="fw-bold mb-1 text-dark">
+        {% if request.GET.section == 'lockdown' %}
+          <i class="fa-solid fa-shield-cat me-2 text-danger"></i>Lockdown &amp; Security Incidents
+        {% elif request.GET.section == 'maintenance' %}
+          <i class="fa-solid fa-screwdriver-wrench me-2 text-warning"></i>Maintenance Windows &amp; Schedules
+        {% else %}
+          <i class="fa-solid fa-list-check me-2 text-primary"></i>Maintenance &amp; Lockdown History
+        {% endif %}
+      </h5>
+      <p class="text-muted small mb-0">Record of current overlays, scheduled windows, and historical incident resolutions.</p>
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+      <a href="{% url 'control:restriction_create' %}" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1.5 fw-semibold shadow-sm">
+        <i class="fa-solid fa-plus"></i>
+        <span>Create Incident / Schedule</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="card-body p-4">
+    <!-- Filter Toolbar -->
+    <form method="get" class="row g-2 mb-3">
+      {% if request.GET.section %}
+        <input type="hidden" name="section" value="{{ request.GET.section }}">
+      {% endif %}
+      <div class="col-md-6 col-lg-5">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-light text-muted border-end-0"><i class="fa-solid fa-magnifying-glass"></i></span>
+          <input class="form-control border-start-0" name="q" value="{{ request.GET.q }}" placeholder="Search by title, reason, or affected scope..." aria-label="Search incidents">
+        </div>
+      </div>
+      <div class="col-md-4 col-lg-3">
+        <select class="form-select form-select-sm" name="status" aria-label="Filter by Status">
+          <option value="">All Statuses</option>
+          {% for value, label in statuses %}
+            <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 col-lg-2">
+        <button class="btn btn-sm btn-outline-secondary w-100 fw-semibold">
+          <i class="fa-solid fa-filter me-1"></i> Filter
+        </button>
+      </div>
+      {% if request.GET.q or request.GET.status %}
+      <div class="col-md-2 col-lg-2">
+        <a href="{% url 'control:dashboard' %}{% if request.GET.section %}?section={{ request.GET.section }}{% endif %}" class="btn btn-sm btn-link text-muted text-decoration-none">
+          Reset filters
+        </a>
+      </div>
+      {% endif %}
+    </form>
+
+    <!-- Table -->
+    <div class="table-responsive">
+      <table class="table table-hover align-middle control-table mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3" style="width: 28%;">Incident Title &amp; Reason</th>
+            <th style="width: 22%;">Type &amp; Affected Scope</th>
+            <th style="width: 20%;">Period &amp; Duration</th>
+            <th style="width: 15%;">Operational Status</th>
+            <th class="text-end pe-3" style="width: 15%;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in incidents %}
+          <tr>
+            <td class="ps-3">
+              <a href="{% url 'control:restriction_detail' r.pk %}" class="fw-bold text-decoration-none text-dark d-block">
+                {{ r.title }}
+              </a>
+              <div class="small text-muted text-truncate" style="max-width: 300px;">
+                #{{ r.pk }} &bull; {{ r.reason|default:'No internal notes'|truncatechars:65 }}
+              </div>
+            </td>
+
+            <td>
+              <span class="badge bg-light text-dark border fw-semibold">
+                {{ r.get_kind_display }}
+              </span>
+              <div class="small text-muted mt-0.5">
+                {% if r.modules.exists or r.submodules.exists or r.features.exists %}
+                  <span title="Specific module scope">
+                    <i class="fa-solid fa-cubes me-1"></i>
+                    {% for m in r.modules.all %}{{ m.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                    {% for m in r.submodules.all %}{{ m.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                  </span>
+                {% else %}
+                  <span class="text-secondary"><i class="fa-solid fa-globe me-1"></i>Entire System</span>
+                {% endif %}
+                {% if r.roles %}
+                  &bull; {{ r.roles|join:', ' }}
+                {% endif %}
+              </div>
+            </td>
+
+            <td>
+              <div class="small fw-semibold text-dark">
+                {{ r.starts_at|date:"d M Y, H:i" }}
+              </div>
+              <div class="small text-muted">
+                &rarr; {{ r.ends_at|date:"d M Y, H:i"|default:"Until manually ended" }}
+              </div>
+            </td>
+
+            <td>
+              <span class="control-badge {{ r.status }}">
+                {% if r.status == 'ACTIVE' %}
+                  <span class="pulsing-dot red"></span>
+                {% elif r.status == 'SCHEDULED' %}
+                  <span class="pulsing-dot amber"></span>
+                {% endif %}
+                {{ r.get_status_display }}
+              </span>
+            </td>
+
+            <td class="text-end pe-3">
+              <a href="{% url 'control:restriction_detail' r.pk %}" class="btn btn-sm btn-outline-primary fw-semibold">
+                <span>Manage</span> &rarr;
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" class="text-center py-5 text-muted">
+              <div class="mb-3">
+                <i class="fa-solid fa-shield-halved text-secondary opacity-25 fa-3x"></i>
+              </div>
+              <p class="mb-2 fw-semibold">No incidents found.</p>
+              <p class="small text-muted mb-0">The system is currently operational with no restrictions matching the criteria.</p>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% include 'control/pagination.html' with page=incidents %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Dynamic countdown timer for scheduled maintenance
+  document.querySelectorAll('[data-countdown]').forEach(el => {
+    const targetTime = new Date(el.dataset.countdown).getTime();
+    const updateCountdown = () => {
+      const now = Date.now();
+      const diffSecs = Math.max(0, Math.floor((targetTime - now) / 1000));
+      if (diffSecs <= 0) {
+        el.textContent = "Starting now";
+        return;
+      }
+      const hours = Math.floor(diffSecs / 3600);
+      const minutes = Math.floor((diffSecs % 3600) / 60);
+      const seconds = diffSecs % 60;
+      el.textContent = [hours, minutes, seconds].map(v => String(v).padStart(2, '0')).join(':');
+    };
+    updateCountdown();
+    setInterval(updateCountdown, 1000);
+  });
+</script>
+{% endblock %}

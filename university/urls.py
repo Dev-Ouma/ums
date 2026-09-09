@@ -17,6 +17,7 @@ from . import permissions_views
 from . import verification_views
 from . import calendar_views
 from . import admission_document_views
+from . import module_views
 
 app_name = "university"
 
@@ -247,6 +248,16 @@ urlpatterns = [
     path("manage/audit-trails/", audit_views.audit_dashboard, name="audit_dashboard"),
     path("manage/audit-trails/<int:pk>/", audit_views.audit_detail, name="audit_detail"),
     path("manage/audit-trails/export/<str:fmt>/", audit_views.audit_export, name="audit_export"),
+
+    # System Administration — Module Management & Availability Registry
+    path("manage/system/modules/", module_views.admin_modules, name="admin_modules"),
+    path("system-admin/modules/", module_views.admin_modules, name="system_admin_modules"),
+    path("manage/system/modules/<int:pk>/update/", module_views.admin_module_update, name="admin_module_update"),
+    path("manage/system/modules/<int:pk>/toggle/", module_views.admin_module_toggle, name="admin_module_toggle"),
+    path("manage/system/modules/submodule/<int:pk>/update/", module_views.admin_submodule_update, name="admin_submodule_update"),
+    path("manage/system/modules/feature/<int:pk>/toggle/", module_views.admin_feature_toggle, name="admin_feature_toggle"),
+    path("manage/system/modules/bulk/", module_views.admin_modules_bulk, name="admin_modules_bulk"),
+    path("manage/system/modules/<int:pk>/dependencies/", module_views.admin_module_dependencies_api, name="admin_module_dependencies_api"),
 
     # System Administration — Admin Setups
     path("manage/setups/", setups_views.admin_setups_dashboard, name="admin_setups_dashboard"),

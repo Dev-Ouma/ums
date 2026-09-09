@@ -14,7 +14,26 @@ class UMSLoginView(LoginView):
     authentication_form = LoginForm
     redirect_authenticated_user = True
 
+    def get_success_url(self):
+        if self.request.session.pop('_control_recovery_login', False):
+            from django.urls import reverse
+            return reverse('control:dashboard')
+        return super().get_success_url()
+
     def form_valid(self, form):
+        from university.control_services import evaluate, ControlBlocked, permitted
+        from university.control_middleware import blocked_response
+        from django.utils import timezone
+        user = form.get_user()
+        recovery = any(permitted(user, p) for p in ['maintenance.deactivate', 'lockdown.deactivate'])
+        if not recovery:
+            try:
+                evaluate(user, login=True)
+            except ControlBlocked as error:
+                return blocked_response(self.request, error)
+        self.request.session['_control_login_at'] = timezone.now().timestamp()
+        if recovery:
+            self.request.session['_control_recovery_login'] = True
         messages.success(self.request, f"Welcome back, {form.get_user().display_name}!")
         return super().form_valid(form)
 

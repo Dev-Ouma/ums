@@ -31,9 +31,11 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "university.control_middleware.SystemControlMiddleware",
     "accounts.activity.LastSeenMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "university.module_middleware.ModuleAccessMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -50,6 +52,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "university.context_processors.theme_and_notifications",
                 "cms.context_processors.site",
+                "university.control_context.control_context",
             ],
         },
     },

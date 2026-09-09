@@ -7,6 +7,14 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.urls import reverse
 from django.utils import timezone
 
+from .module_models import (
+    ModuleStatus,
+    SystemModule,
+    SystemSubmodule,
+    SystemFeature,
+    ModuleDependency,
+)
+
 
 class School(models.Model):
     name = models.CharField(max_length=120, unique=True)
@@ -840,6 +848,22 @@ class Event(models.Model):
 class Notice(models.Model):
     AUDIENCE = [("ALL", "Everyone"), ("STUDENT", "Students"),
                 ("FACULTY", "Faculty"), ("ADMIN", "Admins")]
+    message_type = models.CharField(max_length=20, default="INFORMATION", choices=[(v, v.replace('_',' ').title()) for v in ['INFORMATION','ANNOUNCEMENT','WARNING','MAINTENANCE','EMERGENCY','SUCCESS','IMPORTANT_NOTICE']])
+    priority = models.CharField(max_length=10, default="NORMAL", choices=[(v,v.title()) for v in ['LOW','NORMAL','HIGH','CRITICAL']])
+    status = models.CharField(max_length=12, default="PUBLISHED", db_index=True, choices=[(v,v.title()) for v in ['DRAFT','SCHEDULED','PUBLISHED','PAUSED','EXPIRED','ARCHIVED','DELETED']])
+    starts_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    ends_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    locations = models.JSONField(default=list, blank=True)
+    target_roles = models.ManyToManyField("StaffRole", blank=True)
+    departments = models.ManyToManyField("Department", blank=True)
+    programmes = models.ManyToManyField("Program", blank=True)
+    recipients = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name="targeted_notices")
+    modules = models.ManyToManyField("SystemModule", blank=True)
+    template = models.ForeignKey("MessageTemplate", null=True, blank=True, on_delete=models.SET_NULL)
+    restriction = models.ForeignKey("SystemRestriction", null=True, blank=True, on_delete=models.SET_NULL)
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    updated_at = models.DateTimeField(auto_now=True)
+
     title = models.CharField(max_length=150)
     body = models.TextField()
     audience = models.CharField(max_length=10, choices=AUDIENCE, default="ALL")
@@ -1152,6 +1176,12 @@ class AuditLog(models.Model):
         RESEND_DOCUMENT = "RESEND_DOCUMENT", "Document Resent"
         VERIFY_DOCUMENT = "VERIFY_DOCUMENT", "Document Verified"
         REVOKE_DOCUMENT = "REVOKE_DOCUMENT", "Document Revoked"
+        MODULE_ENABLE = "MODULE_ENABLE", "Module Enabled"
+        MODULE_DISABLE = "MODULE_DISABLE", "Module Disabled"
+        MODULE_STATUS_CHANGE = "MODULE_STATUS_CHANGE", "Module Status Changed"
+        SUBMODULE_STATUS_CHANGE = "SUBMODULE_STATUS_CHANGE", "Submodule Status Changed"
+        FEATURE_STATUS_CHANGE = "FEATURE_STATUS_CHANGE", "Feature Status Changed"
+        MODULES_BULK_UPDATE = "MODULES_BULK_UPDATE", "Modules Bulk Status Updated"
 
     class Module(models.TextChoices):
         STUDENTS = "Students", "Students"
@@ -1168,6 +1198,7 @@ class AuditLog(models.Model):
         AUTH = "Security & Auth", "Security & Authentication"
         CONFIG = "System Configuration", "System Configuration"
         NOTICES = "Notices & Events", "Notices & Events"
+        MODULE_MGMT = "Module Management", "Module Management"
 
     timestamp = models.DateTimeField(default=timezone.now, db_index=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="audit_logs")
@@ -2039,3 +2070,6 @@ class ApplicationCustomFieldValue(models.Model):
         return f"{self.field.name}: {self.value}"
 
 
+
+from .module_models import SystemModule, SystemSubmodule, SystemFeature, ModuleDependency  # noqa: E402,F401
+from .control_models import SystemRestriction, MessageTemplate, MessageDelivery, ControlNotification, ControlHeartbeat  # noqa: E402,F401

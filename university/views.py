@@ -2106,35 +2106,39 @@ def student_timetable(request):
 # ==========================================================================
 @login_required
 def notices(request):
-    can_post = request.user.is_admin_role or request.user.is_faculty or request.user.is_superuser
-    if request.method == "POST":
-        if not can_post:
-            messages.error(request, "You are not allowed to publish notices.")
-            return redirect("university:notices")
-        Notice.objects.create(
-            title=request.POST.get("title", "Untitled"),
-            body=request.POST.get("body", ""),
-            audience=request.POST.get("audience", "ALL"),
-            is_pinned=bool(request.POST.get("is_pinned")),
-            created_by=request.user)
-        messages.success(request, "Notice published.")
-        return redirect("university:notices")
-    aud = ["ALL", request.user.role]
-    return render(request, "dashboard/notices.html", {
-        "notices": Notice.objects.filter(audience__in=aud), "can_post": can_post,
-    })
-
-
-@role_required(Role.ADMIN, Role.FACULTY)
-@require_POST
-def notice_delete(request, pk):
-    notice = get_object_or_404(Notice, pk=pk)
-    move_to_recycle_bin(notice, user=request.user, request=request)
-    messages.info(request, "Notice moved to Recycle Bin.")
-    return redirect("university:notices")
+    from .control_services import active_messages, permitted
+    from .models import MessageDelivery
+    can_post = permitted(request.user, 'messages.create')
+    if request.method == 'POST':
+        from .control_views import message_edit
+        return message_edit(request)
+    entries = active_messages(request.user, include_archived=True)
+    receipts = {d.message_id: d for d in MessageDelivery.objects.filter(recipient=request.user, method='IN_APP')}
+    selected = request.GET.get('filter', 'unread')
+    result = []
+    for n in entries:
+        d = receipts.get(n.pk)
+        n.is_read = bool(d and d.read_at)
+        n.is_archived = bool(d and d.archived_at)
+        if selected == 'archived' and not n.is_archived: continue
+        if selected != 'archived' and n.is_archived: continue
+        if selected == 'unread' and n.is_read: continue
+        if selected == 'read' and not n.is_read: continue
+        if selected == 'important' and n.priority not in {'HIGH','CRITICAL'}: continue
+        result.append(n)
+    from django.core.paginator import Paginator
+    return render(request, 'dashboard/notices.html', {'notices': Paginator(result,20).get_page(request.GET.get('page')), 'can_post': can_post, 'selected_filter': selected})
 
 
 @login_required
+@require_POST
+def notice_delete(request, pk):
+    from .control_views import message_action
+    return message_action(request, pk, 'delete')
+
+
+@login_required
+
 def events(request):
     return render(request, "dashboard/events.html",
                   {"events": Event.objects.all(),

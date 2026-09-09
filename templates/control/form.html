@@ -1,0 +1,4 @@
+{% extends 'control/base.html' %}
+{% block control_content %}
+<div class="card card-ums p-4 mx-auto" style="max-width:900px"><h4>{{ heading }}</h4><p class="text-muted">{{ help }}</p><form method="post" class="control-form">{% csrf_token %}{{ form.as_p }}<div class="control-actions"><button class="btn btn-primary">Save</button><a href="{% url 'control:dashboard' %}" class="btn btn-light">Cancel</a></div></form></div>
+{% endblock %}

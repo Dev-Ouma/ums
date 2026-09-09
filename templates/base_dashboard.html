@@ -62,15 +62,18 @@
     <div class="menu-label">Main</div>
     <a class="item {% if url_name == 'dashboard' %}active{% endif %}" href="{% url 'university:dashboard' %}">
       <i class="fa-solid fa-gauge-high"></i> <span class="item-label">Dashboard</span></a>
+    {% if 'ai_assistant' in active_modules %}
     <a class="item {% if url_name == 'ai_insights' %}active{% endif %}" href="{% url 'university:ai_insights' %}">
       <i class="fa-solid fa-wand-magic-sparkles"></i> <span class="item-label">AI Insights</span>
       <span class="pill-new">AI</span></a>
     <a class="item {% if url_name == 'ai_assistant' %}active{% endif %}" href="{% url 'university:ai_assistant' %}">
       <i class="fa-solid fa-robot"></i> <span class="item-label">AI Assistant</span></a>
+    {% endif %}
 
     {% if user.is_admin_role or user.is_superuser %}
       <div class="menu-label">Modules</div>
 
+      {% if 'admissions' in active_modules %}
       <!-- Admissions Collapsible -->
       <div class="nav-group">
         <div class="item item-toggle {% if url_name == 'admin_admissions' or url_name == 'admin_admission_detail' or url_name == 'admin_intakes' or url_name == 'admin_admission_documents_list' or url_name == 'admin_admission_document_detail' or url_name == 'admin_templates_list' or url_name == 'admin_template_editor' %}active{% endif %}"
@@ -96,7 +99,9 @@
           </a>
         </div>
       </div>
+      {% endif %}
 
+      {% if 'academics' in active_modules or 'examinations' in active_modules %}
       <!-- Academics Collapsible -->
       <div class="nav-group">
         <div class="item item-toggle {% if url_name == 'admin_unit_registrations' or url_name == 'admin_unit_registration_detail' or url_name == 'admin_student_requests' or url_name == 'admin_student_request_detail' or url_name == 'admin_supplementary_list' or url_name == 'admin_exam_nominal_rolls' or url_name == 'admin_provisional_transcripts' or url_name == 'admin_academic_transcripts' or url_name == 'admin_progressive_reports' or url_name == 'progressive_report_detail' or url_name == 'admin_graduation_dashboard' or url_name == 'admin_clearance_queue' or url_name == 'admin_attachment_dashboard' or url_name == 'admin_evaluation_dashboard' or url_name == 'admin_evaluation_course_detail' or url_name == 'admin_reports_dashboard' or url_name == 'report_view' or url_name == 'admin_document_controls' or request.resolver_match.namespace == 'examinations' %}active{% endif %}"
@@ -108,12 +113,17 @@
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
         <div class="collapse submenu {% if url_name == 'admin_unit_registrations' or url_name == 'admin_unit_registration_detail' or url_name == 'admin_student_requests' or url_name == 'admin_student_request_detail' or url_name == 'admin_supplementary_list' or url_name == 'admin_exam_nominal_rolls' or url_name == 'admin_provisional_transcripts' or url_name == 'admin_academic_transcripts' or url_name == 'admin_progressive_reports' or url_name == 'progressive_report_detail' or url_name == 'admin_graduation_dashboard' or url_name == 'admin_clearance_queue' or url_name == 'admin_attachment_dashboard' or url_name == 'admin_evaluation_dashboard' or url_name == 'admin_evaluation_course_detail' or url_name == 'admin_reports_dashboard' or url_name == 'report_view' or url_name == 'admin_document_controls' or request.resolver_match.namespace == 'examinations' %}show{% endif %}" id="adminAcademicsSubmenu">
+          {% if 'unit_registration' in active_submodules %}
           <a class="item sub-item {% if url_name == 'admin_unit_registrations' or url_name == 'admin_unit_registration_detail' %}active{% endif %}" href="{% url 'university:admin_unit_registrations' %}">
             <i class="fa-solid fa-clipboard-check"></i> <span class="item-label">Unit Registration</span>
           </a>
+          {% endif %}
+          {% if 'student_requests' in active_submodules %}
           <a class="item sub-item {% if url_name == 'admin_student_requests' or url_name == 'admin_student_request_detail' %}active{% endif %}" href="{% url 'university:admin_student_requests' %}">
             <i class="fa-solid fa-file-circle-question"></i> <span class="item-label">Student Requests</span>
           </a>
+          {% endif %}
+          {% if 'examinations' in active_modules %}
           <a class="item sub-item {% if request.resolver_match.namespace == 'examinations' %}active{% endif %}" href="{% url 'examinations:index' %}">
             <i class="fa-solid fa-file-pen"></i> <span class="item-label">Examinations</span>
           </a>
@@ -123,33 +133,50 @@
           <a class="item sub-item {% if url_name == 'admin_exam_nominal_rolls' %}active{% endif %}" href="{% url 'university:admin_exam_nominal_rolls' %}">
             <i class="fa-solid fa-users-viewfinder"></i> <span class="item-label">Nominal Rolls</span>
           </a>
+          {% endif %}
+          {% if 'transcripts' in active_submodules %}
           <a class="item sub-item {% if url_name == 'admin_provisional_transcripts' %}active{% endif %}" href="{% url 'university:admin_provisional_transcripts' %}">
             <i class="fa-solid fa-file-invoice"></i> <span class="item-label">Provisional Transcripts</span>
           </a>
           <a class="item sub-item {% if url_name == 'admin_academic_transcripts' %}active{% endif %}" href="{% url 'university:admin_academic_transcripts' %}">
             <i class="fa-solid fa-scroll"></i> <span class="item-label">Academic Transcripts</span>
           </a>
+          {% endif %}
+          {% if 'progressive_reports' in active_submodules %}
           <a class="item sub-item {% if url_name == 'admin_progressive_reports' or url_name == 'progressive_report_detail' %}active{% endif %}" href="{% url 'university:admin_progressive_reports' %}">
             <i class="fa-solid fa-chart-line"></i> <span class="item-label">Progressive Reports</span>
           </a>
+          {% endif %}
+          {% if 'industrial_attachment' in active_modules %}
           <a class="item sub-item {% if url_name == 'admin_attachment_dashboard' %}active{% endif %}" href="{% url 'university:admin_attachment_dashboard' %}">
             <i class="fa-solid fa-briefcase"></i> <span class="item-label">Industrial Attachment</span>
           </a>
+          {% endif %}
+          {% if 'graduation' in active_modules %}
           <a class="item sub-item {% if url_name == 'admin_graduation_dashboard' or url_name == 'admin_clearance_queue' %}active{% endif %}" href="{% url 'university:admin_graduation_dashboard' %}">
-            <i class="fa-solid fa-user-graduate"></i> <span class="item-label">Graduation & Clearance</span>
+            <i class="fa-solid fa-user-graduate"></i> <span class="item-label">Graduation &amp; Clearance</span>
           </a>
+          {% endif %}
+          {% if 'evaluations' in active_modules %}
           <a class="item sub-item {% if url_name == 'admin_evaluation_dashboard' or url_name == 'admin_evaluation_course_detail' %}active{% endif %}" href="{% url 'university:admin_evaluation_dashboard' %}">
             <i class="fa-solid fa-star-half-stroke"></i> <span class="item-label">Course Evaluations</span>
           </a>
+          {% endif %}
+          {% if 'reports' in active_modules %}
           <a class="item sub-item {% if url_name == 'admin_reports_dashboard' or url_name == 'report_view' %}active{% endif %}" href="{% url 'university:admin_reports_dashboard' %}">
             <i class="fa-solid fa-chart-pie"></i> <span class="item-label">University Reports</span>
           </a>
+          {% endif %}
+          {% if 'document_controls' in active_submodules %}
           <a class="item sub-item {% if url_name == 'admin_document_controls' %}active{% endif %}" href="{% url 'university:admin_document_controls' %}">
             <i class="fa-solid fa-lock-open"></i> <span class="item-label">Document Controls</span>
           </a>
+          {% endif %}
         </div>
       </div>
+      {% endif %}
 
+      {% if 'finance' in active_modules %}
       <!-- Finance Collapsible -->
       <div class="nav-group">
         <div class="item item-toggle {% if url_name == 'admin_fees' or url_name == 'fee_preview' or url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' %}active{% endif %}"
@@ -157,7 +184,7 @@
              aria-expanded="{% if url_name == 'admin_fees' or url_name == 'fee_preview' or url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' %}true{% else %}false{% endif %}"
              aria-controls="adminFinanceSubmenu">
           <i class="fa-solid fa-wallet"></i>
-          <span class="item-label">Finance & Fees</span>
+          <span class="item-label">Finance &amp; Fees</span>
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
         <div class="collapse submenu {% if url_name == 'admin_fees' or url_name == 'fee_preview' or url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' %}show{% endif %}" id="adminFinanceSubmenu">
@@ -169,7 +196,9 @@
           </a>
         </div>
       </div>
+      {% endif %}
 
+      {% if 'campus_services' in active_modules or 'library' in active_modules %}
       <!-- Campus Services Collapsible -->
       <div class="nav-group">
         <div class="item item-toggle {% if url_name == 'admin_hostels_dashboard' or url_name == 'admin_library_dashboard' %}active{% endif %}"
@@ -181,15 +210,21 @@
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
         <div class="collapse submenu {% if url_name == 'admin_hostels_dashboard' or url_name == 'admin_library_dashboard' %}show{% endif %}" id="adminCampusSubmenu">
+          {% if 'campus_services' in active_modules %}
           <a class="item sub-item {% if url_name == 'admin_hostels_dashboard' %}active{% endif %}" href="{% url 'university:admin_hostels_dashboard' %}">
-            <i class="fa-solid fa-bed"></i> <span class="item-label">Hostels & Rooms</span>
+            <i class="fa-solid fa-bed"></i> <span class="item-label">Hostels &amp; Rooms</span>
           </a>
+          {% endif %}
+          {% if 'library' in active_modules %}
           <a class="item sub-item {% if url_name == 'admin_library_dashboard' %}active{% endif %}" href="{% url 'university:admin_library_dashboard' %}">
-            <i class="fa-solid fa-book-bookmark"></i> <span class="item-label">Library & Past Papers</span>
+            <i class="fa-solid fa-book-bookmark"></i> <span class="item-label">Library &amp; Past Papers</span>
           </a>
+          {% endif %}
         </div>
       </div>
+      {% endif %}
 
+      {% if 'academic_calendar' in active_modules or 'students' in active_modules or 'faculty_ops' in active_modules or 'curriculum' in active_modules or 'timetable' in active_modules %}
       <!-- Management Collapsible -->
       <div class="nav-group">
         <div class="item item-toggle {% if url_name == 'admin_students' or url_name == 'student_detail' or url_name == 'admin_faculty' or url_name == 'faculty_detail' or url_name == 'admin_departments' or url_name == 'department_detail' or url_name == 'admin_academic_years' or url_name == 'admin_academic_calendar' or url_name == 'academic_year_detail' or url_name == 'admin_programs' or url_name == 'admin_programmes' or url_name == 'admin_courses' or url_name == 'course_detail' or url_name == 'admin_timetable' %}active{% endif %}"
@@ -201,15 +236,22 @@
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
         <div class="collapse submenu {% if url_name == 'admin_students' or url_name == 'student_detail' or url_name == 'admin_faculty' or url_name == 'faculty_detail' or url_name == 'admin_departments' or url_name == 'department_detail' or url_name == 'admin_academic_years' or url_name == 'admin_academic_calendar' or url_name == 'academic_year_detail' or url_name == 'admin_programs' or url_name == 'admin_programmes' or url_name == 'program_detail' or url_name == 'program_import' or url_name == 'admin_courses' or url_name == 'course_detail' or url_name == 'admin_timetable' %}show{% endif %}" id="adminManagementSubmenu">
+          {% if 'academic_calendar' in active_modules %}
           <a class="item sub-item {% if url_name == 'admin_academic_years' or url_name == 'admin_academic_calendar' or url_name == 'academic_year_detail' or url_name == 'academic_year_create' or url_name == 'academic_year_edit' %}active{% endif %}" href="{% url 'university:admin_academic_years' %}">
             <i class="fa-solid fa-calendar-days"></i> <span class="item-label">Academic Calendar</span>
           </a>
+          {% endif %}
+          {% if 'students' in active_modules %}
           <a class="item sub-item {% if url_name == 'admin_students' or url_name == 'student_detail' %}active{% endif %}" href="{% url 'university:admin_students' %}">
             <i class="fa-solid fa-user-graduate"></i> <span class="item-label">Students</span>
           </a>
+          {% endif %}
+          {% if 'faculty_ops' in active_modules %}
           <a class="item sub-item {% if url_name == 'admin_faculty' or url_name == 'faculty_detail' %}active{% endif %}" href="{% url 'university:admin_faculty' %}">
             <i class="fa-solid fa-chalkboard-user"></i> <span class="item-label">Faculty</span>
           </a>
+          {% endif %}
+          {% if 'curriculum' in active_modules %}
           <a class="item sub-item {% if url_name == 'admin_departments' or url_name == 'department_detail' %}active{% endif %}" href="{% url 'university:admin_departments' %}">
             <i class="fa-solid fa-building-columns"></i> <span class="item-label">Departments</span>
           </a>
@@ -219,25 +261,47 @@
           <a class="item sub-item {% if url_name == 'admin_courses' or url_name == 'course_detail' %}active{% endif %}" href="{% url 'university:admin_courses' %}">
             <i class="fa-solid fa-book"></i> <span class="item-label">Courses</span>
           </a>
+          {% endif %}
+          {% if 'timetable' in active_modules %}
           <a class="item sub-item {% if url_name == 'admin_timetable' %}active{% endif %}" href="{% url 'university:admin_timetable' %}">
             <i class="fa-solid fa-calendar-week"></i> <span class="item-label">Timetable</span>
           </a>
+          {% endif %}
         </div>
       </div>
+      {% endif %}
 
       <!-- System Administration Collapsible -->
       <div class="nav-group">
-        <div class="item item-toggle {% if url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' %}active{% endif %}"
+        <div class="item item-toggle {% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or request.resolver_match.namespace == 'control' %}active{% endif %}"
              data-bs-toggle="collapse" data-bs-target="#adminSystemSubmenu" role="button"
-             aria-expanded="{% if url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' %}true{% else %}false{% endif %}"
+             aria-expanded="{% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or request.resolver_match.namespace == 'control' %}true{% else %}false{% endif %}"
              aria-controls="adminSystemSubmenu">
           <i class="fa-solid fa-shield-halved"></i>
           <span class="item-label">System Admin</span>
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
-        <div class="collapse submenu {% if url_name == 'admin_setups_dashboard' or url_name == 'staff_permissions_dashboard' or url_name == 'staff_user_access_detail' or url_name == 'role_create' or url_name == 'role_edit' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' %}show{% endif %}" id="adminSystemSubmenu">
+        <div class="collapse submenu {% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'staff_permissions_dashboard' or url_name == 'staff_user_access_detail' or url_name == 'role_create' or url_name == 'role_edit' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or request.resolver_match.namespace == 'control' %}show{% endif %}" id="adminSystemSubmenu">
+          <a class="item sub-item {% if url_name == 'admin_modules' %}active{% endif %}" href="{% url 'university:admin_modules' %}">
+            <i class="fa-solid fa-cubes-stacked"></i> <span class="item-label">Module Management</span>
+          </a>
+          {% if can_control_maintenance %}
+          <a class="item sub-item {% if request.resolver_match.namespace == 'control' and request.resolver_match.url_name in 'dashboard,status,health' and not request.GET.section == 'lockdown' %}active{% endif %}" href="{% url 'control:dashboard' %}">
+            <i class="fa-solid fa-screwdriver-wrench"></i> <span class="item-label">System Maintenance</span>
+          </a>
+          {% endif %}
+          {% if can_control_messages %}
+          <a class="item sub-item {% if request.resolver_match.namespace == 'control' and request.resolver_match.url_name in 'messages,message_detail,message_create,message_edit,templates,template_create,template_edit' %}active{% endif %}" href="{% url 'control:messages' %}">
+            <i class="fa-solid fa-message"></i> <span class="item-label">System Messages</span>
+          </a>
+          {% endif %}
+          {% if can_control_lockdown %}
+          <a class="item sub-item {% if request.resolver_match.namespace == 'control' and request.GET.section == 'lockdown' %}active{% endif %}" href="{% url 'control:dashboard' %}?section=lockdown">
+            <i class="fa-solid fa-lock"></i> <span class="item-label">Lockdown &amp; Security</span>
+          </a>
+          {% endif %}
           <a class="item sub-item {% if url_name == 'admin_setups_dashboard' %}active{% endif %}" href="{% url 'university:admin_setups_dashboard' %}">
-            <i class="fa-solid fa-gears"></i> <span class="item-label">Admin Setups</span>
+            <i class="fa-solid fa-gears"></i> <span class="item-label">System Settings</span>
           </a>
           <a class="item sub-item {% if url_name == 'staff_permissions_dashboard' or url_name == 'staff_user_access_detail' or url_name == 'role_create' or url_name == 'role_edit' %}active{% endif %}" href="{% url 'university:staff_permissions_dashboard' %}">
             <i class="fa-solid fa-user-shield"></i> <span class="item-label">Staff Permissions</span>
@@ -251,35 +315,56 @@
         </div>
       </div>
 
+      {% if 'cms' in active_modules %}
       <div class="menu-label">Website</div>
       <a class="item {% if request.resolver_match.namespace == 'cms' %}active{% endif %}" href="{% url 'cms:dashboard' %}"><i class="fa-solid fa-pen-ruler"></i> <span class="item-label">Site CMS</span></a>
+      {% endif %}
 
     {% elif user.is_faculty %}
-      <div class="menu-label">Teaching & Faculty</div>
+      <div class="menu-label">Teaching &amp; Faculty</div>
       <div class="nav-group">
         <div class="item item-toggle {% if url_name == 'faculty_courses' or url_name == 'admin_exam_nominal_rolls' or url_name == 'faculty_assignments' or url_name == 'faculty_timetable' or url_name == 'admin_courses' or url_name == 'student_library_portal' or url_name == 'faculty_attachment_dashboard' or url_name == 'faculty_evaluation_dashboard' or url_name == 'faculty_reports' or request.resolver_match.namespace == 'examinations' %}active{% endif %}"
              data-bs-toggle="collapse" data-bs-target="#facultyTeachingSubmenu" role="button"
              aria-expanded="{% if url_name == 'faculty_courses' or url_name == 'admin_exam_nominal_rolls' or url_name == 'faculty_assignments' or url_name == 'faculty_timetable' or url_name == 'admin_courses' or url_name == 'student_library_portal' or url_name == 'faculty_attachment_dashboard' or url_name == 'faculty_evaluation_dashboard' or url_name == 'faculty_reports' or request.resolver_match.namespace == 'examinations' %}true{% else %}false{% endif %}"
              aria-controls="facultyTeachingSubmenu">
           <i class="fa-solid fa-chalkboard-user"></i>
-          <span class="item-label">Teaching & Exams</span>
+          <span class="item-label">Teaching &amp; Exams</span>
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
         <div class="collapse submenu {% if url_name == 'faculty_courses' or url_name == 'admin_exam_nominal_rolls' or url_name == 'faculty_assignments' or url_name == 'faculty_timetable' or url_name == 'admin_courses' or url_name == 'student_library_portal' or url_name == 'faculty_attachment_dashboard' or url_name == 'faculty_evaluation_dashboard' or url_name == 'faculty_reports' or request.resolver_match.namespace == 'examinations' %}show{% endif %}" id="facultyTeachingSubmenu">
+          {% if 'faculty_ops' in active_modules %}
           <a class="item sub-item {% if url_name == 'faculty_courses' %}active{% endif %}" href="{% url 'university:faculty_courses' %}"><i class="fa-solid fa-book-open"></i> <span class="item-label">My Courses</span></a>
+          {% endif %}
+          {% if 'examinations' in active_modules %}
           <a class="item sub-item {% if request.resolver_match.namespace == 'examinations' %}active{% endif %}" href="{% url 'examinations:index' %}"><i class="fa-solid fa-file-pen"></i> <span class="item-label">Examinations</span></a>
           <a class="item sub-item {% if url_name == 'admin_exam_nominal_rolls' %}active{% endif %}" href="{% url 'university:admin_exam_nominal_rolls' %}"><i class="fa-solid fa-users-viewfinder"></i> <span class="item-label">Nominal Rolls</span></a>
+          {% endif %}
+          {% if 'faculty_ops' in active_modules %}
           <a class="item sub-item {% if url_name == 'faculty_assignments' %}active{% endif %}" href="{% url 'university:faculty_assignments' %}"><i class="fa-solid fa-list-check"></i> <span class="item-label">Assignments</span></a>
+          {% endif %}
+          {% if 'timetable' in active_modules %}
           <a class="item sub-item {% if url_name == 'faculty_timetable' %}active{% endif %}" href="{% url 'university:faculty_timetable' %}"><i class="fa-solid fa-calendar-week"></i> <span class="item-label">My Timetable</span></a>
+          {% endif %}
+          {% if 'industrial_attachment' in active_modules %}
           <a class="item sub-item {% if url_name == 'faculty_attachment_dashboard' %}active{% endif %}" href="{% url 'university:faculty_attachment_dashboard' %}"><i class="fa-solid fa-briefcase"></i> <span class="item-label">Attachment Supervision</span></a>
+          {% endif %}
+          {% if 'evaluations' in active_modules %}
           <a class="item sub-item {% if url_name == 'faculty_evaluation_dashboard' %}active{% endif %}" href="{% url 'university:faculty_evaluation_dashboard' %}"><i class="fa-solid fa-star-half-stroke"></i> <span class="item-label">My Evaluations</span></a>
+          {% endif %}
+          {% if 'curriculum' in active_modules %}
           <a class="item sub-item {% if url_name == 'admin_courses' %}active{% endif %}" href="{% url 'university:admin_courses' %}"><i class="fa-solid fa-layer-group"></i> <span class="item-label">Course Catalog</span></a>
-          <a class="item sub-item {% if url_name == 'student_library_portal' %}active{% endif %}" href="{% url 'university:student_library_portal' %}"><i class="fa-solid fa-book-bookmark"></i> <span class="item-label">Library & Past Papers</span></a>
+          {% endif %}
+          {% if 'library' in active_modules %}
+          <a class="item sub-item {% if url_name == 'student_library_portal' %}active{% endif %}" href="{% url 'university:student_library_portal' %}"><i class="fa-solid fa-book-bookmark"></i> <span class="item-label">Library &amp; Past Papers</span></a>
+          {% endif %}
+          {% if 'reports' in active_modules %}
           <a class="item sub-item {% if url_name == 'faculty_reports' %}active{% endif %}" href="{% url 'university:faculty_reports' %}"><i class="fa-solid fa-chart-pie"></i> <span class="item-label">Teaching Reports</span></a>
+          {% endif %}
         </div>
       </div>
 
     {% else %}
+      {% if 'academics' in active_modules or 'examinations' in active_modules or 'admissions' in active_modules %}
       <div class="menu-label">Academics</div>
       <!-- Student Academics Collapsible -->
       <div class="nav-group">
@@ -292,48 +377,74 @@
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
         <div class="collapse submenu {% if url_name == 'student_register_units' or url_name == 'student_requests' or url_name == 'student_provisional_transcript' or url_name == 'student_academic_transcript' or url_name == 'student_progressive_report' or url_name == 'student_exam_card' or url_name == 'student_supplementary' or url_name == 'student_graduation' or url_name == 'student_attachment_portal' or url_name == 'student_reports' or request.resolver_match.namespace == 'examinations' %}show{% endif %}" id="academicsSubmenu">
+          {% if 'unit_registration' in active_submodules %}
           <a class="item sub-item {% if url_name == 'student_register_units' %}active{% endif %}" href="{% url 'university:student_register_units' %}">
             <i class="fa-solid fa-clipboard-list"></i> <span class="item-label">Register Units</span>
           </a>
+          {% endif %}
+          {% if 'student_requests' in active_submodules %}
           <a class="item sub-item {% if url_name == 'student_requests' %}active{% endif %}" href="{% url 'university:student_requests' %}">
             <i class="fa-solid fa-file-circle-question"></i> <span class="item-label">Student Requests</span>
           </a>
+          {% endif %}
+          {% if 'exam_cards' in active_submodules %}
           <a class="item sub-item {% if url_name == 'student_exam_card' %}active{% endif %}" href="{% url 'university:student_exam_card' %}">
             <i class="fa-solid fa-id-card"></i> <span class="item-label">Exam Card</span>
           </a>
+          {% endif %}
+          {% if 'supplementary_exams' in active_submodules %}
           <a class="item sub-item {% if url_name == 'student_supplementary' %}active{% endif %}" href="{% url 'university:student_supplementary' %}">
             <i class="fa-solid fa-arrows-rotate"></i> <span class="item-label">Supplementary Exams</span>
           </a>
+          {% endif %}
+          {% if 'examinations' in active_modules %}
           <a class="item sub-item {% if request.resolver_match.namespace == 'examinations' and url_name != 'student_transcripts' and url_name != 'transcripts' and url_name != 'transcript_document' %}active{% endif %}" href="{% url 'examinations:index' %}">
             <i class="fa-solid fa-file-pen"></i> <span class="item-label">Examinations</span>
           </a>
+          {% endif %}
+          {% if 'transcripts' in active_submodules %}
           <a class="item sub-item {% if url_name == 'student_provisional_transcript' %}active{% endif %}" href="{% url 'university:student_provisional_transcript' %}">
             <i class="fa-solid fa-file-invoice"></i> <span class="item-label">Provisional Transcript</span>
           </a>
           <a class="item sub-item {% if url_name == 'student_academic_transcript' %}active{% endif %}" href="{% url 'university:student_academic_transcript' %}">
             <i class="fa-solid fa-scroll"></i> <span class="item-label">Academic Transcript</span>
           </a>
+          {% endif %}
+          {% if 'progressive_reports' in active_submodules %}
           <a class="item sub-item {% if url_name == 'student_progressive_report' %}active{% endif %}" href="{% url 'university:student_progressive_report' %}">
             <i class="fa-solid fa-chart-line"></i> <span class="item-label">Progressive Report</span>
           </a>
+          {% endif %}
+          {% if 'industrial_attachment' in active_modules %}
           <a class="item sub-item {% if url_name == 'student_attachment_portal' %}active{% endif %}" href="{% url 'university:student_attachment_portal' %}">
             <i class="fa-solid fa-briefcase"></i> <span class="item-label">Industrial Attachment</span>
           </a>
+          {% endif %}
+          {% if 'evaluations' in active_modules %}
           <a class="item sub-item {% if url_name == 'student_evaluation_portal' or url_name == 'student_evaluation_submit' %}active{% endif %}" href="{% url 'university:student_evaluation_portal' %}">
             <i class="fa-solid fa-star-half-stroke"></i> <span class="item-label">Course Evaluations</span>
           </a>
+          {% endif %}
+          {% if 'graduation' in active_modules %}
           <a class="item sub-item {% if url_name == 'student_graduation' %}active{% endif %}" href="{% url 'university:student_graduation' %}">
             <i class="fa-solid fa-award"></i> <span class="item-label">Graduation Clearance</span>
           </a>
+          {% endif %}
+          {% if 'reports' in active_modules %}
           <a class="item sub-item {% if url_name == 'student_reports' %}active{% endif %}" href="{% url 'university:student_reports' %}">
             <i class="fa-solid fa-chart-pie"></i> <span class="item-label">My Reports</span>
           </a>
+          {% endif %}
+          {% if 'admissions' in active_modules %}
           <a class="item sub-item {% if url_name == 'student_admission_documents' %}active{% endif %}" href="{% url 'university:student_admission_documents' %}">
             <i class="fa-solid fa-file-contract"></i> <span class="item-label">Admission Documents</span>
           </a>
+          {% endif %}
         </div>
       </div>
+      {% endif %}
 
+      {% if 'curriculum' in active_modules or 'timetable' in active_modules or 'examinations' in active_modules or 'faculty_ops' in active_modules %}
       <!-- Student Study & Classes Collapsible -->
       <div class="nav-group">
         <div class="item item-toggle {% if url_name == 'student_courses' or url_name == 'student_timetable' or url_name == 'student_attendance' or url_name == 'student_results' or url_name == 'student_assignments' %}active{% endif %}"
@@ -345,14 +456,26 @@
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
         <div class="collapse submenu {% if url_name == 'student_courses' or url_name == 'student_timetable' or url_name == 'student_attendance' or url_name == 'student_results' or url_name == 'student_assignments' %}show{% endif %}" id="studentStudySubmenu">
+          {% if 'curriculum' in active_modules or 'faculty_ops' in active_modules %}
           <a class="item sub-item {% if url_name == 'student_courses' %}active{% endif %}" href="{% url 'university:student_courses' %}"><i class="fa-solid fa-book-open"></i> <span class="item-label">My Courses</span></a>
+          {% endif %}
+          {% if 'timetable' in active_modules %}
           <a class="item sub-item {% if url_name == 'student_timetable' %}active{% endif %}" href="{% url 'university:student_timetable' %}"><i class="fa-solid fa-calendar-week"></i> <span class="item-label">Timetable</span></a>
+          {% endif %}
+          {% if 'faculty_ops' in active_modules %}
           <a class="item sub-item {% if url_name == 'student_attendance' %}active{% endif %}" href="{% url 'university:student_attendance' %}"><i class="fa-solid fa-calendar-check"></i> <span class="item-label">Attendance</span></a>
+          {% endif %}
+          {% if 'examinations' in active_modules %}
           <a class="item sub-item {% if url_name == 'student_results' %}active{% endif %}" href="{% url 'university:student_results' %}"><i class="fa-solid fa-award"></i> <span class="item-label">Results</span></a>
+          {% endif %}
+          {% if 'faculty_ops' in active_modules %}
           <a class="item sub-item {% if url_name == 'student_assignments' %}active{% endif %}" href="{% url 'university:student_assignments' %}"><i class="fa-solid fa-list-check"></i> <span class="item-label">Assignments</span></a>
+          {% endif %}
         </div>
       </div>
+      {% endif %}
 
+      {% if 'finance' in active_modules %}
       <!-- Student Finance Collapsible -->
       <div class="nav-group">
         <div class="item item-toggle {% if url_name == 'student_fees' or url_name == 'student_fee_statement' %}active{% endif %}"
@@ -364,11 +487,13 @@
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
         <div class="collapse submenu {% if url_name == 'student_fees' or url_name == 'student_fee_statement' %}show{% endif %}" id="studentFinanceSubmenu">
-          <a class="item sub-item {% if url_name == 'student_fees' %}active{% endif %}" href="{% url 'university:student_fees' %}"><i class="fa-solid fa-file-invoice-dollar"></i> <span class="item-label">My Fees & Receipts</span></a>
+          <a class="item sub-item {% if url_name == 'student_fees' %}active{% endif %}" href="{% url 'university:student_fees' %}"><i class="fa-solid fa-file-invoice-dollar"></i> <span class="item-label">My Fees &amp; Receipts</span></a>
           <a class="item sub-item {% if url_name == 'student_fee_statement' %}active{% endif %}" href="{% url 'university:student_fee_statement' %}"><i class="fa-solid fa-file-lines"></i> <span class="item-label">Statement of Account</span></a>
         </div>
       </div>
+      {% endif %}
 
+      {% if 'campus_services' in active_modules or 'library' in active_modules %}
       <!-- Student Campus Life Collapsible -->
       <div class="nav-group">
         <div class="item item-toggle {% if url_name == 'student_hostel_portal' or url_name == 'student_library_portal' %}active{% endif %}"
@@ -380,14 +505,26 @@
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
         <div class="collapse submenu {% if url_name == 'student_hostel_portal' or url_name == 'student_library_portal' %}show{% endif %}" id="studentCampusSubmenu">
-          <a class="item sub-item {% if url_name == 'student_hostel_portal' %}active{% endif %}" href="{% url 'university:student_hostel_portal' %}"><i class="fa-solid fa-bed"></i> <span class="item-label">Hostels & Rooms</span></a>
-          <a class="item sub-item {% if url_name == 'student_library_portal' %}active{% endif %}" href="{% url 'university:student_library_portal' %}"><i class="fa-solid fa-book-bookmark"></i> <span class="item-label">Library & Past Papers</span></a>
+          {% if 'campus_services' in active_modules %}
+          <a class="item sub-item {% if url_name == 'student_hostel_portal' %}active{% endif %}" href="{% url 'university:student_hostel_portal' %}"><i class="fa-solid fa-bed"></i> <span class="item-label">Hostels &amp; Rooms</span></a>
+          {% endif %}
+          {% if 'library' in active_modules %}
+          <a class="item sub-item {% if url_name == 'student_library_portal' %}active{% endif %}" href="{% url 'university:student_library_portal' %}"><i class="fa-solid fa-book-bookmark"></i> <span class="item-label">Library &amp; Past Papers</span></a>
+          {% endif %}
         </div>
       </div>
+      {% endif %}
     {% endif %}
+    {% if 'communication' in active_modules %}
+    {% if not user.is_admin_role %}
+    {% if can_control_maintenance or can_control_lockdown %}<a class="item" href="{% url 'control:dashboard' %}"><i class="fa-solid fa-shield-halved"></i><span class="item-label">System Control</span></a>{% endif %}
+    {% if can_control_messages %}<a class="item" href="{% url 'control:messages' %}"><i class="fa-solid fa-message"></i><span class="item-label">System Messages</span></a>{% endif %}
+    {% endif %}
+    {% for n in system_sidebar_messages %}<div class="p-3 text-white small"><strong>{{ n.rendered_title }}</strong><p>{{ n.rendered_body }}</p></div>{% endfor %}
     <div class="menu-label">Campus</div>
     <a class="item {% if url_name == 'events' %}active{% endif %}" href="{% url 'university:events' %}"><i class="fa-solid fa-calendar-days"></i> <span class="item-label">Events</span></a>
     <a class="item {% if url_name == 'notices' %}active{% endif %}" href="{% url 'university:notices' %}"><i class="fa-solid fa-bullhorn"></i> <span class="item-label">Notices</span></a>
+    {% endif %}
     <form method="post" action="{% url 'accounts:logout' %}" class="sidebar-logout">
       {% csrf_token %}
       <button type="submit" class="item"><i class="fa-solid fa-right-from-bracket"></i> <span class="item-label">Logout</span></button>
@@ -424,6 +561,7 @@
     {% endif %}
 
     <div class="content">
+      {% include 'control/banners.html' %}
       {% block content %}{% endblock %}
     </div>
   </div>
