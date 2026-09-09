@@ -1,0 +1,319 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}Fee Accounts & Payment Gateways · Finance{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-3 px-md-4">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1 small">
+          <li class="breadcrumb-item"><a href="{% url 'university:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'university:admin_fees' %}" class="text-decoration-none">Finance</a></li>
+          <li class="breadcrumb-item active" aria-current="page">Fee Accounts</li>
+        </ol>
+      </nav>
+      <h2 class="fw-bold mb-0 text-dark">
+        <i class="fa-solid fa-building-columns me-2 text-primary"></i>Fee Accounts &amp; Gateways
+      </h2>
+      <p class="text-muted small mb-0 mt-1">Configure and monitor university payment channels, Paybills, Tills, Card Gateways, and Bank accounts.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{% url 'university:fee_reconciliation_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+        <i class="fa-solid fa-scale-balanced me-1"></i> Reconciliation
+      </a>
+      <a href="{% url 'university:admin_payments_list' %}" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+        <i class="fa-solid fa-receipt me-1"></i> Payments Ledger
+      </a>
+      <a href="{% url 'university:fee_account_create' %}" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm">
+        <i class="fa-solid fa-plus me-1"></i> Add Fee Account
+      </a>
+    </div>
+  </div>
+
+  <!-- Stat Cards -->
+  <div class="row g-3 mb-4">
+    <!-- Active Channels -->
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 p-3" style="border-left: 4px solid #10b981 !important;">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="text-muted small fw-semibold text-uppercase">Payment Channels</span>
+          <span class="badge bg-success-subtle text-success rounded-pill px-2.5 py-1">
+            <i class="fa-solid fa-circle-check me-1"></i>{{ stats.active_accounts }} Active
+          </span>
+        </div>
+        <div class="display-6 fw-bold text-dark">{{ stats.total_accounts }}</div>
+        <div class="small text-muted mt-2 d-flex flex-wrap gap-2">
+          <span><i class="fa-solid fa-mobile-screen me-1 text-success"></i>{{ stats.paybill_count }} Paybill</span> &bull;
+          <span><i class="fa-solid fa-store me-1 text-info"></i>{{ stats.till_count }} Till</span> &bull;
+          <span><i class="fa-solid fa-credit-card me-1 text-primary"></i>{{ stats.card_count }} Card</span> &bull;
+          <span><i class="fa-solid fa-landmark me-1 text-secondary"></i>{{ stats.bank_count }} Bank</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Today's Collections -->
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 p-3" style="border-left: 4px solid #3b82f6 !important;">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="text-muted small fw-semibold text-uppercase">Today's Collections</span>
+          <i class="fa-solid fa-calendar-day text-primary"></i>
+        </div>
+        <div class="display-6 fw-bold text-primary">
+          <span class="fs-4 text-muted fw-normal">KES </span>{{ stats.today_successful_amount|floatformat:0|intcomma }}
+        </div>
+        <div class="small text-muted mt-2">
+          <span class="text-success fw-bold">{{ stats.today_successful_count }}</span> settled payments today
+        </div>
+      </div>
+    </div>
+
+    <!-- Payment Pipeline / In-Flight -->
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 p-3" style="border-left: 4px solid #f59e0b !important;">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="text-muted small fw-semibold text-uppercase">In-Flight / Pending</span>
+          <i class="fa-solid fa-spinner fa-spin text-warning"></i>
+        </div>
+        <div class="display-6 fw-bold text-warning">{{ stats.today_pending_count }}</div>
+        <div class="small text-muted mt-2">
+          <span class="text-danger">{{ stats.today_failed_count }}</span> failed/cancelled today
+        </div>
+      </div>
+    </div>
+
+    <!-- Unreconciled Status -->
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 p-3" style="border-left: 4px solid {% if stats.unreconciled_count > 0 %}#ef4444{% else %}#10b981{% endif %} !important;">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="text-muted small fw-semibold text-uppercase">Reconciliation</span>
+          <i class="fa-solid fa-scale-balanced {% if stats.unreconciled_count > 0 %}text-danger{% else %}text-success{% endif %}"></i>
+        </div>
+        <div class="display-6 fw-bold {% if stats.unreconciled_count > 0 %}text-danger{% else %}text-success{% endif %}">
+          {{ stats.unreconciled_count }}
+        </div>
+        <div class="small text-muted mt-2">
+          {% if stats.unreconciled_count > 0 %}
+            <span class="text-danger fw-semibold">Action needed</span> &bull; Unmatched transactions
+          {% else %}
+            <span class="text-success fw-semibold">Healthy</span> &bull; All transactions matched
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Accounts Table Card -->
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4 bg-white">
+    <div class="card-header bg-white py-3 px-4 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <h5 class="fw-bold mb-0 text-dark">
+        <i class="fa-solid fa-sliders me-2 text-primary"></i>Configured Payment Accounts
+      </h5>
+      <span class="text-muted small">
+        Showing {{ accounts.count }} accounts. Inactive accounts are automatically hidden from the student Pay Fees view.
+      </span>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light text-muted small text-uppercase">
+          <tr>
+            <th class="ps-4" style="width: 28%;">Account &amp; Channel</th>
+            <th style="width: 16%;">Account Number / Identifier</th>
+            <th style="width: 14%;">Provider / Env</th>
+            <th style="width: 12%;">Status</th>
+            <th style="width: 14%;">Diagnostics</th>
+            <th class="text-end pe-4" style="width: 16%;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for acc in accounts %}
+          <tr>
+            <!-- Account & Channel -->
+            <td class="ps-4">
+              <div class="d-flex align-items-center gap-3">
+                <div class="rounded-3 p-2 text-center" style="width: 44px; height: 44px; background: {% if acc.account_type == 'MPESA_PAYBILL' %}#ecfdf5; color: #059669;{% elif acc.account_type == 'MPESA_TILL' %}#eff6ff; color: #2563eb;{% elif acc.account_type == 'CARD_GATEWAY' %}#f5f3ff; color: #7c3aed;{% else %}#f8fafc; color: #475569;{% endif %}">
+                  <i class="fa-solid {% if acc.account_type == 'MPESA_PAYBILL' %}fa-mobile-screen-button{% elif acc.account_type == 'MPESA_TILL' %}fa-store{% elif acc.account_type == 'CARD_GATEWAY' %}fa-credit-card{% else %}fa-landmark{% endif %} fa-lg"></i>
+                </div>
+                <div>
+                  <div class="d-flex align-items-center gap-2">
+                    <a href="{% url 'university:fee_account_detail' acc.pk %}" class="fw-bold text-dark text-decoration-none">
+                      {{ acc.name }}
+                    </a>
+                    {% if acc.is_default %}
+                      <span class="badge bg-primary text-white rounded-pill px-2 py-0.5 small" title="Default channel for {{ acc.get_account_type_display }}">
+                        <i class="fa-solid fa-star me-1" style="font-size: 0.7rem;"></i>Default
+                      </span>
+                    {% endif %}
+                  </div>
+                  <span class="text-muted small d-block">
+                    {{ acc.get_account_type_display }} &bull; {{ acc.currency }}
+                  </span>
+                </div>
+              </div>
+            </td>
+
+            <!-- Account Number / Identifier -->
+            <td>
+              <code class="fw-bold fs-6 text-dark">{{ acc.account_identifier }}</code>
+              {% if acc.account_name %}
+                <small class="text-muted d-block">{{ acc.account_name }}</small>
+              {% endif %}
+            </td>
+
+            <!-- Provider / Env -->
+            <td>
+              <span class="fw-semibold text-dark">{{ acc.get_provider_display }}</span>
+              <div>
+                {% if acc.environment == 'PRODUCTION' %}
+                  <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-0.5 small">Production</span>
+                {% else %}
+                  <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-2 py-0.5 small">Sandbox</span>
+                {% endif %}
+              </div>
+            </td>
+
+            <!-- Status -->
+            <td>
+              {% if acc.status == 'ACTIVE' %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1">
+                  <i class="fa-solid fa-circle-check me-1"></i>Active
+                </span>
+              {% elif acc.status == 'INACTIVE' %}
+                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill px-2.5 py-1">
+                  <i class="fa-solid fa-circle-pause me-1"></i>Inactive
+                </span>
+              {% elif acc.status == 'SUSPENDED' %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2.5 py-1">
+                  <i class="fa-solid fa-ban me-1"></i>Suspended
+                </span>
+              {% else %}
+                <span class="badge bg-light text-dark border rounded-pill px-2.5 py-1">{{ acc.get_status_display }}</span>
+              {% endif %}
+            </td>
+
+            <!-- Diagnostics -->
+            <td>
+              {% if acc.last_tested_status == 'SUCCESS' %}
+                <span class="text-success small fw-semibold" title="{{ acc.last_tested_response|truncatechars:80 }}">
+                  <i class="fa-solid fa-plug-circle-check me-1"></i>Verified
+                </span>
+              {% elif acc.last_tested_status == 'FAILED' %}
+                <span class="text-danger small fw-semibold" title="{{ acc.last_tested_response|truncatechars:80 }}">
+                  <i class="fa-solid fa-plug-circle-xmark me-1"></i>Check Failed
+                </span>
+              {% else %}
+                <span class="text-muted small">
+                  <i class="fa-solid fa-circle-question me-1"></i>Untested
+                </span>
+              {% endif %}
+              {% if acc.last_tested_at %}
+                <small class="text-muted d-block" style="font-size: 0.72rem;">{{ acc.last_tested_at|naturaltime }}</small>
+              {% endif %}
+            </td>
+
+            <!-- Actions -->
+            <td class="text-end pe-4">
+              <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary rounded-pill px-2.5 py-1 dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  Manage
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
+                  <li>
+                    <a class="dropdown-item py-2" href="{% url 'university:fee_account_detail' acc.pk %}">
+                      <i class="fa-solid fa-circle-info text-primary me-2"></i>View Details &amp; Logs
+                    </a>
+                  </li>
+                  <li>
+                    <a class="dropdown-item py-2" href="{% url 'university:fee_account_edit' acc.pk %}">
+                      <i class="fa-solid fa-pen-to-square text-secondary me-2"></i>Edit Settings
+                    </a>
+                  </li>
+                  <li>
+                    <form method="post" action="{% url 'university:fee_account_test' acc.pk %}">
+                      {% csrf_token %}
+                      <button type="submit" class="dropdown-item py-2 text-info">
+                        <i class="fa-solid fa-vial text-info me-2"></i>Test Connection
+                      </button>
+                    </form>
+                  </li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li>
+                    <form method="post" action="{% url 'university:fee_account_toggle_status' acc.pk %}">
+                      {% csrf_token %}
+                      {% if acc.status == 'ACTIVE' %}
+                        <button type="submit" class="dropdown-item py-2 text-warning">
+                          <i class="fa-solid fa-toggle-off text-warning me-2"></i>Deactivate (Hide from Students)
+                        </button>
+                      {% else %}
+                        <button type="submit" class="dropdown-item py-2 text-success">
+                          <i class="fa-solid fa-toggle-on text-success me-2"></i>Activate (Show in Pay Fees)
+                        </button>
+                      {% endif %}
+                    </form>
+                  </li>
+                  {% if not acc.is_default %}
+                  <li>
+                    <form method="post" action="{% url 'university:fee_account_set_default' acc.pk %}">
+                      {% csrf_token %}
+                      <button type="submit" class="dropdown-item py-2 text-primary">
+                        <i class="fa-solid fa-star text-primary me-2"></i>Set as Default {{ acc.get_account_type_display }}
+                      </button>
+                    </form>
+                  </li>
+                  {% endif %}
+                  <li><hr class="dropdown-divider"></li>
+                  <li>
+                    <form method="post" action="{% url 'university:fee_account_delete' acc.pk %}" onsubmit="return confirm('Are you sure you want to deactivate or remove this fee account?');">
+                      {% csrf_token %}
+                      <button type="submit" class="dropdown-item py-2 text-danger">
+                        <i class="fa-solid fa-trash-can text-danger me-2"></i>Archive / Delete
+                      </button>
+                    </form>
+                  </li>
+                </ul>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="text-center py-5 text-muted">
+              <div class="py-4">
+                <i class="fa-solid fa-building-columns text-muted opacity-50 display-4 mb-3 d-block"></i>
+                <h5 class="fw-bold text-dark">No Payment Accounts Configured</h5>
+                <p class="text-muted small mb-3">Add an M-Pesa Paybill, Till, Card Gateway, or Bank Account to enable fee payment for students.</p>
+                <a href="{% url 'university:fee_account_create' %}" class="btn btn-primary btn-sm rounded-pill px-4">
+                  <i class="fa-solid fa-plus me-1"></i> Add Your First Fee Account
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Informational Callout -->
+  <div class="card border-0 rounded-4 p-4 shadow-sm bg-light">
+    <div class="row align-items-center g-3">
+      <div class="col-auto">
+        <div class="rounded-circle bg-primary-subtle text-primary p-3">
+          <i class="fa-solid fa-shield-halved fa-2x"></i>
+        </div>
+      </div>
+      <div class="col">
+        <h6 class="fw-bold text-dark mb-1">Architecture &amp; Security Compliance</h6>
+        <p class="small text-muted mb-0">
+          Payment credentials and secret keys are stored securely using encryption and are never exposed in frontend HTTP responses or logs.
+          Student Pay Fees automatically syncs with your active accounts. When you disable an account, it is instantly hidden from the student payment screen.
+        </p>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

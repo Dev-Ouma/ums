@@ -1,0 +1,249 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}Payments Ledger · Finance Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-3 px-md-4">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1 small">
+          <li class="breadcrumb-item"><a href="{% url 'university:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'university:admin_fees' %}" class="text-decoration-none">Finance</a></li>
+          <li class="breadcrumb-item active" aria-current="page">Payments</li>
+        </ol>
+      </nav>
+      <h2 class="fw-bold mb-0 text-dark">
+        <i class="fa-solid fa-receipt me-2 text-primary"></i>Fee Payments Ledger
+      </h2>
+      <p class="text-muted small mb-0 mt-1">Audit, inspect, verify, and reverse student fee payments across all configured accounts.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{% url 'university:fee_accounts_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+        <i class="fa-solid fa-building-columns me-1"></i> Fee Accounts
+      </a>
+      <a href="{% url 'university:fee_reconciliation_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+        <i class="fa-solid fa-scale-balanced me-1"></i> Reconciliation
+      </a>
+    </div>
+  </div>
+
+  <!-- Stat Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #10b981 !important;">
+        <span class="text-muted small fw-semibold text-uppercase">Total Settled Collections</span>
+        <div class="display-6 fw-bold text-success mt-2">
+          <span class="fs-5 text-muted fw-normal">KES </span>{{ summary.total_amount|floatformat:0|intcomma }}
+        </div>
+        <span class="small text-muted mt-1">{{ summary.successful_count }} successful payments</span>
+      </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #3b82f6 !important;">
+        <span class="text-muted small fw-semibold text-uppercase">Total Payment Records</span>
+        <div class="display-6 fw-bold text-dark mt-2">{{ summary.total_count }}</div>
+        <span class="small text-muted mt-1">Across all filtered states</span>
+      </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #f59e0b !important;">
+        <span class="text-muted small fw-semibold text-uppercase">Pending / In-Flight</span>
+        <div class="display-6 fw-bold text-warning mt-2">{{ summary.pending_count }}</div>
+        <span class="small text-muted mt-1">Awaiting provider callback or manual verification</span>
+      </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #6366f1 !important;">
+        <span class="text-muted small fw-semibold text-uppercase">Success Rate</span>
+        <div class="display-6 fw-bold text-primary mt-2">
+          {% if summary.total_count > 0 %}
+            {% widthratio summary.successful_count summary.total_count 100 %}%
+          {% else %}
+            100%
+          {% endif %}
+        </div>
+        <span class="small text-muted mt-1">Transaction completion health</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters & Search -->
+  <div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-4">
+    <form method="get" class="row g-2 align-items-center">
+      <div class="col-md-4">
+        <div class="input-group">
+          <span class="input-group-text bg-light border-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+          <input type="text" name="q" class="form-control bg-light border-0" placeholder="Search by ref, receipt, student name or reg..." value="{{ q }}">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <select name="status" class="form-select bg-light border-0">
+          <option value="">All Statuses</option>
+          {% for code, label in statuses %}
+            <option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <select name="account_id" class="form-select bg-light border-0">
+          <option value="">All Fee Accounts</option>
+          {% for acc in accounts %}
+            <option value="{{ acc.pk }}" {% if selected_account == acc.pk|stringformat:"s" %}selected{% endif %}>
+              {{ acc.name }} ({{ acc.get_account_type_display }})
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 d-flex gap-2">
+        <button type="submit" class="btn btn-primary rounded-pill w-100">
+          Filter
+        </button>
+        {% if q or selected_status or selected_account %}
+          <a href="{% url 'university:admin_payments_list' %}" class="btn btn-outline-secondary rounded-pill px-3" title="Clear Filters">
+            <i class="fa-solid fa-xmark"></i>
+          </a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+
+  <!-- Payments Table -->
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white mb-4">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light text-muted small text-uppercase">
+          <tr>
+            <th class="ps-4">Reference &amp; Date</th>
+            <th>Student</th>
+            <th>Fee Account / Channel</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th class="pe-4 text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in payments %}
+          <tr>
+            <!-- Reference & Date -->
+            <td class="ps-4">
+              <a href="{% url 'university:admin_payment_detail' p.pk %}" class="fw-bold text-dark text-decoration-none">
+                {{ p.internal_reference }}
+              </a>
+              {% if p.provider_reference %}
+                <small class="text-muted d-block font-monospace">Provider: {{ p.provider_reference }}</small>
+              {% endif %}
+              <small class="text-muted d-block">{{ p.created_at|date:"M d, Y H:i" }}</small>
+            </td>
+
+            <!-- Student -->
+            <td>
+              {% if p.student %}
+                <div class="fw-semibold text-dark">{{ p.student.user.display_name }}</div>
+                <small class="text-muted">Reg: <code>{{ p.student.roll_no }}</code></small>
+              {% else %}
+                <div class="fw-semibold text-dark">{{ p.payer_name|default:'Direct Cashier / N/A' }}</div>
+                <small class="text-muted">{{ p.payer_phone|default:'Unlinked Student' }}</small>
+              {% endif %}
+            </td>
+
+            <!-- Fee Account / Channel -->
+            <td>
+              {% if p.fee_account %}
+                <div class="fw-semibold text-dark">{{ p.fee_account.name }}</div>
+                <small class="text-muted">{{ p.fee_account.get_account_type_display }} &bull; {{ p.fee_account.account_identifier }}</small>
+              {% else %}
+                <span class="text-muted">{{ p.get_payment_method_display }}</span>
+              {% endif %}
+            </td>
+
+            <!-- Amount -->
+            <td>
+              <span class="fw-bold fs-6 text-dark">{{ p.currency|default:'KES' }} {{ p.amount|floatformat:2|intcomma }}</span>
+            </td>
+
+            <!-- Status -->
+            <td>
+              {% if p.status == 'SUCCESSFUL' %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1">
+                  <i class="fa-solid fa-circle-check me-1"></i>Successful
+                </span>
+              {% elif p.status == 'PENDING' or p.status == 'PROCESSING' %}
+                <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-2.5 py-1">
+                  <i class="fa-solid fa-spinner fa-spin me-1"></i>{{ p.get_status_display }}
+                </span>
+              {% elif p.status == 'REVERSED' or p.status == 'REFUNDED' %}
+                <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill px-2.5 py-1">
+                  <i class="fa-solid fa-arrow-rotate-left me-1"></i>{{ p.get_status_display }}
+                </span>
+              {% else %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2.5 py-1">
+                  <i class="fa-solid fa-circle-xmark me-1"></i>{{ p.get_status_display }}
+                </span>
+              {% endif %}
+            </td>
+
+            <!-- Actions -->
+            <td class="pe-4 text-end">
+              <div class="d-flex justify-content-end gap-2">
+                <a href="{% url 'university:admin_payment_detail' p.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                  Inspect
+                </a>
+                {% if p.status == 'PENDING' or p.status == 'PROCESSING' %}
+                  <form method="post" action="{% url 'university:admin_payment_verify' p.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-success rounded-pill px-2.5" title="Verify & Confirm Payment">
+                      <i class="fa-solid fa-check"></i> Verify
+                    </button>
+                  </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="text-center py-5 text-muted">
+              <div class="py-4">
+                <i class="fa-solid fa-receipt text-muted opacity-50 display-4 mb-3 d-block"></i>
+                <h5 class="fw-bold text-dark">No Payments Found</h5>
+                <p class="text-muted small mb-0">Try clearing or adjusting your search filters.</p>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if payments.has_other_pages %}
+    <div class="card-footer bg-white py-3 px-4 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <small class="text-muted">
+        Page {{ payments.number }} of {{ payments.paginator.num_pages }} ({{ payments.paginator.count }} total)
+      </small>
+      <nav aria-label="Page navigation">
+        <ul class="pagination pagination-sm mb-0">
+          {% if payments.has_previous %}
+            <li class="page-item">
+              <a class="page-link rounded-start-pill" href="?page={{ payments.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_account %}&account_id={{ selected_account }}{% endif %}">Previous</a>
+            </li>
+          {% endif %}
+          <li class="page-item active">
+            <span class="page-link">{{ payments.number }}</span>
+          </li>
+          {% if payments.has_next %}
+            <li class="page-item">
+              <a class="page-link rounded-end-pill" href="?page={{ payments.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_account %}&account_id={{ selected_account }}{% endif %}">Next</a>
+            </li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

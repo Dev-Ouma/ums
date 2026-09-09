@@ -1,0 +1,226 @@
+{% extends 'base_dashboard.html' %}
+
+{% block title %}{% if is_edit %}Edit {{ account.name }}{% else %}New Fee Account{% endif %} · Finance{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 860px;">
+
+  <!-- Breadcrumbs -->
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb small">
+      <li class="breadcrumb-item"><a href="{% url 'university:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'university:fee_accounts_dashboard' %}" class="text-decoration-none">Fee Accounts</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{% if is_edit %}Edit Account{% else %}Create Account{% endif %}</li>
+    </ol>
+  </nav>
+
+  <!-- Title Header -->
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+      <h2 class="fw-bold mb-1 text-dark">
+        <i class="fa-solid {% if is_edit %}fa-pen-to-square{% else %}fa-plus-circle{% endif %} me-2 text-primary"></i>
+        {% if is_edit %}Configure Fee Account: {{ account.name }}{% else %}Add Payment Gateway / Account{% endif %}
+      </h2>
+      <p class="text-muted small mb-0">Set up Paybill, Till, Card Gateways, or Bank accounts with secure credential isolation.</p>
+    </div>
+    <a href="{% url 'university:fee_accounts_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+      <i class="fa-solid fa-arrow-left me-1"></i> Back to Accounts
+    </a>
+  </div>
+
+  <!-- Form Card -->
+  <div class="card border-0 shadow-sm rounded-4 p-4 p-md-5 bg-white mb-4">
+    <form method="post" id="feeAccountForm">
+      {% csrf_token %}
+
+      <!-- 1. Channel Classification -->
+      <h5 class="fw-bold text-dark border-bottom pb-2 mb-4">
+        <span class="badge bg-primary text-white rounded-circle me-2" style="width: 24px; height: 24px; line-height: 18px; font-size: 0.75rem;">1</span>
+        Account Type &amp; Identification
+      </h5>
+
+      <div class="row g-3 mb-4">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold text-secondary small">Account Type <span class="text-danger">*</span></label>
+          <select name="account_type" id="accountTypeSelect" class="form-select rounded-3 py-2" required {% if is_edit %}disabled{% endif %}>
+            {% for code, label in account_types %}
+              <option value="{{ code }}" {% if is_edit and account.account_type == code %}selected{% elif not is_edit and code == 'MPESA_PAYBILL' %}selected{% endif %}>
+                {{ label }}
+              </option>
+            {% endfor %}
+          </select>
+          {% if is_edit %}
+            <input type="hidden" name="account_type" value="{{ account.account_type }}">
+            <small class="text-muted">Account type cannot be changed after creation.</small>
+          {% endif %}
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label fw-semibold text-secondary small">Payment Provider <span class="text-danger">*</span></label>
+          <select name="provider" class="form-select rounded-3 py-2" required>
+            {% for code, label in providers %}
+              <option value="{{ code }}" {% if is_edit and account.provider == code %}selected{% endif %}>
+                {{ label }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label fw-semibold text-secondary small">Account Display Name <span class="text-danger">*</span></label>
+          <input type="text" name="name" class="form-control rounded-3 py-2" placeholder="e.g. Main Tuition Paybill" value="{{ account.name|default:'' }}" required>
+          <small class="text-muted">Friendly identifier shown in admin dashboard.</small>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label fw-semibold text-secondary small" id="identifierLabel">
+            Account Number / Paybill / Till Number <span class="text-danger">*</span>
+          </label>
+          <input type="text" name="account_identifier" class="form-control rounded-3 py-2 fw-semibold" placeholder="e.g. 522123 or 889900" value="{{ account.account_identifier|default:'' }}" required>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label fw-semibold text-secondary small">Business / Registered Account Name</label>
+          <input type="text" name="account_name" class="form-control rounded-3 py-2" placeholder="e.g. UNIVERSITY FEES COLLECTION" value="{{ account.account_name|default:'' }}">
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label fw-semibold text-secondary small">Currency <span class="text-danger">*</span></label>
+          <input type="text" name="currency" class="form-control rounded-3 py-2 text-uppercase" placeholder="KES" value="{{ account.currency|default:'KES' }}" required>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label fw-semibold text-secondary small">Environment <span class="text-danger">*</span></label>
+          <select name="environment" class="form-select rounded-3 py-2" required>
+            {% for code, label in environments %}
+              <option value="{{ code }}" {% if is_edit and account.environment == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <!-- 2. Technical & Routing Configuration -->
+      <h5 class="fw-bold text-dark border-bottom pb-2 mb-4 mt-4">
+        <span class="badge bg-primary text-white rounded-circle me-2" style="width: 24px; height: 24px; line-height: 18px; font-size: 0.75rem;">2</span>
+        Routing &amp; Integration Parameters
+      </h5>
+
+      <!-- Paybill / Till Extra Fields -->
+      <div id="mpesaFields" class="row g-3 mb-4">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold text-secondary small">Callback / Webhook URL</label>
+          <input type="text" name="callback_url" class="form-control rounded-3 py-2" value="{{ account.configuration.callback_url|default:'/api/payments/callback/mpesa/' }}">
+          <small class="text-muted">Instant payment confirmation endpoint.</small>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold text-secondary small">Payment Reference / Account Format</label>
+          <select name="account_ref_format" class="form-select rounded-3 py-2">
+            <option value="STUDENT_REG_NO" {% if account.configuration.account_ref_format == 'STUDENT_REG_NO' %}selected{% endif %}>Student Registration Number (e.g. STU-2024-001)</option>
+            <option value="PAYMENT_REFERENCE" {% if account.configuration.account_ref_format == 'PAYMENT_REFERENCE' %}selected{% endif %}>Internal Payment Reference (PAY-XXXX)</option>
+            <option value="INVOICE_NUMBER" {% if account.configuration.account_ref_format == 'INVOICE_NUMBER' %}selected{% endif %}>Invoice Number (INV-XXXX)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Bank Extra Fields -->
+      <div id="bankFields" class="row g-3 mb-4" style="display: none;">
+        <div class="col-md-4">
+          <label class="form-label fw-semibold text-secondary small">Branch</label>
+          <input type="text" name="branch" class="form-control rounded-3 py-2" placeholder="e.g. Main Campus Branch" value="{{ account.configuration.branch|default:'' }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold text-secondary small">Bank Code</label>
+          <input type="text" name="bank_code" class="form-control rounded-3 py-2" placeholder="e.g. 11" value="{{ account.configuration.bank_code|default:'' }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold text-secondary small">SWIFT / BIC Code</label>
+          <input type="text" name="swift_code" class="form-control rounded-3 py-2" placeholder="e.g. COOPKENA" value="{{ account.configuration.swift_code|default:'' }}">
+        </div>
+      </div>
+
+      <!-- Card Gateway Extra Fields -->
+      <div id="cardFields" class="row g-3 mb-4" style="display: none;">
+        <div class="col-md-12">
+          <label class="form-label fw-semibold text-secondary small">Merchant Sub-account / Descriptor</label>
+          <input type="text" name="merchant_name" class="form-control rounded-3 py-2" placeholder="e.g. UNIVERSITY ONLINE ADMISSIONS & FEES" value="{{ account.configuration.merchant_name|default:'' }}">
+        </div>
+      </div>
+
+      <!-- 3. Security Credentials -->
+      <h5 class="fw-bold text-dark border-bottom pb-2 mb-4 mt-4">
+        <span class="badge bg-primary text-white rounded-circle me-2" style="width: 24px; height: 24px; line-height: 18px; font-size: 0.75rem;">3</span>
+        Credentials &amp; Security Isolation
+      </h5>
+
+      <div class="row g-3 mb-4">
+        <div class="col-md-12">
+          <div class="alert alert-warning border-0 rounded-3 p-3 small d-flex align-items-start gap-2">
+            <i class="fa-solid fa-lock text-warning mt-1"></i>
+            <div>
+              <strong>End-to-End Secret Protection:</strong> Passkeys, API secrets, and webhook secrets are encrypted at rest and never transmitted back to the browser.
+              {% if is_edit %}Leave this field blank or masked unless you wish to rotate/update the secret key.{% endif %}
+            </div>
+          </div>
+          <label class="form-label fw-semibold text-secondary small">Consumer Secret / API Key / Passkey</label>
+          <input type="password" name="secret_key" class="form-control rounded-3 py-2" placeholder="{% if is_edit and account.encrypted_credentials %}•••••••••••••••• (Leave unchanged to retain existing key){% else %}Enter provider API Key or Secret{% endif %}" autocomplete="new-password">
+        </div>
+
+        <div class="col-md-12">
+          <label class="form-label fw-semibold text-secondary small">Description / Payment Instructions for Students</label>
+          <textarea name="description" class="form-control rounded-3" rows="3" placeholder="Additional notes or specific instructions displayed to students during payment.">{{ account.description|default:'' }}</textarea>
+        </div>
+
+        <div class="col-md-12">
+          <div class="form-check form-switch mt-2">
+            <input class="form-check-input" type="checkbox" role="switch" id="isDefaultSwitch" name="is_default" {% if account.is_default %}checked{% endif %}>
+            <label class="form-check-label fw-semibold text-dark" for="isDefaultSwitch">
+              Designate as Primary / Default for this payment channel
+            </label>
+            <div class="form-text small">Only one default account per channel type is allowed. Setting this will automatically update other accounts.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form Actions -->
+      <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+        <a href="{% url 'university:fee_accounts_dashboard' %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+        <button type="submit" class="btn btn-primary rounded-pill px-4 shadow-sm">
+          <i class="fa-solid fa-floppy-disk me-1"></i> {% if is_edit %}Save Changes{% else %}Create &amp; Activate Account{% endif %}
+        </button>
+      </div>
+
+    </form>
+  </div>
+
+</div>
+
+<script>
+  (function() {
+    const select = document.getElementById('accountTypeSelect');
+    const mpesaFields = document.getElementById('mpesaFields');
+    const bankFields = document.getElementById('bankFields');
+    const cardFields = document.getElementById('cardFields');
+    const label = document.getElementById('identifierLabel');
+
+    function updateFields() {
+      const val = select ? select.value : '{{ account.account_type|default:"MPESA_PAYBILL" }}';
+      if (mpesaFields) mpesaFields.style.display = (val === 'MPESA_PAYBILL' || val === 'MPESA_TILL') ? 'flex' : 'none';
+      if (bankFields) bankFields.style.display = (val === 'BANK_ACCOUNT') ? 'flex' : 'none';
+      if (cardFields) cardFields.style.display = (val === 'CARD_GATEWAY') ? 'flex' : 'none';
+
+      if (label) {
+        if (val === 'MPESA_PAYBILL') label.innerHTML = 'Paybill Number <span class="text-danger">*</span>';
+        else if (val === 'MPESA_TILL') label.innerHTML = 'Till Number <span class="text-danger">*</span>';
+        else if (val === 'BANK_ACCOUNT') label.innerHTML = 'Bank Account Number <span class="text-danger">*</span>';
+        else if (val === 'CARD_GATEWAY') label.innerHTML = 'Merchant / Account ID <span class="text-danger">*</span>';
+        else label.innerHTML = 'Account Identifier <span class="text-danger">*</span>';
+      }
+    }
+
+    if (select) {
+      select.addEventListener('change', updateFields);
+      updateFields();
+    }
+  })();
+</script>
+{% endblock %}

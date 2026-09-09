@@ -1,0 +1,256 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}Pay Fees · Student Portal{% endblock %}
+
+{% block content %}
+<div class="container py-3" style="max-width: 820px;">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1 small">
+          <li class="breadcrumb-item"><a href="{% url 'university:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'university:student_fees' %}" class="text-decoration-none">Finance</a></li>
+          <li class="breadcrumb-item active" aria-current="page">Pay Fees</li>
+        </ol>
+      </nav>
+      <h2 class="fw-bold mb-0 text-dark">
+        <i class="fa-solid fa-money-bill-wave me-2 text-primary"></i>Pay Fees
+      </h2>
+    </div>
+    <a href="{% url 'university:student_fees' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+      <i class="fa-solid fa-clock-rotate-left me-1"></i> Payment History
+    </a>
+  </div>
+
+  <!-- Outstanding Balance Card -->
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #fff;">
+    <div class="card-body p-4 p-md-5">
+      <div class="row align-items-center g-3">
+        <div class="col-md-7">
+          <span class="text-white-50 small text-uppercase fw-semibold tracking-wider">Total Outstanding Balance</span>
+          <div class="d-flex align-items-baseline gap-2 mt-1">
+            <span class="fs-4 text-warning fw-bold">{{ balance.currency }}</span>
+            <span class="display-5 fw-bold tracking-tight text-white">{{ balance.balance|floatformat:2|intcomma }}</span>
+          </div>
+          <p class="text-white-50 small mb-0 mt-2">
+            Student: <strong>{{ student.user.display_name }}</strong> &bull; Reg: <code>{{ student.roll_no }}</code>
+          </p>
+        </div>
+        <div class="col-md-5">
+          <div class="rounded-3 p-3 text-white" style="background: rgba(255, 255, 255, 0.08); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.12);">
+            <div class="d-flex justify-content-between mb-1 small">
+              <span class="text-white-50">Total Billed:</span>
+              <span class="fw-semibold">{{ balance.currency }} {{ balance.total_billed|floatformat:0|intcomma }}</span>
+            </div>
+            <div class="d-flex justify-content-between small">
+              <span class="text-white-50">Total Paid:</span>
+              <span class="text-success fw-semibold">{{ balance.currency }} {{ balance.total_paid|floatformat:0|intcomma }}</span>
+            </div>
+            <hr class="my-2 border-secondary opacity-50">
+            <div class="d-flex justify-content-between small">
+              <span class="text-white-50">Account Status:</span>
+              {% if balance.balance <= 0 %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5 rounded-pill">Cleared</span>
+              {% else %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-0.5 rounded-pill">Pending Dues</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Pay Fees Action Form -->
+  <div class="card border-0 shadow-sm rounded-4 p-4 p-md-5 bg-white mb-4">
+    <form method="post" action="{% url 'university:student_initiate_payment' %}" id="payFeesForm">
+      {% csrf_token %}
+
+      <!-- Step 1: Amount to Pay -->
+      <div class="mb-4">
+        <label for="amountInput" class="form-label fw-bold text-dark fs-6 d-flex justify-content-between align-items-center">
+          <span>Amount to Pay</span>
+          <span class="text-muted small fw-normal">Currency: <b>{{ balance.currency }}</b></span>
+        </label>
+        <div class="input-group input-group-lg shadow-sm rounded-3 overflow-hidden border">
+          <span class="input-group-text bg-light text-dark fw-bold border-0 px-3">{{ balance.currency }}</span>
+          <input
+            type="number"
+            step="0.01"
+            min="1"
+            max="9999999"
+            name="amount"
+            id="amountInput"
+            class="form-control border-0 fw-bold fs-4 text-primary"
+            placeholder="0.00"
+            value="{% if balance.balance > 0 %}{{ balance.balance|stringformat:'.2f' }}{% endif %}"
+            required
+            autocomplete="off"
+          >
+        </div>
+
+        {% if balance.balance > 0 %}
+        <!-- Quick Preset Amount Buttons -->
+        <div class="d-flex gap-2 mt-2 flex-wrap">
+          <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 small" onclick="setAmount({{ balance.balance }})">
+            Full Balance ({{ balance.currency }} {{ balance.balance|floatformat:0|intcomma }})
+          </button>
+          {% if balance.balance > 2000 %}
+          <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 small" onclick="setAmount({{ balance.balance }} / 2)">
+            50% Installment ({{ balance.currency }} {{ balance.balance|floatformat:0|intcomma }})
+          </button>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Step 2: Select Payment Method -->
+      <div class="mb-4">
+        <label class="form-label fw-bold text-dark fs-6 d-block mb-2">
+          Select Payment Method
+        </label>
+        <div class="row g-3" id="paymentMethodsList">
+          {% for acc in active_accounts %}
+          <div class="col-12 col-md-6">
+            <label class="payment-method-card border rounded-4 p-3 d-flex align-items-start gap-3 w-100 cursor-pointer h-100 position-relative shadow-sm transition-all" for="method_{{ acc.id }}">
+              <input
+                type="radio"
+                name="fee_account_id"
+                id="method_{{ acc.id }}"
+                value="{{ acc.id }}"
+                class="form-check-input mt-1 payment-radio"
+                {% if forloop.first or acc.is_default %}checked{% endif %}
+                data-type="{{ acc.account_type }}"
+                data-identifier="{{ acc.account_identifier }}"
+                onchange="handleMethodChange(this)"
+                required
+              >
+              <div class="flex-grow-1">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                  <span class="fw-bold text-dark fs-6">{{ acc.name }}</span>
+                  {% if acc.is_default %}
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5 rounded-pill small">Default</span>
+                  {% endif %}
+                </div>
+
+                <div class="small text-muted mb-1">
+                  {% if acc.account_type == 'MPESA_PAYBILL' %}
+                    <i class="fa-solid fa-mobile-screen-button text-success me-1"></i> Paybill No: <b>{{ acc.account_identifier }}</b>
+                  {% elif acc.account_type == 'MPESA_TILL' %}
+                    <i class="fa-solid fa-store text-success me-1"></i> Till No: <b>{{ acc.account_identifier }}</b>
+                  {% elif acc.account_type == 'CARD_GATEWAY' %}
+                    <i class="fa-solid fa-credit-card text-primary me-1"></i> Visa &bull; Mastercard &bull; Amex
+                  {% elif acc.account_type == 'BANK_ACCOUNT' %}
+                    <i class="fa-solid fa-building-columns text-warning me-1"></i> Account: <b>{{ acc.account_identifier }}</b>
+                  {% else %}
+                    <i class="fa-solid fa-wallet me-1"></i> {{ acc.account_identifier }}
+                  {% endif %}
+                </div>
+
+                <p class="text-secondary small mb-0" style="font-size: 0.78rem;">
+                  {{ acc.description|default:acc.get_account_type_display }}
+                </p>
+              </div>
+            </label>
+          </div>
+          {% empty %}
+          <div class="col-12">
+            <div class="alert alert-warning rounded-3 mb-0">
+              <i class="fa-solid fa-circle-exclamation me-1"></i>
+              No active payment channels configured currently. Please contact the University Finance Office.
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Conditional Phone Input for M-Pesa STK Prompt -->
+      <div class="mb-4 p-3 rounded-4 bg-light border" id="phonePromptContainer">
+        <label for="phoneInput" class="form-label fw-bold text-dark small mb-1">
+          <i class="fa-solid fa-mobile-screen text-success me-1"></i> M-Pesa Phone Number for STK Prompt
+        </label>
+        <div class="input-group">
+          <span class="input-group-text bg-white text-muted"><i class="fa-solid fa-phone"></i></span>
+          <input
+            type="tel"
+            name="phone"
+            id="phoneInput"
+            class="form-control bg-white"
+            placeholder="e.g. 0712345678 or 254712345678"
+            value="{{ student.user.phone|default:'' }}"
+          >
+        </div>
+        <small class="text-muted mt-1 d-block" style="font-size: 0.76rem;">
+          An instant payment prompt will appear on your phone asking you to enter your M-Pesa PIN.
+        </small>
+      </div>
+
+      <!-- Step 3: Pay Now Button -->
+      {% if active_accounts %}
+      <div class="pt-2">
+        <button type="submit" class="btn btn-primary btn-lg rounded-pill w-100 fw-bold py-3 shadow d-flex align-items-center justify-content-center gap-2" id="payNowBtn">
+          <i class="fa-solid fa-lock"></i>
+          <span>Pay Now &rarr;</span>
+        </button>
+        <div class="d-flex align-items-center justify-content-center gap-3 text-muted small mt-3">
+          <span><i class="fa-solid fa-shield-halved text-success me-1"></i> 256-Bit SSL Encrypted</span>
+          <span>&bull;</span>
+          <span><i class="fa-solid fa-building-circle-check text-primary me-1"></i> Official University Account</span>
+          <span>&bull;</span>
+          <span><i class="fa-solid fa-file-invoice me-1"></i> Instant Receipt</span>
+        </div>
+      </div>
+      {% endif %}
+
+    </form>
+  </div>
+
+</div>
+
+<style>
+  .payment-method-card {
+    transition: all 0.2s ease-in-out;
+    background: #fff;
+  }
+  .payment-method-card:hover {
+    border-color: #6366f1 !important;
+    background: #f8fafc;
+  }
+  .payment-method-card:has(input:checked) {
+    border-color: #4f46e5 !important;
+    background: #f5f3ff;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.12) !important;
+  }
+  .cursor-pointer {
+    cursor: pointer;
+  }
+</style>
+
+<script>
+  function setAmount(val) {
+    document.getElementById('amountInput').value = parseFloat(val).toFixed(2);
+  }
+
+  function handleMethodChange(radio) {
+    const type = radio.getAttribute('data-type');
+    const phoneContainer = document.getElementById('phonePromptContainer');
+    if (phoneContainer) {
+      if (type === 'MPESA_PAYBILL' || type === 'MPESA_TILL') {
+        phoneContainer.style.display = 'block';
+      } else {
+        phoneContainer.style.display = 'none';
+      }
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const selected = document.querySelector('.payment-radio:checked');
+    if (selected) {
+      handleMethodChange(selected);
+    }
+  });
+</script>
+{% endblock %}

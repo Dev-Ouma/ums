@@ -1,0 +1,130 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}Payment Status · {{ payment.internal_reference }}{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 760px;">
+
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white text-center p-4 p-md-5">
+
+    <!-- Status Icon & Title -->
+    {% if payment.status == 'SUCCESSFUL' %}
+      <div class="rounded-circle bg-success-subtle text-success mx-auto d-flex align-items-center justify-content-center mb-3" style="width: 72px; height: 72px;">
+        <i class="fa-solid fa-circle-check fs-1"></i>
+      </div>
+      <h3 class="fw-bold text-dark mb-1">Payment Successful!</h3>
+      <p class="text-muted small mb-4">Your fee payment has been confirmed and applied to your student account ledger.</p>
+    {% elif payment.status == 'FAILED' or payment.status == 'CANCELLED' or payment.status == 'EXPIRED' %}
+      <div class="rounded-circle bg-danger-subtle text-danger mx-auto d-flex align-items-center justify-content-center mb-3" style="width: 72px; height: 72px;">
+        <i class="fa-solid fa-circle-xmark fs-1"></i>
+      </div>
+      <h3 class="fw-bold text-dark mb-1">Payment {{ payment.get_status_display }}</h3>
+      <p class="text-muted small mb-4">The payment provider reported that this transaction could not be completed.</p>
+    {% else %}
+      <div class="rounded-circle bg-warning-subtle text-warning mx-auto d-flex align-items-center justify-content-center mb-3" style="width: 72px; height: 72px;">
+        <span class="spinner-border spinner-border-lg text-warning" role="status" style="width: 42px; height: 42px;"></span>
+      </div>
+      <h3 class="fw-bold text-dark mb-1">Awaiting Payment Confirmation</h3>
+      <p class="text-muted small mb-4">Please complete the prompt on your phone or follow the payment instructions below.</p>
+    {% endif %}
+
+    <!-- Transaction Summary Card -->
+    <div class="card border bg-light rounded-4 p-3 mb-4 text-start">
+      <div class="row g-2 small">
+        <div class="col-sm-6 d-flex justify-content-between">
+          <span class="text-muted">Payment Reference:</span>
+          <span class="fw-bold font-monospace text-dark">{{ payment.internal_reference }}</span>
+        </div>
+        <div class="col-sm-6 d-flex justify-content-between">
+          <span class="text-muted">Amount:</span>
+          <span class="fw-bold text-primary">{{ payment.currency }} {{ payment.amount|floatformat:2|intcomma }}</span>
+        </div>
+        <div class="col-sm-6 d-flex justify-content-between">
+          <span class="text-muted">Channel:</span>
+          <span class="fw-medium text-dark">{{ payment.method }}</span>
+        </div>
+        <div class="col-sm-6 d-flex justify-content-between">
+          <span class="text-muted">Status:</span>
+          <span class="badge {% if payment.status == 'SUCCESSFUL' %}bg-success{% elif payment.status == 'FAILED' %}bg-danger{% else %}bg-warning text-dark{% endif %} px-2.5 py-1 rounded-pill fw-semibold">
+            {{ payment.get_status_display }}
+          </span>
+        </div>
+        {% if payment.provider_reference %}
+        <div class="col-12 d-flex justify-content-between border-top pt-2 mt-1">
+          <span class="text-muted">Provider Reference:</span>
+          <span class="fw-bold font-monospace text-secondary">{{ payment.provider_reference }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Provider Instructions (If pending or waiting) -->
+    {% if payment.status != 'SUCCESSFUL' and instructions %}
+    <div class="card border rounded-4 p-4 mb-4 text-start bg-white shadow-sm">
+      <h6 class="fw-bold text-dark mb-3">
+        <i class="fa-solid fa-list-ol me-2 text-primary"></i>How to Complete this Payment:
+      </h6>
+      <ul class="list-unstyled mb-0 small text-secondary">
+        {% for step in instructions.steps %}
+        <li class="mb-2 d-flex align-items-start gap-2">
+          <span>&bull;</span>
+          <span>{{ step|safe }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <!-- Action Buttons -->
+    <div class="d-flex justify-content-center gap-3 flex-wrap">
+      {% if payment.status == 'SUCCESSFUL' and receipt %}
+        <a href="{% url 'university:student_receipt_view' receipt.receipt_number %}" class="btn btn-primary rounded-pill px-4 fw-semibold">
+          <i class="fa-solid fa-receipt me-1.5"></i> View Official Receipt
+        </a>
+        <a href="{% url 'university:student_receipt_pdf' receipt.receipt_number %}" class="btn btn-outline-secondary rounded-pill px-4 fw-semibold" target="_blank">
+          <i class="fa-solid fa-file-pdf me-1.5"></i> Download PDF
+        </a>
+      {% elif payment.status == 'SUCCESSFUL' %}
+        <a href="{% url 'university:student_fees' %}" class="btn btn-primary rounded-pill px-4 fw-semibold">
+          <i class="fa-solid fa-wallet me-1.5"></i> View Updated Financials
+        </a>
+      {% else %}
+        <!-- Sandbox / Dev Simulator Button -->
+        <form method="post" action="{% url 'university:mpesa_callback' %}" class="d-inline" onsubmit="return confirm('Simulate instant successful payment confirmation from provider?')">
+          {% csrf_token %}
+          <input type="hidden" name="internal_reference" value="{{ payment.internal_reference }}">
+          <button type="submit" class="btn btn-success rounded-pill px-4 fw-semibold shadow-sm">
+            <i class="fa-solid fa-check-double me-1.5"></i> Simulate Provider Confirmation (Sandbox)
+          </button>
+        </form>
+
+        <a href="{% url 'university:student_pay_fees' %}" class="btn btn-outline-secondary rounded-pill px-4 fw-semibold">
+          <i class="fa-solid fa-arrow-left me-1.5"></i> Back to Pay Fees
+        </a>
+      {% endif %}
+    </div>
+
+  </div>
+
+</div>
+
+{% if payment.status != 'SUCCESSFUL' and payment.status != 'FAILED' %}
+<script>
+  // Automatic status polling every 3.5 seconds
+  const pollInterval = setInterval(async () => {
+    try {
+      const res = await fetch("{% url 'university:student_payment_poll' payment.internal_reference %}");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.is_successful || data.is_failed) {
+        clearInterval(pollInterval);
+        location.reload();
+      }
+    } catch (e) {
+      // Ignore transient network glitches during polling
+    }
+  }, 3500);
+</script>
+{% endif %}
+{% endblock %}

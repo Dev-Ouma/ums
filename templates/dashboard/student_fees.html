@@ -204,4 +204,20 @@
     </div>
   </div>
 </div>
+
+<script>
+  // "Pay Fees" quick link (?pay=1) — jump straight to the first outstanding invoice's payment modal.
+  document.addEventListener('DOMContentLoaded', function () {
+    if (new URLSearchParams(window.location.search).get('pay') !== '1') return;
+    const firstPayBtn = document.querySelector('[data-bs-target^="#payModal"]');
+    if (firstPayBtn) {
+      firstPayBtn.click();
+    } else {
+      const settled = document.createElement('div');
+      settled.className = 'alert alert-success rounded-3 mt-3';
+      settled.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i> All invoices are fully settled — nothing to pay right now.';
+      document.querySelector('.content-header')?.after(settled);
+    }
+  });
+</script>
 {% endblock %}
