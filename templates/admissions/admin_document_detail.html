@@ -1,0 +1,593 @@
+{% extends 'base_dashboard.html' %}
+{% load static %}
+
+{% block title %}{{ app.full_name }} · Admission Documents Dossier · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <span class="badge bg-light text-dark border rounded-pill px-3 py-1 font-monospace">
+        {{ app.application_number }}
+      </span>
+      {% if app.admitted_reg_no or app.student.roll_no %}
+        <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-3 py-1 fw-bold">
+          Reg No: {{ app.admitted_reg_no|default:app.student.roll_no }}
+        </span>
+      {% endif %}
+      <span class="badge {% if app.status == 'ENROLLED' %}bg-success{% elif app.status == 'ACCEPTED' %}bg-info text-white{% else %}bg-secondary{% endif %} rounded-pill px-3 py-1">
+        {{ app.get_status_display }}
+      </span>
+    </div>
+    <h4><i class="fa-solid fa-folder-open me-2 text-primary"></i>{{ app.full_name }} — Admission Dossier</h4>
+    <p class="text-muted small mb-0">{{ app.program.name }} ({{ app.program.code }}) &bull; {{ app.intake.name|default:"Regular Intake" }}</p>
+  </div>
+
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <a href="{% url 'university:admin_admission_documents_list' %}" class="btn btn-light border rounded-pill px-3">
+      <i class="fa-solid fa-arrow-left me-1"></i> Back to Directory
+    </a>
+    {% if active_letter %}
+      <button type="button" class="btn btn-outline-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#resendModal">
+        <i class="fa-solid fa-paper-plane me-1"></i> Resend Letter
+      </button>
+      <button type="button" class="btn btn-primary rounded-pill px-3 fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#regenerateModal">
+        <i class="fa-solid fa-arrows-rotate me-1"></i> Regenerate Letter
+      </button>
+    {% else %}
+      <button type="button" class="btn btn-success rounded-pill px-4 fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#regenerateModal">
+        <i class="fa-solid fa-file-circle-plus me-1"></i> Generate Admission Letter
+      </button>
+    {% endif %}
+  </div>
+</div>
+
+{% if messages %}
+  {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-4" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  {% endfor %}
+{% endif %}
+
+<!-- DOSSIER TABS NAVIGATION -->
+<ul class="nav nav-pills mb-4 gap-2 bg-white p-2 rounded-4 shadow-sm border" id="dossierTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active rounded-pill px-4 py-2 fw-semibold" id="letter-tab" data-bs-toggle="pill" data-bs-target="#letterTab" type="button" role="tab">
+      <i class="fa-solid fa-file-invoice me-1"></i> Admission Letter
+      {% if active_letter %}
+        <span class="badge bg-success ms-1">v{{ active_letter.version }}</span>
+      {% else %}
+        <span class="badge bg-warning ms-1">Pending</span>
+      {% endif %}
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link rounded-pill px-4 py-2 fw-semibold" id="attachments-tab" data-bs-toggle="pill" data-bs-target="#attachmentsTab" type="button" role="tab">
+      <i class="fa-solid fa-paperclip me-1"></i> Submitted Attachments
+      <span class="badge bg-primary bg-opacity-10 text-primary ms-1">{{ attachments.count }}</span>
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link rounded-pill px-4 py-2 fw-semibold" id="history-tab" data-bs-toggle="pill" data-bs-target="#historyTab" type="button" role="tab">
+      <i class="fa-solid fa-clock-rotate-left me-1"></i> Version History
+      <span class="badge bg-secondary ms-1">{{ all_versions.count }}</span>
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link rounded-pill px-4 py-2 fw-semibold" id="delivery-tab" data-bs-toggle="pill" data-bs-target="#deliveryTab" type="button" role="tab">
+      <i class="fa-solid fa-envelope-circle-check me-1"></i> Delivery Logs
+      <span class="badge bg-info text-white ms-1">{{ delivery_logs.count }}</span>
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link rounded-pill px-4 py-2 fw-semibold" id="details-tab" data-bs-toggle="pill" data-bs-target="#detailsTab" type="button" role="tab">
+      <i class="fa-solid fa-id-card me-1"></i> Application Bio-Data
+    </button>
+  </li>
+</ul>
+
+<!-- TAB CONTENTS -->
+<div class="tab-content" id="dossierTabContent">
+
+  <!-- TAB 1: ADMISSION LETTER -->
+  <div class="tab-pane fade show active" id="letterTab" role="tabpanel">
+    {% if active_letter %}
+      <div class="card card-ums border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+        <div class="card-header bg-white p-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div class="d-flex align-items-center gap-3">
+            <span class="badge bg-success bg-opacity-10 text-success px-3 py-1.5 rounded-pill fw-semibold">
+              <i class="fa-solid fa-stamp me-1"></i> {{ active_letter.get_status_display }} (v{{ active_letter.version }})
+            </span>
+            <span class="font-monospace text-muted small">Ref: {{ active_letter.document_reference }}</span>
+            <span class="text-muted small d-none d-md-inline">&bull; Generated {{ active_letter.generated_at|date:"d M Y H:i" }} by {{ active_letter.generated_by.username|default:"System" }}</span>
+          </div>
+
+          <div class="d-flex align-items-center gap-2">
+            <a href="{% url 'university:admin_view_admission_document' active_letter.id %}?download=1" class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold">
+              <i class="fa-solid fa-download me-1"></i> Download PDF
+            </a>
+            <a href="{% url 'university:admin_view_admission_document' active_letter.id %}?preview=1" target="_blank" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+              <i class="fa-solid fa-up-right-from-square me-1"></i> Full Viewer
+            </a>
+            <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#revokeModal">
+              <i class="fa-solid fa-ban me-1"></i> Revoke
+            </button>
+          </div>
+        </div>
+
+        <!-- Embedded Viewer Frame -->
+        <div style="background:#1e293b; padding:12px;">
+          <iframe id="admin-pdf-frame" src="{% url 'university:admin_view_admission_document' active_letter.id %}?inline=1#toolbar=1" style="display:block; width:100%; height:75vh; border-radius:8px; border:none; box-shadow:0 6px 24px rgba(0,0,0,0.3);"></iframe>
+        </div>
+
+        <div class="card-footer bg-light p-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2 small text-muted">
+          <span><i class="fa-solid fa-circle-check text-success me-1"></i>Active Template: <b>{{ active_letter.template.name|default:"Universal Standard" }}</b></span>
+          <span>Reporting Date: <b>{{ active_letter.reporting_date|date:"l, d F Y"|default:"Not specified" }}</b></span>
+        </div>
+      </div>
+    {% else %}
+      <div class="card card-ums border-0 shadow-sm rounded-4 p-5 text-center mb-4">
+        <div class="rounded-circle bg-light text-muted d-inline-flex align-items-center justify-content-center mb-3 mx-auto" style="width:72px;height:72px;">
+          <i class="fa-solid fa-file-circle-xmark fa-2x"></i>
+        </div>
+        <h5 class="fw-bold text-dark mb-1">No Active Admission Letter Generated</h5>
+        <p class="text-muted small mx-auto mb-4" style="max-width:480px;">
+          This applicant is in status <b>{{ app.get_status_display }}</b>. Generate their official university admission letter now using active institutional templates and dynamic database values.
+        </p>
+        <div>
+          <button type="button" class="btn btn-primary rounded-pill px-4 py-2 fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#regenerateModal">
+            <i class="fa-solid fa-wand-magic-sparkles me-1"></i> Generate Admission Letter
+          </button>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- TAB 2: SUBMITTED ATTACHMENTS -->
+  <div class="tab-pane fade" id="attachmentsTab" role="tabpanel">
+    <div class="card card-ums border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+      <div class="card-header bg-white p-3 border-bottom d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold mb-0 text-dark">Original Application Documents ({{ attachments.count }})</h6>
+        <span class="small text-muted">Review credentials and update verification status</span>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table align-middle table-hover mb-0">
+          <thead class="bg-light small text-uppercase text-muted">
+            <tr>
+              <th class="ps-4">Document Title</th>
+              <th>Category</th>
+              <th>File Size</th>
+              <th>Submitted</th>
+              <th>Verification Status</th>
+              <th>Verified By</th>
+              <th class="text-end pe-4">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for att in attachments %}
+              <tr>
+                <td class="ps-4">
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="text-primary fs-4"><i class="fa-solid fa-file-lines"></i></span>
+                    <div>
+                      <div class="fw-bold text-dark">{{ att.name }}</div>
+                      <small class="text-muted font-monospace">{{ att.file_name|default:"document_file" }}</small>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <span class="badge bg-light text-dark border rounded-pill px-2.5 py-1 small">
+                    {{ att.get_document_type_display }}
+                  </span>
+                </td>
+                <td class="small text-muted">{{ att.file_size|filesizeformat }}</td>
+                <td class="small text-dark">{{ att.uploaded_at|date:"d M Y H:i" }}</td>
+                <td>
+                  {% if att.verification_status == "VERIFIED" %}
+                    <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-2.5 py-1 fw-semibold">
+                      <i class="fa-solid fa-circle-check me-1"></i> Verified
+                    </span>
+                  {% elif att.verification_status == "REJECTED" %}
+                    <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-2.5 py-1 fw-semibold">
+                      <i class="fa-solid fa-circle-xmark me-1"></i> Rejected
+                    </span>
+                  {% elif att.verification_status == "FLAGGED" %}
+                    <span class="badge bg-warning bg-opacity-10 text-warning rounded-pill px-2.5 py-1 fw-semibold">
+                      <i class="fa-solid fa-triangle-exclamation me-1"></i> Flagged
+                    </span>
+                  {% else %}
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill px-2.5 py-1 fw-semibold">
+                      <i class="fa-solid fa-clock me-1"></i> Pending
+                    </span>
+                  {% endif %}
+                  {% if att.verification_notes %}
+                    <small class="d-block text-muted mt-1 fst-italic">"{{ att.verification_notes }}"</small>
+                  {% endif %}
+                </td>
+                <td class="small text-muted">
+                  {{ att.verified_by.username|default:"—" }}
+                  {% if att.verified_at %}<br/><small>{{ att.verified_at|date:"d M Y" }}</small>{% endif %}
+                </td>
+                <td class="text-end pe-4">
+                  <div class="btn-group">
+                    <a href="{% url 'university:student_download_attachment' att.id %}" class="btn btn-sm btn-light border rounded-pill px-3" download>
+                      <i class="fa-solid fa-download me-1"></i> View
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-primary ms-1 rounded-pill px-2.5" data-bs-toggle="modal" data-bs-target="#verifyModal{{ att.id }}" title="Verify / Reject">
+                      <i class="fa-solid fa-check-double"></i>
+                    </button>
+                  </div>
+
+                  <!-- VERIFY MODAL FOR THIS ATTACHMENT -->
+                  <div class="modal fade" id="verifyModal{{ att.id }}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                      <div class="modal-content rounded-4 border-0 shadow">
+                        <form method="post" action="{% url 'university:admin_verify_attachment' att.id %}">
+                          {% csrf_token %}
+                          <div class="modal-header border-bottom p-4">
+                            <h5 class="modal-title fw-bold">Verify Document: {{ att.name }}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                          </div>
+                          <div class="modal-body p-4 text-start">
+                            <div class="mb-3">
+                              <label class="form-label fw-semibold">Verification Decision <span class="text-danger">*</span></label>
+                              <select name="verification_status" class="form-select rounded-3" required>
+                                <option value="VERIFIED" {% if att.verification_status == "VERIFIED" %}selected{% endif %}>Verified & Approved</option>
+                                <option value="REJECTED" {% if att.verification_status == "REJECTED" %}selected{% endif %}>Rejected / Illegible</option>
+                                <option value="FLAGGED" {% if att.verification_status == "FLAGGED" %}selected{% endif %}>Flag for Investigation</option>
+                                <option value="PENDING" {% if att.verification_status == "PENDING" %}selected{% endif %}>Pending Review</option>
+                              </select>
+                            </div>
+                            <div class="mb-3">
+                              <label class="form-label fw-semibold">Verification Notes / Justification</label>
+                              <textarea name="verification_notes" class="form-control rounded-3" rows="3" placeholder="e.g. KCSE Mean Grade confirmed against official KNEC portal...">{{ att.verification_notes }}</textarea>
+                            </div>
+                          </div>
+                          <div class="modal-footer border-top p-3">
+                            <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">Save Verification</button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="7" class="text-center py-4 text-muted small">
+                  No attachments uploaded with this application.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3: VERSION HISTORY -->
+  <div class="tab-pane fade" id="historyTab" role="tabpanel">
+    <div class="card card-ums border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+      <div class="card-header bg-white p-3 border-bottom">
+        <h6 class="fw-bold mb-0 text-dark">Document Version History</h6>
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle table-hover mb-0">
+          <thead class="bg-light small text-uppercase text-muted">
+            <tr>
+              <th class="ps-4">Version</th>
+              <th>Reference Number</th>
+              <th>Generated Date</th>
+              <th>Generated By</th>
+              <th>Change Reason / Notes</th>
+              <th>Status</th>
+              <th class="text-end pe-4">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="small">
+            {% for ver in all_versions %}
+              <tr>
+                <td class="ps-4">
+                  <span class="badge {% if ver.is_current_version %}bg-success{% else %}bg-secondary{% endif %} rounded-pill px-2.5 py-1">
+                    v{{ ver.version }}
+                  </span>
+                </td>
+                <td class="font-monospace fw-bold text-dark">{{ ver.document_reference }}</td>
+                <td>{{ ver.generated_at|date:"d M Y H:i" }}</td>
+                <td>{{ ver.generated_by.username|default:"System" }}</td>
+                <td>{{ ver.change_reason|default:"Initial issuance" }}</td>
+                <td>
+                  <span class="badge {% if ver.status == 'CURRENT' %}bg-success bg-opacity-10 text-success{% elif ver.status == 'SUPERSEDED' %}bg-light text-muted border{% else %}bg-danger bg-opacity-10 text-danger{% endif %} rounded-pill px-2.5 py-1">
+                    {{ ver.get_status_display }}
+                  </span>
+                </td>
+                <td class="text-end pe-4">
+                  <a href="{% url 'university:admin_view_admission_document' ver.id %}?preview=1" target="_blank" class="btn btn-xs btn-outline-secondary rounded-pill">
+                    <i class="fa-solid fa-eye me-1"></i> Preview
+                  </a>
+                  <a href="{% url 'university:admin_download_admission_document' ver.id %}" class="btn btn-xs btn-light border rounded-pill ms-1">
+                    <i class="fa-solid fa-download"></i>
+                  </a>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="7" class="text-center py-4 text-muted">No documents issued yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4: DELIVERY LOGS -->
+  <div class="tab-pane fade" id="deliveryTab" role="tabpanel">
+    <div class="card card-ums border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+      <div class="card-header bg-white p-3 border-bottom d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold mb-0 text-dark">Document Transmission & Resend Logs</h6>
+        {% if active_letter %}
+          <button type="button" class="btn btn-sm btn-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#resendModal">
+            <i class="fa-solid fa-paper-plane me-1"></i> Dispatch Letter
+          </button>
+        {% endif %}
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle table-hover mb-0">
+          <thead class="bg-light small text-uppercase text-muted">
+            <tr>
+              <th class="ps-4">Timestamp</th>
+              <th>Method</th>
+              <th>Recipient</th>
+              <th>Subject</th>
+              <th>Sent By</th>
+              <th>Status</th>
+              <th class="pe-4">Failure Reason</th>
+            </tr>
+          </thead>
+          <tbody class="small">
+            {% for log in delivery_logs %}
+              <tr>
+                <td class="ps-4">{{ log.sent_at|date:"d M Y H:i:s" }}</td>
+                <td>
+                  <span class="badge bg-light text-dark border rounded-pill px-2.5 py-1">
+                    {{ log.get_delivery_method_display }}
+                  </span>
+                </td>
+                <td class="fw-semibold text-dark">{{ log.recipient }}</td>
+                <td>{{ log.subject|truncatechars:35 }}</td>
+                <td>{{ log.sent_by.username|default:"System" }}</td>
+                <td>
+                  {% if log.status == "DELIVERED" or log.status == "SENT" %}
+                    <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-2.5 py-1">
+                      <i class="fa-solid fa-circle-check me-1"></i> {{ log.get_status_display }}
+                    </span>
+                  {% else %}
+                    <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-2.5 py-1">
+                      <i class="fa-solid fa-circle-xmark me-1"></i> Failed
+                    </span>
+                  {% endif %}
+                </td>
+                <td class="pe-4 text-danger small">{{ log.failure_reason|default:"—" }}</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="7" class="text-center py-4 text-muted">No transmission records recorded.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 5: APPLICATION DATA -->
+  <div class="tab-pane fade" id="detailsTab" role="tabpanel">
+    <div class="card card-ums border-0 shadow-sm rounded-4 p-4 mb-4">
+      <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">Applicant Personal Information</h6>
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <small class="text-muted d-block">Full Name</small>
+          <span class="fw-bold text-dark">{{ app.full_name }}</span>
+        </div>
+        <div class="col-md-4">
+          <small class="text-muted d-block">Email Address</small>
+          <span class="fw-semibold text-dark">{{ app.email }}</span>
+        </div>
+        <div class="col-md-4">
+          <small class="text-muted d-block">Phone Number</small>
+          <span class="fw-semibold text-dark">{{ app.phone }}</span>
+        </div>
+        <div class="col-md-4">
+          <small class="text-muted d-block">National ID / Passport</small>
+          <span class="fw-semibold text-dark">{{ app.national_id }}</span>
+        </div>
+        <div class="col-md-4">
+          <small class="text-muted d-block">Date of Birth / Gender</small>
+          <span class="fw-semibold text-dark">{{ app.date_of_birth|date:"d M Y" }} &bull; {{ app.get_gender_display }}</span>
+        </div>
+        <div class="col-md-4">
+          <small class="text-muted d-block">Postal / Physical Address</small>
+          <span class="fw-semibold text-dark">{{ app.address|default:"N/A" }}</span>
+        </div>
+      </div>
+
+      <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">Academic Qualifications</h6>
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <small class="text-muted d-block">Secondary School</small>
+          <span class="fw-semibold text-dark">{{ app.secondary_school|default:"N/A" }}</span>
+        </div>
+        <div class="col-md-4">
+          <small class="text-muted d-block">KCSE Index Number</small>
+          <span class="fw-semibold text-dark">{{ app.kcse_index_number|default:"N/A" }}</span>
+        </div>
+        <div class="col-md-4">
+          <small class="text-muted d-block">KCSE Mean Grade & Year</small>
+          <span class="badge bg-primary bg-opacity-10 text-primary">{{ app.kcse_mean_grade }} ({{ app.kcse_year }})</span>
+        </div>
+      </div>
+
+      {% if custom_values %}
+        <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">Additional Institutional Fields</h6>
+        <div class="row g-3">
+          {% for cv in custom_values %}
+            <div class="col-md-4">
+              <small class="text-muted d-block">{{ cv.field.label }} ({{ cv.field.name }})</small>
+              <span class="fw-semibold text-dark">{{ cv.value|default:"—" }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<!-- REGENERATE ADMISSION LETTER MODAL -->
+<div class="modal fade" id="regenerateModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <form method="post" action="{% url 'university:admin_regenerate_admission_document' app.pk %}">
+        {% csrf_token %}
+        <div class="modal-header border-bottom p-4">
+          <h5 class="modal-title fw-bold">
+            {% if active_letter %}Regenerate Admission Letter (New Version){% else %}Generate Official Admission Letter{% endif %}
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          <p class="text-muted small mb-4">
+            Generating will render a new versioned admission letter from current database values. The previous letter will be superseded and preserved in version history.
+          </p>
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Select Document Template</label>
+              <select name="template_id" class="form-select rounded-3">
+                {% for t in templates %}
+                  <option value="{{ t.id }}" {% if active_letter and active_letter.template_id == t.id %}selected{% elif t.is_default %}selected{% endif %}>
+                    {{ t.name }} (v{{ t.version }}) {% if t.is_default %}[Default]{% endif %}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Reporting Date</label>
+              <input type="date" name="reporting_date" class="form-control rounded-3" value="{{ app.reporting_date|date:'Y-m-d' }}">
+              <div class="form-text">Leave blank to use current scheduled date.</div>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label fw-semibold">Reason for Generation / Changes <span class="text-danger">*</span></label>
+              <input type="text" name="reason" class="form-control rounded-3" placeholder="e.g. Updated reporting date; corrected fee quotation; initial issuance" required>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-top p-3">
+          <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">
+            <i class="fa-solid fa-arrows-rotate me-1"></i> Generate & Issue Letter
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- RESEND ADMISSION LETTER MODAL -->
+{% if active_letter %}
+<div class="modal fade" id="resendModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <form method="post" action="{% url 'university:admin_resend_admission_document' app.pk %}">
+        {% csrf_token %}
+        <div class="modal-header border-bottom p-4">
+          <h5 class="modal-title fw-bold"><i class="fa-solid fa-paper-plane text-primary me-2"></i>Resend Admission Letter</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Delivery Method</label>
+              <select name="delivery_method" class="form-select rounded-3">
+                <option value="EMAIL" selected>Email Transmission</option>
+                <option value="SMS">SMS Notification</option>
+                <option value="PORTAL_NOTICE">Portal Notification</option>
+              </select>
+            </div>
+
+            <div class="col-md-8">
+              <label class="form-label fw-semibold">Recipient Email / Phone</label>
+              <input type="text" name="recipient" class="form-control rounded-3" value="{{ app.email }}" required>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label fw-semibold">Subject Line</label>
+              <input type="text" name="subject" class="form-control rounded-3" value="Official Letter of Offer: Admission to {{ app.program.name }} (Ref: {{ active_letter.document_reference }})" required>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label fw-semibold">Message Body</label>
+              <textarea name="message" class="form-control rounded-3" rows="5" required>Dear {{ app.full_name }},
+
+Congratulations! Following your application, please find attached your official University Admission Letter for {{ app.program.name }}.
+
+Reference Number: {{ active_letter.document_reference }}
+Assigned Reg Number: {{ app.admitted_reg_no|default:app.student.roll_no }}
+Reporting Date: {{ active_letter.reporting_date|date:"l, d F Y"|default:"As indicated on document" }}
+
+You can also access, inspect, and download this letter directly from your Student Portal under Reports > Admission Documents.
+
+Sincerely,
+Office of the Registrar (Academic Affairs)
+University Management System</textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-top p-3">
+          <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">
+            <i class="fa-solid fa-paper-plane me-1"></i> Send Admission Letter
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- REVOKE ADMISSION LETTER MODAL -->
+<div class="modal fade" id="revokeModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <form method="post" action="{% url 'university:admin_revoke_admission_document' app.pk %}">
+        {% csrf_token %}
+        <div class="modal-header border-bottom p-4">
+          <h5 class="modal-title fw-bold text-danger"><i class="fa-solid fa-triangle-exclamation me-2"></i>Revoke Admission Letter</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          <p class="small text-muted mb-3">
+            Are you sure you want to revoke admission letter <b>{{ active_letter.document_reference }}</b>? This will void the document and mark it as invalid in the student portal.
+          </p>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Revocation Reason <span class="text-danger">*</span></label>
+            <textarea name="reason" class="form-control rounded-3" rows="3" placeholder="e.g. Admission offer withdrawn due to falsified secondary credentials" required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-top p-3">
+          <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger rounded-pill px-4 fw-semibold">Confirm Revocation</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -12,7 +12,8 @@ from accounts.models import FacultyProfile, Role, StudentProfile
 from university.audit_services import detect_device_type, get_client_ip, log_activity
 from university.models import (
     AuditLog, ClassSchedule, Course, Department, Event,
-    FeeInvoice, FeeStructure, Notice, Program, RecycleBinItem
+    FeeInvoice, FeeStructure, Notice, Program, RecycleBinItem,
+    AcademicYear, AcademicTerm,
 )
 
 User = get_user_model()
@@ -75,6 +76,8 @@ def move_to_recycle_bin(obj, user=None, request=None, module=None, is_protected=
             module = RecycleBinItem.Module.TIMETABLE
         elif isinstance(obj, (FeeInvoice, FeeStructure)):
             module = RecycleBinItem.Module.FEES
+        elif isinstance(obj, (AcademicYear, AcademicTerm)):
+            module = RecycleBinItem.Module.CALENDAR
         elif isinstance(obj, Notice):
             module = RecycleBinItem.Module.NOTICES
         elif isinstance(obj, Event):
@@ -226,7 +229,19 @@ def restore_from_recycle_bin(item_id, user=None, request=None):
             defaults={
                 "name": data.get("name"),
                 "department": dept or Department.objects.first(),
+                "program_type": data.get("program_type", Program.ProgramType.DEGREE),
+                "level": data.get("level", "UG"),
+                "award_title": data.get("award_title", ""),
+                "study_mode": data.get("study_mode", Program.StudyMode.FULL_TIME),
+                "duration_value": data.get("duration_value", data.get("duration_years", 4)),
+                "duration_unit": data.get("duration_unit", Program.DurationUnit.YEARS),
                 "duration_years": data.get("duration_years", 4),
+                "min_credits": data.get("min_credits", 120),
+                "max_credits": data.get("max_credits"),
+                "total_seats": data.get("total_seats", 120),
+                "status": data.get("status", Program.Status.ACTIVE),
+                "description": data.get("description", ""),
+                "career_prospects": data.get("career_prospects", ""),
             }
         )
 
@@ -280,6 +295,40 @@ def restore_from_recycle_bin(item_id, user=None, request=None):
                     "student_union_fee": Decimal(data.get("student_union_fee", "500.00")),
                 }
             )
+
+    elif content_type == "AcademicYear":
+        restored_obj, _ = AcademicYear.objects.update_or_create(
+            name=data.get("name"),
+            defaults={
+                "code": data.get("code", ""),
+                "start_date": data.get("start_date"),
+                "end_date": data.get("end_date"),
+                "status": data.get("status", AcademicYear.Status.DRAFT),
+                "is_current": data.get("is_current", False),
+                "description": data.get("description", ""),
+                "reference_no": data.get("reference_no", ""),
+                "max_programmes_allowed": data.get("max_programmes_allowed", 1),
+            }
+        )
+
+    elif content_type in ("AcademicTerm", "Semester"):
+        ay = AcademicYear.objects.filter(pk=data.get("academic_year")).first()
+        restored_obj, _ = AcademicTerm.objects.update_or_create(
+            name=data.get("name"),
+            defaults={
+                "academic_year": ay,
+                "term_type": data.get("term_type", "SEMESTER"),
+                "semester_number": data.get("semester_number", 1),
+                "start_date": data.get("start_date"),
+                "end_date": data.get("end_date"),
+                "registration_start_date": data.get("registration_start_date"),
+                "registration_end_date": data.get("registration_end_date"),
+                "exam_start_date": data.get("exam_start_date"),
+                "exam_end_date": data.get("exam_end_date"),
+                "status": data.get("status", AcademicYear.Status.PUBLISHED),
+                "is_current": data.get("is_current", False),
+            }
+        )
 
     item.is_restored = True
     item.restored_at = timezone.now()

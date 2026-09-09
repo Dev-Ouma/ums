@@ -1,3 +1,4 @@
+from xml.sax.saxutils import escape
 import io
 import os
 from datetime import timedelta
@@ -6,11 +7,13 @@ from decimal import Decimal
 from django.conf import settings
 from django.utils import timezone
 
+from university.document_design import (ReportDocTemplate, document_styles, document_fonts,
+    PageNumberCanvas, letterhead, get_branding, finish_worksheet, PRIMARY, PRIMARY_DARK, INK, MUTED, BORDER, ZEBRA)
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import (
-    HRFlowable, Image as RLImage, Paragraph, SimpleDocTemplate,
+    HRFlowable, Image as RLImage, KeepTogether, Paragraph, SimpleDocTemplate,
     Spacer, Table, TableStyle
 )
 
@@ -94,7 +97,7 @@ def check_financial_clearance(student, term=None, threshold_pct=100.0):
 def generate_fee_receipt_pdf(payment):
     """Generate an official University Fee Payment Receipt as a PDF."""
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
+    doc = ReportDocTemplate(
         buffer,
         pagesize=A4,
         leftMargin=40,
@@ -103,15 +106,15 @@ def generate_fee_receipt_pdf(payment):
         bottomMargin=40,
     )
 
-    styles = getSampleStyleSheet()
-    primary_color = colors.HexColor("#1e3a8a")
-    dark_gray = colors.HexColor("#1f2937")
-    muted_gray = colors.HexColor("#4b5563")
+    styles = document_styles()
+    primary_color = colors.HexColor(PRIMARY)
+    dark_gray = colors.HexColor(INK)
+    muted_gray = colors.HexColor(MUTED)
 
     title_style = ParagraphStyle(
         "ReceiptTitle",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=18,
         leading=22,
         textColor=primary_color,
@@ -120,7 +123,7 @@ def generate_fee_receipt_pdf(payment):
     subtitle_style = ParagraphStyle(
         "ReceiptSubtitle",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=10,
         leading=14,
         textColor=muted_gray,
@@ -129,7 +132,7 @@ def generate_fee_receipt_pdf(payment):
     body_style = ParagraphStyle(
         "ReceiptBody",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=10,
         leading=15,
         textColor=dark_gray,
@@ -137,7 +140,7 @@ def generate_fee_receipt_pdf(payment):
     body_bold = ParagraphStyle(
         "ReceiptBodyBold",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=10,
         leading=15,
         textColor=dark_gray,
@@ -146,8 +149,8 @@ def generate_fee_receipt_pdf(payment):
     story = []
 
     # Logo + Header
-    logo_path = os.path.join(settings.BASE_DIR, "static", "img", "ums-logo.png")
-    if os.path.exists(logo_path):
+    logo_path = get_branding()["logo_path"]
+    if logo_path and os.path.exists(logo_path):
         try:
             img = RLImage(logo_path, width=45, height=45)
             img.hAlign = "CENTER"
@@ -156,7 +159,7 @@ def generate_fee_receipt_pdf(payment):
         except Exception:
             pass
 
-    story.append(Paragraph("UNIVERSITY MANAGEMENT SYSTEM", title_style))
+    story.append(Paragraph(escape(get_branding()["site_name"].upper()), title_style))
     story.append(Paragraph("FINANCE & STUDENT ACCOUNTS DEPARTMENT", subtitle_style))
     story.append(Paragraph("OFFICIAL PAYMENT RECEIPT", ParagraphStyle("SubHead", parent=title_style, fontSize=13, leading=16, textColor=colors.HexColor("#047857"))))
     story.append(Spacer(1, 8))
@@ -242,7 +245,7 @@ def generate_fee_receipt_pdf(payment):
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
     ]))
-    story.append(stable)
+    story.append(KeepTogether([stable]))
 
     doc.build(story)
     buffer.seek(0)
@@ -252,7 +255,7 @@ def generate_fee_receipt_pdf(payment):
 def generate_student_statement_pdf(student):
     """Generate a formal Student Statement of Account (Ledger) as a PDF."""
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
+    doc = ReportDocTemplate(
         buffer,
         pagesize=A4,
         leftMargin=36,
@@ -261,15 +264,15 @@ def generate_student_statement_pdf(student):
         bottomMargin=36,
     )
 
-    styles = getSampleStyleSheet()
-    primary_color = colors.HexColor("#1e3a8a")
-    dark_gray = colors.HexColor("#1f2937")
-    muted_gray = colors.HexColor("#4b5563")
+    styles = document_styles()
+    primary_color = colors.HexColor(PRIMARY)
+    dark_gray = colors.HexColor(INK)
+    muted_gray = colors.HexColor(MUTED)
 
     title_style = ParagraphStyle(
         "StmtTitle",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=18,
         leading=22,
         textColor=primary_color,
@@ -278,7 +281,7 @@ def generate_student_statement_pdf(student):
     subtitle_style = ParagraphStyle(
         "StmtSubtitle",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=10,
         leading=14,
         textColor=muted_gray,
@@ -287,7 +290,7 @@ def generate_student_statement_pdf(student):
     body_style = ParagraphStyle(
         "StmtBody",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=9,
         leading=13,
         textColor=dark_gray,
@@ -295,7 +298,7 @@ def generate_student_statement_pdf(student):
     body_bold = ParagraphStyle(
         "StmtBodyBold",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=9,
         leading=13,
         textColor=dark_gray,
@@ -303,8 +306,8 @@ def generate_student_statement_pdf(student):
 
     story = []
 
-    logo_path = os.path.join(settings.BASE_DIR, "static", "img", "ums-logo.png")
-    if os.path.exists(logo_path):
+    logo_path = get_branding()["logo_path"]
+    if logo_path and os.path.exists(logo_path):
         try:
             img = RLImage(logo_path, width=40, height=40)
             img.hAlign = "CENTER"
@@ -313,7 +316,7 @@ def generate_student_statement_pdf(student):
         except Exception:
             pass
 
-    story.append(Paragraph("UNIVERSITY MANAGEMENT SYSTEM", title_style))
+    story.append(Paragraph(escape(get_branding()["site_name"].upper()), title_style))
     story.append(Paragraph("OFFICE OF THE BURSAR · STUDENT FINANCIAL SERVICES", subtitle_style))
     story.append(Paragraph("STUDENT STATEMENT OF ACCOUNT", ParagraphStyle("Head", parent=title_style, fontSize=13, leading=16, textColor=primary_color)))
     story.append(Spacer(1, 6))
@@ -424,12 +427,22 @@ def generate_student_statement_pdf(student):
 
     # Statement footer
     clearance = check_financial_clearance(student)
-    stat_msg = "ELIGIBLE FOR EXAMINATIONS & ACADEMIC SERVICES" if clearance["is_cleared"] else "EXAMINATION CLEARANCE PENDING DUE TO OUTSTANDING BALANCE"
+    stat_msg = "ELIGIBLE FOR EXAMINATIONS &amp; ACADEMIC SERVICES" if clearance["is_cleared"] else "EXAMINATION CLEARANCE PENDING DUE TO OUTSTANDING BALANCE"
+    stat_color = "#047857" if clearance["is_cleared"] else "#b91c1c"
     footer_text = (
-        f"<b>Official Status:</b> {stat_msg}<br/>"
-        f"<i>This document is an official computer-generated statement of student account issued by the University Management System.</i>"
+        f"<b>Official Status:</b> <font color='{stat_color}'><b>{stat_msg}</b></font><br/>"
+        f"<i>This document is an official computer-generated statement of student account issued by the University Management System. Verify online via the student finance portal.</i>"
     )
-    story.append(Paragraph(footer_text, body_style))
+    ftable = Table([[Paragraph(footer_text, ParagraphStyle("FootP", parent=body_style, fontSize=8.5, leading=12))]], colWidths=[523])
+    ftable.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
+        ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#cbd5e1")),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+    ]))
+    story.append(KeepTogether([ftable]))
 
     doc.build(story)
     buffer.seek(0)

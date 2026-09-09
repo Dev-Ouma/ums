@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 from django.conf import settings
 from django.db import models
@@ -7,9 +8,35 @@ from django.urls import reverse
 from django.utils import timezone
 
 
+class School(models.Model):
+    name = models.CharField(max_length=120, unique=True)
+    code = models.CharField(max_length=15, unique=True)
+    description = models.TextField(blank=True, default="")
+    dean_name = models.CharField(max_length=120, blank=True, default="")
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "Faculty / School"
+        verbose_name_plural = "Faculties & Schools"
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
 class Department(models.Model):
     name = models.CharField(max_length=120, unique=True)
     code = models.CharField(max_length=10, unique=True)
+    school = models.ForeignKey(
+        School,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="departments",
+        verbose_name="Faculty / School",
+        help_text="Faculty or School this department belongs to"
+    )
     description = models.TextField(blank=True, default="")
     icon = models.CharField(max_length=40, default="fa-building-columns",
                             help_text="Font Awesome icon name")
@@ -25,15 +52,75 @@ class Department(models.Model):
     def __str__(self):
         return f"{self.code} — {self.name}"
 
+    @property
+    def faculty_name(self):
+        return self.school.name if self.school else "Unassigned School/Faculty"
+
 
 class Program(models.Model):
-    LEVELS = [("UG", "Undergraduate"), ("PG", "Postgraduate"), ("PHD", "Doctorate")]
-    name = models.CharField(max_length=120)
-    code = models.CharField(max_length=15, unique=True)
+    class Level(models.TextChoices):
+        CERTIFICATE = "CERT", "Certificate (TVET/Vocational)"
+        DIPLOMA = "DIP", "Diploma (TVET/Higher Diploma)"
+        UNDERGRADUATE = "UG", "Undergraduate (Degree)"
+        POSTGRADUATE = "PG", "Postgraduate Diploma"
+        MASTERS = "MS", "Master's Degree"
+        DOCTORATE = "PHD", "Doctorate (Ph.D.)"
+
+    LEVELS = [
+        ("CERT", "Certificate"),
+        ("DIP", "Diploma"),
+        ("UG", "Undergraduate"),
+        ("PG", "Postgraduate"),
+        ("MS", "Master's"),
+        ("PHD", "Doctorate"),
+    ]
+
+    class ProgramType(models.TextChoices):
+        DEGREE = "Degree", "University Bachelor Degree"
+        DIPLOMA = "Diploma", "TVET / Higher National Diploma"
+        CERTIFICATE = "Certificate", "TVET / Professional Certificate"
+        MASTERS = "Masters", "Master's Degree"
+        DOCTORATE = "Doctorate", "Doctor of Philosophy / Ph.D."
+        POSTGRAD_DIP = "PostgradDip", "Postgraduate Diploma"
+
+    class StudyMode(models.TextChoices):
+        FULL_TIME = "Full-Time", "Full-Time Regular"
+        PART_TIME = "Part-Time", "Part-Time"
+        EVENING = "Evening", "Evening Classes"
+        WEEKEND = "Weekend", "Weekend Intensive"
+        ONLINE = "Online", "Distance / E-Learning"
+
+    class DurationUnit(models.TextChoices):
+        YEARS = "Years", "Years"
+        SEMESTERS = "Semesters", "Semesters"
+        TRIMESTERS = "Trimesters", "Trimesters"
+        MONTHS = "Months", "Months"
+
+    class Status(models.TextChoices):
+        ACTIVE = "Active", "Active & Admitting"
+        INACTIVE = "Inactive", "Inactive / Suspended"
+        PHASED_OUT = "Phased Out", "Phased Out / Teach-Out Only"
+
+    name = models.CharField(max_length=150)
+    code = models.CharField(max_length=20, unique=True, db_index=True)
     department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="programs")
-    level = models.CharField(max_length=3, choices=LEVELS, default="UG")
-    duration_years = models.PositiveSmallIntegerField(default=4)
+    program_type = models.CharField(max_length=30, choices=ProgramType.choices, default=ProgramType.DEGREE)
+    level = models.CharField(max_length=6, choices=LEVELS, default="UG")
+    award_title = models.CharField(max_length=160, blank=True, default="", help_text="Official designation awarded upon completion (e.g. Bachelor of Science in Computer Science)")
+    study_mode = models.CharField(max_length=30, choices=StudyMode.choices, default=StudyMode.FULL_TIME)
+    duration_value = models.PositiveSmallIntegerField(default=4, help_text="Duration in specified units")
+    duration_unit = models.CharField(max_length=20, choices=DurationUnit.choices, default=DurationUnit.YEARS)
+    duration_years = models.PositiveSmallIntegerField(default=4, help_text="Duration in years (for backward compatibility)")
+    semesters_per_year = models.PositiveSmallIntegerField(default=2)
+    total_semesters = models.PositiveSmallIntegerField(default=8)
+    min_credits = models.PositiveIntegerField(default=120)
+    max_credits = models.PositiveIntegerField(null=True, blank=True)
     total_seats = models.PositiveIntegerField(default=120)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE, db_index=True)
+    description = models.TextField(blank=True, default="")
+    career_prospects = models.TextField(blank=True, default="", help_text="Career prospects and learning outcomes")
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["name"]
@@ -41,18 +128,180 @@ class Program(models.Model):
     def __str__(self):
         return f"{self.name} ({self.code})"
 
+    def get_absolute_url(self):
+        return reverse("university:program_detail", args=[self.pk])
 
-class AcademicTerm(models.Model):
-    name = models.CharField(max_length=40, unique=True)
+    @property
+    def school(self):
+        return self.department.school if self.department else None
+
+    @property
+    def faculty_name(self):
+        return self.department.school.name if (self.department and self.department.school) else "Unassigned School/Faculty"
+
+    @property
+    def enrolled_students_count(self):
+        return self.students.count()
+
+    @property
+    def active_courses_count(self):
+        return self.courses.filter(status="Active").count()
+
+    def save(self, *args, **kwargs):
+        if self.duration_unit == self.DurationUnit.YEARS:
+            self.duration_years = self.duration_value
+            self.total_semesters = self.duration_value * (self.semesters_per_year or 2)
+        elif self.duration_unit in [self.DurationUnit.SEMESTERS, self.DurationUnit.TRIMESTERS]:
+            self.total_semesters = self.duration_value
+            self.duration_years = max(1, round(self.duration_value / (self.semesters_per_year or 2)))
+        super().save(*args, **kwargs)
+
+
+class AcademicYear(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        PUBLISHED = "PUBLISHED", "Published"
+        CURRENT = "CURRENT", "Current"
+        CLOSED = "CLOSED", "Closed"
+        ARCHIVED = "ARCHIVED", "Archived"
+
+    name = models.CharField(max_length=30, unique=True, help_text="e.g. 2026/2027")
+    code = models.CharField(max_length=30, unique=True, blank=True, help_text="e.g. AY-2026-2027")
     start_date = models.DateField()
     end_date = models.DateField()
-    is_current = models.BooleanField(default=False)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT, db_index=True)
+    is_current = models.BooleanField(default=False, db_index=True)
+    description = models.TextField(blank=True, default="")
+    reference_no = models.CharField(max_length=60, blank=True, default="", help_text="Institutional reference / Gazette notice")
+    max_programmes_allowed = models.PositiveIntegerField(default=1, help_text="Max concurrent programmes a student can accept")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_academic_years")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-start_date", "name"]
+        verbose_name = "Academic Year"
+        verbose_name_plural = "Academic Years"
+
+    def __str__(self):
+        cur = " (Current)" if self.is_current else ""
+        return f"{self.name}{cur}"
+
+    def clean(self):
+        if self.start_date and self.end_date and self.start_date >= self.end_date:
+            raise ValidationError("Academic Year start date must be strictly before end date.")
+
+    def save(self, *args, **kwargs):
+        if not self.code and self.name:
+            clean_name = re.sub(r"[^0-9A-Za-z]+", "-", self.name.strip())
+            self.code = f"AY-{clean_name}".upper()
+        if self.is_current:
+            self.status = self.Status.CURRENT
+            AcademicYear.objects.exclude(pk=self.pk).filter(is_current=True).update(is_current=False)
+        super().save(*args, **kwargs)
+
+    @property
+    def semesters_count(self):
+        return self.semesters.count()
+
+    @property
+    def active_semesters(self):
+        return self.semesters.filter(status__in=[self.Status.PUBLISHED, self.Status.CURRENT])
+
+
+class AcademicTerm(models.Model):
+    class TermType(models.TextChoices):
+        SEMESTER = "SEMESTER", "Semester"
+        TRIMESTER = "TRIMESTER", "Trimester"
+        TERM = "TERM", "Term"
+        SUMMER = "SUMMER", "Summer / Special Session"
+
+    academic_year = models.ForeignKey(
+        AcademicYear, on_delete=models.CASCADE, related_name="semesters",
+        null=True, blank=True
+    )
+    name = models.CharField(max_length=40, unique=True)
+    term_type = models.CharField(max_length=20, choices=TermType.choices, default=TermType.SEMESTER)
+    semester_number = models.PositiveSmallIntegerField(default=1, help_text="e.g. 1, 2, 3")
+    start_date = models.DateField()
+    end_date = models.DateField()
+    registration_start_date = models.DateField(null=True, blank=True)
+    registration_end_date = models.DateField(null=True, blank=True)
+    exam_start_date = models.DateField(null=True, blank=True)
+    exam_end_date = models.DateField(null=True, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=AcademicYear.Status.choices,
+        default=AcademicYear.Status.PUBLISHED,
+        db_index=True
+    )
+    is_current = models.BooleanField(default=False, db_index=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="created_semesters"
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-start_date"]
+        verbose_name = "Academic Semester / Term"
+        verbose_name_plural = "Academic Semesters & Terms"
 
     def __str__(self):
-        return self.name
+        cur = " (Current)" if self.is_current else ""
+        if self.academic_year:
+            return f"{self.name} · {self.academic_year.name}{cur}"
+        return f"{self.name}{cur}"
+
+    def clean(self):
+        if self.start_date and self.end_date and self.start_date >= self.end_date:
+            raise ValidationError("Semester start date must be strictly before end date.")
+        if self.academic_year:
+            if self.start_date < self.academic_year.start_date or self.end_date > self.academic_year.end_date:
+                raise ValidationError(
+                    f"Semester dates ({self.start_date} to {self.end_date}) must fall within parent Academic Year dates "
+                    f"({self.academic_year.start_date} to {self.academic_year.end_date})."
+                )
+        if self.registration_start_date and self.registration_end_date:
+            if self.registration_start_date > self.registration_end_date:
+                raise ValidationError("Registration start date must be on or before registration end date.")
+        if self.exam_start_date and self.exam_end_date:
+            if self.exam_start_date > self.exam_end_date:
+                raise ValidationError("Exam start date must be on or before exam end date.")
+
+    def save(self, *args, **kwargs):
+        if self.is_current:
+            self.status = AcademicYear.Status.CURRENT
+            # Ensure single current semester
+            AcademicTerm.objects.exclude(pk=self.pk).filter(is_current=True).update(is_current=False)
+        super().save(*args, **kwargs)
+
+    @property
+    def is_registration_open(self):
+        if self.status not in [AcademicYear.Status.PUBLISHED, AcademicYear.Status.CURRENT]:
+            return False
+        today = timezone.now().date()
+        if self.registration_start_date and today < self.registration_start_date:
+            return False
+        if self.registration_end_date and today > self.registration_end_date:
+            return False
+        return True
+
+    @property
+    def is_exam_period(self):
+        today = timezone.now().date()
+        if self.exam_start_date and self.exam_end_date:
+            return self.exam_start_date <= today <= self.exam_end_date
+        return False
+
+
+# Semantic alias
+Semester = AcademicTerm
 
 
 class Course(models.Model):
@@ -633,7 +882,10 @@ class ExamAppeal(models.Model):
 
 class Intake(models.Model):
     name = models.CharField(max_length=120)  # e.g., "September 2026 Regular Intake"
-    academic_year = models.CharField(max_length=20, default="2026/2027")
+    academic_year = models.ForeignKey(
+        AcademicYear, on_delete=models.PROTECT, related_name="intakes",
+        null=True, blank=True
+    )
     start_date = models.DateField(default=timezone.now)
     end_date = models.DateField()
     is_active = models.BooleanField(default=True)
@@ -643,7 +895,7 @@ class Intake(models.Model):
         ordering = ["-start_date"]
 
     def __str__(self):
-        return f"{self.name} ({self.academic_year})"
+        return f"{self.name} ({self.academic_year.name if self.academic_year else 'Unassigned'})"
 
 
 class Application(models.Model):
@@ -693,6 +945,46 @@ class Application(models.Model):
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name}"
+
+    @property
+    def fee_paid(self):
+        return self.fee_payments.filter(status=ApplicationFeePayment.Status.CONFIRMED).exists()
+
+    @property
+    def active_admission_document(self):
+        return self.issued_documents.filter(is_current_version=True).exclude(status="REVOKED").first()
+
+    @property
+    def verified_attachments_count(self):
+        return self.attachments.filter(verification_status="VERIFIED").count()
+
+
+class ApplicationFeePayment(models.Model):
+    """Records payment of the non-refundable application processing fee."""
+
+    class Method(models.TextChoices):
+        MPESA = "MPESA", "M-Pesa"
+        CARD = "CARD", "Debit / Credit Card"
+        BANK = "BANK", "Bank Transfer"
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending Confirmation"
+        CONFIRMED = "CONFIRMED", "Confirmed"
+        FAILED = "FAILED", "Failed"
+
+    application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name="fee_payments")
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    method = models.CharField(max_length=10, choices=Method.choices, default=Method.MPESA)
+    reference = models.CharField(max_length=60, help_text="Transaction / reference number from the payment channel")
+    status = models.CharField(max_length=15, choices=Status.choices, default=Status.PENDING, db_index=True)
+    paid_at = models.DateTimeField(default=timezone.now)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-paid_at"]
+
+    def __str__(self):
+        return f"{self.application.application_number} · KES {self.amount} ({self.get_status_display()})"
 
 
 class FeeStructure(models.Model):
@@ -753,6 +1045,46 @@ class SupplementaryExamRegistration(models.Model):
         return f"{self.student.roll_no} - {self.course.code} ({self.exam_type})"
 
 
+class StudentRequest(models.Model):
+    """Student-initiated Deferment / Withdrawal / Sick Leave requests, reviewed by staff."""
+
+    class Type(models.TextChoices):
+        DEFERMENT = "DEFERMENT", "Deferment"
+        WITHDRAWAL = "WITHDRAWAL", "Withdrawal"
+        SICK_LEAVE = "SICK_LEAVE", "Sick Leave"
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        UNDER_REVIEW = "UNDER_REVIEW", "Under Review"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+
+    student = models.ForeignKey("accounts.StudentProfile", on_delete=models.CASCADE, related_name="requests")
+    request_type = models.CharField(max_length=15, choices=Type.choices)
+    reason = models.TextField()
+    supporting_document = models.FileField(upload_to="student_requests/%Y/%m/", blank=True, null=True)
+    start_date = models.DateField(null=True, blank=True,
+                                  help_text="Deferment / leave start date")
+    end_date = models.DateField(null=True, blank=True,
+                                help_text="Expected deferment / leave end date (resumption date)")
+    status = models.CharField(max_length=15, choices=Status.choices, default=Status.PENDING, db_index=True)
+    submitted_at = models.DateTimeField(default=timezone.now)
+    reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                    on_delete=models.SET_NULL, related_name="reviewed_student_requests")
+    review_comments = models.TextField(blank=True, default="")
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-submitted_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["student"], condition=models.Q(status="PENDING"),
+                                    name="one_pending_request_per_student"),
+        ]
+
+    def __str__(self):
+        return f"{self.student.roll_no} · {self.get_request_type_display()} ({self.get_status_display()})"
+
+
 class RecycleBinItem(models.Model):
     class Module(models.TextChoices):
         STUDENTS = "Students", "Students"
@@ -766,6 +1098,7 @@ class RecycleBinItem(models.Model):
         NOTICES = "Notices", "Campus Notices"
         EVENTS = "Events", "Campus Events"
         EXAMINATIONS = "Examinations", "Examinations & Marks"
+        CALENDAR = "Calendar", "Academic Calendar & Terms"
         OTHER = "Other", "Other Records"
 
     content_type = models.CharField(max_length=80, db_index=True)
@@ -809,6 +1142,16 @@ class AuditLog(models.Model):
         UNIT_REGISTRATION = "UNIT_REGISTRATION", "Unit Registration Changed"
         TRANSCRIPT_GENERATION = "TRANSCRIPT_GENERATION", "Transcript Generated"
         CONFIG_CHANGE = "CONFIG_CHANGE", "System Configuration Modified"
+        PUBLISH = "PUBLISH", "Record Published"
+        UNPUBLISH = "UNPUBLISH", "Record Unpublished"
+        CLOSE = "CLOSE", "Academic Period Closed"
+        REOPEN = "REOPEN", "Academic Period Reopened"
+        SET_CURRENT = "SET_CURRENT", "Set as Current / Active"
+        GENERATE_DOCUMENT = "GENERATE_DOCUMENT", "Document Generated"
+        REGENERATE_DOCUMENT = "REGENERATE_DOCUMENT", "Document Regenerated"
+        RESEND_DOCUMENT = "RESEND_DOCUMENT", "Document Resent"
+        VERIFY_DOCUMENT = "VERIFY_DOCUMENT", "Document Verified"
+        REVOKE_DOCUMENT = "REVOKE_DOCUMENT", "Document Revoked"
 
     class Module(models.TextChoices):
         STUDENTS = "Students", "Students"
@@ -817,6 +1160,7 @@ class AuditLog(models.Model):
         PROGRAMMES = "Programmes", "Programmes"
         DEPARTMENTS = "Departments", "Departments"
         ACADEMICS = "Academics", "Academics & Registrations"
+        CALENDAR = "Academic Calendar", "Academic Years & Semesters"
         EXAMINATIONS = "Examinations", "Examinations & Marks"
         FEES = "Fees", "Fees & Finance"
         ADMISSIONS = "Admissions", "Admissions & Applications"
@@ -1383,4 +1727,315 @@ class UserPermissionOverride(models.Model):
 
     def __str__(self):
         return f"{self.user.username}: {self.permission.code} [{self.override_type}]"
+
+
+class DocumentReleaseControl(models.Model):
+    """
+    Registry control gates for academic document access, downloads, and lifecycle management.
+    Controls scheduled release windows, financial clearance gates, and administrative locking.
+    """
+    class DocumentType(models.TextChoices):
+        TRANSCRIPT_OFFICIAL = "transcript_official", "Official Academic Transcript"
+        TRANSCRIPT_PROVISIONAL = "transcript_provisional", "Provisional Transcript"
+        EXAM_CARD = "exam_card", "Examination Card"
+        RESULTS_STATEMENT = "results_statement", "Statement of Results"
+        PROGRESS_REPORT = "progress_report", "Progressive Academic Report"
+        ADMISSION_LETTER = "admission_letter", "Official Admission Letter"
+        APPLICATION_DOCS = "application_docs", "Application & Admission Documents"
+
+    term = models.ForeignKey(
+        "AcademicTerm",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="document_controls",
+        help_text="Academic term this control applies to (leave empty for universal policy)."
+    )
+    document_type = models.CharField(
+        max_length=32,
+        choices=DocumentType.choices,
+        help_text="The category of document governed by this control."
+    )
+    is_open = models.BooleanField(
+        default=True,
+        help_text="Master toggle to immediately permit or block student access/downloads."
+    )
+    open_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date and time when downloads automatically become available to students."
+    )
+    lock_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date and time when downloads automatically lock / expire."
+    )
+    require_financial_clearance = models.BooleanField(
+        default=False,
+        help_text="Require student to have no outstanding fee balance beyond the allowed threshold."
+    )
+    max_allowed_fee_balance = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        help_text="Maximum outstanding balance (KES) allowed before document is locked."
+    )
+    require_senate_approval = models.BooleanField(
+        default=False,
+        help_text="Require results to be Senate-approved before opening this document."
+    )
+    notes = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Custom message displayed to students when access is locked."
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["document_type", "-term__start_date"]
+        unique_together = [("term", "document_type")]
+
+    def __str__(self):
+        term_str = f" ({self.term.name})" if self.term else " (Universal)"
+        status = "OPEN" if self.is_open else "LOCKED"
+        return f"{self.get_document_type_display()}{term_str} [{status}]"
+
+
+class ApplicationAttachment(models.Model):
+    """
+    Documents and supporting certificates submitted during application (KCSE Slip, ID, Photos).
+    Maintains permanent applicant -> application -> submitted documents -> admission -> student lifecycle.
+    """
+    class DocType(models.TextChoices):
+        KCSE_CERTIFICATE = "KCSE_CERTIFICATE", "KCSE Certificate / Result Slip"
+        NATIONAL_ID = "NATIONAL_ID", "National ID / Birth Certificate / Passport"
+        PASSPORT_PHOTO = "PASSPORT_PHOTO", "Passport Size Photograph"
+        LEAVING_CERTIFICATE = "LEAVING_CERTIFICATE", "School Leaving Certificate"
+        TRANSCRIPT = "TRANSCRIPT", "Previous Academic Transcript"
+        SPONSOR_LETTER = "SPONSOR_LETTER", "Sponsorship / Financial Guarantee"
+        MEDICAL_REPORT = "MEDICAL_REPORT", "Medical Examination Report"
+        OTHER = "OTHER", "Other Supporting Document"
+
+    class VerificationStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending Verification"
+        VERIFIED = "VERIFIED", "Verified & Approved"
+        REJECTED = "REJECTED", "Rejected / Incomplete"
+        FLAGGED = "FLAGGED", "Flagged for Investigation"
+
+    application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name="attachments")
+    document_type = models.CharField(max_length=40, choices=DocType.choices, default=DocType.OTHER)
+    name = models.CharField(max_length=200, help_text="Display title e.g. 'KCSE Result Slip'")
+    file = models.FileField(upload_to="applications/attachments/")
+    file_name = models.CharField(max_length=255, blank=True, default="")
+    file_size = models.PositiveIntegerField(default=0, help_text="Size in bytes")
+    mime_type = models.CharField(max_length=100, blank=True, default="application/pdf")
+    verification_status = models.CharField(max_length=20, choices=VerificationStatus.choices, default=VerificationStatus.PENDING, db_index=True)
+    verified_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="verified_attachments")
+    verified_at = models.DateTimeField(null=True, blank=True)
+    verification_notes = models.TextField(blank=True, default="")
+    is_visible_to_student = models.BooleanField(default=True, help_text="Permit student to view/download this file in portal")
+    uploaded_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-uploaded_at"]
+
+    def __str__(self):
+        return f"{self.name} ({self.get_document_type_display()}) - {self.application.application_number}"
+
+    def save(self, *args, **kwargs):
+        if self.file and not self.file_name:
+            import os
+            self.file_name = os.path.basename(self.file.name)
+        if self.file and not self.file_size:
+            try:
+                self.file_size = self.file.size
+            except Exception:
+                pass
+        super().save(*args, **kwargs)
+
+
+class AdmissionDocumentTemplate(models.Model):
+    """
+    Configurable document templates with dynamic placeholders for admission letters, offers, and forms.
+    """
+    class DocumentType(models.TextChoices):
+        ADMISSION_LETTER = "ADMISSION_LETTER", "Official Admission Letter"
+        PROVISIONAL_OFFER = "PROVISIONAL_OFFER", "Provisional Letter of Offer"
+        ACCEPTANCE_FORM = "ACCEPTANCE_FORM", "Acceptance of Offer Form"
+        CALLING_LETTER = "CALLING_LETTER", "Reporting & Calling Letter"
+
+    name = models.CharField(max_length=160, help_text="Template name e.g. 'Standard Undergraduate Admission Letter'")
+    document_type = models.CharField(max_length=40, choices=DocumentType.choices, default=DocumentType.ADMISSION_LETTER)
+    academic_year = models.ForeignKey("AcademicYear", on_delete=models.SET_NULL, null=True, blank=True, help_text="Applicable academic year (leave blank for universal default)")
+    program = models.ForeignKey(Program, on_delete=models.SET_NULL, null=True, blank=True, help_text="Specific programme (leave blank for all programmes)")
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False, help_text="Default template for this document type")
+    version = models.PositiveIntegerField(default=1)
+
+    # Document content & structure with dynamic placeholder tags
+    header_title = models.CharField(max_length=255, default="OFFICE OF THE REGISTRAR (ACADEMIC AFFAIRS)")
+    salutation_template = models.CharField(max_length=255, default="Dear {{student_name}},")
+    subject_template = models.CharField(max_length=255, default="ADMISSION TO THE {{programme_name}} ({{programme_code}})")
+    body_template = models.TextField(
+        default="I am pleased to inform you that you have been offered admission to the {{programme_name}} in the {{faculty_name}} for the {{academic_year}} Academic Year commencing in {{semester}}.\n\nYou are required to report to the university on {{reporting_date}} for orientation, registration and fee payment verification."
+    )
+    terms_and_conditions = models.TextField(
+        blank=True,
+        default="1. This offer of admission is subject to verification of your original academic and identification certificates.\n2. All university fees must be paid in full or in approved installments prior to course registration.\n3. University rules, regulations and academic policies apply at all times."
+    )
+    fee_schedule_instructions = models.TextField(
+        blank=True,
+        default="Tuition and statutory fees must be deposited to the University Bank Account (Absa Bank, Acc No. 0451234567, Westlands Branch) or via M-Pesa Paybill 522522 with your Application/Student Number as reference."
+    )
+    signatory_name = models.CharField(max_length=120, default="Dr. Margaret Omolo, PhD")
+    signatory_title = models.CharField(max_length=120, default="Registrar, Academic & Student Affairs")
+    signatory_signature = models.ImageField(upload_to="admissions/signatures/", null=True, blank=True)
+    official_seal = models.ImageField(upload_to="admissions/seals/", null=True, blank=True)
+    verification_base_url = models.CharField(max_length=255, default="https://ums.ac.ke/verify-admission/")
+
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-is_default", "-updated_at"]
+
+    def __str__(self):
+        return f"{self.name} (v{self.version}) [{self.get_document_type_display()}]"
+
+
+class IssuedAdmissionDocument(models.Model):
+    """
+    Versioned record of officially issued admission letters for an Application/Student.
+    Preserves exact historical rendered snapshots, metadata, and PDF storage.
+    """
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        ISSUED = "ISSUED", "Issued"
+        CURRENT = "CURRENT", "Current Active Version"
+        SUPERSEDED = "SUPERSEDED", "Superseded by Newer Version"
+        REVOKED = "REVOKED", "Revoked / Voided"
+
+    application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name="issued_documents")
+    student = models.ForeignKey("accounts.StudentProfile", on_delete=models.SET_NULL, null=True, blank=True, related_name="admission_documents")
+    template = models.ForeignKey(AdmissionDocumentTemplate, on_delete=models.SET_NULL, null=True, blank=True, related_name="issued_documents")
+    document_type = models.CharField(max_length=40, choices=AdmissionDocumentTemplate.DocumentType.choices, default=AdmissionDocumentTemplate.DocumentType.ADMISSION_LETTER)
+    document_reference = models.CharField(max_length=80, unique=True, db_index=True)
+    version = models.PositiveIntegerField(default=1)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.CURRENT, db_index=True)
+    issue_date = models.DateField(default=timezone.now)
+    reporting_date = models.DateField(null=True, blank=True)
+    academic_year = models.ForeignKey("AcademicYear", on_delete=models.SET_NULL, null=True, blank=True)
+    semester = models.ForeignKey("AcademicTerm", on_delete=models.SET_NULL, null=True, blank=True)
+    rendered_context = models.JSONField(default=dict, blank=True, help_text="Snapshot of all evaluation tokens at time of issue")
+    rendered_content = models.TextField(blank=True, default="", help_text="Rendered text content")
+    pdf_file = models.FileField(upload_to="admissions/issued_letters/", null=True, blank=True)
+    generated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="generated_admission_documents")
+    generated_at = models.DateTimeField(default=timezone.now)
+    change_reason = models.CharField(max_length=255, blank=True, default="", help_text="Reason for generation or regeneration")
+    revoked_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="revoked_admission_documents")
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revocation_reason = models.TextField(blank=True, default="")
+    is_current_version = models.BooleanField(default=True, db_index=True)
+    is_visible_to_student = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["-version", "-generated_at"]
+
+    def __str__(self):
+        return f"{self.document_reference} (v{self.version}) - {self.application.full_name} [{self.status}]"
+
+    def get_rendered_value(self, key, default=""):
+        if isinstance(self.rendered_context, dict):
+            return self.rendered_context.get(key, default)
+        return default
+
+    @property
+    def is_revoked(self):
+        return self.status == self.Status.REVOKED
+
+    @property
+    def is_valid(self):
+        return self.status in [self.Status.CURRENT, self.Status.ISSUED]
+
+
+class DocumentDeliveryLog(models.Model):
+    """
+    Audit log of document transmissions (Email, SMS, Portal Notification) to applicants and students.
+    """
+    class Method(models.TextChoices):
+        EMAIL = "EMAIL", "Email Transmission"
+        SMS = "SMS", "SMS Notification"
+        PORTAL_NOTICE = "PORTAL_NOTICE", "Student Portal Notification"
+
+    class Status(models.TextChoices):
+        SENT = "SENT", "Sent Successfully"
+        DELIVERED = "DELIVERED", "Delivered"
+        FAILED = "FAILED", "Failed"
+
+    document = models.ForeignKey(IssuedAdmissionDocument, on_delete=models.CASCADE, related_name="delivery_logs")
+    delivery_method = models.CharField(max_length=20, choices=Method.choices, default=Method.EMAIL)
+    recipient = models.CharField(max_length=160, help_text="Email address, phone number, or student ID")
+    subject = models.CharField(max_length=255, blank=True, default="")
+    message_body = models.TextField()
+    sent_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="sent_document_deliveries")
+    sent_at = models.DateTimeField(default=timezone.now)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.SENT)
+    failure_reason = models.TextField(blank=True, default="")
+    ip_address = models.CharField(max_length=50, blank=True, null=True)
+
+    class Meta:
+        ordering = ["-sent_at"]
+
+    def __str__(self):
+        return f"{self.delivery_method} to {self.recipient} [{self.status}] - {self.document.document_reference}"
+
+
+class ApplicationCustomField(models.Model):
+    """
+    Dynamic administrator-defined fields for admissions applications (e.g. 'Campus', 'Accomodation Preference').
+    Values are automatically available in Admission Document templates.
+    """
+    class FieldType(models.TextChoices):
+        TEXT = "TEXT", "Short Text"
+        TEXTAREA = "TEXTAREA", "Long Text"
+        SELECT = "SELECT", "Dropdown Select"
+        CHECKBOX = "CHECKBOX", "Yes / No Checkbox"
+        NUMBER = "NUMBER", "Number"
+
+    name = models.SlugField(max_length=60, unique=True, help_text="Identifier used in templates e.g. 'campus'")
+    label = models.CharField(max_length=120)
+    field_type = models.CharField(max_length=20, choices=FieldType.choices, default=FieldType.TEXT)
+    choices_list = models.TextField(blank=True, default="", help_text="Comma-separated choices for dropdowns e.g. 'Main Campus, Nairobi CBD, Mombasa'")
+    is_required = models.BooleanField(default=False)
+    default_value = models.CharField(max_length=255, blank=True, default="")
+    help_text = models.CharField(max_length=255, blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    display_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["display_order", "label"]
+
+    def __str__(self):
+        return f"{self.label} ({{{{{self.name}}}}})"
+
+    def get_choices(self):
+        if not self.choices_list:
+            return []
+        return [c.strip() for c in self.choices_list.split(",") if c.strip()]
+
+
+class ApplicationCustomFieldValue(models.Model):
+    application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name="custom_values")
+    field = models.ForeignKey(ApplicationCustomField, on_delete=models.CASCADE, related_name="application_values")
+    value = models.TextField(blank=True, default="")
+
+    class Meta:
+        unique_together = [("application", "field")]
+
+    def __str__(self):
+        return f"{self.field.name}: {self.value}"
+
 

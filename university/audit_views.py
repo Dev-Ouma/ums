@@ -1,3 +1,4 @@
+from university.document_views import present_pdf
 import json
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -168,6 +169,6 @@ def audit_export(request, fmt):
         data = export_audit_pdf(filtered_qs)
         response = HttpResponse(data, content_type="application/pdf")
         response["Content-Disposition"] = f'attachment; filename="audit_trail_{now_str}.pdf"'
-        return response
+        return present_pdf(request, response)
     else:
         raise Http404(f"Unsupported export format: {fmt}")

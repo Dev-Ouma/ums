@@ -1,3 +1,4 @@
+from university.document_views import present_pdf
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -280,7 +281,7 @@ def export_report(request, report_key, fmt):
         pdf_bytes = generate_report_pdf(report_data)
         response = HttpResponse(pdf_bytes, content_type="application/pdf")
         response["Content-Disposition"] = f'attachment; filename="{base_filename}.pdf"'
-        return response
+        return present_pdf(request, response)
 
     elif fmt == "excel":
         excel_bytes = generate_report_excel(report_data)
@@ -345,11 +346,130 @@ def student_reports(request):
     # Registrations
     registrations = SemesterRegistration.objects.filter(student=student).order_by("-created_at")
 
+    from university.admission_document_services import get_student_admission_documents
+    doc_data = get_student_admission_documents(student)
+
     context = {
         "student": student,
         "results": results,
         "passed_count": passed_count,
         "failed_count": failed_count,
         "registrations": registrations,
+        "admission_letter": doc_data.get("admission_letter"),
+        "attachments_count": len(doc_data.get("attachments", [])),
     }
     return render(request, "reports/student_reports.html", context)
+
+
+# ==============================================================================
+# 6. STUDENT ADMISSION DOCUMENTS & ATTACHMENTS
+# ==============================================================================
+
+@login_required
+def student_admission_documents(request):
+    student = getattr(request.user, "student_profile", None)
+    if not student:
+        messages.error(request, "Student profile required.")
+        return redirect("university:dashboard")
+
+    from university.admission_document_services import get_student_admission_documents
+    doc_data = get_student_admission_documents(student)
+
+    context = {
+        "student": student,
+        "application": doc_data["application"],
+        "admission_letter": doc_data["admission_letter"],
+        "historical_letters": doc_data["historical_letters"],
+        "attachments": doc_data["attachments"],
+        "delivery_logs": doc_data["delivery_logs"],
+    }
+    return render(request, "reports/student_admission_documents.html", context)
+
+
+@login_required
+def student_view_admission_document(request, doc_id):
+    student = getattr(request.user, "student_profile", None)
+    from university.models import IssuedAdmissionDocument
+    doc = get_object_or_404(IssuedAdmissionDocument, pk=doc_id)
+
+    is_owner = (
+        (student and (doc.student == student or doc.application.student == student)) or
+        (doc.application.email and doc.application.email.lower() == request.user.email.lower())
+    )
+    if not is_owner and not (request.user.is_admin_role or request.user.is_superuser):
+        return HttpResponseForbidden("You are not authorized to view this document.")
+
+    from university.admission_document_services import build_admission_letter_pdf_bytes
+    if not doc.pdf_file:
+        pdf_bytes = build_admission_letter_pdf_bytes(doc)
+    else:
+        try:
+            pdf_bytes = doc.pdf_file.read()
+        except Exception:
+            pdf_bytes = build_admission_letter_pdf_bytes(doc)
+
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    filename = f"Admission_Letter_{doc.document_reference.replace('/', '_')}.pdf"
+    response["Content-Disposition"] = f'inline; filename="{filename}"'
+
+    return present_pdf(
+        request,
+        response,
+        title=f"Admission Letter - {doc.document_reference}"
+    )
+
+
+@login_required
+def student_download_admission_document(request, doc_id):
+    student = getattr(request.user, "student_profile", None)
+    from university.models import IssuedAdmissionDocument
+    doc = get_object_or_404(IssuedAdmissionDocument, pk=doc_id)
+
+    is_owner = (
+        (student and (doc.student == student or doc.application.student == student)) or
+        (doc.application.email and doc.application.email.lower() == request.user.email.lower())
+    )
+    if not is_owner and not (request.user.is_admin_role or request.user.is_superuser):
+        return HttpResponseForbidden("You are not authorized to download this document.")
+
+    from university.admission_document_services import build_admission_letter_pdf_bytes
+    if not doc.pdf_file:
+        pdf_bytes = build_admission_letter_pdf_bytes(doc)
+    else:
+        try:
+            pdf_bytes = doc.pdf_file.read()
+        except Exception:
+            pdf_bytes = build_admission_letter_pdf_bytes(doc)
+
+    filename = f"Admission_Letter_{doc.document_reference.replace('/', '_')}.pdf"
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@login_required
+def student_download_attachment(request, attachment_id):
+    student = getattr(request.user, "student_profile", None)
+    from university.models import ApplicationAttachment
+    att = get_object_or_404(ApplicationAttachment, pk=attachment_id)
+
+    is_owner = (
+        (student and (att.application.student == student)) or
+        (att.application.email and att.application.email.lower() == request.user.email.lower())
+    )
+    if not is_owner and not (request.user.is_admin_role or request.user.is_superuser):
+        return HttpResponseForbidden("You are not authorized to access this document attachment.")
+
+    if not att.is_visible_to_student and not (request.user.is_admin_role or request.user.is_superuser):
+        return HttpResponseForbidden("This document attachment is currently restricted.")
+
+    if not att.file or not os.path.exists(att.file.path):
+        raise Http404("Document file does not exist on storage.")
+
+    import mimetypes
+    from django.http import FileResponse
+    mime = att.mime_type or mimetypes.guess_type(att.file_name)[0] or "application/octet-stream"
+    response = FileResponse(open(att.file.path, "rb"), content_type=mime)
+    response["Content-Disposition"] = f'attachment; filename="{att.file_name or os.path.basename(att.file.name)}"'
+    return response
+

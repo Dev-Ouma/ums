@@ -1,0 +1,169 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Document Release Controls · Academic Registry · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4>
+      <i class="fa-solid fa-lock-open me-2" style="color:var(--primary)"></i>
+      Document Release & Lifecycle Controls
+    </h4>
+    <p class="text-muted mb-0 small">
+      Configure automated download release windows, opening/closing dates, financial fee gates, and Senate approval controls for academic documents.
+    </p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="/admin/university/documentreleasecontrol/" target="_blank" class="btn btn-sm btn-outline-secondary rounded-pill">
+      <i class="fa-solid fa-database me-1"></i>Django Admin Controls
+    </a>
+  </div>
+</div>
+
+<!-- Term Selector Bar -->
+<div class="card card-ums p-3 mb-4 shadow-sm border-0">
+  <form method="get" class="row g-2 align-items-center">
+    <div class="col-md-3">
+      <label class="form-label small text-muted mb-1 fw-bold">Select Policy Scope / Academic Term:</label>
+    </div>
+    <div class="col-md-6">
+      <select name="term" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="" {% if not active_term %}selected{% endif %}>
+          🌐 Universal / Fallback Policy (Applies across all terms unless overridden)
+        </option>
+        {% for t in terms %}
+          <option value="{{ t.pk }}" {% if selected_term_id == t.pk|stringformat:"s" %}selected{% endif %}>
+            📅 Term Override: {{ t.name }} ({{ t.academic_year }})
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3 text-end">
+      <span class="badge {% if active_term %}bg-primary{% else %}bg-secondary{% endif %} p-2 rounded-pill">
+        {% if active_term %}
+          Active: {{ active_term.name }}
+        {% else %}
+          Universal Global Rules
+        {% endif %}
+      </span>
+    </div>
+  </form>
+</div>
+
+<!-- Security Alert & Policy Guide -->
+<div class="alert alert-info border-0 shadow-sm d-flex align-items-start gap-3 mb-4 rounded-3">
+  <i class="fa-solid fa-shield-halved fs-4 text-primary mt-1"></i>
+  <div class="small">
+    <strong>How Window Controls & Security Gates Operate:</strong>
+    <ul class="mb-0 ps-3 mt-1">
+      <li><strong>Master Access Switch:</strong> If toggled OFF, student downloads are instantly locked regardless of dates.</li>
+      <li><strong>Automated Date Windows:</strong> If an <em>Opening Date</em> or <em>Locking Date</em> is specified, documents automatically open and lock at the designated timestamp.</li>
+      <li><strong>Financial Clearance Gate:</strong> When enabled, students with outstanding fee balances exceeding the <em>Max Allowed Balance</em> are barred from downloading the document and redirected to the payment clearance portal.</li>
+      <li><strong>Registry Bypass:</strong> System administrators and registry personnel bypass download gates for audit and dispatch purposes.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Document Controls Form -->
+<form method="post">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="save_controls">
+
+  <div class="d-flex flex-column gap-3">
+    {% for row in display_rows %}
+      <div class="card card-ums border-0 shadow-sm overflow-hidden">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center gap-2">
+            <span class="p-2 rounded-3 bg-light text-primary">
+              {% if 'TRANSCRIPT' in row.code %}
+                <i class="fa-solid fa-scroll fs-5"></i>
+              {% elif 'EXAM' in row.code %}
+                <i class="fa-solid fa-id-card fs-5"></i>
+              {% elif 'REPORT' in row.code %}
+                <i class="fa-solid fa-chart-line fs-5"></i>
+              {% else %}
+                <i class="fa-solid fa-file-lines fs-5"></i>
+              {% endif %}
+            </span>
+            <div>
+              <h6 class="mb-0 fw-bold">{{ row.label }}</h6>
+              <span class="text-muted small">Code: <code>{{ row.code }}</code></span>
+            </div>
+          </div>
+          <div class="form-check form-switch m-0 d-flex align-items-center gap-2">
+            <input class="form-check-input fs-5" type="checkbox" role="switch" id="is_open_{{ row.code }}" name="is_open_{{ row.code }}" {% if row.is_open %}checked{% endif %}>
+            <label class="form-check-label fw-semibold small" for="is_open_{{ row.code }}">
+              {% if row.is_open %}<span class="text-success">Live & Available</span>{% else %}<span class="text-danger">Locked</span>{% endif %}
+            </label>
+          </div>
+        </div>
+
+        <div class="card-body bg-light bg-opacity-25 p-4">
+          <div class="row g-3">
+            <!-- Opening Date -->
+            <div class="col-md-3">
+              <label class="form-label small fw-bold text-secondary">
+                <i class="fa-regular fa-calendar-plus me-1 text-primary"></i> Opening Date & Time:
+              </label>
+              <input type="datetime-local" class="form-control form-control-sm bg-white" name="open_date_{{ row.code }}" value="{{ row.open_date_iso }}">
+              <div class="form-text x-small">Leave blank to open immediately without start delay.</div>
+            </div>
+
+            <!-- Locking Date -->
+            <div class="col-md-3">
+              <label class="form-label small fw-bold text-secondary">
+                <i class="fa-regular fa-calendar-xmark me-1 text-danger"></i> Locking Date & Time:
+              </label>
+              <input type="datetime-local" class="form-control form-control-sm bg-white" name="lock_date_{{ row.code }}" value="{{ row.lock_date_iso }}">
+              <div class="form-text x-small">Leave blank to keep indefinitely available.</div>
+            </div>
+
+            <!-- Fee Clearance Gate -->
+            <div class="col-md-3">
+              <label class="form-label small fw-bold text-secondary">
+                <i class="fa-solid fa-money-bill-wave me-1 text-success"></i> Financial Clearance:
+              </label>
+              <div class="form-check mt-1">
+                <input class="form-check-input" type="checkbox" id="require_fee_{{ row.code }}" name="require_fee_{{ row.code }}" {% if row.require_fee %}checked{% endif %}>
+                <label class="form-check-label small fw-semibold" for="require_fee_{{ row.code }}">
+                  Enforce Fee Balance Check
+                </label>
+              </div>
+              <div class="input-group input-group-sm mt-2">
+                <span class="input-group-text bg-white small">Max Bal:</span>
+                <input type="number" step="0.01" class="form-control bg-white" name="max_fee_{{ row.code }}" value="{{ row.max_fee }}" placeholder="0.00">
+              </div>
+            </div>
+
+            <!-- Senate & Notes -->
+            <div class="col-md-3">
+              <label class="form-label small fw-bold text-secondary">
+                <i class="fa-solid fa-building-columns me-1 text-secondary"></i> Senate Approval:
+              </label>
+              <div class="form-check mt-1">
+                <input class="form-check-input" type="checkbox" id="require_senate_{{ row.code }}" name="require_senate_{{ row.code }}" {% if row.require_senate %}checked{% endif %}>
+                <label class="form-check-label small fw-semibold" for="require_senate_{{ row.code }}">
+                  Require Senate Confirmation
+                </label>
+              </div>
+              <div class="mt-2">
+                <input type="text" class="form-control form-control-sm bg-white" name="notes_{{ row.code }}" value="{{ row.notes }}" placeholder="Public lock notice or reason...">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="card card-ums p-3 mt-4 text-end shadow-sm border-0 sticky-bottom bg-white">
+    <div class="d-flex justify-content-between align-items-center">
+      <div class="text-muted small">
+        <i class="fa-solid fa-clock-rotate-left me-1"></i> Changes will immediately take effect for all student downloads across the portal.
+      </div>
+      <button type="submit" class="btn btn-primary px-4 rounded-pill shadow-sm">
+        <i class="fa-solid fa-check-double me-1"></i> Save Release Controls
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}

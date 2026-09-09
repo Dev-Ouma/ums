@@ -1,3 +1,4 @@
+from xml.sax.saxutils import escape
 from datetime import date, datetime
 from decimal import Decimal
 import io
@@ -9,6 +10,8 @@ from django.db import transaction
 from django.db.models import Avg, Sum
 from django.utils import timezone
 
+from university.document_design import (ReportDocTemplate, document_styles, document_fonts,
+    PageNumberCanvas, letterhead, get_branding, finish_worksheet)
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -264,7 +267,7 @@ def generate_degree_certificate_pdf(application):
     gold ornamental border, Senate signatures, and security serial.
     """
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
+    doc = ReportDocTemplate(
         buffer,
         pagesize=landscape(A4),
         leftMargin=36,
@@ -273,8 +276,8 @@ def generate_degree_certificate_pdf(application):
         bottomMargin=36,
     )
 
-    styles = getSampleStyleSheet()
-    inst_name = get_setting("institution_name", "Nexus International University")
+    styles = document_styles()
+    inst_name = get_branding()["site_name"]
     motto = get_setting("institution_motto", "Excellence in Knowledge, Integrity in Leadership")
 
     navy = colors.HexColor("#1A365D")
@@ -284,7 +287,7 @@ def generate_degree_certificate_pdf(application):
     title_style = ParagraphStyle(
         "CertTitle",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=24,
         leading=30,
         alignment=1,
@@ -294,7 +297,7 @@ def generate_degree_certificate_pdf(application):
     motto_style = ParagraphStyle(
         "CertMotto",
         parent=styles["Normal"],
-        fontName="Helvetica-Oblique",
+        fontName="Quicksand",
         fontSize=10,
         leading=14,
         alignment=1,
@@ -304,7 +307,7 @@ def generate_degree_certificate_pdf(application):
     cert_text = ParagraphStyle(
         "CertBody",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=13,
         leading=20,
         alignment=1,
@@ -314,7 +317,7 @@ def generate_degree_certificate_pdf(application):
     name_style = ParagraphStyle(
         "CertStudent",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=22,
         leading=28,
         alignment=1,
@@ -324,7 +327,7 @@ def generate_degree_certificate_pdf(application):
     degree_style = ParagraphStyle(
         "CertDegree",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=18,
         leading=24,
         alignment=1,
@@ -384,7 +387,7 @@ def generate_clearance_certificate_pdf(application):
     displaying sign-offs from all 5 administrative and academic departments.
     """
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
+    doc = ReportDocTemplate(
         buffer,
         pagesize=A4,
         leftMargin=36,
@@ -393,13 +396,13 @@ def generate_clearance_certificate_pdf(application):
         bottomMargin=36,
     )
 
-    styles = getSampleStyleSheet()
-    inst_name = get_setting("institution_name", "Nexus International University")
+    styles = document_styles()
+    inst_name = get_branding()["site_name"]
 
     header_style = ParagraphStyle(
         "ClHeader",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=16,
         leading=20,
         alignment=1,
@@ -409,7 +412,7 @@ def generate_clearance_certificate_pdf(application):
     sub_style = ParagraphStyle(
         "ClSub",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=12,
         leading=16,
         alignment=1,
@@ -419,7 +422,7 @@ def generate_clearance_certificate_pdf(application):
     elements = []
     elements.append(Paragraph(inst_name.upper(), header_style))
     elements.append(Paragraph("OFFICE OF THE REGISTRAR (ACADEMIC AFFAIRS)", sub_style))
-    elements.append(Paragraph("CERTIFICATE OF UNIVERSITY EXIT CLEARANCE", ParagraphStyle("Title", alignment=1, fontName="Helvetica-Bold", fontSize=13, leading=18, textColor=colors.HexColor("#D69E2E"))))
+    elements.append(Paragraph("CERTIFICATE OF UNIVERSITY EXIT CLEARANCE", ParagraphStyle("Title", alignment=1, fontName="Quicksand-Bold", fontSize=13, leading=18, textColor=colors.HexColor("#D69E2E"))))
     elements.append(Spacer(1, 14))
 
     # Student Info Grid
@@ -447,7 +450,7 @@ def generate_clearance_certificate_pdf(application):
     elements.append(Spacer(1, 16))
 
     # Department Clearance Matrix
-    elements.append(Paragraph("<b>DEPARTMENTAL CLEARANCE SIGN-OFF VERIFICATION</b>", ParagraphStyle("MatrixH", fontName="Helvetica-Bold", fontSize=11, leading=14, textColor=colors.HexColor("#2D3748"))))
+    elements.append(Paragraph("<b>DEPARTMENTAL CLEARANCE SIGN-OFF VERIFICATION</b>", ParagraphStyle("MatrixH", fontName="Quicksand-Bold", fontSize=11, leading=14, textColor=colors.HexColor("#2D3748"))))
     elements.append(Spacer(1, 6))
 
     matrix_headers = ["Department / Station", "Status", "Verified By", "Date Cleared", "Remarks / Hold Notes"]
@@ -469,7 +472,7 @@ def generate_clearance_certificate_pdf(application):
     matrix_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1A365D")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, 0), (-1, 0), "Quicksand-Bold"),
         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E0")),
@@ -483,7 +486,7 @@ def generate_clearance_certificate_pdf(application):
     # Final Registrar Seal
     final_note = Paragraph(
         "This is to certify that the student named above has returned all university property, cleared all financial obligations, and has been fully discharged by all designated departments.",
-        ParagraphStyle("FN", fontName="Helvetica-Oblique", fontSize=9, leading=13, textColor=colors.HexColor("#4A5568"))
+        ParagraphStyle("FN", fontName="Quicksand", fontSize=9, leading=13, textColor=colors.HexColor("#4A5568"))
     )
     elements.append(final_note)
     elements.append(Spacer(1, 20))

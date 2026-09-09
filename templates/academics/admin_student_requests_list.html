@@ -1,0 +1,89 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Student Requests · Academics · UMS{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h4><i class="fa-solid fa-file-circle-question me-2" style="color:var(--primary)"></i>Student Requests</h4>
+    <small class="text-muted">Deferment, Withdrawal &amp; Sick Leave applications</small>
+  </div>
+</div>
+
+<div class="d-flex gap-2 flex-wrap mb-3">
+  <a href="?status=" class="btn btn-sm rounded-pill {% if not status_filter %}btn-primary{% else %}btn-outline-secondary{% endif %}">All <span class="badge bg-light text-dark ms-1">{{ counts.all }}</span></a>
+  <a href="?status=PENDING" class="btn btn-sm rounded-pill {% if status_filter == 'PENDING' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Pending <span class="badge bg-light text-dark ms-1">{{ counts.pending }}</span></a>
+  <a href="?status=UNDER_REVIEW" class="btn btn-sm rounded-pill {% if status_filter == 'UNDER_REVIEW' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Under Review <span class="badge bg-light text-dark ms-1">{{ counts.under_review }}</span></a>
+  <a href="?status=APPROVED" class="btn btn-sm rounded-pill {% if status_filter == 'APPROVED' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Approved <span class="badge bg-light text-dark ms-1">{{ counts.approved }}</span></a>
+  <a href="?status=REJECTED" class="btn btn-sm rounded-pill {% if status_filter == 'REJECTED' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Rejected <span class="badge bg-light text-dark ms-1">{{ counts.rejected }}</span></a>
+</div>
+
+<div class="card card-ums p-3 mb-4">
+  <form method="get" class="row g-2 align-items-center">
+    <input type="hidden" name="status" value="{{ status_filter }}">
+    <div class="col-md-6">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text bg-light"><i class="fa-solid fa-magnifying-glass"></i></span>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Search by student name or roll number...">
+      </div>
+    </div>
+    <div class="col-md-3">
+      <select name="type" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All request types</option>
+        {% for code, label in types %}<option value="{{ code }}" {% if type_filter == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3 d-flex gap-2">
+      <button type="submit" class="btn btn-sm btn-primary rounded-pill flex-fill">Search</button>
+      <a href="?status={{ status_filter }}" class="btn btn-sm btn-outline-secondary rounded-pill">Reset</a>
+    </div>
+  </form>
+</div>
+
+<div class="card card-ums">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead class="table-light">
+        <tr><th class="ps-3">Student</th><th>Type</th><th>Submitted</th><th>Period</th><th>Status</th><th class="text-end pe-3">Action</th></tr>
+      </thead>
+      <tbody>
+        {% for r in page %}
+        <tr>
+          <td class="ps-3">
+            <div class="d-flex align-items-center gap-2">
+              <img src="{{ r.student.user.avatar }}" class="rounded-circle" width="32" height="32">
+              <div><div class="fw-semibold">{{ r.student.user.display_name }}</div><small class="text-muted">{{ r.student.roll_no }}</small></div>
+            </div>
+          </td>
+          <td>{{ r.get_request_type_display }}</td>
+          <td class="small text-muted">{{ r.submitted_at|date:"d M Y" }}</td>
+          <td class="small">{% if r.start_date %}{{ r.start_date|date:"d M Y" }} – {{ r.end_date|date:"d M Y" }}{% else %}—{% endif %}</td>
+          <td>
+            <span class="badge rounded-pill
+              {% if r.status == 'APPROVED' %}bg-success
+              {% elif r.status == 'REJECTED' %}bg-danger
+              {% elif r.status == 'UNDER_REVIEW' %}bg-info text-dark
+              {% else %}bg-secondary{% endif %}">{{ r.get_status_display }}</span>
+          </td>
+          <td class="text-end pe-3">
+            <a href="{% url 'university:admin_student_request_detail' r.pk %}" class="btn btn-sm btn-primary rounded-pill px-3">
+              <i class="fa-solid fa-eye me-1"></i>Review
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center py-5 text-muted">No student requests found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if page.has_other_pages %}
+    <div class="card-footer d-flex justify-content-between align-items-center py-2">
+      <span class="small text-muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+      <ul class="pagination pagination-sm mb-0">
+        {% if page.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}&status={{ status_filter }}&type={{ type_filter }}&q={{ q }}">Previous</a></li>{% endif %}
+        <li class="page-item active"><span class="page-link">{{ page.number }}</span></li>
+        {% if page.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}&status={{ status_filter }}&type={{ type_filter }}&q={{ q }}">Next</a></li>{% endif %}
+      </ul>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

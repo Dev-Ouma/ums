@@ -1,7 +1,39 @@
 {% extends 'examinations/base.html' %}
 {% block title %}{{ title }} · UMS{% endblock %}
 {% block exam_content %}
-<div class="exam-hero"><div><h3>{{ title }}</h3><p>{{ student.user.display_name }} · <strong>{{ student.roll_no }}</strong><br>{{ student.program.name|default:'Programme not recorded' }} · {{ student.program.department.name|default:'Faculty not recorded' }}</p></div><div class="exam-actions"><a class="btn btn-outline-primary" href="{% url 'examinations:student_transcripts' student.pk %}"><i class="fa-solid fa-arrow-left me-1"></i>Back to Hub</a><button type="button" class="btn btn-outline-primary" onclick="var f=document.getElementById('transcript-iframe'); if(f && f.contentWindow){try{f.contentWindow.focus();f.contentWindow.print();}catch(e){window.open('{{ pdf_url }}','_blank');}}else{window.print();}"><i class="fa-solid fa-print me-1"></i>Print</button><a class="btn btn-primary" href="{{ pdf_url }}&amp;download=1"><i class="fa-solid fa-download me-1"></i>Download PDF</a><a class="btn btn-outline-primary" href="{{ pdf_url }}" target="_blank" rel="noopener"><i class="fa-solid fa-up-right-from-square me-1"></i>Open Full Page</a></div></div>
-<p class="exam-muted">Use the embedded PDF viewer controls to zoom, navigate pages, search and review the official document. The browser preview is generated dynamically from certified academic records and identically matches the downloadable A4 PDF.</p>
-<iframe id="transcript-iframe" title="{{ title }} PDF viewer" src="{{ pdf_url }}#toolbar=1&amp;navpanes=1" style="width:100%;height:80vh;min-height:550px;border:1px solid #cbd5e1;border-radius:10px;background:#f1f5f9;box-shadow:0 4px 12px rgba(0,0,0,0.06)"></iframe>
+<div class="card card-ums border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+  <div class="row align-items-center g-3">
+    <div class="col-md-7">
+      <div class="d-flex align-items-center gap-3">
+        <div class="rounded-4 bg-primary text-white d-inline-flex p-3 shadow-sm">
+          <i class="fa-solid fa-scroll fa-2x"></i>
+        </div>
+        <div>
+          <h3 class="fw-bold mb-1 text-dark">{{ title }}</h3>
+          <p class="text-muted small mb-0">
+            Candidate: <strong>{{ student.user.display_name }}</strong> &nbsp;·&nbsp;
+            Reg No: <strong class="text-primary font-monospace">{{ student.roll_no }}</strong><br>
+            Programme: <strong>{{ student.program.name|default:'Programme not recorded' }}</strong>
+            {% if student.program.department %} &nbsp;·&nbsp; {{ student.program.department.name }}{% endif %}
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-5 text-md-end no-print">
+      <div class="exam-actions justify-content-md-end">
+        <a class="btn btn-light border rounded-pill px-3" href="{% url 'examinations:statement' %}">
+          <i class="fa-solid fa-arrow-left me-1"></i>Results Statement
+        </a>
+        <button type="button" class="btn btn-outline-primary rounded-pill px-3" data-print-pdf>
+          <i class="fa-solid fa-print me-1"></i>Print
+        </button>
+        <a class="btn btn-primary rounded-pill px-3" href="{{ pdf_url }}&amp;download=1">
+          <i class="fa-solid fa-download me-1"></i>Download PDF
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% include 'documents/_pdf_frame.html' %}
 {% endblock %}

@@ -49,11 +49,19 @@
             {% endif %}
           </div>
         </div>
-        <div>
+        <div class="text-end">
           {% if app.admitted_reg_no %}
             <span class="text-muted small">Assigned Student Reg No:</span>
-            <div class="fs-5 fw-bold text-dark font-monospace">{{ app.admitted_reg_no }}</div>
+            <div class="fs-5 fw-bold text-dark font-monospace mb-2">{{ app.admitted_reg_no }}</div>
           {% endif %}
+          <div>
+            <span class="text-muted small">Application Fee:</span>
+            {% if app.fee_paid %}
+              <span class="badge bg-success rounded-pill ms-1"><i class="fa-solid fa-circle-check me-1"></i>Paid</span>
+            {% else %}
+              <span class="badge bg-danger rounded-pill ms-1"><i class="fa-solid fa-circle-xmark me-1"></i>Unpaid</span>
+            {% endif %}
+          </div>
         </div>
       </div>
     </div>
@@ -152,15 +160,22 @@
             <textarea name="review_notes" rows="3" class="form-control rounded-3" placeholder="Add evaluation notes or reasons...">{{ app.review_notes }}</textarea>
           </div>
 
+          {% if not app.fee_paid %}
+            <div class="alert alert-warning small rounded-3">
+              <i class="fa-solid fa-triangle-exclamation me-1"></i>The application fee has not been paid.
+              Processing (Under Review / Accept) is disabled until payment is confirmed.
+            </div>
+          {% endif %}
+
           <div class="d-grid gap-2">
             {% if app.status != "ACCEPTED" and app.status != "ENROLLED" %}
-              <button type="submit" name="action" value="accept" class="btn btn-success py-2 rounded-3 fw-semibold">
+              <button type="submit" name="action" value="accept" class="btn btn-success py-2 rounded-3 fw-semibold" {% if not app.fee_paid %}disabled{% endif %}>
                 <i class="fa-solid fa-check-circle me-1"></i> Accept & Offer Admission
               </button>
             {% endif %}
-            
+
             {% if app.status == "SUBMITTED" %}
-              <button type="submit" name="action" value="under_review" class="btn btn-warning py-2 rounded-3 fw-semibold text-dark">
+              <button type="submit" name="action" value="under_review" class="btn btn-warning py-2 rounded-3 fw-semibold text-dark" {% if not app.fee_paid %}disabled{% endif %}>
                 <i class="fa-solid fa-spinner me-1"></i> Mark Under Review
               </button>
             {% endif %}

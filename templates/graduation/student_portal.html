@@ -15,10 +15,10 @@
     </div>
     {% if application and application.status in 'CLEARED SENATE_APPROVED GRADUATED' %}
       <div class="d-flex gap-2">
-        <a href="{% url 'university:student_clearance_certificate_pdf' %}" class="btn btn-outline-primary" target="_blank">
+        <a href="{% url 'university:student_clearance_certificate_pdf' %}?preview=1" class="btn btn-outline-primary" target="_blank">
           <i class="fa-solid fa-file-shield me-1"></i> Clearance Certificate (PDF)
         </a>
-        <a href="{% url 'university:student_degree_certificate_pdf' %}" class="btn btn-success" target="_blank">
+        <a href="{% url 'university:student_degree_certificate_pdf' %}?preview=1" class="btn btn-success" target="_blank">
           <i class="fa-solid fa-award me-1"></i> Degree Certificate (PDF)
         </a>
       </div>

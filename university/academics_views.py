@@ -1,7 +1,9 @@
+from university.document_views import present_pdf
 """Academics views for Student Unit Registration, Provisional & Academic Transcripts,
 and Admin Registration & Academic Management.
 """
 from datetime import date
+from decimal import Decimal
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -21,9 +23,13 @@ from .examination_services import is_admin
 from .financial_services import check_financial_clearance, get_or_create_semester_invoice
 from .models import (
     AcademicTerm, Course, Department, Enrollment, Exam, FeeInvoice,
-    Program, Result, SemesterRegistration, SupplementaryExamRegistration
+    Program, Result, SemesterRegistration, SupplementaryExamRegistration,
+    DocumentReleaseControl, AuditLog
 )
 from .transcript_views import document as render_transcript_document
+from .document_access_services import check_document_access
+from .audit_services import get_client_ip, detect_device_type
+from .academic_calendar_services import get_current_academic_year, get_current_semester, get_active_academic_context
 
 
 def _get_student(request):
@@ -46,29 +52,51 @@ def student_register_units(request):
     """
     sp = _get_student(request)
 
-    # Active academic term
-    active_term = AcademicTerm.objects.filter(is_current=True).first() or AcademicTerm.objects.first()
+    if not sp.is_active_student:
+        messages.error(request, f"Unit registration is unavailable while your status is "
+                                f"'{sp.get_status_display()}'. Visit Student Requests for details "
+                                f"or to resume your studies.")
+        return render(request, "academics/student_register.html", {
+            "student": sp, "term": None, "registration": None, "enrolled_units": [], "available_courses": [],
+            "blocked": True,
+        })
+
+    today = timezone.now().date()
+
+    # Authoritative active academic calendar context
+    active_ay = get_current_academic_year()
+    active_term = get_current_semester()
     if not active_term:
-        messages.warning(request, "No academic terms have been configured yet. Please contact the Academic Registry.")
+        messages.warning(request, "No active academic terms have been published. Please contact the Academic Registry.")
         return render(request, "academics/student_register.html", {
             "student": sp, "term": None, "registration": None, "enrolled_units": [], "available_courses": []
         })
 
+    # Check academic period status: must be PUBLISHED or CURRENT
+    from .models import AcademicYear
+    if active_term.status in [AcademicYear.Status.DRAFT, AcademicYear.Status.CLOSED, AcademicYear.Status.ARCHIVED]:
+        messages.warning(request, f"Unit registration is not active: {active_term.name} is currently {active_term.get_status_display().upper()}.")
+        return render(request, "academics/student_register.html", {
+            "student": sp, "term": active_term, "registration": None, "enrolled_units": [], "available_courses": [],
+            "blocked": True,
+        })
+
     # Get or create semester registration
+    ay_str = active_ay.name if active_ay else f"{active_term.start_date.year}/{active_term.end_date.year}"
     registration, created = SemesterRegistration.objects.get_or_create(
         student=sp,
         term=active_term,
         defaults={
             "semester_no": sp.current_semester,
-            "academic_year": f"{active_term.start_date.year}/{active_term.end_date.year}",
+            "academic_year": ay_str,
             "status": SemesterRegistration.DRAFT,
         }
     )
 
-    # Check registration deadline
-    today = timezone.localdate()
-    is_deadline_passed = today > active_term.end_date
-    is_editable = registration.status in [SemesterRegistration.DRAFT, SemesterRegistration.REJECTED] and not is_deadline_passed
+    # Check registration dates & editable status
+    is_window_open = active_term.is_registration_open
+    is_deadline_passed = not is_window_open
+    is_editable = registration.status in [SemesterRegistration.DRAFT, SemesterRegistration.REJECTED] and is_window_open
 
     if request.method == "POST":
         action = request.POST.get("action")
@@ -449,6 +477,18 @@ def student_exam_card(request):
     sp = _get_student(request)
     active_term = AcademicTerm.objects.filter(is_current=True).first() or AcademicTerm.objects.first()
 
+    # Access control & release window check
+    allowed, reason, control, is_bypass = check_document_access(
+        sp, DocumentReleaseControl.DocumentType.EXAM_CARD, term=active_term, user=request.user
+    )
+    if not allowed:
+        return render(request, "documents/locked.html", {
+            "student": sp,
+            "title": "Examination Card Unavailable",
+            "reason": reason,
+            "control": control,
+        }, status=403)
+
     clearance = check_financial_clearance(sp, term=active_term)
     enrollments_qs = Enrollment.objects.filter(student=sp, status__in=[Enrollment.ACTIVE, "ENROLLED"]).select_related("course")
     if active_term:
@@ -480,10 +520,40 @@ def student_exam_card_pdf(request):
     sp = _get_student(request)
     active_term = AcademicTerm.objects.filter(is_current=True).first() or AcademicTerm.objects.first()
 
-    pdf_data = generate_exam_card_pdf(sp, term=active_term)
+    # Access control & release window check
+    allowed, reason, control, is_bypass = check_document_access(
+        sp, DocumentReleaseControl.DocumentType.EXAM_CARD, term=active_term, user=request.user
+    )
+    if not allowed:
+        return render(request, "documents/locked.html", {
+            "student": sp,
+            "title": "Examination Card Unavailable",
+            "reason": reason,
+            "control": control,
+        }, status=403)
+
+    ref_code = f"EXAM-CARD/{active_term.name.replace(' ', '') if active_term else 'SESSION'}/{sp.roll_no}"
+    verify_url = request.build_absolute_uri(reverse("university:verify_document", kwargs={"reference_no": ref_code}))
+    client_ip = get_client_ip(request)
+    tracking_info = f"Generated for {request.user.username} · IP: {client_ip} · {timezone.now().strftime('%d %b %Y %H:%M')}"
+
+    pdf_data = generate_exam_card_pdf(sp, term=active_term, verify_url=verify_url, tracking_info=tracking_info)
+
+    try:
+        AuditLog.objects.create(
+            user=request.user,
+            action=AuditLog.Action.EXPORT,
+            module=AuditLog.Module.ACADEMICS,
+            ip_address=client_ip,
+            device=detect_device_type(request.META.get("HTTP_USER_AGENT", "")),
+            details=f"Exported Exam Card for {sp.roll_no} (Term: {active_term.name if active_term else 'General'}) - Bypass: {is_bypass}"
+        )
+    except Exception:
+        pass
+
     response = HttpResponse(pdf_data, content_type="application/pdf")
     response["Content-Disposition"] = f'inline; filename="Exam_Card_{sp.roll_no}.pdf"'
-    return response
+    return present_pdf(request, response)
 
 
 # ==============================================================================
@@ -630,6 +700,279 @@ def admin_exam_nominal_roll_pdf(request, exam_id):
     pdf_data = generate_nominal_roll_pdf(exam)
     response = HttpResponse(pdf_data, content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="Nominal_Roll_{exam.course.code}_{exam.pk}.pdf"'
-    return response
+    return present_pdf(request, response)
+
+
+# ==============================================================================
+# STUDENT PROGRESSIVE REPORTS (WEB VIEW & MULTI-FORMAT EXPORTS)
+# ==============================================================================
+
+@login_required
+def admin_progressive_reports(request):
+    """Admin Progressive Reports directory view."""
+    if not (is_admin(request.user) or request.user.is_faculty or request.user.is_superuser):
+        raise PermissionDenied
+
+    query = request.GET.get("q", "").strip()
+    dept_id = request.GET.get("dept", "")
+    prog_id = request.GET.get("program", "")
+
+    students = StudentProfile.objects.select_related("user", "program__department")
+
+    if query:
+        students = students.filter(
+            Q(roll_no__icontains=query) |
+            Q(user__first_name__icontains=query) |
+            Q(user__last_name__icontains=query) |
+            Q(user__email__icontains=query)
+        )
+    if dept_id and str(dept_id).lower() not in ("all", "", "none"):
+        students = students.filter(program__department_id=dept_id)
+    if prog_id and str(prog_id).lower() not in ("all", "", "none"):
+        students = students.filter(program_id=prog_id)
+
+    departments = Department.objects.all().order_by("name")
+    programs = Program.objects.all().order_by("name")
+    page = Paginator(students, 25).get_page(request.GET.get("page"))
+
+    return render(request, "academics/admin_progressive_reports_list.html", {
+        "page": page,
+        "q": query,
+        "selected_dept": dept_id,
+        "selected_program": prog_id,
+        "departments": departments,
+        "programs": programs,
+        "title": "Student Progressive Reports",
+    })
+
+
+@login_required
+def progressive_report_detail_view(request, student_id):
+    """Interactive web view of a student's full Progressive Report."""
+    student = get_object_or_404(StudentProfile.objects.select_related("user", "program__department"), pk=student_id)
+
+    # Permission check: admin, faculty, or student viewing their own profile
+    if not (is_admin(request.user) or request.user.is_faculty or request.user.is_superuser or (hasattr(request.user, "student_profile") and request.user.student_profile.pk == student.pk)):
+        raise PermissionDenied("You do not have permission to view this student's progressive report.")
+
+    # Access control & release window check
+    allowed, reason, control, is_bypass = check_document_access(
+        student, DocumentReleaseControl.DocumentType.PROGRESS_REPORT, user=request.user
+    )
+    if not allowed:
+        return render(request, "documents/locked.html", {
+            "student": student,
+            "title": "Progressive Academic Report Unavailable",
+            "reason": reason,
+            "control": control,
+        }, status=403)
+
+    from .progressive_report_io import build_progressive_report_context
+    ctx = build_progressive_report_context(student)
+
+    # Build template-friendly context with the keys the template expects
+    template_ctx = {
+        "student": student,
+        "is_admin": is_admin(request.user) or request.user.is_faculty or request.user.is_superuser,
+        "report_ctx": {
+            "cgpa": ctx.get("cgpa", 0.0),
+            "total_passed_credits": ctx.get("earned_credits", 0),
+            "total_attempted_credits": ctx.get("attempted_credits", 0),
+            "passed_courses_count": ctx.get("total_courses_completed", 0),
+            "total_courses_count": ctx.get("attempted_credits", 0),  # fallback
+            "terms_data": [],
+            "generated_at": ctx.get("issued_date", ""),
+        },
+    }
+
+    # Count total courses across all semesters
+    all_courses_count = 0
+    for sem in ctx.get("semesters", []):
+        all_courses_count += len(sem.get("courses", []))
+        template_ctx["report_ctx"]["terms_data"].append({
+            "term_name": sem.get("term_name", ""),
+            "credits_attempted": sem.get("credits_attempted", 0),
+            "credits_earned": sem.get("credits_completed", 0),
+            "gpa": sem.get("term_gpa", "N/A"),
+            "courses": [
+                {
+                    "code": c.get("code", ""),
+                    "title": c.get("title", ""),
+                    "credits": c.get("credits", 0),
+                    "cat_score": c.get("ca_mark") if c.get("ca_mark") != "—" else None,
+                    "exam_score": c.get("exam_mark") if c.get("exam_mark") != "—" else None,
+                    "total_score": c.get("total_pct", 0),
+                    "grade": c.get("grade", "N/A"),
+                    "gp": c.get("grade_point", 0),
+                    "is_pass": c.get("outcome", "").upper() in ["PASS", "PASSED"],
+                }
+                for c in sem.get("courses", [])
+            ],
+        })
+    template_ctx["report_ctx"]["total_courses_count"] = all_courses_count
+
+    return render(request, "academics/progressive_report_detail.html", template_ctx)
+
+
+@login_required
+def progressive_report_export_view(request, student_id, fmt):
+    """Export endpoint for student Progressive Report in PDF, Excel (.xlsx/.xls), or CSV."""
+    student = get_object_or_404(StudentProfile.objects.select_related("user", "program__department"), pk=student_id)
+
+    if not (is_admin(request.user) or request.user.is_faculty or request.user.is_superuser or (hasattr(request.user, "student_profile") and request.user.student_profile.pk == student.pk)):
+        raise PermissionDenied("You do not have permission to export this progressive report.")
+
+    # Access control & release window check
+    allowed, reason, control, is_bypass = check_document_access(
+        student, DocumentReleaseControl.DocumentType.PROGRESS_REPORT, user=request.user
+    )
+    if not allowed:
+        return render(request, "documents/locked.html", {
+            "student": student,
+            "title": "Progressive Academic Report Unavailable",
+            "reason": reason,
+            "control": control,
+        }, status=403)
+
+    from .progressive_report_io import (
+        build_progressive_report_context,
+        export_progressive_report_pdf,
+        export_progressive_report_excel,
+        export_progressive_report_csv,
+    )
+
+    ctx = build_progressive_report_context(student)
+    fmt = fmt.lower().strip()
+    filename_base = f"Progressive_Report_{student.roll_no}"
+
+    if fmt == "pdf":
+        client_ip = get_client_ip(request)
+        tracking_info = f"Generated for {request.user.username} · IP: {client_ip} · {timezone.now().strftime('%d %b %Y %H:%M')}"
+        verify_ref = f"UMS/PROG/{student.roll_no}"
+        verify_url = request.build_absolute_uri(reverse("university:verify_document", kwargs={"reference_no": verify_ref}))
+        pdf_data = export_progressive_report_pdf(student, ctx, tracking_info=tracking_info, verify_url=verify_url)
+        resp = HttpResponse(pdf_data, content_type="application/pdf")
+        resp["Content-Disposition"] = f'attachment; filename="{filename_base}.pdf"'
+        return present_pdf(request, resp)
+
+    elif fmt in ["excel", "xlsx", "xls"]:
+        excel_data = export_progressive_report_excel(student, ctx)
+        resp = HttpResponse(
+            excel_data,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        resp["Content-Disposition"] = f'attachment; filename="{filename_base}.xlsx"'
+        return resp
+
+    elif fmt == "csv":
+        csv_data = export_progressive_report_csv(student, ctx)
+        resp = HttpResponse(csv_data, content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = f'attachment; filename="{filename_base}.csv"'
+        return resp
+
+    else:
+        raise Http404("Unsupported export format.")
+
+
+@login_required
+def student_progressive_report_view(request):
+    """Student portal shortcut to view their own Progressive Report."""
+    sp = _get_student(request)
+    return progressive_report_detail_view(request, student_id=sp.pk)
+
+
+@login_required
+def admin_document_controls(request):
+    """
+    Academic Registry Document Lifecycle & Access Control Dashboard.
+    Allows Registry Officers to configure release windows (open/lock dates),
+    fee clearance thresholds, and master lock toggles per document type and term.
+    """
+    if not (is_admin(request.user) or request.user.is_superuser):
+        raise PermissionDenied("Only administrative staff can manage document release controls.")
+
+    terms = AcademicTerm.objects.all().order_by("-start_date")
+    term_id = request.GET.get("term", "")
+    active_term = None
+    if term_id.isdigit():
+        active_term = AcademicTerm.objects.filter(pk=term_id).first()
+
+    doc_types = DocumentReleaseControl.DocumentType.choices
+    controls_map = {}
+    existing_controls = DocumentReleaseControl.objects.filter(term=active_term)
+    for c in existing_controls:
+        controls_map[c.document_type] = c
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "save_controls":
+            with transaction.atomic():
+                for code, label in doc_types:
+                    ctrl = controls_map.get(code)
+                    if not ctrl:
+                        ctrl = DocumentReleaseControl(term=active_term, document_type=code)
+
+                    ctrl.is_open = request.POST.get(f"is_open_{code}") == "on"
+
+                    open_dt = request.POST.get(f"open_date_{code}", "").strip()
+                    lock_dt = request.POST.get(f"lock_date_{code}", "").strip()
+                    if open_dt:
+                        try:
+                            ctrl.open_date = timezone.datetime.fromisoformat(open_dt)
+                            if timezone.is_naive(ctrl.open_date):
+                                ctrl.open_date = timezone.make_aware(ctrl.open_date)
+                        except Exception:
+                            pass
+                    else:
+                        ctrl.open_date = None
+
+                    if lock_dt:
+                        try:
+                            ctrl.lock_date = timezone.datetime.fromisoformat(lock_dt)
+                            if timezone.is_naive(ctrl.lock_date):
+                                ctrl.lock_date = timezone.make_aware(ctrl.lock_date)
+                        except Exception:
+                            pass
+                    else:
+                        ctrl.lock_date = None
+
+                    ctrl.require_financial_clearance = request.POST.get(f"require_fee_{code}") == "on"
+                    max_fee = request.POST.get(f"max_fee_{code}", "0.00").strip()
+                    try:
+                        ctrl.max_allowed_fee_balance = Decimal(max_fee)
+                    except Exception:
+                        ctrl.max_allowed_fee_balance = Decimal("0.00")
+
+                    ctrl.require_senate_approval = request.POST.get(f"require_senate_{code}") == "on"
+                    ctrl.notes = request.POST.get(f"notes_{code}", "").strip()
+                    ctrl.save()
+
+            messages.success(request, f"Document release controls for {'Universal Policy' if not active_term else active_term.name} updated successfully.")
+            return redirect(f"{reverse('university:admin_document_controls')}{'?term=' + str(active_term.pk) if active_term else ''}")
+
+    display_rows = []
+    for code, label in doc_types:
+        ctrl = controls_map.get(code)
+        display_rows.append({
+            "code": code,
+            "label": label,
+            "control": ctrl,
+            "is_open": ctrl.is_open if ctrl else True,
+            "open_date_iso": ctrl.open_date.strftime("%Y-%m-%dT%H:%M") if ctrl and ctrl.open_date else "",
+            "lock_date_iso": ctrl.lock_date.strftime("%Y-%m-%dT%H:%M") if ctrl and ctrl.lock_date else "",
+            "require_fee": ctrl.require_financial_clearance if ctrl else False,
+            "max_fee": ctrl.max_allowed_fee_balance if ctrl else Decimal("0.00"),
+            "require_senate": ctrl.require_senate_approval if ctrl else False,
+            "notes": ctrl.notes if ctrl else "",
+        })
+
+    return render(request, "academics/admin_document_controls.html", {
+        "terms": terms,
+        "active_term": active_term,
+        "selected_term_id": term_id,
+        "display_rows": display_rows,
+    })
+
+
 
 

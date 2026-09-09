@@ -17,7 +17,14 @@
   </div>
 </div>
 
-{% if not term %}
+{% if blocked %}
+  <div class="alert alert-danger rounded-3">
+    <i class="fa-solid fa-lock me-2"></i>Unit registration is unavailable while your status is
+    <strong>{{ student.get_status_display }}</strong>.
+    <a href="{% url 'university:student_requests' %}" class="alert-link">Visit Student Requests</a> for details
+    {% if student.status == 'DEFERRED' or student.status == 'ON_LEAVE' %}or to resume your studies{% endif %}.
+  </div>
+{% elif not term %}
   <div class="alert alert-warning rounded-3">
     <i class="fa-solid fa-triangle-exclamation me-2"></i>No academic term is currently open for registration. Please consult the Academic Registry.
   </div>

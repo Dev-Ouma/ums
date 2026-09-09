@@ -199,7 +199,7 @@
                     </form>
                   {% endif %}
                   {% if app.status in 'CLEARED SENATE_APPROVED GRADUATED' %}
-                    <a href="{% url 'university:student_degree_certificate_pdf' %}" class="btn btn-sm btn-outline-secondary" title="View Certificate" target="_blank">
+                    <a href="{% url 'university:student_degree_certificate_pdf' %}?preview=1" class="btn btn-sm btn-outline-secondary" title="View Certificate" target="_blank">
                       <i class="fa-solid fa-award"></i>
                     </a>
                   {% endif %}

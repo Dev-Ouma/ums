@@ -1,3 +1,4 @@
+from xml.sax.saxutils import escape
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 import io
@@ -9,6 +10,8 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
+from university.document_design import (ReportDocTemplate, document_styles, document_fonts,
+    PageNumberCanvas, letterhead, get_branding, finish_worksheet)
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -300,7 +303,7 @@ def generate_attachment_intro_letter_pdf(placement):
     and Registrar's signature block.
     """
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(
+    doc = ReportDocTemplate(
         buf,
         pagesize=A4,
         leftMargin=54,
@@ -309,7 +312,7 @@ def generate_attachment_intro_letter_pdf(placement):
         bottomMargin=44
     )
 
-    styles = getSampleStyleSheet()
+    styles = document_styles()
     primary_color = colors.HexColor("#1A365D") # Deep Navy
     text_color = colors.HexColor("#2D3748")
     accent_color = colors.HexColor("#C59B27") # Gold Accent
@@ -317,7 +320,7 @@ def generate_attachment_intro_letter_pdf(placement):
     title_style = ParagraphStyle(
         "UniTitle",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=15,
         leading=19,
         textColor=primary_color,
@@ -326,7 +329,7 @@ def generate_attachment_intro_letter_pdf(placement):
     sub_style = ParagraphStyle(
         "UniSub",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=8.5,
         leading=12,
         textColor=colors.HexColor("#4A5568"),
@@ -335,7 +338,7 @@ def generate_attachment_intro_letter_pdf(placement):
     heading_style = ParagraphStyle(
         "SubjectHeading",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=11,
         leading=15,
         textColor=primary_color,
@@ -344,7 +347,7 @@ def generate_attachment_intro_letter_pdf(placement):
     body_style = ParagraphStyle(
         "LetterBody",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=10,
         leading=16,
         textColor=text_color,
@@ -353,7 +356,7 @@ def generate_attachment_intro_letter_pdf(placement):
     meta_style = ParagraphStyle(
         "MetaStyle",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=9,
         leading=13,
         textColor=text_color
@@ -362,15 +365,15 @@ def generate_attachment_intro_letter_pdf(placement):
     elements = []
 
     # 1. University Header
-    inst_name = get_setting("INSTITUTION_NAME", "NATIONAL INNOVATION UNIVERSITY")
+    inst_name = get_branding()["site_name"]
     motto = get_setting("INSTITUTION_MOTTO", "Excellence, Integrity and Innovation")
-    reg_email = get_setting("REGISTRAR_EMAIL", "registrar@niu.ac.ke")
-    reg_phone = get_setting("REGISTRAR_PHONE", "+254 20 123 4567")
+    reg_email = get_setting("REGISTRAR_EMAIL", get_branding()["contact_email"])
+    reg_phone = get_setting("REGISTRAR_PHONE", get_branding()["contact_phone"])
 
     elements.append(Paragraph(inst_name.upper(), title_style))
-    elements.append(Paragraph("OFFICE OF THE REGISTRAR (ACADEMIC AFFAIRS)", ParagraphStyle("SubH", parent=sub_style, fontName="Helvetica-Bold", fontSize=9.5)))
-    elements.append(Paragraph(f"<i>\"{motto}\"</i> &bull; P.O. Box 90100-00100, Nairobi, Kenya", sub_style))
-    elements.append(Paragraph(f"Tel: {reg_phone} &bull; Email: {reg_email} &bull; Web: www.niu.ac.ke", sub_style))
+    elements.append(Paragraph("OFFICE OF THE REGISTRAR (ACADEMIC AFFAIRS)", ParagraphStyle("SubH", parent=sub_style, fontName="Quicksand-Bold", fontSize=9.5)))
+    elements.append(Paragraph(f"<i>\"{motto}\"</i>", sub_style))
+    elements.append(Paragraph(f"Tel: {reg_phone} &bull; Email: {reg_email}", sub_style))
     elements.append(Spacer(1, 10))
     elements.append(HRFlowable(width="100%", thickness=2, color=primary_color, spaceAfter=14))
 
@@ -483,7 +486,7 @@ def generate_attachment_logbook_pdf(placement):
     and faculty supervisor grading rubric.
     """
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(
+    doc = ReportDocTemplate(
         buf,
         pagesize=A4,
         leftMargin=44,
@@ -492,7 +495,7 @@ def generate_attachment_logbook_pdf(placement):
         bottomMargin=36
     )
 
-    styles = getSampleStyleSheet()
+    styles = document_styles()
     primary_color = colors.HexColor("#1A365D")
     accent_color = colors.HexColor("#2B6CB0")
     border_color = colors.HexColor("#CBD5E0")
@@ -501,7 +504,7 @@ def generate_attachment_logbook_pdf(placement):
     title_style = ParagraphStyle(
         "LogbookTitle",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=14,
         leading=18,
         textColor=primary_color,
@@ -510,7 +513,7 @@ def generate_attachment_logbook_pdf(placement):
     h2_style = ParagraphStyle(
         "H2",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=10.5,
         leading=14,
         textColor=primary_color
@@ -518,7 +521,7 @@ def generate_attachment_logbook_pdf(placement):
     meta_style = ParagraphStyle(
         "Meta",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=8.5,
         leading=11,
         textColor=colors.HexColor("#2D3748")
@@ -526,12 +529,12 @@ def generate_attachment_logbook_pdf(placement):
     meta_bold = ParagraphStyle(
         "MetaB",
         parent=meta_style,
-        fontName="Helvetica-Bold"
+        fontName="Quicksand-Bold"
     )
     small_style = ParagraphStyle(
         "Small",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=7.5,
         leading=10,
         textColor=colors.HexColor("#4A5568")
@@ -540,10 +543,10 @@ def generate_attachment_logbook_pdf(placement):
     elements = []
 
     # Title Banner
-    inst_name = get_setting("INSTITUTION_NAME", "NATIONAL INNOVATION UNIVERSITY")
+    inst_name = get_branding()["site_name"]
     elements.append(Paragraph(inst_name.upper(), title_style))
-    elements.append(Paragraph("DIRECTORATE OF INDUSTRIAL LIAISON & PRACTICAL TRAINING", ParagraphStyle("Sub", parent=meta_style, fontName="Helvetica-Bold", alignment=1, fontSize=9.5)))
-    elements.append(Paragraph("INDUSTRIAL ATTACHMENT LOGBOOK & ASSESSMENT DOSSIER", ParagraphStyle("Sub2", parent=meta_style, fontName="Helvetica", alignment=1, fontSize=8.5, textColor=accent_color)))
+    elements.append(Paragraph("DIRECTORATE OF INDUSTRIAL LIAISON & PRACTICAL TRAINING", ParagraphStyle("Sub", parent=meta_style, fontName="Quicksand-Bold", alignment=1, fontSize=9.5)))
+    elements.append(Paragraph("INDUSTRIAL ATTACHMENT LOGBOOK & ASSESSMENT DOSSIER", ParagraphStyle("Sub2", parent=meta_style, fontName="Quicksand", alignment=1, fontSize=8.5, textColor=accent_color)))
     elements.append(Spacer(1, 8))
     elements.append(HRFlowable(width="100%", thickness=1.5, color=primary_color, spaceAfter=10))
 

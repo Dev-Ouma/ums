@@ -1,3 +1,131 @@
 {% extends 'examinations/base.html' %}
-{% block exam_content %}<div class="exam-hero"><div><h3>Examination results & appeals</h3><p>Published assessment results. Open a student statement for the combined CAT/final total.</p></div><a class="btn btn-primary" href="?format=csv&term={{ selected_term }}">Export results CSV</a></div><div class="exam-kpis"><div><small>Published assessment records</small><strong>{{ total }}</strong></div><div><small>Passed assessments</small><strong>{{ passed }}</strong></div><div><small>Failed assessments</small><strong>{{ failed }}</strong></div><div><small>Absent</small><strong>{{ absent }}</strong></div></div>
-<div class="exam-card"><h5>Open appeals</h5>{% for a in appeals %}<div class="border-bottom py-2"><a href="{% url 'examinations:detail' a.result.exam_id %}">{{ a.result.student.user.display_name }} · {{ a.result.exam }}</a><p class="exam-muted">{{ a.reason }}</p></div>{% empty %}<p class="exam-muted">No appeals awaiting review.</p>{% endfor %}</div><div class="exam-card"><form class="exam-actions mb-3" method="get"><select class="form-select" style="max-width:300px" name="term" aria-label="Academic term"><option value="">All terms</option>{% for t in terms %}<option value="{{ t.pk }}" {% if selected_term == t.pk|stringformat:'s' %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select><button class="btn btn-outline-primary">Filter</button></form><div class="table-responsive"><table class="table exam-table"><thead><tr><th>Student</th><th>Course / assessment</th><th>Marks</th><th>Grade</th><th>Outcome</th></tr></thead><tbody>{% for r in page %}<tr><td><a href="{% url 'examinations:student_statement' r.student_id %}">{{ r.student.roll_no }}</a><br>{{ r.student.user.display_name }}</td><td>{{ r.exam.course.code }} · {{ r.exam.name }}</td><td>{{ r.marks_obtained|default_if_none:'—' }} / {{ r.exam.max_marks }}</td><td>{{ r.grade }}</td><td>{{ r.outcome }}</td></tr>{% empty %}<tr><td colspan="5" class="exam-empty">No published results.</td></tr>{% endfor %}</tbody></table></div>{% include 'examinations/pagination.html' %}</div>{% endblock %}
+{% block exam_content %}
+<div class="exam-hero">
+  <div>
+    <h3><i class="fa-solid fa-chart-line me-2 text-primary"></i>Examination Results &amp; Appeals</h3>
+    <p>Official Senate-published assessment results, grade distributions, and appeal reviews.</p>
+  </div>
+  <div class="exam-actions no-print">
+    <a class="btn btn-primary rounded-pill px-3" href="?format=pdf&amp;preview=1&amp;term={{ selected_term }}">
+      <i class="fa-solid fa-print me-1"></i>Preview &amp; Print
+    </a>
+    <div class="dropdown">
+      <button class="btn btn-light border rounded-pill px-3 dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="fa-solid fa-download me-1"></i>Export
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end shadow-sm rounded-3">
+        <li><a class="dropdown-item py-2" href="?format=pdf&amp;term={{ selected_term }}&amp;download=1"><i class="fa-solid fa-file-pdf text-danger me-2"></i>Download PDF</a></li>
+        <li><a class="dropdown-item py-2" href="?format=excel&amp;term={{ selected_term }}"><i class="fa-solid fa-file-excel text-success me-2"></i>Export Excel (.xlsx)</a></li>
+        <li><a class="dropdown-item py-2" href="?format=csv&amp;term={{ selected_term }}"><i class="fa-solid fa-file-csv text-info me-2"></i>Export CSV (.csv)</a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="exam-kpis">
+  <div>
+    <small>Total Assessments</small>
+    <strong class="text-primary">{{ total }}</strong>
+  </div>
+  <div>
+    <small>Passed Assessments</small>
+    <strong class="text-success">{{ passed }}</strong>
+  </div>
+  <div>
+    <small>Failed Assessments</small>
+    <strong class="text-danger">{{ failed }}</strong>
+  </div>
+  <div>
+    <small>Candidates Absent</small>
+    <strong class="text-secondary">{{ absent }}</strong>
+  </div>
+</div>
+
+{% if appeals %}
+<div class="exam-card">
+  <h5 class="fw-bold text-dark mb-3"><i class="fa-solid fa-triangle-exclamation text-warning me-2"></i>Pending Appeals Awaiting Review</h5>
+  {% for a in appeals %}
+  <div class="border-bottom py-2 d-flex justify-content-between align-items-center">
+    <div>
+      <a href="{% url 'examinations:detail' a.result.exam_id %}" class="fw-bold text-dark text-decoration-none">
+        {{ a.result.student.user.display_name }} ({{ a.result.student.roll_no }}) · {{ a.result.exam }}
+      </a>
+      <p class="exam-muted mb-0 small">{{ a.reason }}</p>
+    </div>
+    <span class="exam-status pending">{{ a.get_status_display }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="exam-card">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 no-print">
+    <form class="d-flex gap-2 align-items-center flex-wrap" method="get">
+      <label class="small text-muted fw-semibold mb-0">Term:</label>
+      <select class="form-select form-select-sm rounded-pill" style="max-width:280px;" name="term" aria-label="Academic term">
+        <option value="">All Academic Terms</option>
+        {% for t in terms %}
+        <option value="{{ t.pk }}" {% if selected_term == t.pk|stringformat:'s' %}selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-sm btn-primary rounded-pill px-3">Filter</button>
+      {% if selected_term %}
+        <a href="{% url 'examinations:report' %}" class="btn btn-sm btn-light border rounded-pill px-3">Reset</a>
+      {% endif %}
+    </form>
+    <span class="small text-muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table exam-table academic-record-table align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Student</th>
+          <th>Course &amp; Assessment</th>
+          <th class="text-center">Score / Max</th>
+          <th class="text-center">Grade</th>
+          <th class="text-end">Outcome &amp; Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in page %}
+        <tr>
+          <td>
+            <a href="{% url 'examinations:student_statement' r.student_id %}" class="fw-bold text-primary font-monospace text-decoration-none">
+              {{ r.student.roll_no }}
+            </a>
+            <div class="text-dark small fw-semibold">{{ r.student.user.display_name }}</div>
+          </td>
+          <td>
+            <span class="badge bg-primary bg-opacity-10 text-primary font-monospace px-2 py-1 rounded-2">{{ r.exam.course.code }}</span>
+            <span class="fw-semibold text-dark">{{ r.exam.name }}</span>
+            <div class="small text-muted">{{ r.exam.term|default:"Term not recorded" }}</div>
+          </td>
+          <td class="text-center">
+            <strong class="fs-6">{{ r.marks_obtained|default_if_none:'—' }}</strong>
+            <span class="text-muted small">/ {{ r.exam.max_marks }}</span>
+          </td>
+          <td class="text-center">
+            <span class="badge {% if r.grade == 'A' %}bg-success{% elif r.grade == 'B' %}bg-primary{% elif r.grade == 'C' %}bg-warning text-dark{% elif r.grade == 'D' %}bg-secondary{% else %}bg-danger{% endif %} rounded-pill px-2 py-1">
+              {{ r.grade }}
+            </span>
+          </td>
+          <td class="text-end">
+            <span class="exam-status {% if r.outcome == 'Pass' %}pass{% elif r.outcome == 'Fail' %}fail{% else %}pending{% endif %}">
+              {{ r.outcome }}
+            </span>
+            <div class="small text-muted mt-1">{{ r.exam.get_status_display }}</div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="5" class="exam-empty">No published examination results matching criteria.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include 'examinations/pagination.html' %}
+</div>
+{% endblock %}
+

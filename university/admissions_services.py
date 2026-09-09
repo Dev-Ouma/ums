@@ -1,3 +1,4 @@
+from xml.sax.saxutils import escape
 import io
 import os
 from datetime import timedelta
@@ -8,6 +9,8 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
 
+from university.document_design import (ReportDocTemplate, document_styles, document_fonts,
+    PageNumberCanvas, letterhead, get_branding, finish_worksheet)
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -17,7 +20,10 @@ from reportlab.platypus import (
 )
 
 from accounts.models import Role, StudentProfile
-from university.models import Application, FeeInvoice, FeeStructure
+from university.models import AcademicTerm, Application, FeeInvoice, FeeStructure, SemesterRegistration, AuditLog
+from university.audit_services import log_activity
+from university.academic_calendar_services import get_current_academic_year, get_current_semester
+from university.student_numbering_services import generate_student_registration_number
 
 User = get_user_model()
 
@@ -39,19 +45,17 @@ def generate_application_number(intake=None):
 
 
 def assign_admitted_reg_no(application):
-    """Assign a formal university registration number (e.g. BCS/0014/2026)."""
-    year = timezone.now().year
-    prog_code = application.program.code if application.program else "ADM"
-    prefix = f"{prog_code}/"
-    suffix = f"/{year}"
-    count = Application.objects.filter(admitted_reg_no__startswith=prefix, admitted_reg_no__endswith=suffix).count()
-    return f"{prefix}{count + 1:04d}{suffix}"
+    """Assign a formal university registration number using configurable institutional template."""
+    return generate_student_registration_number(
+        program=application.program,
+        intake=application.intake,
+    )
 
 
 def generate_admission_letter_pdf(application):
     """Generate a formal university admission letter as a PDF byte buffer."""
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
+    doc = ReportDocTemplate(
         buffer,
         pagesize=A4,
         leftMargin=40,
@@ -60,7 +64,7 @@ def generate_admission_letter_pdf(application):
         bottomMargin=40,
     )
 
-    styles = getSampleStyleSheet()
+    styles = document_styles()
     primary_color = colors.HexColor("#1e3a8a")  # University Deep Navy
     dark_gray = colors.HexColor("#1f2937")
     muted_gray = colors.HexColor("#4b5563")
@@ -68,7 +72,7 @@ def generate_admission_letter_pdf(application):
     title_style = ParagraphStyle(
         "LetterTitle",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=18,
         leading=22,
         textColor=primary_color,
@@ -77,7 +81,7 @@ def generate_admission_letter_pdf(application):
     subtitle_style = ParagraphStyle(
         "LetterSubtitle",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=10,
         leading=14,
         textColor=muted_gray,
@@ -86,7 +90,7 @@ def generate_admission_letter_pdf(application):
     heading_style = ParagraphStyle(
         "HeadingStyle",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=13,
         leading=17,
         textColor=primary_color,
@@ -95,7 +99,7 @@ def generate_admission_letter_pdf(application):
     body_style = ParagraphStyle(
         "LetterBody",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=10,
         leading=15,
         textColor=dark_gray,
@@ -103,7 +107,7 @@ def generate_admission_letter_pdf(application):
     body_bold = ParagraphStyle(
         "LetterBodyBold",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=10,
         leading=15,
         textColor=dark_gray,
@@ -112,8 +116,8 @@ def generate_admission_letter_pdf(application):
     story = []
 
     # Logo + Header
-    logo_path = os.path.join(settings.BASE_DIR, "static", "img", "ums-logo.png")
-    if os.path.exists(logo_path):
+    logo_path = get_branding()["logo_path"]
+    if logo_path and os.path.exists(logo_path):
         try:
             img = RLImage(logo_path, width=50, height=50)
             img.hAlign = "CENTER"
@@ -122,7 +126,7 @@ def generate_admission_letter_pdf(application):
         except Exception:
             pass
 
-    story.append(Paragraph("UNIVERSITY MANAGEMENT SYSTEM", title_style))
+    story.append(Paragraph(escape(get_branding()["site_name"].upper()), title_style))
     story.append(Paragraph("OFFICE OF THE REGISTRAR (ACADEMIC AFFAIRS)", subtitle_style))
     story.append(Paragraph("P.O. Box 90100 - 00100, Nairobi, Kenya · admissions@ums.ac.ke · www.ums.ac.ke", subtitle_style))
     story.append(Spacer(1, 8))
@@ -248,14 +252,20 @@ def matriculate_applicant(application, created_by=None):
     - Generates roll_no if not set
     - Creates or fetches User account with Role.STUDENT
     - Creates StudentProfile linked to user & program
+    - Assigns the currently active Academic Year/Semester (from Admin Setup, never hard-coded)
+      and creates the student's first SemesterRegistration for it
     - Links application.student to StudentProfile
     - Updates application.status to ENROLLED
-    - Automatically creates initial FeeInvoice from FeeStructure
+    - Automatically creates initial FeeInvoice from FeeStructure, tied to the active term
     """
     if application.student:
         return application.student, application.student.user, None
 
-    # Determine roll number
+    # Active academic calendar context, per Admin Academic Year/Semester Setup — never hard-coded.
+    active_ay = get_current_academic_year()
+    active_term = get_current_semester()
+
+    # Determine roll number using configurable numbering engine
     if not application.admitted_reg_no:
         application.admitted_reg_no = assign_admitted_reg_no(application)
 
@@ -294,7 +304,27 @@ def matriculate_applicant(application, created_by=None):
             address=application.address or "Nairobi, Kenya",
             date_of_birth=application.date_of_birth,
             current_semester=1,
+            status=StudentProfile.Status.ACTIVE,
             guardian_name=f"Parent of {application.first_name}",
+        )
+
+    # Initialize the first SemesterRegistration for the active academic term,
+    if active_term and active_term.academic_year:
+        ay_str = active_term.academic_year.name
+    elif active_term:
+        ay_str = f"{active_term.start_date.year}/{active_term.end_date.year}"
+    elif active_ay:
+        ay_str = active_ay.name
+    else:
+        ay_str = "2026/2027"
+    if active_term:
+        SemesterRegistration.objects.get_or_create(
+            student=student_profile, term=active_term,
+            defaults={
+                "semester_no": student_profile.current_semester,
+                "academic_year": ay_str,
+                "status": SemesterRegistration.DRAFT,
+            }
         )
 
     # Link and update application
@@ -303,6 +333,32 @@ def matriculate_applicant(application, created_by=None):
     application.reviewed_by = created_by or application.reviewed_by
     application.reviewed_at = timezone.now()
     application.save()
+
+    # Ensure admission document exists and links to student_profile
+    from university.admission_document_services import generate_admission_document
+    doc = application.issued_documents.filter(is_current_version=True).first()
+    if not doc:
+        generate_admission_document(application, user=created_by, reason="Auto-generated on matriculation")
+    else:
+        if not doc.student:
+            doc.student = student_profile
+            doc.save(update_fields=["student"])
+
+    # Log matriculation in Audit Trail
+    log_activity(
+        user=created_by,
+        action=AuditLog.Action.CREATE,
+        module=AuditLog.Module.STUDENTS,
+        entity="StudentProfile",
+        entity_id=student_profile.id,
+        description=f"Matriculated applicant {application.application_number} as student {student_profile.roll_no} into {student_profile.program.name if student_profile.program else 'General'}.",
+        new_state={
+            "roll_no": student_profile.roll_no,
+            "program": student_profile.program.code if student_profile.program else "",
+            "academic_year": ay_str,
+            "term": active_term.name if active_term else "",
+        }
+    )
 
     # Automatically generate initial semester invoice from fee structure
     fee_struct = FeeStructure.objects.filter(
@@ -321,6 +377,7 @@ def matriculate_applicant(application, created_by=None):
             "amount_paid": Decimal("0.00"),
             "issued_on": timezone.now().date(),
             "due_date": due_date,
+            "term": active_term,
         }
     )
 

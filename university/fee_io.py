@@ -7,6 +7,8 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from university.document_design import (ReportDocTemplate, document_styles, document_fonts,
+    PageNumberCanvas, letterhead, get_branding, finish_worksheet)
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -58,7 +60,7 @@ def export_fee_csv(queryset):
             due,
         ])
 
-    return buffer.getvalue().encode("utf-8-sig")
+    return buffer.getvalue().encode("utf-8")
 
 
 def export_fee_excel(queryset, site_name="University Management System", stats=None):
@@ -68,8 +70,8 @@ def export_fee_excel(queryset, site_name="University Management System", stats=N
     ws.title = "Fee Invoices"
     ws.views.sheetView[0].showGridLines = True
 
-    primary_color = "059669"      # Emerald Green
-    header_fill_color = "047857"  # Deep Emerald
+    primary_color = "6C5CE7"      # Emerald Green
+    header_fill_color = "4834D4"  # Deep Emerald
     zebra_color = "ECFDF5"        # Light Mint tint
     border_color = "CBD5E1"
 
@@ -78,7 +80,7 @@ def export_fee_excel(queryset, site_name="University Management System", stats=N
     font_header = Font(name="Arial", size=10, bold=True, color="FFFFFF")
     font_data = Font(name="Arial", size=10, color="1E293B")
     font_bold_data = Font(name="Arial", size=10, bold=True, color="1E293B")
-    font_total = Font(name="Arial", size=10, bold=True, color="047857")
+    font_total = Font(name="Arial", size=10, bold=True, color="4834D4")
 
     thin_border = Border(
         left=Side(style="thin", color=border_color),
@@ -87,8 +89,8 @@ def export_fee_excel(queryset, site_name="University Management System", stats=N
         bottom=Side(style="thin", color=border_color),
     )
     total_border = Border(
-        top=Side(style="thin", color="047857"),
-        bottom=Side(style="double", color="047857"),
+        top=Side(style="thin", color="4834D4"),
+        bottom=Side(style="double", color="4834D4"),
     )
 
     # 1. Title Banner
@@ -227,6 +229,7 @@ def export_fee_excel(queryset, site_name="University Management System", stats=N
     ws.freeze_panes = "A5"
 
     output = io.BytesIO()
+    finish_worksheet(ws, header_row=4, data_end=4 + queryset.count())
     wb.save(output)
     output.seek(0)
     return output.getvalue()
@@ -235,7 +238,7 @@ def export_fee_excel(queryset, site_name="University Management System", stats=N
 def export_fee_pdf(queryset, site_name="University Management System", logo_path=None, filter_text=None):
     """Generate high-quality branded PDF financial report in landscape A4."""
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
+    doc = ReportDocTemplate(
         buffer,
         pagesize=landscape(A4),
         leftMargin=36,
@@ -244,20 +247,20 @@ def export_fee_pdf(queryset, site_name="University Management System", logo_path
         bottomMargin=36,
     )
 
-    styles = getSampleStyleSheet()
+    styles = document_styles()
 
     title_style = ParagraphStyle(
         "FeeReportTitle",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=15,
         leading=19,
-        textColor=colors.HexColor("#065F46"),
+        textColor=colors.HexColor("#4834D4"),
     )
     meta_style = ParagraphStyle(
         "FeeReportMeta",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=9,
         leading=13,
         textColor=colors.HexColor("#64748B"),
@@ -266,7 +269,7 @@ def export_fee_pdf(queryset, site_name="University Management System", logo_path
     th_style = ParagraphStyle(
         "FeeTH",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=8,
         leading=10,
         textColor=colors.white,
@@ -275,7 +278,7 @@ def export_fee_pdf(queryset, site_name="University Management System", logo_path
     th_right = ParagraphStyle(
         "FeeTHRight",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=8,
         leading=10,
         textColor=colors.white,
@@ -284,7 +287,7 @@ def export_fee_pdf(queryset, site_name="University Management System", logo_path
     td_style = ParagraphStyle(
         "FeeTD",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=8,
         leading=10,
         textColor=colors.HexColor("#1E293B"),
@@ -292,15 +295,15 @@ def export_fee_pdf(queryset, site_name="University Management System", logo_path
     td_bold = ParagraphStyle(
         "FeeTDBold",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=8,
         leading=10,
-        textColor=colors.HexColor("#065F46"),
+        textColor=colors.HexColor("#4834D4"),
     )
     td_right = ParagraphStyle(
         "FeeTDRight",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=8,
         leading=10,
         textColor=colors.HexColor("#1E293B"),
@@ -309,7 +312,7 @@ def export_fee_pdf(queryset, site_name="University Management System", logo_path
     td_center = ParagraphStyle(
         "FeeTDCenter",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=8,
         leading=10,
         textColor=colors.HexColor("#1E293B"),
@@ -317,51 +320,20 @@ def export_fee_pdf(queryset, site_name="University Management System", logo_path
     )
 
     story = []
-
-    # 1. Header Banner
-    now_str = timezone.now().strftime("%d %b %Y, %H:%M")
-    total_billed = sum(float(i.amount) for i in queryset)
-    total_paid = sum(float(i.amount_paid) for i in queryset)
-    total_balance = sum(float(i.balance) for i in queryset)
-
-    filter_desc = f"<b>Filter:</b> {filter_text}<br/>" if filter_text else ""
-    info_html = (
-        f"<b>Generated:</b> {now_str}<br/>"
-        f"<b>Invoices:</b> {queryset.count()} | <b>Outstanding:</b> KES {total_balance:,.0f}<br/>"
-        f"{filter_desc}"
-    )
-
-    if logo_path:
-        try:
-            logo_flowable = RLImage(logo_path, width=46, height=46)
-            header_table = Table(
-                [[logo_flowable, Paragraph(f"<b>FINANCIAL & FEE REPORT</b><br/><font color='#64748B' size='8'>{site_name} · Bursar's Office</font>", title_style), Paragraph(info_html, meta_style)]],
-                colWidths=[54, 450, 260],
-            )
-        except Exception:
-            header_table = Table(
-                [[Paragraph(f"<b>{site_name.upper()}</b><br/><font size='12' color='#059669'>Official Fee Invoices Report</font>", title_style), Paragraph(info_html, meta_style)]],
-                colWidths=[504, 260],
-            )
-    else:
-        header_table = Table(
-            [[Paragraph(f"<b>{site_name.upper()}</b><br/><font size='12' color='#059669'>Official Fee Invoices Report</font>", title_style), Paragraph(info_html, meta_style)]],
-            colWidths=[504, 260],
-        )
-
-    header_table.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    story.append(header_table)
-    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#059669"), spaceAfter=10))
+    branding = get_branding()
+    branding.update(site_name=site_name, logo_path=logo_path or branding['logo_path'])
+    story.append(letterhead(doc.width, 'Fee Invoices Report',
+        subtitle=f"Total records: {queryset.count()}", filter_text=filter_text, branding=branding))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#6C5CE7"), spaceAfter=10))
 
     # 2. Summary KPI Strip
+    total_billed = sum(float(inv.amount) for inv in queryset)
+    total_paid = sum(float(inv.amount_paid) for inv in queryset)
+    total_balance = sum(float(inv.balance) for inv in queryset)
     kpi_data = [
         [
             Paragraph("<b>Total Invoices</b><br/><font size='10'><b>" + str(queryset.count()) + "</b></font>", td_center),
-            Paragraph("<b>Total Billed</b><br/><font size='10' color='#059669'><b>KES " + f"{total_billed:,.0f}" + "</b></font>", td_center),
+            Paragraph("<b>Total Billed</b><br/><font size='10' color='#6C5CE7'><b>KES " + f"{total_billed:,.0f}" + "</b></font>", td_center),
             Paragraph("<b>Total Collected</b><br/><font size='10' color='#10B981'><b>KES " + f"{total_paid:,.0f}" + "</b></font>", td_center),
             Paragraph("<b>Outstanding Balance</b><br/><font size='10' color='#EF4444'><b>KES " + f"{total_balance:,.0f}" + "</b></font>", td_center),
         ]
@@ -430,7 +402,7 @@ def export_fee_pdf(queryset, site_name="University Management System", logo_path
 
     t = Table(data, colWidths=col_widths, repeatRows=1)
     t_style = [
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#059669")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#6C5CE7")),
         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("TOPPADDING", (0, 0), (-1, -1), 5),
@@ -444,7 +416,7 @@ def export_fee_pdf(queryset, site_name="University Management System", logo_path
     if len(data) > 2:
         # Style the totals row at the bottom
         t_style.append(("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#ECFDF5")))
-        t_style.append(("LINEABOVE", (0, -1), (-1, -1), 1.5, colors.HexColor("#059669")))
+        t_style.append(("LINEABOVE", (0, -1), (-1, -1), 1.5, colors.HexColor("#6C5CE7")))
 
     t.setStyle(TableStyle(t_style))
     story.append(t)

@@ -224,7 +224,7 @@ DEFAULT_SETTINGS = [
         "key": "application_fee_default",
         "label": "Standard Application Processing Fee (KES)",
         "value_type": SystemSetting.ValueType.DECIMAL,
-        "value": "1500.00",
+        "value": "1000.00",
         "description": "Required processing fee levied on prospective applicant dossiers.",
         "is_public": True,
     },

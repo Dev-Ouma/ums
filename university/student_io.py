@@ -12,6 +12,8 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from university.document_design import (ReportDocTemplate, document_styles, document_fonts,
+    PageNumberCanvas, letterhead, get_branding, finish_worksheet)
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -98,7 +100,7 @@ def export_students_csv(queryset):
             adm_date,
         ])
 
-    return buffer.getvalue().encode("utf-8-sig")
+    return buffer.getvalue().encode("utf-8")
 
 
 def export_students_excel(queryset, site_name="University Management System"):
@@ -110,7 +112,7 @@ def export_students_excel(queryset, site_name="University Management System"):
 
     # Color definitions (UMS palette)
     primary_color = "6C5CE7"      # Brand Purple
-    header_fill_color = "5444D0"  # Darker purple for header
+    header_fill_color = "4834D4"  # Darker purple for header
     zebra_color = "F7F8FC"        # Soft surface tint
     border_color = "D6D9E6"
 
@@ -213,52 +215,19 @@ def export_students_excel(queryset, site_name="University Management System"):
     ws.freeze_panes = "A5"
 
     output = io.BytesIO()
+    finish_worksheet(ws, header_row=4)
     wb.save(output)
     output.seek(0)
     return output.getvalue()
 
 
-class NumberedCanvas(canvas.Canvas):
-    """Two-pass canvas for dynamic 'Page X of Y' numbering in ReportLab."""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._saved_page_states = []
-
-    def showPage(self):
-        self._saved_page_states.append(dict(self.__dict__))
-        self._startPage()
-
-    def save(self):
-        num_pages = len(self._saved_page_states)
-        for state in self._saved_page_states:
-            self.__dict__.update(state)
-            self.draw_page_number(num_pages)
-            canvas.Canvas.showPage(self)
-        canvas.Canvas.save(self)
-
-    def draw_page_number(self, page_count):
-        self.saveState()
-        self.setFont("Helvetica", 8)
-        self.setFillColor(colors.HexColor("#718096"))
-        
-        # Footer text
-        footer_left = "University Management System · Confidential Student Records"
-        footer_right = f"Page {self._pageNumber} of {page_count}"
-        
-        self.drawString(36, 24, footer_left)
-        self.drawRightString(A4[1] - 36, 24, footer_right)
-        
-        # Thin divider line
-        self.setStrokeColor(colors.HexColor("#E2E8F0"))
-        self.setLineWidth(0.5)
-        self.line(36, 36, A4[1] - 36, 36)
-        self.restoreState()
+NumberedCanvas = PageNumberCanvas
 
 
 def export_students_pdf(queryset, site_name="University Management System", logo_path=None, filter_text=None):
     """Generate high-quality branded PDF report in landscape A4."""
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
+    doc = ReportDocTemplate(
         buffer,
         pagesize=landscape(A4),
         leftMargin=36,
@@ -267,26 +236,26 @@ def export_students_pdf(queryset, site_name="University Management System", logo
         bottomMargin=45
     )
 
-    styles = getSampleStyleSheet()
+    styles = document_styles()
     
     # Custom Typography Styles
     title_style = ParagraphStyle(
         "ReportTitle",
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=18,
         leading=22,
         textColor=colors.HexColor("#2B2B3A"),
     )
     subtitle_style = ParagraphStyle(
         "ReportSubtitle",
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=9,
         leading=13,
         textColor=colors.HexColor("#718096"),
     )
     meta_style = ParagraphStyle(
         "ReportMeta",
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=8.5,
         leading=12,
         textColor=colors.HexColor("#6C5CE7"),
@@ -294,7 +263,7 @@ def export_students_pdf(queryset, site_name="University Management System", logo
     )
     th_style = ParagraphStyle(
         "TableHeader",
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=8.5,
         leading=11,
         textColor=colors.white,
@@ -302,21 +271,21 @@ def export_students_pdf(queryset, site_name="University Management System", logo
     )
     td_style = ParagraphStyle(
         "TableCell",
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=8,
         leading=10.5,
         textColor=colors.HexColor("#2B2B3A"),
     )
     td_bold = ParagraphStyle(
         "TableCellBold",
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=8,
         leading=10.5,
         textColor=colors.HexColor("#2B2B3A"),
     )
     td_center = ParagraphStyle(
         "TableCellCenter",
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=8,
         leading=10.5,
         textColor=colors.HexColor("#2B2B3A"),
@@ -325,37 +294,10 @@ def export_students_pdf(queryset, site_name="University Management System", logo
 
     story = []
 
-    # 1. Header Banner with Logo & Title
-    header_data = []
-    has_logo = logo_path and True
-    logo_flowable = None
-    if logo_path:
-        try:
-            logo_flowable = RLImage(logo_path, width=2.4 * inch, height=0.6 * inch)
-        except Exception:
-            logo_flowable = None
-
-    now_str = timezone.now().strftime("%d %B %Y, %H:%M")
-    filter_desc = f"Filter: {filter_text} · " if filter_text else ""
-    info_html = f"<b>Generated:</b> {now_str}<br/><b>Total Records:</b> {queryset.count()} students<br/>{filter_desc}"
-
-    if logo_flowable:
-        header_table = Table(
-            [[logo_flowable, Paragraph(f"<b>STUDENT DIRECTORY</b><br/><font color='#718096' size='8'>{site_name}</font>", title_style), Paragraph(info_html, meta_style)]],
-            colWidths=[2.5 * inch, 5.0 * inch, 3.2 * inch]
-        )
-    else:
-        header_table = Table(
-            [[Paragraph(f"<b>{site_name.upper()}</b><br/><font size='12' color='#6C5CE7'>Student Directory Report</font>", title_style), Paragraph(info_html, meta_style)]],
-            colWidths=[7.5 * inch, 3.2 * inch]
-        )
-
-    header_table.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    story.append(header_table)
+    branding = get_branding()
+    branding.update(site_name=site_name, logo_path=logo_path or branding['logo_path'])
+    story.append(letterhead(doc.width, 'Student Directory',
+        subtitle=f"Total records: {queryset.count()}", filter_text=filter_text, branding=branding))
     story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#6C5CE7"), spaceAfter=12))
 
     # 2. Table of Students
@@ -443,7 +385,7 @@ def generate_import_template_csv():
         SAMPLE_STUDENT_ROW["guardian_name"],
     ]
     writer.writerow(sample_row)
-    return buffer.getvalue().encode("utf-8-sig")
+    return buffer.getvalue().encode("utf-8")
 
 
 def generate_import_template_excel():

@@ -1,3 +1,4 @@
+from university.document_design import ReportDocTemplate, document_styles, PageNumberCanvas, letterhead, get_branding, finish_worksheet
 import csv
 import io
 import os
@@ -228,6 +229,7 @@ def export_audit_excel(queryset, site_name="University Management System"):
         ws.column_dimensions[col_letter].width = min(max(max_len + 3, 12), 45)
 
     stream = io.BytesIO()
+    finish_worksheet(ws, header_row=1)
     wb.save(stream)
     return stream.getvalue()
 
@@ -235,7 +237,7 @@ def export_audit_excel(queryset, site_name="University Management System"):
 def export_audit_pdf(queryset, site_name="University Management System"):
     """Export audit log queryset as landscape PDF document."""
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
+    doc = ReportDocTemplate(
         buffer,
         pagesize=landscape(A4),
         leftMargin=25,
@@ -244,14 +246,14 @@ def export_audit_pdf(queryset, site_name="University Management System"):
         bottomMargin=25,
     )
 
-    styles = getSampleStyleSheet()
+    styles = document_styles()
     primary_color = colors.HexColor("#1e3a8a")
     dark_gray = colors.HexColor("#1f2937")
 
     title_style = ParagraphStyle(
         "AuditTitle",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=15,
         leading=19,
         textColor=primary_color,
@@ -260,7 +262,7 @@ def export_audit_pdf(queryset, site_name="University Management System"):
     body_style = ParagraphStyle(
         "AuditBody",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=8,
         leading=11,
         textColor=dark_gray,
@@ -268,14 +270,14 @@ def export_audit_pdf(queryset, site_name="University Management System"):
     body_bold = ParagraphStyle(
         "AuditBodyBold",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=8,
         leading=11,
         textColor=dark_gray,
     )
 
     story = []
-    story.append(Paragraph(f"{site_name.upper()} — SYSTEM AUDIT TRAILS & ACTIVITY LOG", title_style))
+    story.append(letterhead(doc.width, "System Audit Trails & Activity Log"))
     story.append(Paragraph(f"Generated on {timezone.now().strftime('%d %B %Y at %H:%M:%S')} · Official Immutable System Log", ParagraphStyle("Sub", parent=body_style, alignment=1, textColor=colors.HexColor("#6b7280"))))
     story.append(Spacer(1, 6))
     story.append(HRFlowable(width="100%", thickness=1.5, color=primary_color, spaceAfter=10))
@@ -301,8 +303,8 @@ def export_audit_pdf(queryset, site_name="University Management System"):
             Paragraph(f"{log.ip_address or '—'}<br/>{log.device_type}", body_style),
         ])
 
-    col_widths = [75, 110, 110, 120, 245, 120]
-    audit_table = Table(table_data, colWidths=col_widths)
+    col_widths = [doc.width * fraction for fraction in [.10, .14, .12, .16, .32, .16]]
+    audit_table = Table(table_data, colWidths=col_widths, repeatRows=1)
     audit_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),

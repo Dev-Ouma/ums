@@ -1,3 +1,4 @@
+from xml.sax.saxutils import escape
 import io
 import os
 from decimal import Decimal
@@ -5,11 +6,13 @@ from decimal import Decimal
 from django.conf import settings
 from django.utils import timezone
 
+from university.document_design import (ReportDocTemplate, document_styles, document_fonts,
+    PageNumberCanvas, letterhead, get_branding, finish_worksheet, make_qr_code_flowable)
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, portrait
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import (
-    HRFlowable, Image as RLImage, Paragraph, SimpleDocTemplate,
+    HRFlowable, Image as RLImage, KeepTogether, Paragraph, SimpleDocTemplate,
     Spacer, Table, TableStyle
 )
 
@@ -17,14 +20,14 @@ from university.financial_services import check_financial_clearance
 from university.models import Enrollment, Exam, Result
 
 
-def generate_exam_card_pdf(student, term=None):
+def generate_exam_card_pdf(student, term=None, verify_url=None, tracking_info=None):
     """
     Generate an official Student Examination Card (Admission Slip) as a PDF byte buffer.
     Enforces financial clearance: If the student has an uncleared balance, outputs a
     formal Financial Hold notice.
     """
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
+    doc = ReportDocTemplate(
         buffer,
         pagesize=A4,
         leftMargin=36,
@@ -33,15 +36,15 @@ def generate_exam_card_pdf(student, term=None):
         bottomMargin=36,
     )
 
-    styles = getSampleStyleSheet()
-    primary_color = colors.HexColor("#1e3a8a")
+    styles = document_styles()
+    primary_color = colors.HexColor("#6C5CE7")
     dark_gray = colors.HexColor("#1f2937")
     muted_gray = colors.HexColor("#4b5563")
 
     title_style = ParagraphStyle(
         "CardTitle",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=17,
         leading=21,
         textColor=primary_color,
@@ -50,7 +53,7 @@ def generate_exam_card_pdf(student, term=None):
     subtitle_style = ParagraphStyle(
         "CardSubtitle",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=9,
         leading=13,
         textColor=muted_gray,
@@ -59,7 +62,7 @@ def generate_exam_card_pdf(student, term=None):
     body_style = ParagraphStyle(
         "CardBody",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=9,
         leading=13,
         textColor=dark_gray,
@@ -67,7 +70,7 @@ def generate_exam_card_pdf(student, term=None):
     body_bold = ParagraphStyle(
         "CardBodyBold",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=9,
         leading=13,
         textColor=dark_gray,
@@ -76,8 +79,8 @@ def generate_exam_card_pdf(student, term=None):
     story = []
 
     # Logo + Header
-    logo_path = os.path.join(settings.BASE_DIR, "static", "img", "ums-logo.png")
-    if os.path.exists(logo_path):
+    logo_path = get_branding()["logo_path"]
+    if logo_path and os.path.exists(logo_path):
         try:
             img = RLImage(logo_path, width=40, height=40)
             img.hAlign = "CENTER"
@@ -86,7 +89,7 @@ def generate_exam_card_pdf(student, term=None):
         except Exception:
             pass
 
-    story.append(Paragraph("UNIVERSITY MANAGEMENT SYSTEM", title_style))
+    story.append(Paragraph(escape(get_branding()["site_name"].upper()), title_style))
     story.append(Paragraph("DIRECTORATE OF EXAMINATIONS & TIMETABLING", subtitle_style))
     story.append(Paragraph("OFFICIAL STUDENT EXAMINATION CARD", ParagraphStyle("CardHead", parent=title_style, fontSize=13, leading=16, textColor=primary_color)))
     story.append(Spacer(1, 4))
@@ -100,7 +103,7 @@ def generate_exam_card_pdf(student, term=None):
         hold_style = ParagraphStyle(
             "HoldStyle",
             parent=styles["Normal"],
-            fontName="Helvetica-Bold",
+            fontName="Quicksand-Bold",
             fontSize=16,
             leading=22,
             textColor=colors.HexColor("#b91c1c"),
@@ -225,22 +228,38 @@ def generate_exam_card_pdf(student, term=None):
     story.append(Paragraph(instr_text, ParagraphStyle("Instr", parent=body_style, fontSize=8, leading=11)))
     story.append(Spacer(1, 14))
 
-    # Official Signatures and Stamp Block
+    # Official Signatures and Stamp Block with Verification QR
+    ref_code = f"EXAM-CARD/{term.name.replace(' ', '') if term else 'SESSION'}/{student.roll_no}"
+    qr_url = verify_url or f"/verify/document/{ref_code}/"
+    qr_flowable = make_qr_code_flowable(qr_url, size=46)
+
     stamp_data = [
         [
-            Paragraph("<b>Student Signature:</b> ____________________<br/>Date: ________________________", body_style),
-            Paragraph("<b>FINANCIAL CLEARANCE STAMP</b><br/><font color='#047857'><b>★ CERTIFIED CLEARED ★</b></font><br/>Registrar / Finance Officer", ParagraphStyle("FinStamp", parent=body_style, alignment=1, textColor=colors.HexColor("#047857"))),
+            Paragraph("<b>Candidate Signature:</b> ____________________<br/>Date: ________________________", body_style),
+            [
+                Paragraph("<b>VERIFICATION QR</b>", ParagraphStyle("QRTitle", parent=body_style, fontSize=7.5, alignment=1)),
+                Spacer(1, 1),
+                qr_flowable,
+                Paragraph("<font size='6.5' color='#64748b'>Invigilator Scan</font>", ParagraphStyle("QRSub", parent=body_style, alignment=1)),
+            ],
+            Paragraph("<b>FINANCIAL CLEARANCE</b><br/><font color='#047857'><b>★ CLEARED FOR EXAMS ★</b></font><br/>Academic Registry / Finance Stamp", ParagraphStyle("FinStamp", parent=body_style, alignment=1, textColor=colors.HexColor("#047857"))),
         ]
     ]
-    stamp_table = Table(stamp_data, colWidths=[290, 233])
+    stamp_table = Table(stamp_data, colWidths=[205, 110, 208])
     stamp_table.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("ALIGN", (1, 0), (1, 0), "CENTER"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 2),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+        ("TOPPADDING", (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
     ]))
-    story.append(stamp_table)
+    story.append(KeepTogether([stamp_table]))
 
-    doc.build(story)
+    def canvas_factory(*args, **kwargs):
+        return PageNumberCanvas(*args, tracking_info=tracking_info, **kwargs)
+
+    doc.build(story, canvasmaker=canvas_factory)
     buffer.seek(0)
     return buffer.getvalue()
 
@@ -251,7 +270,7 @@ def generate_nominal_roll_pdf(exam):
     Used by room invigilators to record student booklet numbers and signatures.
     """
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
+    doc = ReportDocTemplate(
         buffer,
         pagesize=A4,
         leftMargin=36,
@@ -260,14 +279,14 @@ def generate_nominal_roll_pdf(exam):
         bottomMargin=36,
     )
 
-    styles = getSampleStyleSheet()
-    primary_color = colors.HexColor("#1e3a8a")
+    styles = document_styles()
+    primary_color = colors.HexColor("#6C5CE7")
     dark_gray = colors.HexColor("#1f2937")
 
     title_style = ParagraphStyle(
         "RollTitle",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=16,
         leading=20,
         textColor=primary_color,
@@ -276,7 +295,7 @@ def generate_nominal_roll_pdf(exam):
     body_style = ParagraphStyle(
         "RollBody",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Quicksand",
         fontSize=9,
         leading=13,
         textColor=dark_gray,
@@ -284,7 +303,7 @@ def generate_nominal_roll_pdf(exam):
     body_bold = ParagraphStyle(
         "RollBodyBold",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="Quicksand-Bold",
         fontSize=9,
         leading=13,
         textColor=dark_gray,
@@ -292,7 +311,7 @@ def generate_nominal_roll_pdf(exam):
 
     story = []
 
-    story.append(Paragraph("UNIVERSITY MANAGEMENT SYSTEM", title_style))
+    story.append(Paragraph(escape(get_branding()["site_name"].upper()), title_style))
     story.append(Paragraph("OFFICE OF EXAMINATIONS · ROOM ATTENDANCE & NOMINAL ROLL", ParagraphStyle("NRSub", parent=title_style, fontSize=11, leading=15, textColor=colors.HexColor("#4b5563"))))
     story.append(Spacer(1, 4))
     story.append(HRFlowable(width="100%", thickness=1.5, color=primary_color, spaceAfter=10))
@@ -361,12 +380,21 @@ def generate_nominal_roll_pdf(exam):
 
     # Invigilator Summary & Certification
     cert_text = (
-        f"<b>INVIGILATOR'S CERTIFICATION:</b><br/>"
+        f"<b>INVIGILATOR'S SUMMARY &amp; ATTENDANCE CERTIFICATION:</b><br/>"
         f"Total Candidates Registered: <b>{len(enrollments)}</b> &nbsp; | &nbsp; "
-        f"Candidates Present: _______ &nbsp; | &nbsp; Candidates Absent: _______<br/>"
-        f"Chief Invigilator Name: __________________________ Signature: ______________________ Date: ___________"
+        f"Candidates Present: _______ &nbsp; | &nbsp; Candidates Absent: _______<br/><br/>"
+        f"Chief Invigilator Name: __________________________ &nbsp; Signature: ______________________ &nbsp; Date: ___________"
     )
-    story.append(Paragraph(cert_text, ParagraphStyle("Cert", parent=body_style, fontSize=9, leading=14)))
+    cert_table = Table([[Paragraph(cert_text, ParagraphStyle("Cert", parent=body_style, fontSize=8.5, leading=13))]], colWidths=[523])
+    cert_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
+        ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#cbd5e1")),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+    ]))
+    story.append(KeepTogether([cert_table]))
 
     doc.build(story)
     buffer.seek(0)

@@ -1,0 +1,112 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Student Requests · Academics · UMS{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h4><i class="fa-solid fa-file-circle-question me-2" style="color:var(--primary)"></i>Student Requests</h4>
+    <small class="text-muted">{{ student.roll_no }} · {{ student.user.display_name }} · Deferment, Withdrawal &amp; Sick Leave</small>
+  </div>
+  <span class="badge rounded-pill px-3 py-2 fs-6
+    {% if student.status == 'ACTIVE' %}bg-success
+    {% elif student.status == 'DEFERRED' %}bg-warning text-dark
+    {% elif student.status == 'ON_LEAVE' %}bg-info text-dark
+    {% else %}bg-danger{% endif %}">
+    <i class="fa-solid fa-circle-dot me-1"></i>Status: {{ student.get_status_display }}
+  </span>
+</div>
+
+{% if can_resume %}
+<div class="card card-ums p-4 mb-4 border-success-subtle bg-success-subtle">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div>
+      <h6 class="fw-bold mb-1"><i class="fa-solid fa-rotate-left me-2 text-success"></i>Ready to resume your studies?</h6>
+      <p class="text-muted small mb-0">Your account is currently <strong>{{ student.get_status_display }}</strong>. Resuming reactivates your account and preserves all your academic history — you'll be able to complete Semester Registration for the active term right away.</p>
+    </div>
+    <form method="post" action="{% url 'university:student_resume_studies' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-success rounded-pill px-4"><i class="fa-solid fa-play me-1"></i>Resume Studies</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card card-ums p-4">
+      <h6 class="fw-bold mb-3"><i class="fa-solid fa-paper-plane me-2 text-primary"></i>Submit a New Request</h6>
+      {% if pending %}
+        <div class="alert alert-warning small mb-0">
+          <i class="fa-solid fa-hourglass-half me-1"></i>You already have a pending request awaiting review.
+          You may submit a new one once it has been decided.
+        </div>
+      {% elif student.status != 'ACTIVE' %}
+        <div class="alert alert-secondary small mb-0">
+          <i class="fa-solid fa-circle-info me-1"></i>New requests can only be submitted while your account is Active.
+        </div>
+      {% else %}
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          {% if form.non_field_errors %}<div class="alert alert-danger py-2 small">{{ form.non_field_errors }}</div>{% endif %}
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Request Type</label>
+            {{ form.request_type }}
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Reason</label>
+            {{ form.reason }}
+            {% for e in form.reason.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label small fw-semibold">{{ form.start_date.label }}</label>
+              {{ form.start_date }}
+            </div>
+            <div class="col-6">
+              <label class="form-label small fw-semibold">{{ form.end_date.label }}</label>
+              {{ form.end_date }}
+            </div>
+          </div>
+          {% for e in form.non_field_errors %}{% endfor %}
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Supporting Document <span class="text-muted fw-normal">(optional, e.g. medical note)</span></label>
+            {{ form.supporting_document }}
+          </div>
+          <button type="submit" class="btn btn-primary rounded-pill px-4 w-100"><i class="fa-solid fa-paper-plane me-1"></i>Submit Request</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card card-ums">
+      <div class="card-header fw-semibold"><i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>My Request History</div>
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead class="table-light">
+            <tr><th class="ps-3">Type</th><th>Submitted</th><th>Period</th><th>Status</th><th>Reviewer Comments</th></tr>
+          </thead>
+          <tbody>
+            {% for r in history %}
+            <tr>
+              <td class="ps-3 fw-semibold">{{ r.get_request_type_display }}</td>
+              <td class="small text-muted">{{ r.submitted_at|date:"d M Y" }}</td>
+              <td class="small">{% if r.start_date %}{{ r.start_date|date:"d M Y" }} – {{ r.end_date|date:"d M Y" }}{% else %}—{% endif %}</td>
+              <td>
+                <span class="badge rounded-pill
+                  {% if r.status == 'APPROVED' %}bg-success
+                  {% elif r.status == 'REJECTED' %}bg-danger
+                  {% elif r.status == 'UNDER_REVIEW' %}bg-info text-dark
+                  {% else %}bg-secondary{% endif %}">{{ r.get_status_display }}</span>
+              </td>
+              <td class="small text-muted">{{ r.review_comments|default:"—" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center py-4 text-muted">You haven't submitted any requests yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -22,7 +22,7 @@ from university.financial_services import (
     get_or_create_semester_invoice,
 )
 from university.models import (
-    AcademicTerm, Application, Course, Department, Enrollment, Exam,
+    AcademicTerm, AcademicYear, Application, Course, Department, Enrollment, Exam,
     FeeInvoice, FeeStructure, Intake, Payment, Program,
     SupplementaryExamRegistration,
 )
@@ -41,10 +41,16 @@ class AdmissionsAndFinancialTests(TestCase):
         self.dept = Department.objects.create(name="School of Computing", code="SOC")
         self.prog = Program.objects.create(department=self.dept, name="BSc Computer Science", code="BCS")
 
-        # Intake
+        # Academic Year & Intake
+        self.ay = AcademicYear.objects.create(
+            name="2026/2027",
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=365),
+            is_current=True,
+        )
         self.intake = Intake.objects.create(
             name="September 2026 Regular Intake",
-            academic_year="2026/2027",
+            academic_year=self.ay,
             start_date=date.today(),
             end_date=date.today() + timedelta(days=60),
             is_active=True,

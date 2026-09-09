@@ -2,7 +2,22 @@
 {% block title %}Student Dashboard · UMS{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h4>Student Dashboard</h4><small class="text-muted">{{ student.roll_no }} · {{ student.program }}</small></div>
+  <div>
+    <h4>Student Dashboard</h4>
+    <div class="d-flex align-items-center gap-2 flex-wrap text-muted small mt-1">
+      <span class="badge bg-primary-subtle text-primary border rounded-pill px-2.5 py-0.5 font-monospace">
+        <i class="fa-solid fa-id-card me-1"></i>{{ student.roll_no }}
+      </span>
+      <span>&bull;</span>
+      <span><strong>{{ student.program.name|default:"General Programme" }}</strong></span>
+      <span>&bull;</span>
+      <span>Year {{ student.year_of_study }} &bull; Semester {{ student.current_semester }}</span>
+      {% if academic_context %}
+      <span>&bull;</span>
+      <span class="text-dark"><i class="fa-regular fa-calendar-check text-success me-1"></i>{{ academic_context.academic_year_name }} ({{ academic_context.semester_name }})</span>
+      {% endif %}
+    </div>
+  </div>
   <div class="d-flex align-items-center gap-2">
     <a href="{% url 'university:student_register_units' %}" class="btn btn-sm btn-primary rounded-pill"><i class="fa-solid fa-clipboard-list me-1"></i>Register Units</a>
     <a href="{% url 'university:student_academic_transcript' %}" class="btn btn-sm btn-outline-primary rounded-pill"><i class="fa-solid fa-scroll me-1"></i>Academic Transcript</a>

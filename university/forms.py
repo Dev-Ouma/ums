@@ -5,7 +5,8 @@ from accounts.models import FacultyProfile, Role, StudentProfile, User
 
 from .models import (
     Assignment, ClassSchedule, Course, Department, Enrollment, Event, Exam,
-    ExamRoom, FeeInvoice, FeeStructure, Notice, Program,
+    ExamRoom, FeeInvoice, FeeStructure, Notice, Program, StudentRequest,
+    AcademicYear, AcademicTerm,
 )
 
 CTRL = "form-control"
@@ -214,11 +215,30 @@ class DepartmentForm(forms.ModelForm):
 class ProgramForm(forms.ModelForm):
     class Meta:
         model = Program
-        fields = ["name", "code", "department", "level", "duration_years", "total_seats"]
+        fields = [
+            "code", "name", "award_title", "department", "program_type", "level",
+            "study_mode", "duration_value", "duration_unit", "min_credits", "max_credits",
+            "total_seats", "status", "description", "career_prospects"
+        ]
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 3, "placeholder": "Overview and learning outcomes..."}),
+            "career_prospects": forms.Textarea(attrs={"rows": 3, "placeholder": "Career pathways and professional opportunities..."}),
+            "award_title": forms.TextInput(attrs={"placeholder": "e.g. Bachelor of Science in Computer Science"}),
+        }
 
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
         _style(self.fields)
+        self.fields["department"].queryset = Department.objects.select_related("school").order_by("school__name", "name")
+
+    def clean_code(self):
+        code = self.cleaned_data.get("code", "").strip().upper()
+        qs = Program.objects.filter(code__iexact=code)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError(f"Programme Code '{code}' is already registered in the system.")
+        return code
 
 
 class CourseForm(forms.ModelForm):
@@ -300,6 +320,38 @@ class ClassScheduleForm(forms.ModelForm):
         _style(self.fields)
 
 
+class StudentRequestForm(forms.ModelForm):
+    class Meta:
+        model = StudentRequest
+        fields = ["request_type", "reason", "start_date", "end_date", "supporting_document"]
+        widgets = {
+            "reason": forms.Textarea(attrs={"rows": 4}),
+            "start_date": forms.DateInput(attrs={"type": "date"}),
+            "end_date": forms.DateInput(attrs={"type": "date"}),
+        }
+        labels = {
+            "start_date": "Start date",
+            "end_date": "Expected end / resumption date",
+        }
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        _style(self.fields)
+        self.fields["supporting_document"].required = False
+
+    def clean(self):
+        cleaned = super().clean()
+        rtype = cleaned.get("request_type")
+        start, end = cleaned.get("start_date"), cleaned.get("end_date")
+        if rtype in (StudentRequest.Type.DEFERMENT, StudentRequest.Type.SICK_LEAVE):
+            if not start or not end:
+                raise forms.ValidationError(
+                    "Start and end dates are required for deferment and sick leave requests.")
+            if end < start:
+                raise forms.ValidationError("The end date must be on or after the start date.")
+        return cleaned
+
+
 class FeeStructureForm(forms.ModelForm):
     class Meta:
         model = FeeStructure
@@ -313,4 +365,88 @@ class FeeStructureForm(forms.ModelForm):
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
         _style(self.fields)
+
+
+class AcademicYearForm(forms.ModelForm):
+    class Meta:
+        model = AcademicYear
+        fields = [
+            "name", "code", "start_date", "end_date", "status",
+            "is_current", "reference_no", "max_programmes_allowed", "description",
+        ]
+        widgets = {
+            "start_date": forms.DateInput(attrs={"type": "date"}),
+            "end_date": forms.DateInput(attrs={"type": "date"}),
+            "description": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _style(self.fields)
+        self.fields["code"].required = False
+        self.fields["reference_no"].required = False
+        self.fields["description"].required = False
+
+    def clean(self):
+        cleaned = super().clean()
+        start = cleaned.get("start_date")
+        end = cleaned.get("end_date")
+        if start and end and start >= end:
+            self.add_error("end_date", "Academic year end date must be strictly after start date.")
+        return cleaned
+
+
+class SemesterForm(forms.ModelForm):
+    class Meta:
+        model = AcademicTerm
+        fields = [
+            "name", "academic_year", "term_type", "semester_number",
+            "start_date", "end_date", "registration_start_date",
+            "registration_end_date", "exam_start_date", "exam_end_date",
+            "status", "is_current",
+        ]
+        widgets = {
+            "start_date": forms.DateInput(attrs={"type": "date"}),
+            "end_date": forms.DateInput(attrs={"type": "date"}),
+            "registration_start_date": forms.DateInput(attrs={"type": "date"}),
+            "registration_end_date": forms.DateInput(attrs={"type": "date"}),
+            "exam_start_date": forms.DateInput(attrs={"type": "date"}),
+            "exam_end_date": forms.DateInput(attrs={"type": "date"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _style(self.fields)
+        self.fields["registration_start_date"].required = False
+        self.fields["registration_end_date"].required = False
+        self.fields["exam_start_date"].required = False
+        self.fields["exam_end_date"].required = False
+
+    def clean(self):
+        cleaned = super().clean()
+        ay = cleaned.get("academic_year")
+        start = cleaned.get("start_date")
+        end = cleaned.get("end_date")
+        reg_start = cleaned.get("registration_start_date")
+        reg_end = cleaned.get("registration_end_date")
+        exam_start = cleaned.get("exam_start_date")
+        exam_end = cleaned.get("exam_end_date")
+
+        if start and end and start >= end:
+            self.add_error("end_date", "Semester end date must be strictly after start date.")
+
+        if ay and start and end:
+            if start < ay.start_date or end > ay.end_date:
+                self.add_error(
+                    "start_date",
+                    f"Semester dates must fall within parent Academic Year ({ay.start_date} to {ay.end_date})."
+                )
+
+        if reg_start and reg_end and reg_start > reg_end:
+            self.add_error("registration_end_date", "Registration cut-off date must be on or after start date.")
+
+        if exam_start and exam_end and exam_start > exam_end:
+            self.add_error("exam_end_date", "Exam concluding date must be on or after start date.")
+
+        return cleaned
 
