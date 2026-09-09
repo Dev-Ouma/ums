@@ -63,49 +63,49 @@ REPORT_CATEGORIES = [
         "id": "student",
         "title": "Student Reports",
         "icon": "fa-user-graduate",
-        "color": "#6C5CE7",
+        "color": "#2563eb",
         "description": "Student population, demographic breakdowns, registers, and status distributions."
     },
     {
         "id": "academic",
         "title": "Academic & Senate Reports",
         "icon": "fa-scroll",
-        "color": "#00b894",
+        "color": "#0f766e",
         "description": "Senate consolidated marksheets, academic performance, GPA distributions, and progression."
     },
     {
         "id": "examination",
         "title": "Examination Reports",
         "icon": "fa-file-pen",
-        "color": "#e84393",
+        "color": "#4338ca",
         "description": "CAT vs Exam analyses, pass/fail statistics, missing marks audits, and nominal rolls."
     },
     {
         "id": "registration",
         "title": "Registration Reports",
         "icon": "fa-clipboard-check",
-        "color": "#0984e3",
+        "color": "#0369a1",
         "description": "Unit enrollment demand, semester registration counts, and registered vs unregistered cohorts."
     },
     {
         "id": "faculty",
         "title": "Faculty & Teaching Reports",
         "icon": "fa-chalkboard-user",
-        "color": "#e17055",
+        "color": "#0d9488",
         "description": "Lecturer teaching workloads, course assignments, and departmental directories."
     },
     {
         "id": "timetable",
         "title": "Timetable & Venue Reports",
         "icon": "fa-calendar-week",
-        "color": "#6c5ce7",
+        "color": "#6366f1",
         "description": "Master program schedules, venue utilization rates, and lecturer timetables."
     },
     {
         "id": "administrative",
         "title": "Administrative & Compliance",
         "icon": "fa-shield-halved",
-        "color": "#2d3436",
+        "color": "#475569",
         "description": "User activity ledgers, audit trail forensic logs, and recycle bin deletion recovery logs."
     },
     {

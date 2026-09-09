@@ -6,10 +6,10 @@
 <style>
   .search-container {
     position: relative;
-    transition: all 0.25s ease;
+    transition: all 0.2s ease;
   }
   .search-container:focus-within {
-    box-shadow: 0 0 0 4px rgba(108, 92, 231, 0.15);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
     border-radius: 12px;
   }
   .search-icon-prefix {
@@ -17,21 +17,23 @@
     left: 16px;
     top: 50%;
     transform: translateY(-50%);
-    color: #6C5CE7;
-    font-size: 1.05rem;
+    color: #64748b;
+    font-size: 1rem;
     pointer-events: none;
   }
   .search-input-field {
     padding-left: 46px !important;
     padding-right: 70px !important;
-    height: 48px;
+    height: 46px;
     border-radius: 12px !important;
-    font-size: 0.95rem;
+    font-size: 0.92rem;
     font-weight: 500;
-    border: 1.5px solid rgba(108, 92, 231, 0.2);
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #0f172a;
   }
   .search-input-field:focus {
-    border-color: #6C5CE7 !important;
+    border-color: #2563eb !important;
     box-shadow: none !important;
   }
   .search-clear-btn {
@@ -41,15 +43,15 @@
     transform: translateY(-50%);
     background: none;
     border: none;
-    color: #b2bec3;
-    font-size: 1rem;
+    color: #94a3b8;
+    font-size: 0.95rem;
     cursor: pointer;
     display: none;
     padding: 4px 6px;
     border-radius: 50%;
   }
   .search-clear-btn:hover {
-    color: #e84393;
+    color: #ef4444;
   }
   .search-kbd-shortcut {
     position: absolute;
@@ -58,29 +60,29 @@
     transform: translateY(-50%);
     font-size: 0.72rem;
     padding: 2px 7px;
-    background: #f1f2f6;
-    border: 1px solid #dfe6e9;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
     border-radius: 6px;
-    color: #636e72;
+    color: #64748b;
     pointer-events: none;
   }
   
   .filter-panel {
     background: #ffffff;
-    border: 1px solid rgba(108, 92, 231, 0.12);
-    border-radius: 16px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
   }
 
   .cat-pill-btn {
-    border: 1.5px solid #e2e8f0;
+    border: 1px solid #e2e8f0;
     background: #ffffff;
-    color: #4a5568;
+    color: #475569;
     padding: 6px 14px;
     border-radius: 50px;
-    font-size: 0.82rem;
-    font-weight: 600;
-    transition: all 0.2s ease;
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: all 0.15s ease;
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -88,58 +90,52 @@
     user-select: none;
   }
   .cat-pill-btn:hover {
-    border-color: #6C5CE7;
-    color: #6C5CE7;
-    transform: translateY(-1px);
+    border-color: #cbd5e1;
+    background: #f8fafc;
+    color: #0f172a;
   }
   .cat-pill-btn.active {
-    background: #6C5CE7 !important;
-    border-color: #6C5CE7 !important;
+    background: #1e293b !important;
+    border-color: #1e293b !important;
     color: #ffffff !important;
-    box-shadow: 0 4px 12px rgba(108, 92, 231, 0.28);
+    box-shadow: 0 2px 8px rgba(30, 41, 59, 0.15);
   }
   .cat-pill-btn .pill-count {
-    background: rgba(0,0,0,0.08);
+    background: #f1f5f9;
+    color: #64748b;
     border-radius: 20px;
     padding: 1px 7px;
     font-size: 0.72rem;
   }
   .cat-pill-btn.active .pill-count {
-    background: rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.22);
     color: #ffffff;
   }
 
   .report-card-item {
-    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.2s ease;
     border-radius: 14px;
-    border: 1px solid rgba(0,0,0,0.06);
-    position: relative;
-    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
   }
   .report-card-item:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 28px rgba(108, 92, 231, 0.12);
-    border-color: rgba(108, 92, 231, 0.3);
-  }
-  .report-card-item .card-strip {
-    position: absolute;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: 4px;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+    border-color: #cbd5e1;
   }
 
   .active-filter-chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    background: rgba(108, 92, 231, 0.09);
-    color: #6C5CE7;
-    border: 1px solid rgba(108, 92, 231, 0.22);
+    background: #f1f5f9;
+    color: #334155;
+    border: 1px solid #cbd5e1;
     padding: 3px 10px;
     border-radius: 20px;
     font-size: 0.78rem;
-    font-weight: 600;
+    font-weight: 500;
   }
   .active-filter-chip .chip-remove {
     cursor: pointer;
@@ -148,29 +144,33 @@
   }
   .active-filter-chip .chip-remove:hover {
     opacity: 1;
-    color: #e84393;
+    color: #ef4444;
   }
 
   .highlight-match {
-    background-color: #fff3bf;
-    color: #2d3436;
+    background-color: #fef08a;
+    color: #0f172a;
     padding: 0 2px;
     border-radius: 3px;
-    font-weight: 700;
+    font-weight: 600;
   }
 
   .view-btn {
     border: 1px solid #e2e8f0;
     background: #fff;
-    color: #718096;
+    color: #64748b;
     padding: 6px 12px;
     border-radius: 8px;
     font-size: 0.85rem;
     transition: all 0.15s ease;
   }
+  .view-btn:hover {
+    background: #f8fafc;
+    color: #0f172a;
+  }
   .view-btn.active {
-    background: #6C5CE7;
-    border-color: #6C5CE7;
+    background: #1e293b;
+    border-color: #1e293b;
     color: #fff;
   }
 </style>
@@ -179,7 +179,7 @@
 {% block content %}
 <div class="page-head mb-3">
   <div>
-    <h4><i class="fa-solid fa-chart-pie me-2 text-primary"></i>University Reports & Analytics</h4>
+    <h4><i class="fa-solid fa-chart-pie me-2 text-primary"></i>University Reports &amp; Analytics</h4>
     <p class="text-muted small mb-0">Centralized academic, operational, examination, and Senate consolidated reporting center.</p>
   </div>
   <div class="breadcrumb-chip">
@@ -187,58 +187,70 @@
   </div>
 </div>
 
-<!-- KPI Summary Cards -->
+<!-- KPI Summary Cards: Clean Executive Elevation -->
 <div class="row g-3 mb-4">
   <div class="col-6 col-xl-3">
-    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#6C5CE7,#8f7bff)">
+    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
       <div class="d-flex justify-content-between align-items-start">
         <div>
-          <div class="val">{{ total_reports_count }}</div>
-          <div class="lbl mt-1">Report Catalogues</div>
+          <span class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.5px;">Report Catalogues</span>
+          <div class="display-6 fw-bold text-dark mt-1">{{ total_reports_count }}</div>
         </div>
-        <span class="fs-3 opacity-75"><i class="fa-solid fa-file-contract"></i></span>
+        <div class="rounded-3 p-2.5 bg-primary-subtle text-primary">
+          <i class="fa-solid fa-file-contract fs-5"></i>
+        </div>
       </div>
-      <div class="delta mt-2"><i class="fa-solid fa-layer-group"></i> 7 Major Categories</div>
-      <i class="fa-solid fa-file-contract ghost"></i>
+      <div class="small text-muted mt-2 d-flex align-items-center gap-1.5">
+        <i class="fa-solid fa-layer-group text-primary"></i> 7 Standard Categories
+      </div>
     </div>
   </div>
   <div class="col-6 col-xl-3">
-    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#00b894,#55efc4)">
+    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
       <div class="d-flex justify-content-between align-items-start">
         <div>
-          <div class="val">{{ total_students|intcomma }}</div>
-          <div class="lbl mt-1">Student Population</div>
+          <span class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.5px;">Student Population</span>
+          <div class="display-6 fw-bold text-dark mt-1">{{ total_students|intcomma }}</div>
         </div>
-        <span class="fs-3 opacity-75"><i class="fa-solid fa-user-graduate"></i></span>
+        <div class="rounded-3 p-2.5 bg-success-subtle text-success">
+          <i class="fa-solid fa-user-graduate fs-5"></i>
+        </div>
       </div>
-      <div class="delta mt-2"><i class="fa-solid fa-check-double"></i> Live Enrolled Database</div>
-      <i class="fa-solid fa-user-graduate ghost"></i>
+      <div class="small text-muted mt-2 d-flex align-items-center gap-1.5">
+        <i class="fa-solid fa-check-double text-success"></i> Live Enrolled Students
+      </div>
     </div>
   </div>
   <div class="col-6 col-xl-3">
-    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#0984e3,#74b9ff)">
+    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
       <div class="d-flex justify-content-between align-items-start">
         <div>
-          <div class="val">{{ overall_pass_rate }}%</div>
-          <div class="lbl mt-1">Overall Pass Rate</div>
+          <span class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.5px;">Overall Pass Rate</span>
+          <div class="display-6 fw-bold text-dark mt-1">{{ overall_pass_rate }}%</div>
         </div>
-        <span class="fs-3 opacity-75"><i class="fa-solid fa-award"></i></span>
+        <div class="rounded-3 p-2.5 bg-info-subtle text-info">
+          <i class="fa-solid fa-award fs-5"></i>
+        </div>
       </div>
-      <div class="delta mt-2"><i class="fa-solid fa-chart-line"></i> Exam Marks Evaluated</div>
-      <i class="fa-solid fa-award ghost"></i>
+      <div class="small text-muted mt-2 d-flex align-items-center gap-1.5">
+        <i class="fa-solid fa-chart-line text-info"></i> Exam Marks Evaluated
+      </div>
     </div>
   </div>
   <div class="col-6 col-xl-3">
-    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#e84393,#fd79a8)">
+    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
       <div class="d-flex justify-content-between align-items-start">
         <div>
-          <div class="val">{{ total_exams }}</div>
-          <div class="lbl mt-1">Exams & Sessions</div>
+          <span class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.5px;">Exams &amp; Sessions</span>
+          <div class="display-6 fw-bold text-dark mt-1">{{ total_exams }}</div>
         </div>
-        <span class="fs-3 opacity-75"><i class="fa-solid fa-file-pen"></i></span>
+        <div class="rounded-3 p-2.5 bg-secondary-subtle text-secondary">
+          <i class="fa-solid fa-file-pen fs-5"></i>
+        </div>
       </div>
-      <div class="delta mt-2"><i class="fa-solid fa-building-columns"></i> Senate Moderated</div>
-      <i class="fa-solid fa-file-pen ghost"></i>
+      <div class="small text-muted mt-2 d-flex align-items-center gap-1.5">
+        <i class="fa-solid fa-building-columns text-secondary"></i> Senate Moderated
+      </div>
     </div>
   </div>
 </div>
@@ -312,7 +324,7 @@
 
   <!-- Interactive Category Badges / Quick Filter Pills -->
   <div class="d-flex align-items-center gap-2 flex-wrap mt-3 pt-3 border-top">
-    <span class="text-muted small fw-bold me-1"><i class="fa-solid fa-filter me-1 text-primary"></i>Quick Category:</span>
+    <span class="text-muted small fw-semibold me-1"><i class="fa-solid fa-filter me-1 text-primary"></i>Category:</span>
     
     <button type="button" class="cat-pill-btn {% if selected_cat == 'all' or not selected_cat %}active{% endif %}" data-cat="all">
       <i class="fa-solid fa-border-all"></i> All
@@ -324,9 +336,8 @@
       type="button" 
       class="cat-pill-btn {% if selected_cat == cat_data.category.id %}active{% endif %}" 
       data-cat="{{ cat_data.category.id }}"
-      style="{% if selected_cat == cat_data.category.id %}background:{{ cat_data.category.color }} !important;border-color:{{ cat_data.category.color }} !important;{% endif %}"
     >
-      <i class="fa-solid {{ cat_data.category.icon }}" style="color:{% if selected_cat == cat_data.category.id %}#fff{% else %}{{ cat_data.category.color }}{% endif %};"></i>
+      <i class="fa-solid {{ cat_data.category.icon }} text-muted"></i>
       {{ cat_data.category.title }}
       <span class="pill-count">{{ cat_data.count }}</span>
     </button>
@@ -376,18 +387,16 @@
     data-filters="{% for f in rep.filters %}{{ f|lower }} {% endfor %}"
     data-filter-count="{{ rep.filters|length }}"
   >
-    <div class="card card-ums report-card-item h-100 p-3 d-flex flex-column justify-content-between">
-      <div class="card-strip" style="background:{{ rep.category_info.color }};"></div>
-      
+    <div class="card border rounded-4 report-card-item h-100 p-3 bg-white d-flex flex-column justify-content-between shadow-sm">
       <div>
         <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
           <div class="d-flex align-items-center gap-2">
-            <span class="icon-circle shadow-sm" style="width:40px;height:40px;background:{{ rep.category_info.color }};color:#ffffff;font-size:1.05rem;border-radius:10px;">
+            <span class="rounded-3 d-inline-flex align-items-center justify-content-center bg-light text-primary border" style="width:36px;height:36px;font-size:0.95rem;">
               <i class="fa-solid {{ rep.icon }}"></i>
             </span>
             <div>
-              <span class="badge rounded-pill text-white small" style="background:{{ rep.category_info.color }};font-size:0.72rem;">
-                <i class="fa-solid {{ rep.category_info.icon }} me-1"></i>{{ rep.category_info.title }}
+              <span class="badge bg-light text-secondary border rounded-pill small" style="font-size:0.72rem;">
+                <i class="fa-solid {{ rep.category_info.icon }} me-1 text-primary"></i>{{ rep.category_info.title }}
               </span>
             </div>
           </div>
@@ -398,11 +407,11 @@
           </span>
         </div>
 
-        <h6 class="fw-bold mb-1 report-title-text" style="font-size:0.96rem;line-height:1.35;">
+        <h6 class="fw-bold mb-1 report-title-text text-dark" style="font-size:0.95rem;line-height:1.35;">
           {{ rep.title }}
         </h6>
         
-        <p class="text-muted small mb-2 report-desc-text" style="min-height:38px;line-height:1.45;font-size:0.83rem;">
+        <p class="text-secondary small mb-2 report-desc-text" style="min-height:38px;line-height:1.45;font-size:0.82rem;">
           {{ rep.description }}
         </p>
 
@@ -419,7 +428,7 @@
       <div class="d-flex justify-content-between align-items-center pt-2 mt-2 border-top">
         <!-- Quick Direct Export Dropdown -->
         <div class="dropdown">
-          <button class="btn btn-sm btn-outline-secondary rounded-pill dropdown-toggle px-2 py-1" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="font-size:0.78rem;">
+          <button class="btn btn-sm btn-outline-secondary rounded-pill dropdown-toggle px-2.5 py-1" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="font-size:0.78rem;">
             <i class="fa-solid fa-download me-1"></i> Export
           </button>
           <ul class="dropdown-menu dropdown-menu-start shadow-sm" style="font-size:0.85rem;">
@@ -442,7 +451,7 @@
         </div>
 
         <a href="{% url 'university:report_view' rep.key %}" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm">
-          <i class="fa-solid fa-play me-1"></i> Run Report
+          <i class="fa-solid fa-arrow-right me-1"></i> Open Report
         </a>
       </div>
     </div>
@@ -451,10 +460,10 @@
 </div>
 
 <!-- 2. Compact List View (Hidden by default) -->
-<div id="reportsList" class="card card-ums mb-4 d-none">
+<div id="reportsList" class="card border rounded-4 shadow-sm mb-4 d-none overflow-hidden bg-white">
   <div class="table-responsive">
     <table class="table table-hover align-middle mb-0" style="font-size:.88rem;">
-      <thead class="table-light">
+      <thead class="table-light text-muted small text-uppercase">
         <tr>
           <th class="ps-4" style="min-width:280px;">Report Name</th>
           <th>Category</th>
@@ -479,18 +488,18 @@
         >
           <td class="ps-4">
             <div class="d-flex align-items-center gap-3">
-              <span class="icon-circle" style="width:34px;height:34px;background:{{ rep.category_info.color }};color:#fff;font-size:0.9rem;border-radius:8px;">
+              <span class="rounded-3 d-inline-flex align-items-center justify-content-center bg-light text-primary border" style="width:34px;height:34px;font-size:0.88rem;">
                 <i class="fa-solid {{ rep.icon }}"></i>
               </span>
               <div>
-                <div class="fw-bold report-title-text">{{ rep.title }}</div>
+                <div class="fw-bold report-title-text text-dark">{{ rep.title }}</div>
                 <div class="text-muted small report-desc-text" style="font-size:0.78rem;">{{ rep.description|truncatechars:70 }}</div>
               </div>
             </div>
           </td>
           <td>
-            <span class="badge rounded-pill text-white" style="background:{{ rep.category_info.color }};font-size:0.75rem;">
-              <i class="fa-solid {{ rep.category_info.icon }} me-1"></i>{{ rep.category_info.title }}
+            <span class="badge bg-light text-secondary border rounded-pill" style="font-size:0.75rem;">
+              <i class="fa-solid {{ rep.category_info.icon }} me-1 text-primary"></i>{{ rep.category_info.title }}
             </span>
           </td>
           <td class="text-muted small">{{ rep.audience }}</td>
@@ -507,7 +516,7 @@
           <td class="text-end pe-4">
             <div class="btn-group">
               <a href="{% url 'university:report_view' rep.key %}" class="btn btn-sm btn-primary rounded-pill px-3">
-                <i class="fa-solid fa-play me-1"></i> Run
+                <i class="fa-solid fa-arrow-right me-1"></i> Open
               </a>
               <button type="button" class="btn btn-sm btn-primary dropdown-toggle dropdown-toggle-split rounded-pill ms-1" data-bs-toggle="dropdown" aria-expanded="false">
                 <span class="visually-hidden">Toggle Dropdown</span>
@@ -699,14 +708,6 @@ document.addEventListener('DOMContentLoaded', function() {
     catPillBtns.forEach(btn => {
       const isMatch = (btn.dataset.cat === selectedCat);
       btn.classList.toggle('active', isMatch);
-      if (isMatch && selectedCat !== 'all') {
-        const color = btn.style.borderColor || '#6C5CE7';
-        btn.style.backgroundColor = color;
-        btn.style.borderColor = color;
-      } else if (!isMatch) {
-        btn.style.backgroundColor = '';
-        btn.style.borderColor = '';
-      }
     });
   }
 

@@ -205,3 +205,92 @@ class AdminRecordPaymentViewTests(FeePaymentTestBase):
         self.assertEqual(resp.status_code, 403)
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.amount_paid, Decimal("0.00"))
+
+
+class DirectC2BPaybillTests(FeePaymentTestBase):
+    def setUp(self):
+        from university.models import FeeAccount
+        self.fee_account = FeeAccount.objects.create(
+            name="University Main Paybill",
+            account_type=FeeAccount.AccountType.MPESA_PAYBILL,
+            account_identifier="522123",
+            environment=FeeAccount.Environment.SANDBOX,
+            status=FeeAccount.Status.ACTIVE,
+            is_default=True,
+            configuration={"account_ref_format": "STUDENT_REG_NO"},
+        )
+
+    def test_mpesa_validation_endpoint(self):
+        resp = self.client.post(
+            reverse("university:mpesa_validation"),
+            data='{"BusinessShortCode": "522123", "BillRefNumber": "BCS/0200/2026", "TransAmount": "5000"}',
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json().get("ResultCode"), 0)
+
+    def test_direct_c2b_paybill_matched_student(self):
+        import json
+        c2b_payload = {
+            "TransactionType": "Pay Bill",
+            "TransID": "RKT9911743",
+            "TransTime": "20260909193000",
+            "TransAmount": "4000.00",
+            "BusinessShortCode": "522123",
+            "BillRefNumber": "BCS/0200/2026",
+            "MSISDN": "254712345678",
+            "FirstName": "Jane",
+            "LastName": "Doe",
+        }
+        resp = self.client.post(
+            reverse("university:mpesa_callback"),
+            data=json.dumps(c2b_payload),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json().get("ResultCode"), 0)
+
+        # Verify payment was created and confirmed
+        pmt = Payment.objects.filter(provider_reference="RKT9911743").first()
+        self.assertIsNotNone(pmt)
+        self.assertEqual(pmt.student, self.student)
+        self.assertEqual(pmt.amount, Decimal("4000.00"))
+        self.assertEqual(pmt.status, Payment.Status.SUCCESSFUL)
+
+        # Verify invoice allocation
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.amount_paid, Decimal("4000.00"))
+
+        # Verify official fee receipt generated
+        from university.models import FeeReceipt
+        receipt = FeeReceipt.objects.filter(payment=pmt).first()
+        self.assertIsNotNone(receipt)
+        self.assertEqual(receipt.amount_paid, Decimal("4000.00"))
+
+    def test_direct_c2b_paybill_unmatched_logged_to_reconciliation(self):
+        import json
+        from university.models import PaymentReconciliation
+        c2b_payload = {
+            "TransactionType": "Pay Bill",
+            "TransID": "RKTUNKNOWN01",
+            "TransTime": "20260909193000",
+            "TransAmount": "7500.00",
+            "BusinessShortCode": "522123",
+            "BillRefNumber": "NONEXISTENT/9999",
+            "MSISDN": "254799999999",
+            "FirstName": "Stranger",
+            "LastName": "Person",
+        }
+        resp = self.client.post(
+            reverse("university:mpesa_callback"),
+            data=json.dumps(c2b_payload),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+
+        # Verify recorded in PaymentReconciliation
+        recon = PaymentReconciliation.objects.filter(provider_reference="RKTUNKNOWN01").first()
+        self.assertIsNotNone(recon)
+        self.assertEqual(recon.amount, Decimal("7500.00"))
+        self.assertEqual(recon.status, PaymentReconciliation.Status.UNMATCHED)
+

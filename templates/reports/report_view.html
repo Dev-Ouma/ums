@@ -22,8 +22,9 @@
 .print-header { display: none; margin-bottom: 20px; }
 .report-paper {
   background: #fff;
-  border-radius: var(--card-radius);
-  box-shadow: var(--shadow);
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   padding: 32px 36px;
   position: relative;
 }
@@ -205,13 +206,13 @@
 <div class="row g-3 mb-4 no-print">
   {% for k in report_data.kpis %}
   <div class="col-6 col-md-3">
-    <div class="card card-ums p-3 border-0 shadow-sm">
+    <div class="card border rounded-4 p-3 bg-white shadow-sm h-100">
       <div class="d-flex align-items-center justify-content-between">
         <div>
-          <div class="fs-4 fw-bold" style="color:{{ k.color }}">{{ k.val }}</div>
-          <div class="text-muted small text-uppercase fw-semibold" style="font-size:.72rem;">{{ k.label }}</div>
+          <span class="text-muted small text-uppercase fw-semibold d-block mb-1" style="font-size:.72rem; letter-spacing: 0.5px;">{{ k.label }}</span>
+          <div class="fs-4 fw-bold text-dark">{{ k.val }}</div>
         </div>
-        <span class="icon-circle" style="width:40px;height:40px;font-size:1rem;background:{{ k.color }}">
+        <span class="rounded-3 d-inline-flex align-items-center justify-content-center bg-light text-primary border" style="width:40px;height:40px;font-size:1.05rem;">
           <i class="fa-solid {{ k.icon }}"></i>
         </span>
       </div>

@@ -15,25 +15,27 @@
 <div class="row g-4">
   <!-- Admission Documents & Application Attachments Card -->
   <div class="col-md-6 col-xl-4">
-    <div class="card card-ums card-lift h-100 p-3 border-primary border-opacity-25" style="background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);">
-      <div class="d-flex align-items-center gap-3 mb-3">
-        <span class="icon-circle shadow-sm" style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); width:48px; height:48px; color:white;">
-          <i class="fa-solid fa-file-contract"></i>
-        </span>
-        <div>
-          <h6 class="fw-bold mb-0 text-primary">Admission Documents</h6>
-          <small class="text-muted">Letter of Offer & Application Files</small>
+    <div class="card border rounded-4 shadow-sm h-100 p-4 bg-white d-flex flex-column justify-content-between">
+      <div>
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <span class="rounded-3 d-inline-flex align-items-center justify-content-center bg-primary-subtle text-primary border border-primary-subtle" style="width:44px; height:44px; font-size:1.1rem;">
+            <i class="fa-solid fa-file-contract"></i>
+          </span>
+          <div>
+            <h6 class="fw-bold mb-0 text-dark">Admission Documents</h6>
+            <small class="text-muted">Letter of Offer &amp; Application Files</small>
+          </div>
+        </div>
+        <p class="small text-secondary mb-3">
+          Access your official University Admission Letter (view, print, download PDF) and submitted certificates (KCSE Slip, ID, Photos).
+        </p>
+        <div class="d-flex align-items-center justify-content-between small text-muted mb-3 bg-light p-2.5 rounded-3 border">
+          <span><i class="fa-solid fa-stamp text-success me-1"></i>{% if admission_letter %}Letter v{{ admission_letter.version }} Issued{% else %}Letter Pending{% endif %}</span>
+          <span><i class="fa-solid fa-paperclip me-1"></i>{{ attachments_count }} Attachment{{ attachments_count|pluralize }}</span>
         </div>
       </div>
-      <p class="small text-muted mb-3">
-        Access your official University Admission Letter (view, print, download PDF) and submitted certificates (KCSE Slip, ID, Photos).
-      </p>
-      <div class="d-flex align-items-center justify-content-between small text-muted mb-3 bg-light p-2 rounded-3">
-        <span><i class="fa-solid fa-stamp text-success me-1"></i>{% if admission_letter %}Letter v{{ admission_letter.version }} Issued{% else %}Letter Pending{% endif %}</span>
-        <span><i class="fa-solid fa-paperclip me-1"></i>{{ attachments_count }} Attachment{{ attachments_count|pluralize }}</span>
-      </div>
-      <div class="mt-auto pt-2 border-top">
-        <a href="{% url 'university:student_admission_documents' %}" class="btn btn-sm btn-primary rounded-pill w-100 fw-semibold">
+      <div class="pt-2 border-top mt-auto">
+        <a href="{% url 'university:student_admission_documents' %}" class="btn btn-sm btn-primary rounded-pill w-100 fw-semibold py-2">
           <i class="fa-solid fa-folder-open me-1"></i> Access Admission Documents
         </a>
       </div>
@@ -41,21 +43,23 @@
   </div>
 
   <div class="col-md-6 col-xl-4">
-    <div class="card card-ums card-lift h-100 p-3">
-      <div class="d-flex align-items-center gap-3 mb-3">
-        <span class="icon-circle" style="background:#6C5CE7;width:48px;height:48px;">
-          <i class="fa-solid fa-file-invoice"></i>
-        </span>
-        <div>
-          <h6 class="fw-bold mb-0">Provisional Transcript</h6>
-          <small class="text-muted">Certified semester results statement</small>
+    <div class="card border rounded-4 shadow-sm h-100 p-4 bg-white d-flex flex-column justify-content-between">
+      <div>
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <span class="rounded-3 d-inline-flex align-items-center justify-content-center bg-light text-primary border" style="width:44px; height:44px; font-size:1.1rem;">
+            <i class="fa-solid fa-file-invoice"></i>
+          </span>
+          <div>
+            <h6 class="fw-bold mb-0 text-dark">Provisional Transcript</h6>
+            <small class="text-muted">Certified semester results statement</small>
+          </div>
         </div>
+        <p class="small text-secondary mb-3">
+          Official interim academic statement showing CAT, exam marks, letter grades, GPA, and term averages.
+        </p>
       </div>
-      <p class="small text-muted mb-3">
-        Official interim academic statement showing CAT, exam marks, letter grades, GPA, and term averages.
-      </p>
-      <div class="mt-auto pt-2 border-top">
-        <a href="{% url 'university:student_results' %}" class="btn btn-sm btn-primary rounded-pill w-100">
+      <div class="pt-2 border-top mt-auto">
+        <a href="{% url 'university:student_results' %}" class="btn btn-sm btn-outline-primary rounded-pill w-100 fw-semibold py-2">
           <i class="fa-solid fa-eye me-1"></i> View Results
         </a>
       </div>
@@ -63,21 +67,23 @@
   </div>
 
   <div class="col-md-6 col-xl-4">
-    <div class="card card-ums card-lift h-100 p-3">
-      <div class="d-flex align-items-center gap-3 mb-3">
-        <span class="icon-circle" style="background:#00b894;width:48px;height:48px;">
-          <i class="fa-solid fa-file-invoice-dollar"></i>
-        </span>
-        <div>
-          <h6 class="fw-bold mb-0">Statement of Account</h6>
-          <small class="text-muted">Financial ledger & running balance</small>
+    <div class="card border rounded-4 shadow-sm h-100 p-4 bg-white d-flex flex-column justify-content-between">
+      <div>
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <span class="rounded-3 d-inline-flex align-items-center justify-content-center bg-success-subtle text-success border border-success-subtle" style="width:44px; height:44px; font-size:1.1rem;">
+            <i class="fa-solid fa-file-invoice-dollar"></i>
+          </span>
+          <div>
+            <h6 class="fw-bold mb-0 text-dark">Statement of Account</h6>
+            <small class="text-muted">Financial ledger &amp; running balance</small>
+          </div>
         </div>
+        <p class="small text-secondary mb-3">
+          Complete debit/credit transaction history including semester invoices, M-Pesa receipts, and clearance status.
+        </p>
       </div>
-      <p class="small text-muted mb-3">
-        Complete debit/credit transaction history including semester invoices, M-Pesa receipts, and clearance status.
-      </p>
-      <div class="mt-auto pt-2 border-top">
-        <a href="{% url 'university:student_fee_statement' %}" class="btn btn-sm btn-primary rounded-pill w-100">
+      <div class="pt-2 border-top mt-auto">
+        <a href="{% url 'university:student_fee_statement' %}" class="btn btn-sm btn-outline-primary rounded-pill w-100 fw-semibold py-2">
           <i class="fa-solid fa-file-lines me-1"></i> View Statement
         </a>
       </div>
@@ -85,43 +91,47 @@
   </div>
 
   <div class="col-md-6 col-xl-4">
-    <div class="card card-ums card-lift h-100 p-3">
-      <div class="d-flex align-items-center gap-3 mb-3">
-        <span class="icon-circle" style="background:#e84393;width:48px;height:48px;">
-          <i class="fa-solid fa-id-card"></i>
-        </span>
-        <div>
-          <h6 class="fw-bold mb-0">Examination Admission Slip</h6>
-          <small class="text-muted">Official Exam Card with security seal</small>
+    <div class="card border rounded-4 shadow-sm h-100 p-4 bg-white d-flex flex-column justify-content-between">
+      <div>
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <span class="rounded-3 d-inline-flex align-items-center justify-content-center bg-light text-primary border" style="width:44px; height:44px; font-size:1.1rem;">
+            <i class="fa-solid fa-id-card"></i>
+          </span>
+          <div>
+            <h6 class="fw-bold mb-0 text-dark">Examination Admission Slip</h6>
+            <small class="text-muted">Official Exam Card with security seal</small>
+          </div>
         </div>
+        <p class="small text-secondary mb-3">
+          Printable exam card confirming fee clearance, invigilator sign-off boxes, and certified registered units.
+        </p>
       </div>
-      <p class="small text-muted mb-3">
-        Printable exam card confirming fee clearance, invigilator sign-off boxes, and certified registered units.
-      </p>
-      <div class="mt-auto pt-2 border-top">
-        <a href="{% url 'university:student_exam_card' %}" class="btn btn-sm btn-primary rounded-pill w-100">
-          <i class="fa-solid fa-download me-1"></i> Exam Slip
+      <div class="pt-2 border-top mt-auto">
+        <a href="{% url 'university:student_exam_card' %}" class="btn btn-sm btn-outline-primary rounded-pill w-100 fw-semibold py-2">
+          <i class="fa-solid fa-address-card me-1"></i> View Exam Card
         </a>
       </div>
     </div>
   </div>
 
   <div class="col-md-6 col-xl-4">
-    <div class="card card-ums card-lift h-100 p-3">
-      <div class="d-flex align-items-center gap-3 mb-3">
-        <span class="icon-circle" style="background:#0984e3;width:48px;height:48px;">
-          <i class="fa-solid fa-clipboard-check"></i>
-        </span>
-        <div>
-          <h6 class="fw-bold mb-0">Unit Registration Slip</h6>
-          <small class="text-muted">Approved semester coursework</small>
+    <div class="card border rounded-4 shadow-sm h-100 p-4 bg-white d-flex flex-column justify-content-between">
+      <div>
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <span class="rounded-3 d-inline-flex align-items-center justify-content-center bg-info-subtle text-info border border-info-subtle" style="width:44px; height:44px; font-size:1.1rem;">
+            <i class="fa-solid fa-clipboard-check"></i>
+          </span>
+          <div>
+            <h6 class="fw-bold mb-0 text-dark">Unit Registration Slip</h6>
+            <small class="text-muted">Approved semester coursework</small>
+          </div>
         </div>
+        <p class="small text-secondary mb-3">
+          Summary of approved courses, academic credit hours, and assigned teaching lecturers for the current term.
+        </p>
       </div>
-      <p class="small text-muted mb-3">
-        Summary of approved courses, academic credit hours, and assigned teaching lecturers for the current term.
-      </p>
-      <div class="mt-auto pt-2 border-top">
-        <a href="{% url 'university:student_register_units' %}" class="btn btn-sm btn-primary rounded-pill w-100">
+      <div class="pt-2 border-top mt-auto">
+        <a href="{% url 'university:student_register_units' %}" class="btn btn-sm btn-outline-primary rounded-pill w-100 fw-semibold py-2">
           <i class="fa-solid fa-list-check me-1"></i> Unit Register
         </a>
       </div>
@@ -129,21 +139,23 @@
   </div>
 
   <div class="col-md-6 col-xl-4">
-    <div class="card card-ums card-lift h-100 p-3">
-      <div class="d-flex align-items-center gap-3 mb-3">
-        <span class="icon-circle" style="background:#f0932b;width:48px;height:48px;">
-          <i class="fa-solid fa-user-graduate"></i>
-        </span>
-        <div>
-          <h6 class="fw-bold mb-0">Graduation Clearance Dossier</h6>
-          <small class="text-muted">Multi-department exit sign-offs</small>
+    <div class="card border rounded-4 shadow-sm h-100 p-4 bg-white d-flex flex-column justify-content-between">
+      <div>
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <span class="rounded-3 d-inline-flex align-items-center justify-content-center bg-secondary-subtle text-secondary border border-secondary-subtle" style="width:44px; height:44px; font-size:1.1rem;">
+            <i class="fa-solid fa-user-graduate"></i>
+          </span>
+          <div>
+            <h6 class="fw-bold mb-0 text-dark">Graduation Clearance Dossier</h6>
+            <small class="text-muted">Multi-department exit sign-offs</small>
+          </div>
         </div>
+        <p class="small text-secondary mb-3">
+          5-station clearance status across Finance, Library, Dean, Student Affairs, and Senate Degree conferment.
+        </p>
       </div>
-      <p class="small text-muted mb-3">
-        5-station clearance status across Finance, Library, Dean, Student Affairs, and Senate Degree conferment.
-      </p>
-      <div class="mt-auto pt-2 border-top">
-        <a href="{% url 'university:student_graduation' %}" class="btn btn-sm btn-primary rounded-pill w-100">
+      <div class="pt-2 border-top mt-auto">
+        <a href="{% url 'university:student_graduation' %}" class="btn btn-sm btn-outline-primary rounded-pill w-100 fw-semibold py-2">
           <i class="fa-solid fa-stamp me-1"></i> Clearance Status
         </a>
       </div>
