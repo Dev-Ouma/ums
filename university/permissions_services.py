@@ -197,6 +197,21 @@ DEFAULT_ROLES = [
             "admin.view_audit_logs", "admin.manage_recycle_bin",
         ]
     },
+    {
+        "name": "Emergency Response & Campus Security",
+        "code": "emergency_security",
+        "color": "#c0392b",
+        "description": "Emergency security, health and disaster coordinators authorized for critical operations and lockdown bypass.",
+        "permissions": [
+            "students.view_all",
+            "hostels.view_allocation",
+            "admin.view_audit_logs",
+            "control.lockdown.view",
+            "control.lockdown.bypass",
+            "control.maintenance.view",
+            "control.maintenance.bypass",
+        ]
+    },
 ]
 
 

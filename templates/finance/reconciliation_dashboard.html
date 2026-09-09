@@ -22,6 +22,9 @@
       <p class="text-muted small mb-0 mt-1">Cross-check provider statement reports with university ledger records to catch mismatched or uncredited fees.</p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
+      <button type="button" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#importStatementModal">
+        <i class="fa-solid fa-file-import me-1"></i> Import Bank / M-Pesa Statement
+      </button>
       <a href="{% url 'university:fee_accounts_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
         <i class="fa-solid fa-building-columns me-1"></i> Fee Accounts
       </a>
@@ -207,6 +210,58 @@
       </nav>
     </div>
     {% endif %}
+  </div>
+
+  <!-- Modal: Import Statement -->
+  <div class="modal fade" id="importStatementModal" tabindex="-1" aria-labelledby="importStatementModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
+        <form method="post" action="{% url 'university:fee_reconciliation_import' %}" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="modal-header border-0 bg-light px-4 pt-4 pb-3">
+            <h5 class="modal-title fw-bold text-dark" id="importStatementModalLabel">
+              <i class="fa-solid fa-file-import me-2 text-primary"></i>Import Bank / M-Pesa Statement
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body px-4 py-3">
+            <div class="mb-3">
+              <label class="form-label small fw-semibold text-muted text-uppercase">Target Fee Account</label>
+              <select name="fee_account_id" class="form-select rounded-3" required>
+                <option value="">Select Fee Account...</option>
+                {% for acc in fee_accounts %}
+                  <option value="{{ acc.id }}">{{ acc.name }} ({{ acc.get_provider_display }} · {{ acc.account_identifier }})</option>
+                {% endfor %}
+              </select>
+              <div class="form-text small">Select the internal university collection account corresponding to this statement.</div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small fw-semibold text-muted text-uppercase">Statement File (CSV or Excel)</label>
+              <input type="file" name="statement_file" class="form-control rounded-3" accept=".csv, .xlsx, .xls" required>
+              <div class="form-text small">Accepted formats: .csv, .xlsx, .xls. Supports Safaricom M-Pesa, KCB, Equity, Co-op, Absa and Standard Chartered statements.</div>
+            </div>
+
+            <div class="p-3 bg-light rounded-3 border small text-secondary mb-2">
+              <div class="fw-semibold text-dark mb-1"><i class="fa-solid fa-circle-info text-primary me-1"></i> Automatic Column Detection</div>
+              <span>The importer automatically detects standard bank column names for:</span>
+              <ul class="mb-0 ps-3 mt-1 text-muted">
+                <li><strong>Reference / TransID:</strong> e.g. <code>Receipt No</code>, <code>Reference</code>, <code>Trans ID</code></li>
+                <li><strong>Amount:</strong> e.g. <code>Amount</code>, <code>Credit</code>, <code>Paid In</code></li>
+                <li><strong>Student:</strong> e.g. <code>Student Reg No</code>, <code>Account No</code>, <code>Particulars</code></li>
+                <li><strong>Date:</strong> e.g. <code>Date</code>, <code>Completion Time</code></li>
+              </ul>
+            </div>
+          </div>
+          <div class="modal-footer border-0 px-4 pb-4 pt-2">
+            <button type="button" class="btn btn-light rounded-pill px-3 fw-semibold" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm">
+              <i class="fa-solid fa-upload me-1"></i> Upload &amp; Reconcile
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 
 </div>

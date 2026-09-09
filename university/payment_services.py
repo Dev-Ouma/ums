@@ -255,6 +255,13 @@ def process_payment_confirmation(
         )
         n.recipients.add(student_user)
 
+    # Dispatch automated SMS confirmation
+    try:
+        from university.sms_services import send_payment_confirmation_sms
+        send_payment_confirmation_sms(payment, receipt, rem_balance)
+    except Exception as e:
+        logger.warning(f"Failed to dispatch payment confirmation SMS for {payment.internal_reference}: {e}")
+
     # Log to AuditLog
     log_activity(
         request=request,

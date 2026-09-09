@@ -462,3 +462,24 @@ def build_clean_csv(headers, rows):
         writer.writerow([sanitize_csv_value(c) for c in row])
     return buf.getvalue().encode("utf-8")
 
+
+def make_qr_drawing(url: str, size: float = 50.0):
+    """
+    Generate an authentic, scannable vector QR Code drawing for ReportLab PDFs.
+    Zero external dependencies, uses ReportLab's native QrCodeWidget.
+    """
+    from reportlab.graphics.barcode.qr import QrCodeWidget
+    from reportlab.graphics.shapes import Drawing
+    try:
+        widget = QrCodeWidget(str(url))
+        bounds = widget.getBounds()
+        w = bounds[2] - bounds[0]
+        h = bounds[3] - bounds[1]
+        if w <= 0 or h <= 0:
+            w, h = 100.0, 100.0
+        d = Drawing(size, size, transform=[size / w, 0, 0, size / h, 0, 0])
+        d.add(widget)
+        return d
+    except Exception:
+        return None
+

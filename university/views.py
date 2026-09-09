@@ -1837,7 +1837,10 @@ def student_fee_statement(request):
 
     clearance = check_financial_clearance(sp)
     invoices = FeeInvoice.objects.filter(student=sp).order_by("issued_on", "id")
-    payments = Payment.objects.filter(invoice__student=sp).select_related("invoice").order_by("paid_on", "id")
+    payments = Payment.objects.filter(
+        Q(student=sp) | Q(invoice__student=sp),
+        status=Payment.Status.SUCCESSFUL
+    ).select_related("invoice", "fee_account").distinct().order_by("paid_on", "id")
 
     return render(request, "dashboard/student_fee_statement.html", {
         "student": sp,

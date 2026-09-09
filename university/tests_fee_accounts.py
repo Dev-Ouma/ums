@@ -464,3 +464,86 @@ class AdminFinanceOperationsTests(FeeAccountIntegrationTestBase):
         self.assertEqual(recon.status, PaymentReconciliation.Status.MATCHED)
         self.assertEqual(recon.reconciled_by, self.admin)
         self.assertIsNotNone(recon.reconciled_at)
+
+    def test_fee_reconciliation_import_csv(self):
+        import io, csv
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        # Create an existing payment for matching
+        payment = Payment.objects.create(
+            student=self.student,
+            fee_account=self.paybill,
+            amount=Decimal("12000.00"),
+            currency="KES",
+            method="M-Pesa Paybill",
+            status=Payment.Status.SUCCESSFUL,
+            reference="QWE998877",
+            internal_reference="PAY-QWE998877",
+            paid_on=timezone.now(),
+        )
+
+        csv_buf = io.StringIO()
+        writer = csv.writer(csv_buf)
+        writer.writerow(["Date", "Reference", "Student Reg No", "Amount"])
+        writer.writerow(["2026-09-09", "QWE998877", self.student.roll_no, "12000.00"])  # Should match
+        writer.writerow(["2026-09-09", "UNMATCHED_01", self.student.roll_no, "7500.00"])  # Should be unmatched
+        writer.writerow(["2026-09-09", "UNKNOWN_02", "INVALID_ROLL_NO", "3000.00"])      # Should require review
+
+        upload = SimpleUploadedFile("statement.csv", csv_buf.getvalue().encode("utf-8"), content_type="text/csv")
+        import_url = reverse("university:fee_reconciliation_import")
+        resp = self.client.post(import_url, {
+            "fee_account_id": str(self.paybill.pk),
+            "statement_file": upload,
+        })
+        self.assertEqual(resp.status_code, 302)
+
+        matched_recon = PaymentReconciliation.objects.filter(provider_reference="QWE998877").first()
+        self.assertIsNotNone(matched_recon)
+        self.assertEqual(matched_recon.status, PaymentReconciliation.Status.MATCHED)
+        self.assertEqual(matched_recon.payment, payment)
+
+        unmatched_recon = PaymentReconciliation.objects.filter(provider_reference="UNMATCHED_01").first()
+        self.assertIsNotNone(unmatched_recon)
+        self.assertEqual(unmatched_recon.status, PaymentReconciliation.Status.UNMATCHED)
+
+        review_recon = PaymentReconciliation.objects.filter(provider_reference="UNKNOWN_02").first()
+        self.assertIsNotNone(review_recon)
+        self.assertEqual(review_recon.status, PaymentReconciliation.Status.REQUIRES_REVIEW)
+
+    def test_sms_formatting_and_dispatch(self):
+        from university.sms_services import format_kenyan_phone_number, send_sms, send_payment_confirmation_sms
+
+        self.assertEqual(format_kenyan_phone_number("0712345678"), "+254712345678")
+        self.assertEqual(format_kenyan_phone_number("0112345678"), "+254112345678")
+        self.assertEqual(format_kenyan_phone_number("254712345678"), "+254712345678")
+
+        res = send_sms("0712345678", "Fee payment confirmation test")
+        self.assertTrue(res["success"])
+        self.assertEqual(res["status"], "SENT_SANDBOX")
+        self.assertEqual(res["recipient"], "+254712345678")
+
+        payment = Payment.objects.create(
+            student=self.student,
+            fee_account=self.paybill,
+            amount=Decimal("5000.00"),
+            currency="KES",
+            method="M-Pesa Paybill",
+            status=Payment.Status.SUCCESSFUL,
+            reference="QWE554433",
+            payer_phone="0712345678",
+            paid_on=timezone.now(),
+        )
+        receipt = FeeReceipt.objects.create(
+            payment=payment,
+            receipt_number="REC-2026-000999",
+            student=self.student,
+            issued_at=timezone.now(),
+            previous_balance=Decimal("15000.00"),
+            amount_paid=Decimal("5000.00"),
+            remaining_balance=Decimal("10000.00"),
+        )
+        sms_res = send_payment_confirmation_sms(payment, receipt, Decimal("10000.00"))
+        self.assertTrue(sms_res["success"])
+        self.assertIn("REC-2026-000999", sms_res["message"])
+        self.assertIn("KES 5,000.00", sms_res["message"])
+

@@ -123,14 +123,70 @@
       We apologize for any inconvenience caused while we perform system maintenance.
     </p>
 
-    <div class="d-flex justify-content-center align-items-center gap-2 flex-wrap">
-      <a href="{% url 'control:status' %}" class="btn btn-outline-secondary btn-sm px-3 py-2 fw-semibold">
-        <i class="fa-solid fa-circle-info me-1"></i> System Status
-      </a>
+    <div class="d-flex justify-content-center align-items-center gap-2 flex-wrap mb-3">
+      <button id="btn-check-now" type="button" class="btn btn-outline-secondary btn-sm px-3 py-2 fw-semibold">
+        <i class="fa-solid fa-rotate me-1"></i> Check Now
+      </button>
       <a href="{% url 'accounts:login' %}" class="btn btn-primary btn-sm px-3 py-2 fw-semibold">
         <i class="fa-solid fa-right-to-bracket me-1"></i> Administrator Sign In
       </a>
     </div>
+
+    <div id="reconnect-indicator" class="pt-3 border-top small text-muted d-flex align-items-center justify-content-center gap-2">
+      <span class="spinner-border spinner-border-sm text-warning" id="reconnect-spinner" role="status"></span>
+      <span id="reconnect-text">Auto-checking restoration in <strong id="reconnect-timer">10</strong>s</span>
+    </div>
   </main>
+
+  <script>
+    (function() {
+      let countdown = 10;
+      const statusUrl = "{% url 'control:status' %}";
+      const timerEl = document.getElementById('reconnect-timer');
+      const textEl = document.getElementById('reconnect-text');
+      const spinnerEl = document.getElementById('reconnect-spinner');
+      const btnCheck = document.getElementById('btn-check-now');
+
+      async function checkStatus() {
+        if (spinnerEl) spinnerEl.className = 'spinner-border spinner-border-sm text-primary';
+        if (textEl) textEl.textContent = 'Checking system status...';
+        try {
+          const res = await fetch(statusUrl, { cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            const isOperational = data.status === 'Operational' || (!data.maintenance && !data.lockdown && !data.read_only);
+            if (isOperational) {
+              if (spinnerEl) spinnerEl.className = 'fa-solid fa-circle-check text-success';
+              if (textEl) {
+                textEl.innerHTML = '<strong class="text-success">System restored! Redirecting...</strong>';
+              }
+              setTimeout(() => {
+                window.location.reload();
+              }, 1200);
+              return;
+            }
+          }
+        } catch (e) {
+          console.debug('Status check failed', e);
+        }
+        countdown = 10;
+        if (spinnerEl) spinnerEl.className = 'spinner-border spinner-border-sm text-warning';
+      }
+
+      setInterval(() => {
+        countdown--;
+        if (timerEl) timerEl.textContent = countdown;
+        if (countdown <= 0) {
+          checkStatus();
+        }
+      }, 1000);
+
+      if (btnCheck) {
+        btnCheck.addEventListener('click', () => {
+          checkStatus();
+        });
+      }
+    })();
+  </script>
 </body>
 </html>
