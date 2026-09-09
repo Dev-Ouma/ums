@@ -20,6 +20,7 @@ from . import admission_document_views
 from . import module_views
 from . import fee_payment_views
 from . import fee_account_views
+from . import backup_views
 
 app_name = "university"
 
@@ -298,6 +299,29 @@ urlpatterns = [
     path("manage/system/modules/export/", module_views.admin_modules_export_json, name="admin_modules_export_json"),
     path("manage/system/modules/import/", module_views.admin_modules_import_json, name="admin_modules_import_json"),
     path("manage/system/modules/<int:pk>/dependencies/", module_views.admin_module_dependencies_api, name="admin_module_dependencies_api"),
+
+    # System Administration — Scheduled System Backups & Disaster Recovery
+    path("system-admin/backups/", backup_views.backup_dashboard, name="backup_dashboard"),
+    path("system-admin/backups/schedules/", backup_views.backup_schedules, name="backup_schedules"),
+    path("system-admin/backups/schedules/create/", backup_views.backup_schedule_create, name="backup_schedule_create"),
+    path("system-admin/backups/schedules/<int:pk>/edit/", backup_views.backup_schedule_edit, name="backup_schedule_edit"),
+    path("system-admin/backups/schedules/<int:pk>/toggle/", backup_views.backup_schedule_toggle, name="backup_schedule_toggle"),
+    path("system-admin/backups/schedules/<int:pk>/run/", backup_views.backup_schedule_run_now, name="backup_schedule_run_now"),
+    path("system-admin/backups/schedules/<int:pk>/delete/", backup_views.backup_schedule_delete, name="backup_schedule_delete"),
+    path("system-admin/backups/history/", backup_views.backup_history, name="backup_history"),
+    path("system-admin/backups/create/", backup_views.backup_create_now, name="backup_create_now"),
+    path("system-admin/backups/<int:pk>/", backup_views.backup_detail, name="backup_detail"),
+    path("system-admin/backups/<int:pk>/verify/", backup_views.backup_verify, name="backup_verify"),
+    path("system-admin/backups/<int:pk>/download/", backup_views.backup_download, name="backup_download"),
+    path("system-admin/backups/<int:pk>/delete/", backup_views.backup_delete, name="backup_delete"),
+    path("system-admin/backups/<int:pk>/toggle-protect/", backup_views.backup_toggle_protect, name="backup_toggle_protect"),
+    path("system-admin/backups/storage/", backup_views.backup_storage, name="backup_storage"),
+    path("system-admin/backups/storage/<int:pk>/test/", backup_views.backup_storage_test, name="backup_storage_test"),
+    path("system-admin/backups/restore/", backup_views.backup_restore_dashboard, name="backup_restore_dashboard"),
+    path("system-admin/backups/restore/start/", backup_views.backup_restore_start, name="backup_restore_start"),
+    path("system-admin/backups/settings/", backup_views.backup_settings, name="backup_settings"),
+    path("system-admin/backups/logs/", backup_views.backup_logs, name="backup_logs"),
+    path("system-admin/backups/export/", backup_views.backup_export, name="backup_export"),
 
     # System Administration — Admin Setups
     path("manage/setups/", setups_views.admin_setups_dashboard, name="admin_setups_dashboard"),

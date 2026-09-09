@@ -1,0 +1,394 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}System Backups & Disaster Recovery · System Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-3 px-md-4">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1 small">
+          <li class="breadcrumb-item"><a href="{% url 'university:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+          <li class="breadcrumb-item">System Admin</li>
+          <li class="breadcrumb-item active" aria-current="page">System Backups</li>
+        </ol>
+      </nav>
+      <h2 class="fw-bold mb-0 text-dark">
+        <i class="fa-solid fa-database me-2" style="color: #6C5CE7;"></i>System Backups &amp; Disaster Recovery
+      </h2>
+      <p class="text-muted small mb-0 mt-1">Autonomous database snapshots, media packaging, recurring schedules, and safe disaster recovery.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <button type="button" class="btn btn-primary rounded-pill px-3 shadow-sm fw-semibold" data-bs-toggle="modal" data-bs-target="#createBackupModal">
+        <i class="fa-solid fa-plus me-1"></i> Create Backup Now
+      </button>
+      <a href="{% url 'university:backup_schedules' %}" class="btn btn-outline-secondary rounded-pill px-3 fw-semibold">
+        <i class="fa-solid fa-clock me-1"></i> Schedules
+      </a>
+      <a href="{% url 'university:backup_restore_dashboard' %}" class="btn btn-outline-danger rounded-pill px-3 fw-semibold">
+        <i class="fa-solid fa-rotate-left me-1"></i> Restore &amp; Recovery
+      </a>
+    </div>
+  </div>
+
+  <!-- Recovery Readiness Banner -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden" 
+       style="background: {% if readiness.status == 'HEALTHY' %}linear-gradient(135deg, #059669 0%, #10b981 100%){% elif readiness.status == 'WARNING' %}linear-gradient(135deg, #d97706 0%, #f59e0b 100%){% else %}linear-gradient(135deg, #b91c1c 0%, #ef4444 100%){% endif %}; color: #ffffff;">
+    <div class="card-body p-4">
+      <div class="row align-items-center g-3">
+        <div class="col-md-8">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="badge bg-white text-dark fw-bold text-uppercase px-3 py-1 rounded-pill" style="font-size: 0.72rem; letter-spacing: 0.08em;">
+              Disaster Recovery Status
+            </span>
+            <span class="badge bg-black bg-opacity-25 text-white fw-bold px-3 py-1 rounded-pill" style="font-size: 0.72rem;">
+              Score: {{ readiness.score }}/100
+            </span>
+          </div>
+          <h3 class="fw-bold mb-2 text-white">
+            {% if readiness.status == 'HEALTHY' %}
+              <i class="fa-solid fa-circle-check me-2"></i>System Recovery Readiness: Optimal
+            {% elif readiness.status == 'WARNING' %}
+              <i class="fa-solid fa-triangle-exclamation me-2"></i>System Recovery Readiness: Warning
+            {% else %}
+              <i class="fa-solid fa-circle-exclamation me-2"></i>System Recovery Readiness: Critical Action Needed
+            {% endif %}
+          </h3>
+          <p class="mb-0 text-white-50 small" style="line-height: 1.6;">
+            {% if readiness.reasons %}
+              {{ readiness.reasons|join:" &bull; " }}
+            {% else %}
+              All university database snapshots and uploaded document archives are verified and up-to-date.
+            {% endif %}
+          </p>
+        </div>
+        <div class="col-md-4 text-md-end">
+          <div class="d-inline-block text-center bg-black bg-opacity-25 rounded-4 p-3 px-4 border border-white border-opacity-10">
+            <span class="small text-white-50 text-uppercase d-block fw-semibold" style="font-size: 0.7rem;">Latest Valid Backup</span>
+            <span class="fs-4 fw-bold text-white">
+              {% if readiness.latest_backup %}
+                {{ readiness.backup_age_hours }}h ago
+              {% else %}
+                None
+              {% endif %}
+            </span>
+            <span class="small text-white-50 d-block mt-1">
+              {% if readiness.latest_backup %}
+                {{ readiness.latest_backup.file_size_display }}
+              {% else %}
+                Immediate action required
+              {% endif %}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Metrics Grid -->
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #10b981 !important;">
+        <span class="text-muted small fw-semibold text-uppercase">Successful Backups</span>
+        <div class="display-6 fw-bold text-success mt-2">{{ successful_jobs }}</div>
+        <span class="small text-muted mt-1">{{ readiness.verified_backups }} verified with SHA-256</span>
+      </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #ef4444 !important;">
+        <span class="text-muted small fw-semibold text-uppercase">Failed Jobs</span>
+        <div class="display-6 fw-bold text-danger mt-2">{{ failed_jobs }}</div>
+        <span class="small text-muted mt-1">{{ readiness.recent_failures }} in the last 7 days</span>
+      </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #6C5CE7 !important;">
+        <span class="text-muted small fw-semibold text-uppercase">Total Storage Used</span>
+        <div class="display-6 fw-bold text-dark mt-2">{{ total_storage_mb }} <span class="fs-6 text-muted">MB</span></div>
+        <span class="small text-muted mt-1">{{ readiness.storage_available_gb }} GB free on disk</span>
+      </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #0ea5e9 !important;">
+        <span class="text-muted small fw-semibold text-uppercase">Active Schedules</span>
+        <div class="display-6 fw-bold text-primary mt-2">{{ readiness.active_schedules_count }}</div>
+        <span class="small text-muted mt-1">
+          {% if next_scheduled %}
+            Next: {{ next_scheduled.next_run_at|date:"D H:i" }}
+          {% else %}
+            No recurring schedules active
+          {% endif %}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Subsections Quick Links -->
+  <div class="d-flex gap-2 mb-4 overflow-x-auto pb-2">
+    <a href="{% url 'university:backup_history' %}" class="btn btn-light rounded-pill px-3 py-2 small fw-semibold border shadow-sm">
+      <i class="fa-solid fa-list me-1 text-primary"></i> Backup History
+    </a>
+    <a href="{% url 'university:backup_schedules' %}" class="btn btn-light rounded-pill px-3 py-2 small fw-semibold border shadow-sm">
+      <i class="fa-solid fa-calendar-check me-1 text-success"></i> Scheduled Backups
+    </a>
+    <a href="{% url 'university:backup_storage' %}" class="btn btn-light rounded-pill px-3 py-2 small fw-semibold border shadow-sm">
+      <i class="fa-solid fa-hard-drive me-1 text-warning"></i> Storage Targets
+    </a>
+    <a href="{% url 'university:backup_restore_dashboard' %}" class="btn btn-light rounded-pill px-3 py-2 small fw-semibold border shadow-sm">
+      <i class="fa-solid fa-shield-virus me-1 text-danger"></i> Restore &amp; Recovery
+    </a>
+    <a href="{% url 'university:backup_settings' %}" class="btn btn-light rounded-pill px-3 py-2 small fw-semibold border shadow-sm">
+      <i class="fa-solid fa-sliders me-1 text-secondary"></i> Backup Settings
+    </a>
+    <a href="{% url 'university:backup_logs' %}" class="btn btn-light rounded-pill px-3 py-2 small fw-semibold border shadow-sm">
+      <i class="fa-solid fa-terminal me-1 text-info"></i> Operational Logs
+    </a>
+    <a href="{% url 'university:backup_export' %}?format=csv" class="btn btn-light rounded-pill px-3 py-2 small fw-semibold border shadow-sm ms-auto">
+      <i class="fa-solid fa-file-csv me-1 text-success"></i> Export CSV
+    </a>
+    <a href="{% url 'university:backup_export' %}?format=xlsx" class="btn btn-light rounded-pill px-3 py-2 small fw-semibold border shadow-sm">
+      <i class="fa-solid fa-file-excel me-1 text-success"></i> Export Excel
+    </a>
+  </div>
+
+  <div class="row g-4">
+    <!-- Recent Backups Table -->
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white h-100">
+        <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+          <span class="fw-bold text-dark">
+            <i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>Recent Backup Jobs
+          </span>
+          <a href="{% url 'university:backup_history' %}" class="small text-decoration-none fw-semibold">View All &rarr;</a>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light text-muted small text-uppercase">
+              <tr>
+                <th class="ps-4">Backup ID</th>
+                <th>Scope</th>
+                <th>Trigger</th>
+                <th>Size</th>
+                <th>Status</th>
+                <th>Verification</th>
+                <th class="pe-4 text-end">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for job in recent_jobs %}
+              <tr>
+                <td class="ps-4">
+                  <a href="{% url 'university:backup_detail' job.pk %}" class="fw-bold text-dark text-decoration-none">
+                    {{ job.backup_id }}
+                  </a>
+                  <div class="small text-muted">{{ job.created_at|date:"d M Y H:i" }}</div>
+                </td>
+                <td>
+                  <span class="badge bg-light text-dark border fw-normal">{{ job.get_backup_type_display }}</span>
+                </td>
+                <td>
+                  <span class="small text-secondary">{{ job.get_trigger_type_display }}</span>
+                </td>
+                <td>
+                  <span class="small fw-semibold text-dark">{{ job.file_size_display }}</span>
+                  <div class="small text-muted" style="font-size: 0.72rem;">{{ job.duration_seconds }}s</div>
+                </td>
+                <td>
+                  {% if job.status == 'SUCCESSFUL' %}
+                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2">Successful</span>
+                  {% elif job.status == 'FAILED' %}
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2">Failed</span>
+                  {% elif job.status == 'RUNNING' %}
+                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-2">Running...</span>
+                  {% else %}
+                    <span class="badge bg-secondary-subtle text-secondary border rounded-pill px-2">{{ job.status }}</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if job.verification_status == 'PASSED' %}
+                    <span class="text-success small fw-semibold"><i class="fa-solid fa-check-circle me-1"></i>Verified</span>
+                  {% elif job.verification_status == 'FAILED' %}
+                    <span class="text-danger small fw-semibold"><i class="fa-solid fa-circle-xmark me-1"></i>Corrupt</span>
+                  {% else %}
+                    <span class="text-muted small">Unverified</span>
+                  {% endif %}
+                </td>
+                <td class="pe-4 text-end">
+                  <div class="dropdown">
+                    <button class="btn btn-sm btn-light border rounded-pill px-2 py-1" type="button" data-bs-toggle="dropdown">
+                      <i class="fa-solid fa-ellipsis-vertical"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 small">
+                      <li><a class="dropdown-item py-2" href="{% url 'university:backup_detail' job.pk %}"><i class="fa-solid fa-eye me-2 text-primary"></i>View Details</a></li>
+                      {% if job.is_available %}
+                        <li><a class="dropdown-item py-2" href="{% url 'university:backup_download' job.pk %}"><i class="fa-solid fa-download me-2 text-success"></i>Download Archive</a></li>
+                        <li>
+                          <form method="post" action="{% url 'university:backup_verify' job.pk %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="dropdown-item py-2"><i class="fa-solid fa-shield-check me-2 text-info"></i>Verify Integrity</button>
+                          </form>
+                        </li>
+                      {% endif %}
+                    </ul>
+                  </div>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="7" class="text-center py-5 text-muted">
+                  <i class="fa-solid fa-database fa-3x text-muted mb-3 d-block opacity-25"></i>
+                  <h6 class="fw-bold">No Backups Generated Yet</h6>
+                  <p class="small mb-3">Create an on-demand backup now or configure a recurring schedule.</p>
+                  <button type="button" class="btn btn-primary btn-sm rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#createBackupModal">
+                    <i class="fa-solid fa-plus me-1"></i> Create First Backup
+                  </button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Schedules & Health Card -->
+    <div class="col-lg-4">
+      <!-- Active Schedules -->
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white mb-4">
+        <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+          <span class="fw-bold text-dark">
+            <i class="fa-solid fa-clock me-2 text-primary"></i>Active Schedules
+          </span>
+          <a href="{% url 'university:backup_schedules' %}" class="small text-decoration-none fw-semibold">Manage</a>
+        </div>
+        <div class="card-body p-3">
+          {% for s in active_schedules %}
+            <div class="p-3 bg-light rounded-3 mb-2 border">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="fw-bold text-dark">{{ s.name }}</span>
+                <span class="badge bg-primary-subtle text-primary rounded-pill small">{{ s.get_frequency_display }}</span>
+              </div>
+              <div class="small text-muted d-flex justify-content-between align-items-center">
+                <span>Next: {{ s.next_run_at|date:"d M Y H:i" }}</span>
+                <form method="post" action="{% url 'university:backup_schedule_run_now' s.pk %}" class="d-inline">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-link btn-sm p-0 text-primary fw-semibold text-decoration-none">Run Now</button>
+                </form>
+              </div>
+            </div>
+          {% empty %}
+            <div class="text-center py-4 text-muted small">
+              <i class="fa-regular fa-calendar-xmark fa-2x mb-2 d-block opacity-50"></i>
+              No recurring schedules are currently active.
+              <div class="mt-2">
+                <a href="{% url 'university:backup_schedule_create' %}" class="btn btn-outline-primary btn-sm rounded-pill px-3">Create Schedule</a>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Storage Health Card -->
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
+        <div class="card-header bg-white py-3 px-4 border-bottom">
+          <span class="fw-bold text-dark">
+            <i class="fa-solid fa-hard-drive me-2 text-primary"></i>Storage Utilization
+          </span>
+        </div>
+        <div class="card-body p-4 text-center">
+          <div class="progress mb-3" style="height: 12px; border-radius: 6px;">
+            <div class="progress-bar {% if readiness.storage_used_percent > 85 %}bg-danger{% elif readiness.storage_used_percent > 70 %}bg-warning{% else %}bg-success{% endif %}" 
+                 role="progressbar" style="width: {{ readiness.storage_used_percent }}%;"></div>
+          </div>
+          <div class="d-flex justify-content-between small text-muted mb-3">
+            <span>{{ readiness.storage_used_percent }}% Used</span>
+            <span>{{ readiness.storage_available_gb }} GB Available</span>
+          </div>
+          <a href="{% url 'university:backup_storage' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3 w-100">
+            Configure Storage Destinations
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Create Backup Now -->
+  <div class="modal fade" id="createBackupModal" tabindex="-1" aria-labelledby="createBackupModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
+        <form method="post" action="{% url 'university:backup_create_now' %}">
+          {% csrf_token %}
+          <div class="modal-header border-0 bg-light px-4 pt-4 pb-3">
+            <h5 class="modal-title fw-bold text-dark" id="createBackupModalLabel">
+              <i class="fa-solid fa-database me-2 text-primary"></i>Create On-Demand Backup
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body px-4 py-3">
+            <div class="mb-3">
+              <label class="form-label small fw-semibold text-muted text-uppercase">Backup Scope</label>
+              <select name="backup_type" id="id_backup_type_select" class="form-select rounded-3" required>
+                <option value="FULL" selected>Full System (Database + Uploaded Files + Config)</option>
+                <option value="DATABASE">Database Only (Fast snapshot)</option>
+                <option value="FILES">Uploaded Documents &amp; Media Only</option>
+                <option value="CONFIG">System Configuration &amp; Setups Only</option>
+                <option value="CUSTOM">Custom Selected Components</option>
+              </select>
+            </div>
+
+            <!-- Custom Options (Hidden by default) -->
+            <div id="custom_options_box" class="p-3 bg-light rounded-3 border mb-3 d-none">
+              <span class="small fw-bold text-dark d-block mb-2">Select Components to Include:</span>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="include_database" id="c_db" checked>
+                <label class="form-check-label small" for="c_db">Database</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="include_files" id="c_files" checked>
+                <label class="form-check-label small" for="c_files">Media/Files</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="include_config" id="c_cfg" checked>
+                <label class="form-check-label small" for="c_cfg">Config</label>
+              </div>
+            </div>
+
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" name="is_protected" id="id_is_protected">
+              <label class="form-check-label small text-dark fw-semibold" for="id_is_protected">
+                Lock / Protect this backup (Exempt from automated retention deletion)
+              </label>
+            </div>
+
+            <div class="p-3 bg-light rounded-3 border small text-secondary">
+              <i class="fa-solid fa-circle-info text-primary me-1"></i>
+              Backups run asynchronously on the server and are verified with SHA-256 upon creation.
+            </div>
+          </div>
+          <div class="modal-footer border-0 px-4 pb-4 pt-2">
+            <button type="button" class="btn btn-light rounded-pill px-3 fw-semibold" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm">
+              <i class="fa-solid fa-play me-1"></i> Start Backup Execution
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  document.getElementById('id_backup_type_select').addEventListener('change', function() {
+    const box = document.getElementById('custom_options_box');
+    if (this.value === 'CUSTOM') {
+      box.classList.remove('d-none');
+    } else {
+      box.classList.add('d-none');
+    }
+  });
+</script>
+{% endblock %}

@@ -282,17 +282,20 @@
 
       <!-- System Administration Collapsible -->
       <div class="nav-group">
-        <div class="item item-toggle {% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or request.resolver_match.namespace == 'control' %}active{% endif %}"
+        <div class="item item-toggle {% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or request.resolver_match.namespace == 'control' %}active{% endif %}"
              data-bs-toggle="collapse" data-bs-target="#adminSystemSubmenu" role="button"
-             aria-expanded="{% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or request.resolver_match.namespace == 'control' %}true{% else %}false{% endif %}"
+             aria-expanded="{% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or request.resolver_match.namespace == 'control' %}true{% else %}false{% endif %}"
              aria-controls="adminSystemSubmenu">
           <i class="fa-solid fa-shield-halved"></i>
           <span class="item-label">System Admin</span>
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
-        <div class="collapse submenu {% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'staff_permissions_dashboard' or url_name == 'staff_user_access_detail' or url_name == 'role_create' or url_name == 'role_edit' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or request.resolver_match.namespace == 'control' %}show{% endif %}" id="adminSystemSubmenu">
+        <div class="collapse submenu {% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'staff_permissions_dashboard' or url_name == 'staff_user_access_detail' or url_name == 'role_create' or url_name == 'role_edit' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or request.resolver_match.namespace == 'control' %}show{% endif %}" id="adminSystemSubmenu">
           <a class="item sub-item {% if url_name == 'admin_modules' %}active{% endif %}" href="{% url 'university:admin_modules' %}">
             <i class="fa-solid fa-cubes-stacked"></i> <span class="item-label">Module Management</span>
+          </a>
+          <a class="item sub-item {% if 'backup' in url_name %}active{% endif %}" href="{% url 'university:backup_dashboard' %}">
+            <i class="fa-solid fa-database"></i> <span class="item-label">System Backups</span>
           </a>
           {% if can_control_maintenance %}
           <a class="item sub-item {% if request.resolver_match.namespace == 'control' and request.resolver_match.url_name in 'dashboard,status,health' and not request.GET.section == 'lockdown' %}active{% endif %}" href="{% url 'control:dashboard' %}">

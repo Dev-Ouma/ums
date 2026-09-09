@@ -1,0 +1,82 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}Backup Storage Targets · System Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-3 px-md-4">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1 small">
+          <li class="breadcrumb-item"><a href="{% url 'university:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'university:backup_dashboard' %}" class="text-decoration-none">System Backups</a></li>
+          <li class="breadcrumb-item active" aria-current="page">Storage Targets</li>
+        </ol>
+      </nav>
+      <h2 class="fw-bold mb-0 text-dark">
+        <i class="fa-solid fa-hard-drive me-2 text-primary"></i>Backup Storage Destinations
+      </h2>
+      <p class="text-muted small mb-0 mt-1">Configure local, network, or cloud storage locations for archival backups and disaster recovery.</p>
+    </div>
+    <div>
+      <a href="{% url 'university:backup_dashboard' %}" class="btn btn-outline-secondary rounded-pill px-3 fw-semibold">
+        <i class="fa-solid fa-arrow-left me-1"></i> Back to Dashboard
+      </a>
+    </div>
+  </div>
+
+  <!-- Storage Grid -->
+  <div class="row g-4">
+    {% for st in storages %}
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white h-100">
+        <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+          <div>
+            <span class="fw-bold text-dark fs-6">{{ st.name }}</span>
+            {% if st.is_default %}
+              <span class="badge bg-primary-subtle text-primary rounded-pill ms-2 small">Default Destination</span>
+            {% endif %}
+          </div>
+          <span class="badge {% if st.last_test_status == 'PASSED' %}bg-success-subtle text-success border border-success-subtle{% elif st.last_test_status == 'FAILED' %}bg-danger-subtle text-danger border border-danger-subtle{% else %}bg-secondary-subtle text-muted border{% endif %} rounded-pill px-3 py-1">
+            {{ st.last_test_status }}
+          </span>
+        </div>
+        <div class="card-body p-4">
+          <div class="row g-3 mb-3">
+            <div class="col-sm-6">
+              <span class="text-muted small text-uppercase d-block fw-semibold" style="font-size: 0.72rem;">Storage Architecture</span>
+              <span class="fw-semibold text-dark">{{ st.get_storage_type_display }}</span>
+            </div>
+            <div class="col-sm-6">
+              <span class="text-muted small text-uppercase d-block fw-semibold" style="font-size: 0.72rem;">Total Backups Stored</span>
+              <span class="fw-bold text-dark">{{ st.job_count }} archives</span>
+            </div>
+            <div class="col-12">
+              <span class="text-muted small text-uppercase d-block fw-semibold" style="font-size: 0.72rem;">Target Destination Path</span>
+              <code class="p-2 bg-light rounded-3 d-block border small font-monospace text-break">{{ st.destination_path }}</code>
+            </div>
+            <div class="col-12">
+              <span class="text-muted small text-uppercase d-block fw-semibold" style="font-size: 0.72rem;">Connection &amp; Probe Status</span>
+              <p class="small text-secondary mb-0">{{ st.last_test_message|default:"No health probe run yet." }}</p>
+            </div>
+          </div>
+          <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+            <small class="text-muted">Last tested: {{ st.last_tested_at|date:"d M Y H:i"|default:"Never" }}</small>
+            <form method="post" action="{% url 'university:backup_storage_test' st.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-primary btn-sm rounded-pill px-3 fw-semibold shadow-sm">
+                <i class="fa-solid fa-plug-circle-check me-1"></i> Test Connection
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}
