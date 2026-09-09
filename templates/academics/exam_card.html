@@ -56,9 +56,12 @@
             <div class="fw-bold">{{ clearance.percentage_paid }}%</div>
           </div>
         </div>
-        <div class="mt-3">
-          <a href="{% url 'university:student_fees' %}" class="btn btn-danger rounded-pill px-4 py-2 fw-semibold">
-            <i class="fa-solid fa-wallet me-1"></i> Pay Balance via Student Finance
+        <div class="mt-3 d-flex gap-2 flex-wrap">
+          <a href="{% url 'university:student_pay_fees' %}" class="btn btn-danger rounded-pill px-4 py-2 fw-semibold shadow-sm">
+            <i class="fa-solid fa-credit-card me-1.5"></i> Pay Fees / Clear Balance Now
+          </a>
+          <a href="{% url 'university:student_fees' %}" class="btn btn-outline-secondary rounded-pill px-4 py-2 fw-semibold">
+            <i class="fa-solid fa-file-invoice-dollar me-1.5"></i> View Financial Statement
           </a>
         </div>
       </div>

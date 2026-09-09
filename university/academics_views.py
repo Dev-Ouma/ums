@@ -532,6 +532,11 @@ def student_exam_card_pdf(request):
             "control": control,
         }, status=403)
 
+    clearance = check_financial_clearance(sp, term=active_term)
+    if not clearance.get("is_cleared", False):
+        messages.error(request, f"Examination Card withheld: Financial clearance required. Outstanding balance: KES {clearance.get('balance', 0):,.2f}.")
+        return redirect("university:student_exam_card")
+
     ref_code = f"EXAM-CARD/{active_term.name.replace(' ', '') if active_term else 'SESSION'}/{sp.roll_no}"
     verify_url = request.build_absolute_uri(reverse("university:verify_document", kwargs={"reference_no": ref_code}))
     client_ip = get_client_ip(request)

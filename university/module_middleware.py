@@ -23,6 +23,7 @@ class ModuleAccessMiddleware:
         "/django-admin/",
         "/status/",
         "/system-control/status/",
+        "/finance/pay/callback/",
     )
 
     def __init__(self, get_response):

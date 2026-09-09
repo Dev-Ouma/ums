@@ -149,6 +149,9 @@ urlpatterns = [
 
     # Secure Payment Callbacks / Webhooks
     path("api/payments/callback/mpesa/", fee_payment_views.mpesa_callback, name="mpesa_callback"),
+    path("api/payments/callback/mpesa/validation/", fee_payment_views.mpesa_validation, name="mpesa_validation"),
+    path("finance/pay/callback/mpesa/", fee_payment_views.mpesa_callback, name="mpesa_callback_alt"),
+    path("finance/pay/callback/mpesa/validation/", fee_payment_views.mpesa_validation, name="mpesa_validation_alt"),
     path("api/payments/callback/card/", fee_payment_views.card_callback, name="card_callback"),
     path("api/payments/callback/bank/", fee_payment_views.bank_callback, name="bank_callback"),
 

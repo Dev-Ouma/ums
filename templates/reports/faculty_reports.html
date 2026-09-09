@@ -14,24 +14,34 @@
 
 <div class="row g-3 mb-4">
   <div class="col-md-6 col-xl-3">
-    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#6C5CE7,#8f7bff)">
+    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
       <div class="d-flex justify-content-between align-items-start">
         <div>
-          <div class="val">{{ total_courses }}</div>
-          <div class="lbl mt-1">Courses Assigned</div>
+          <span class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.5px;">Courses Assigned</span>
+          <div class="display-6 fw-bold text-dark mt-1">{{ total_courses }}</div>
         </div>
-        <span class="fs-3 opacity-75"><i class="fa-solid fa-book"></i></span>
+        <div class="rounded-3 p-2.5 bg-primary-subtle text-primary">
+          <i class="fa-solid fa-book fs-5"></i>
+        </div>
+      </div>
+      <div class="small text-muted mt-2 d-flex align-items-center gap-1.5">
+        <i class="fa-solid fa-graduation-cap text-primary"></i> Current Teaching Term
       </div>
     </div>
   </div>
   <div class="col-md-6 col-xl-3">
-    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#00b894,#55efc4)">
+    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
       <div class="d-flex justify-content-between align-items-start">
         <div>
-          <div class="val">{{ total_students_taught }}</div>
-          <div class="lbl mt-1">Students Taught</div>
+          <span class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.5px;">Students Taught</span>
+          <div class="display-6 fw-bold text-dark mt-1">{{ total_students_taught }}</div>
         </div>
-        <span class="fs-3 opacity-75"><i class="fa-solid fa-users"></i></span>
+        <div class="rounded-3 p-2.5 bg-success-subtle text-success">
+          <i class="fa-solid fa-users fs-5"></i>
+        </div>
+      </div>
+      <div class="small text-muted mt-2 d-flex align-items-center gap-1.5">
+        <i class="fa-solid fa-check-double text-success"></i> Active Cohort Enrolled
       </div>
     </div>
   </div>

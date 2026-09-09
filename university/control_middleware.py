@@ -43,8 +43,9 @@ class SystemControlMiddleware:
         recovery=namespace=='control' and any(permitted(request.user,p) for p in ['maintenance.deactivate','lockdown.deactivate'])
         exempt=((namespace=='accounts' and route in {'login','logout'}) or
                 (namespace=='control' and route=='status') or
-                route=='public_status' or
-                request.path_info.startswith('/status/'))
+                route in {'public_status', 'mpesa_callback'} or
+                request.path_info.startswith('/status/') or
+                request.path_info.startswith('/finance/pay/callback/'))
         if recovery or exempt:
             response=self.get_response(request)
             response['Cache-Control']='no-store, private'
