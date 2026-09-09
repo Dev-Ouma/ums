@@ -62,9 +62,23 @@
     <!-- Provider Instructions (If pending or waiting) -->
     {% if payment.status != 'SUCCESSFUL' and instructions %}
     <div class="card border rounded-4 p-4 mb-4 text-start bg-white shadow-sm">
-      <h6 class="fw-bold text-dark mb-3">
-        <i class="fa-solid fa-list-ol me-2 text-primary"></i>How to Complete this Payment:
-      </h6>
+      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <h6 class="fw-bold text-dark mb-0">
+          <i class="fa-solid fa-list-ol me-2 text-primary"></i>How to Complete this Payment:
+        </h6>
+        {% if instructions.business_number %}
+        <div class="d-flex flex-wrap gap-2">
+          <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1">
+            <i class="fa-solid fa-mobile-screen me-1"></i>Business No: <strong>{{ instructions.business_number }}</strong>
+          </span>
+          {% if instructions.account_number %}
+          <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1">
+            Account No: <strong>{{ instructions.account_number }}</strong>
+          </span>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
       <ul class="list-unstyled mb-0 small text-secondary">
         {% for step in instructions.steps %}
         <li class="mb-2 d-flex align-items-start gap-2">

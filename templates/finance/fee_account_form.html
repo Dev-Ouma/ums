@@ -3,7 +3,7 @@
 {% block title %}{% if is_edit %}Edit {{ account.name }}{% else %}New Fee Account{% endif %} · Finance{% endblock %}
 
 {% block content %}
-<div class="container py-4" style="max-width: 860px;">
+<div class="container py-4" style="max-width: 920px;">
 
   <!-- Breadcrumbs -->
   <nav aria-label="breadcrumb" class="mb-3">
@@ -21,7 +21,7 @@
         <i class="fa-solid {% if is_edit %}fa-pen-to-square{% else %}fa-plus-circle{% endif %} me-2 text-primary"></i>
         {% if is_edit %}Configure Fee Account: {{ account.name }}{% else %}Add Payment Gateway / Account{% endif %}
       </h2>
-      <p class="text-muted small mb-0">Set up Paybill, Till, Card Gateways, or Bank accounts with secure credential isolation.</p>
+      <p class="text-muted small mb-0">Set up Paybill (Business No &amp; Account No), Till, Card Gateways, or Bank accounts with secure credential isolation.</p>
     </div>
     <a href="{% url 'university:fee_accounts_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
       <i class="fa-solid fa-arrow-left me-1"></i> Back to Accounts
@@ -74,14 +74,16 @@
 
         <div class="col-md-6">
           <label class="form-label fw-semibold text-secondary small" id="identifierLabel">
-            Account Number / Paybill / Till Number <span class="text-danger">*</span>
+            Paybill Number / Business Shortcode <span class="text-danger">*</span>
           </label>
-          <input type="text" name="account_identifier" class="form-control rounded-3 py-2 fw-semibold" placeholder="e.g. 522123 or 889900" value="{{ account.account_identifier|default:'' }}" required>
+          <input type="text" name="account_identifier" id="identifierInput" class="form-control rounded-3 py-2 fw-semibold" placeholder="e.g. 522123 or 400200" value="{{ account.account_identifier|default:'' }}" required>
+          <small class="text-muted" id="identifierHelp">The Safaricom Business Number entered by customers under Paybill.</small>
         </div>
 
         <div class="col-md-6">
           <label class="form-label fw-semibold text-secondary small">Business / Registered Account Name</label>
           <input type="text" name="account_name" class="form-control rounded-3 py-2" placeholder="e.g. UNIVERSITY FEES COLLECTION" value="{{ account.account_name|default:'' }}">
+          <small class="text-muted">The official business name registered on M-Pesa / Bank statement.</small>
         </div>
 
         <div class="col-md-3">
@@ -105,32 +107,101 @@
         Routing &amp; Integration Parameters
       </h5>
 
-      <!-- Paybill / Till Extra Fields -->
-      <div id="mpesaFields" class="row g-3 mb-4">
-        <div class="col-md-6">
-          <label class="form-label fw-semibold text-secondary small">Callback / Webhook URL</label>
-          <input type="text" name="callback_url" class="form-control rounded-3 py-2" value="{{ account.configuration.callback_url|default:'/api/payments/callback/mpesa/' }}">
-          <small class="text-muted">Instant payment confirmation endpoint.</small>
+      <!-- M-Pesa Paybill Dedicated Setup Card -->
+      <div id="mpesaPaybillCard" class="card border rounded-4 p-4 mb-4 bg-light shadow-sm">
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <span class="badge bg-success rounded-pill px-3 py-1.5 fs-6">
+            <i class="fa-solid fa-mobile-screen-button me-1"></i> Kenya M-Pesa Paybill Setup
+          </span>
+          <span class="text-muted small">In Kenya, Paybill transactions require both a <b>Business No.</b> and an <b>Account No.</b></span>
         </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold text-secondary small">Payment Reference / Account Format</label>
-          <select name="account_ref_format" class="form-select rounded-3 py-2">
-            <option value="STUDENT_REG_NO" {% if account.configuration.account_ref_format == 'STUDENT_REG_NO' %}selected{% endif %}>Student Registration Number (e.g. STU-2024-001)</option>
-            <option value="PAYMENT_REFERENCE" {% if account.configuration.account_ref_format == 'PAYMENT_REFERENCE' %}selected{% endif %}>Internal Payment Reference (PAY-XXXX)</option>
-            <option value="INVOICE_NUMBER" {% if account.configuration.account_ref_format == 'INVOICE_NUMBER' %}selected{% endif %}>Invoice Number (INV-XXXX)</option>
-          </select>
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold text-dark small">
+              Account Number (Account Reference) Rule <span class="text-danger">*</span>
+            </label>
+            <select name="account_ref_format" id="paybillAccountRefSelect" class="form-select rounded-3 py-2">
+              <option value="STUDENT_REG_NO" {% if account.configuration.account_ref_format == 'STUDENT_REG_NO' or not account.configuration.account_ref_format %}selected{% endif %}>
+                Student Registration Number (Standard for Universities)
+              </option>
+              <option value="FIXED_ACCOUNT" {% if account.configuration.account_ref_format == 'FIXED_ACCOUNT' %}selected{% endif %}>
+                Fixed Institution / Bank Account Number
+              </option>
+              <option value="PREFIX_REG_NO" {% if account.configuration.account_ref_format == 'PREFIX_REG_NO' %}selected{% endif %}>
+                Prefix + Student Registration Number (e.g. FEES-REGNO)
+              </option>
+              <option value="INVOICE_NUMBER" {% if account.configuration.account_ref_format == 'INVOICE_NUMBER' %}selected{% endif %}>
+                Invoice Number (e.g. INV-2026-0001)
+              </option>
+              <option value="PAYMENT_REFERENCE" {% if account.configuration.account_ref_format == 'PAYMENT_REFERENCE' %}selected{% endif %}>
+                Internal Payment Reference (e.g. PAY-2026-XXXX)
+              </option>
+            </select>
+            <small class="text-muted">Dictates what students must enter in the M-Pesa "Account No" prompt.</small>
+          </div>
+
+          <!-- Fixed Account Number Input (if FIXED_ACCOUNT selected) -->
+          <div class="col-md-6" id="fixedAccountContainer" style="display: none;">
+            <label class="form-label fw-semibold text-dark small">
+              Fixed Account Number <span class="text-danger">*</span>
+            </label>
+            <input type="text" name="fixed_account_number" id="fixedAccountInput" class="form-control rounded-3 py-2 font-monospace fw-semibold" placeholder="e.g. 01129012345600 or 12345678" value="{{ account.configuration.fixed_account_number|default:'' }}">
+            <small class="text-muted">Enter the university bank account number or collection clearing number.</small>
+          </div>
+
+          <!-- Account Prefix Input (if PREFIX_REG_NO selected) -->
+          <div class="col-md-6" id="accountPrefixContainer" style="display: none;">
+            <label class="form-label fw-semibold text-dark small">
+              Account Number Prefix <span class="text-danger">*</span>
+            </label>
+            <input type="text" name="account_ref_prefix" id="accountPrefixInput" class="form-control rounded-3 py-2 font-monospace fw-semibold" placeholder="e.g. FEES- or ADM#" value="{{ account.configuration.account_ref_prefix|default:'' }}">
+            <small class="text-muted">Prefix prepended before the student's registration number.</small>
+          </div>
+
+          <!-- Daraja Webhook URLs -->
+          <div class="col-md-6">
+            <label class="form-label fw-semibold text-secondary small">Confirmation / Callback URL</label>
+            <input type="text" name="callback_url" class="form-control rounded-3 py-2 font-monospace small" value="{{ account.configuration.callback_url|default:'/api/payments/callback/mpesa/' }}">
+            <small class="text-muted">Instant C2B confirmation endpoint.</small>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold text-secondary small">Validation URL (Optional)</label>
+            <input type="text" name="validation_url" class="form-control rounded-3 py-2 font-monospace small" placeholder="/api/payments/validation/mpesa/" value="{{ account.configuration.validation_url|default:'' }}">
+            <small class="text-muted">Pre-validation endpoint to verify student account number before accepting payment.</small>
+          </div>
+
+          <!-- Live M-Pesa Mobile Prompt Preview Box -->
+          <div class="col-12 mt-3">
+            <div class="rounded-4 p-3 shadow-sm border" style="background: linear-gradient(135deg, #0b1523 0%, #172a45 100%); color: #fff;">
+              <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom border-secondary border-opacity-25">
+                <span class="badge bg-success rounded-pill px-2.5 py-1 text-uppercase" style="font-size: 0.72rem;">
+                  <i class="fa-solid fa-mobile-screen me-1"></i> Live Kenyan M-Pesa Prompt Preview
+                </span>
+                <span class="text-white-50 small">How students pay on Safaricom SIM Toolkit / M-Pesa App</span>
+              </div>
+              <div class="font-monospace small p-3 rounded-3" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1);">
+                <div class="text-white-50 mb-1">SIM Toolkit &rarr; Lipa na M-Pesa &rarr; Paybill:</div>
+                <div class="text-success mt-1">1. Enter Business No: <b id="previewBusinessNo">{{ account.account_identifier|default:'522123' }}</b></div>
+                <div class="text-warning mt-1">2. Enter Account No: <b id="previewAccountNo">{{ account.paybill_account_number_display|default:'BSE/2026/001 (Student Reg No)' }}</b></div>
+                <div class="text-info mt-1">3. Enter Amount: <b>KES [Amount to Pay]</b></div>
+                <div class="text-white-50 mt-1">4. Enter M-Pesa PIN: <b>••••</b></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- Bank Extra Fields -->
       <div id="bankFields" class="row g-3 mb-4" style="display: none;">
         <div class="col-md-4">
-          <label class="form-label fw-semibold text-secondary small">Branch</label>
+          <label class="form-label fw-semibold text-secondary small">Bank Branch</label>
           <input type="text" name="branch" class="form-control rounded-3 py-2" placeholder="e.g. Main Campus Branch" value="{{ account.configuration.branch|default:'' }}">
         </div>
         <div class="col-md-4">
           <label class="form-label fw-semibold text-secondary small">Bank Code</label>
-          <input type="text" name="bank_code" class="form-control rounded-3 py-2" placeholder="e.g. 11" value="{{ account.configuration.bank_code|default:'' }}">
+          <input type="text" name="bank_code" class="form-control rounded-3 py-2" placeholder="e.g. 11 (Co-op) or 68 (Equity)" value="{{ account.configuration.bank_code|default:'' }}">
         </div>
         <div class="col-md-4">
           <label class="form-label fw-semibold text-secondary small">SWIFT / BIC Code</label>
@@ -161,8 +232,21 @@
               {% if is_edit %}Leave this field blank or masked unless you wish to rotate/update the secret key.{% endif %}
             </div>
           </div>
-          <label class="form-label fw-semibold text-secondary small">Consumer Secret / API Key / Passkey</label>
-          <input type="password" name="secret_key" class="form-control rounded-3 py-2" placeholder="{% if is_edit and account.encrypted_credentials %}•••••••••••••••• (Leave unchanged to retain existing key){% else %}Enter provider API Key or Secret{% endif %}" autocomplete="new-password">
+        </div>
+
+        <div class="col-md-6" id="consumerKeyContainer">
+          <label class="form-label fw-semibold text-secondary small">Consumer Key / API Key</label>
+          <input type="text" name="consumer_key" class="form-control rounded-3 py-2" placeholder="{% if is_edit and account.configuration.consumer_key %}••••••••••••••••{% else %}Enter provider API Key / Consumer Key{% endif %}" value="{% if is_edit and account.configuration.consumer_key %}••••••••••••••••{% endif %}">
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label fw-semibold text-secondary small">Consumer Secret / API Secret</label>
+          <input type="password" name="secret_key" class="form-control rounded-3 py-2" placeholder="{% if is_edit and account.encrypted_credentials %}•••••••••••••••• (Leave unchanged to retain existing key){% else %}Enter provider Secret / API Secret{% endif %}" autocomplete="new-password">
+        </div>
+
+        <div class="col-md-12" id="passkeyContainer">
+          <label class="form-label fw-semibold text-secondary small">Daraja Online Passkey (STK Push)</label>
+          <input type="password" name="passkey" class="form-control rounded-3 py-2" placeholder="{% if is_edit and account.configuration.passkey %}•••••••••••••••• (Leave unchanged to retain existing passkey){% else %}Enter Safaricom Daraja Passkey{% endif %}" autocomplete="new-password">
         </div>
 
         <div class="col-md-12">
@@ -197,30 +281,92 @@
 <script>
   (function() {
     const select = document.getElementById('accountTypeSelect');
-    const mpesaFields = document.getElementById('mpesaFields');
+    const mpesaCard = document.getElementById('mpesaPaybillCard');
     const bankFields = document.getElementById('bankFields');
     const cardFields = document.getElementById('cardFields');
     const label = document.getElementById('identifierLabel');
+    const help = document.getElementById('identifierHelp');
+    const idInput = document.getElementById('identifierInput');
+
+    const refSelect = document.getElementById('paybillAccountRefSelect');
+    const fixedContainer = document.getElementById('fixedAccountContainer');
+    const fixedInput = document.getElementById('fixedAccountInput');
+    const prefixContainer = document.getElementById('accountPrefixContainer');
+    const prefixInput = document.getElementById('accountPrefixInput');
+
+    const previewBusinessNo = document.getElementById('previewBusinessNo');
+    const previewAccountNo = document.getElementById('previewAccountNo');
 
     function updateFields() {
       const val = select ? select.value : '{{ account.account_type|default:"MPESA_PAYBILL" }}';
-      if (mpesaFields) mpesaFields.style.display = (val === 'MPESA_PAYBILL' || val === 'MPESA_TILL') ? 'flex' : 'none';
+
+      if (mpesaCard) mpesaCard.style.display = (val === 'MPESA_PAYBILL' || val === 'MPESA_TILL') ? 'block' : 'none';
       if (bankFields) bankFields.style.display = (val === 'BANK_ACCOUNT') ? 'flex' : 'none';
       if (cardFields) cardFields.style.display = (val === 'CARD_GATEWAY') ? 'flex' : 'none';
 
-      if (label) {
-        if (val === 'MPESA_PAYBILL') label.innerHTML = 'Paybill Number <span class="text-danger">*</span>';
-        else if (val === 'MPESA_TILL') label.innerHTML = 'Till Number <span class="text-danger">*</span>';
-        else if (val === 'BANK_ACCOUNT') label.innerHTML = 'Bank Account Number <span class="text-danger">*</span>';
-        else if (val === 'CARD_GATEWAY') label.innerHTML = 'Merchant / Account ID <span class="text-danger">*</span>';
-        else label.innerHTML = 'Account Identifier <span class="text-danger">*</span>';
+      if (label && help) {
+        if (val === 'MPESA_PAYBILL') {
+          label.innerHTML = 'Paybill Number / Business Shortcode <span class="text-danger">*</span>';
+          help.textContent = 'The 5 to 7 digit Safaricom Business Number entered by students under Business No.';
+          idInput.placeholder = 'e.g. 522123 or 400200';
+        } else if (val === 'MPESA_TILL') {
+          label.innerHTML = 'Buy Goods / Till Number <span class="text-danger">*</span>';
+          help.textContent = 'The Safaricom Till Number for Buy Goods & Services.';
+          idInput.placeholder = 'e.g. 889900';
+        } else if (val === 'BANK_ACCOUNT') {
+          label.innerHTML = 'Bank Account Number <span class="text-danger">*</span>';
+          help.textContent = 'The primary bank account number for fee deposits.';
+          idInput.placeholder = 'e.g. 01129012345600';
+        } else if (val === 'CARD_GATEWAY') {
+          label.innerHTML = 'Merchant / Account ID <span class="text-danger">*</span>';
+          help.textContent = 'Public Merchant ID or Stripe Account ID.';
+          idInput.placeholder = 'e.g. acct_12345678';
+        } else {
+          label.innerHTML = 'Account Identifier <span class="text-danger">*</span>';
+          help.textContent = 'Unique identifier for this channel.';
+        }
+      }
+      updatePreview();
+    }
+
+    function updateRefFields() {
+      if (!refSelect) return;
+      const refVal = refSelect.value;
+      if (fixedContainer) fixedContainer.style.display = (refVal === 'FIXED_ACCOUNT') ? 'block' : 'none';
+      if (prefixContainer) prefixContainer.style.display = (refVal === 'PREFIX_REG_NO') ? 'block' : 'none';
+      updatePreview();
+    }
+
+    function updatePreview() {
+      if (previewBusinessNo && idInput) {
+        previewBusinessNo.textContent = idInput.value || '522123';
+      }
+      if (previewAccountNo && refSelect) {
+        const refVal = refSelect.value;
+        if (refVal === 'FIXED_ACCOUNT') {
+          const fixedVal = fixedInput ? fixedInput.value.trim() : '';
+          previewAccountNo.textContent = fixedVal || '[Fixed Account No, e.g. 01129012345600]';
+        } else if (refVal === 'PREFIX_REG_NO') {
+          const pref = prefixInput ? prefixInput.value.trim() : 'FEES-';
+          previewAccountNo.textContent = pref + 'BSE/2026/001 (Prefix + Reg No)';
+        } else if (refVal === 'INVOICE_NUMBER') {
+          previewAccountNo.textContent = 'INV-2026-0001 (Student Invoice No)';
+        } else if (refVal === 'PAYMENT_REFERENCE') {
+          previewAccountNo.textContent = 'PAY-2026-0001 (Internal Payment Ref)';
+        } else {
+          previewAccountNo.textContent = 'BSE/2026/001 (Student Registration No)';
+        }
       }
     }
 
-    if (select) {
-      select.addEventListener('change', updateFields);
-      updateFields();
-    }
+    if (select) select.addEventListener('change', updateFields);
+    if (idInput) idInput.addEventListener('input', updatePreview);
+    if (refSelect) refSelect.addEventListener('change', updateRefFields);
+    if (fixedInput) fixedInput.addEventListener('input', updatePreview);
+    if (prefixInput) prefixInput.addEventListener('input', updatePreview);
+
+    updateFields();
+    updateRefFields();
   })();
 </script>
 {% endblock %}

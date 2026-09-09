@@ -78,11 +78,19 @@
     </div>
     <div class="col-sm-6 col-lg-3">
       <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
-        <span class="text-muted small fw-semibold text-uppercase">Identifier / Number</span>
-        <div class="display-6 fw-bold text-dark mt-2">
-          <code>{{ account.account_identifier }}</code>
+        <span class="text-muted small fw-semibold text-uppercase">
+          {% if account.account_type == 'MPESA_PAYBILL' %}Paybill / Business No{% elif account.account_type == 'MPESA_TILL' %}Till Number{% else %}Identifier / Account No{% endif %}
+        </span>
+        <div class="display-6 fw-bold text-dark mt-2 font-monospace">
+          {{ account.account_identifier }}
         </div>
-        <span class="small text-muted mt-1">{{ account.account_name|default:'University Main' }}</span>
+        <span class="small text-muted mt-1">
+          {% if account.account_type == 'MPESA_PAYBILL' %}
+            Account No: <strong class="text-primary">{{ account.paybill_account_number_display }}</strong>
+          {% else %}
+            {{ account.account_name|default:'University Collection' }}
+          {% endif %}
+        </span>
       </div>
     </div>
     <div class="col-sm-6 col-lg-3">
@@ -98,11 +106,11 @@
       <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
         <span class="text-muted small fw-semibold text-uppercase">Diagnostics Status</span>
         <div class="mt-2">
-          {% if account.last_tested_status == 'SUCCESS' %}
+          {% if account.last_test_status == 'PASSED' or account.last_test_status == 'SUCCESS' %}
             <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill fs-6">
               <i class="fa-solid fa-circle-check me-1"></i>Verified Online
             </span>
-          {% elif account.last_tested_status == 'FAILED' %}
+          {% elif account.last_test_status == 'FAILED' %}
             <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 rounded-pill fs-6">
               <i class="fa-solid fa-circle-xmark me-1"></i>Diagnostic Failed
             </span>
@@ -120,15 +128,125 @@
   </div>
 
   <!-- Diagnostic Response Message Callout if present -->
-  {% if account.last_tested_response %}
-  <div class="card border-0 shadow-sm rounded-4 p-3 mb-4 {% if account.last_tested_status == 'SUCCESS' %}bg-success-subtle text-success-emphasis border border-success-subtle{% else %}bg-warning-subtle text-warning-emphasis border border-warning-subtle{% endif %}">
+  {% if account.last_test_message %}
+  <div class="card border-0 shadow-sm rounded-4 p-3 mb-4 {% if account.last_test_status == 'PASSED' or account.last_test_status == 'SUCCESS' %}bg-success-subtle text-success-emphasis border border-success-subtle{% else %}bg-warning-subtle text-warning-emphasis border border-warning-subtle{% endif %}">
     <div class="d-flex align-items-center gap-2">
-      <i class="fa-solid {% if account.last_tested_status == 'SUCCESS' %}fa-circle-check{% else %}fa-triangle-exclamation{% endif %}"></i>
+      <i class="fa-solid {% if account.last_test_status == 'PASSED' or account.last_test_status == 'SUCCESS' %}fa-circle-check{% else %}fa-triangle-exclamation{% endif %}"></i>
       <span class="fw-bold small">Last Diagnostic Probe:</span>
-      <span class="small font-monospace">{{ account.last_tested_response }}</span>
+      <span class="small font-monospace">{{ account.last_test_message }}</span>
     </div>
   </div>
   {% endif %}
+
+  <!-- Dedicated Kenya Paybill / Integration Details Card -->
+  <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <h5 class="fw-bold mb-0 text-dark">
+        <i class="fa-solid fa-sliders me-2 text-primary"></i>
+        {% if account.account_type == 'MPESA_PAYBILL' %}
+          Kenya M-Pesa Paybill Parameters
+        {% else %}
+          Account &amp; Integration Parameters
+        {% endif %}
+      </h5>
+      <a href="{% url 'university:fee_account_edit' account.pk %}" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+        <i class="fa-solid fa-pen-to-square me-1"></i> Modify Parameters
+      </a>
+    </div>
+
+    <div class="row g-3">
+      {% if account.account_type == 'MPESA_PAYBILL' %}
+      <div class="col-md-6 col-lg-3">
+        <div class="p-3 bg-light rounded-3 h-100">
+          <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size: 0.72rem;">1. Business / Paybill Number</small>
+          <span class="font-monospace fw-bold fs-5 text-dark">{{ account.account_identifier }}</span>
+          <small class="text-muted d-block mt-1">Safaricom Shortcode</small>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="p-3 bg-light rounded-3 h-100">
+          <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size: 0.72rem;">2. Account Number Rule</small>
+          <span class="fw-bold fs-6 text-primary">{{ account.paybill_account_number_display }}</span>
+          <small class="text-muted d-block mt-1">Rule: <code>{{ account.configuration.account_ref_format|default:'STUDENT_REG_NO' }}</code></small>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="p-3 bg-light rounded-3 h-100">
+          <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size: 0.72rem;">3. Registered Account Name</small>
+          <span class="fw-bold fs-6 text-dark">{{ account.account_name|default:'University Fees Collection' }}</span>
+          <small class="text-muted d-block mt-1">Displayed on customer receipt</small>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="p-3 bg-light rounded-3 h-100">
+          <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size: 0.72rem;">4. Daraja STK Push Passkey</small>
+          {% if account.configuration.passkey %}
+            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1">
+              <i class="fa-solid fa-check me-1"></i> Passkey Configured
+            </span>
+          {% else %}
+            <span class="badge bg-secondary-subtle text-secondary border rounded-pill px-2.5 py-1">
+              Optional / Not Set
+            </span>
+          {% endif %}
+          <small class="text-muted d-block mt-1">Consumer Key: {% if account.configuration.consumer_key %}••••••••{{ account.configuration.consumer_key|slice:"-4:" }}{% else %}Not set{% endif %}</small>
+        </div>
+      </div>
+
+      <!-- Live Student Mobile Preview Alert for Kenyan Paybill -->
+      <div class="col-12">
+        <div class="p-3 rounded-3 border bg-success-subtle border-success-subtle d-flex align-items-center gap-3">
+          <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width: 40px; height: 40px;">
+            <i class="fa-solid fa-mobile-screen"></i>
+          </div>
+          <div class="flex-grow-1">
+            <span class="fw-bold text-success-emphasis d-block small">Kenya M-Pesa Mobile Flow Preview:</span>
+            <span class="small text-dark">
+              Students go to <b>Lipa na M-Pesa</b> &rarr; <b>Paybill</b> &rarr; Enter Business No: <b>{{ account.account_identifier }}</b> &rarr; Enter Account No: <b>{{ account.paybill_account_number_display }}</b> &rarr; Enter Amount.
+            </span>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="col-md-4">
+        <div class="p-3 bg-light rounded-3">
+          <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size: 0.72rem;">Identifier / Account Number</small>
+          <span class="font-monospace fw-bold fs-5 text-dark">{{ account.account_identifier }}</span>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="p-3 bg-light rounded-3">
+          <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size: 0.72rem;">Account Name</small>
+          <span class="fw-bold fs-6 text-dark">{{ account.account_name|default:'University Collection' }}</span>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="p-3 bg-light rounded-3">
+          <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size: 0.72rem;">Provider</small>
+          <span class="fw-bold fs-6 text-dark">{{ account.get_provider_display }}</span>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Callbacks & Webhook URLs -->
+      <div class="col-12 border-top pt-3 mt-2">
+        <div class="row g-2 small">
+          <div class="col-md-6">
+            <span class="text-muted fw-semibold">Daraja / Provider Callback URL:</span>
+            <div class="font-monospace text-dark bg-light p-2 rounded border mt-1 text-truncate">
+              {{ account.configuration.callback_url|default:'http://127.0.0.1:8000/finance/pay/callback/mpesa/' }}
+            </div>
+          </div>
+          <div class="col-md-6">
+            <span class="text-muted fw-semibold">Daraja C2B Validation URL:</span>
+            <div class="font-monospace text-dark bg-light p-2 rounded border mt-1 text-truncate">
+              {{ account.configuration.validation_url|default:'http://127.0.0.1:8000/finance/pay/callback/mpesa/validation/' }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Two Column Layout: Recent Transactions & Operation Logs -->
   <div class="row g-4">
