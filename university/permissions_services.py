@@ -48,6 +48,9 @@ DEFAULT_PERMISSIONS = [
     ("finance.create_invoices", "Issue Fee Invoices", "Finance", "Post semester tuition, exam, and accommodation invoices."),
     ("finance.record_payments", "Record Fee Receipts & Payments", "Finance", "Post bank transfers, receipts, and reconcile student ledgers."),
     ("finance.financial_clearance", "Grant Financial Clearance", "Finance", "Approve student fee clearance for examinations and graduation."),
+    ("finance.manage_fee_accounts", "Manage Payment Accounts & Gateways", "Finance", "Configure M-Pesa Paybill, Till, Card Gateways, and Bank channels."),
+    ("finance.reconcile_payments", "Reconcile Provider Transactions", "Finance", "Cross-check provider statement batches against internal ledger."),
+    ("finance.manage_refunds", "Reverse & Refund Payments", "Finance", "Authorize and process fee refunds, reversals, and adjustments."),
 
     # --- Hostels & Accommodation ---
     ("hostels.view_allocation", "View Hostel Allocations", "Accommodation", "View hostel blocks, room occupancy, and resident nominal lists."),
@@ -141,6 +144,7 @@ DEFAULT_ROLES = [
         "permissions": [
             "students.view_all",
             "finance.view_invoices", "finance.create_invoices", "finance.record_payments", "finance.financial_clearance",
+            "finance.manage_fee_accounts", "finance.reconcile_payments", "finance.manage_refunds",
             "reports.view_catalog", "reports.generate_official", "reports.export_files",
         ]
     },

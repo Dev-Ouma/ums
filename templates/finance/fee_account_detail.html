@@ -1,0 +1,242 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}{{ account.name }} · Fee Account Details{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-3 px-md-4">
+
+  <!-- Breadcrumbs -->
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb small">
+      <li class="breadcrumb-item"><a href="{% url 'university:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'university:fee_accounts_dashboard' %}" class="text-decoration-none">Fee Accounts</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{{ account.name }}</li>
+    </ol>
+  </nav>
+
+  <!-- Header & Actions -->
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-3">
+      <div class="rounded-4 p-3 text-center" style="width: 58px; height: 58px; background: {% if account.account_type == 'MPESA_PAYBILL' %}#ecfdf5; color: #059669;{% elif account.account_type == 'MPESA_TILL' %}#eff6ff; color: #2563eb;{% elif account.account_type == 'CARD_GATEWAY' %}#f5f3ff; color: #7c3aed;{% else %}#f8fafc; color: #475569;{% endif %}">
+        <i class="fa-solid {% if account.account_type == 'MPESA_PAYBILL' %}fa-mobile-screen-button{% elif account.account_type == 'MPESA_TILL' %}fa-store{% elif account.account_type == 'CARD_GATEWAY' %}fa-credit-card{% else %}fa-landmark{% endif %} fa-2x"></i>
+      </div>
+      <div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <h2 class="fw-bold mb-0 text-dark">{{ account.name }}</h2>
+          {% if account.status == 'ACTIVE' %}
+            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1">Active</span>
+          {% else %}
+            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill px-2.5 py-1">Inactive</span>
+          {% endif %}
+          {% if account.is_default %}
+            <span class="badge bg-primary text-white rounded-pill px-2.5 py-1"><i class="fa-solid fa-star me-1"></i>Default</span>
+          {% endif %}
+        </div>
+        <p class="text-muted small mb-0 mt-1">
+          {{ account.get_account_type_display }} &bull; Provider: <strong>{{ account.get_provider_display }}</strong> &bull; Currency: <strong>{{ account.currency }}</strong>
+        </p>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="d-flex gap-2 flex-wrap">
+      <form method="post" action="{% url 'university:fee_account_test' account.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-info btn-sm rounded-pill px-3 shadow-sm">
+          <i class="fa-solid fa-vial me-1"></i> Test Connection
+        </button>
+      </form>
+      <form method="post" action="{% url 'university:fee_account_toggle_status' account.pk %}">
+        {% csrf_token %}
+        {% if account.status == 'ACTIVE' %}
+          <button type="submit" class="btn btn-outline-warning btn-sm rounded-pill px-3">
+            <i class="fa-solid fa-toggle-off me-1"></i> Deactivate
+          </button>
+        {% else %}
+          <button type="submit" class="btn btn-outline-success btn-sm rounded-pill px-3">
+            <i class="fa-solid fa-toggle-on me-1"></i> Activate
+          </button>
+        {% endif %}
+      </form>
+      <a href="{% url 'university:fee_account_edit' account.pk %}" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm">
+        <i class="fa-solid fa-pen-to-square me-1"></i> Edit Configuration
+      </a>
+    </div>
+  </div>
+
+  <!-- Stat Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
+        <span class="text-muted small fw-semibold text-uppercase">Total Settled Collections</span>
+        <div class="display-6 fw-bold text-success mt-2">
+          <span class="fs-5 text-muted fw-normal">{{ account.currency }} </span>{{ stats.total_collected|floatformat:0|intcomma }}
+        </div>
+        <span class="small text-muted mt-1">{{ stats.successful_count }} successful payments</span>
+      </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
+        <span class="text-muted small fw-semibold text-uppercase">Identifier / Number</span>
+        <div class="display-6 fw-bold text-dark mt-2">
+          <code>{{ account.account_identifier }}</code>
+        </div>
+        <span class="small text-muted mt-1">{{ account.account_name|default:'University Main' }}</span>
+      </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
+        <span class="text-muted small fw-semibold text-uppercase">Environment</span>
+        <div class="display-6 fw-bold mt-2 {% if account.environment == 'PRODUCTION' %}text-success{% else %}text-warning{% endif %}">
+          {{ account.get_environment_display }}
+        </div>
+        <span class="small text-muted mt-1">{% if account.environment == 'PRODUCTION' %}Live Transactions{% else %}Sandbox Simulation Ready{% endif %}</span>
+      </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
+        <span class="text-muted small fw-semibold text-uppercase">Diagnostics Status</span>
+        <div class="mt-2">
+          {% if account.last_tested_status == 'SUCCESS' %}
+            <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill fs-6">
+              <i class="fa-solid fa-circle-check me-1"></i>Verified Online
+            </span>
+          {% elif account.last_tested_status == 'FAILED' %}
+            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 rounded-pill fs-6">
+              <i class="fa-solid fa-circle-xmark me-1"></i>Diagnostic Failed
+            </span>
+          {% else %}
+            <span class="badge bg-light text-secondary border px-3 py-2 rounded-pill fs-6">
+              <i class="fa-solid fa-circle-question me-1"></i>Untested
+            </span>
+          {% endif %}
+        </div>
+        <small class="text-muted mt-2 d-block">
+          {% if account.last_tested_at %}Tested {{ account.last_tested_at|naturaltime }}{% else %}Click "Test Connection"{% endif %}
+        </small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Diagnostic Response Message Callout if present -->
+  {% if account.last_tested_response %}
+  <div class="card border-0 shadow-sm rounded-4 p-3 mb-4 {% if account.last_tested_status == 'SUCCESS' %}bg-success-subtle text-success-emphasis border border-success-subtle{% else %}bg-warning-subtle text-warning-emphasis border border-warning-subtle{% endif %}">
+    <div class="d-flex align-items-center gap-2">
+      <i class="fa-solid {% if account.last_tested_status == 'SUCCESS' %}fa-circle-check{% else %}fa-triangle-exclamation{% endif %}"></i>
+      <span class="fw-bold small">Last Diagnostic Probe:</span>
+      <span class="small font-monospace">{{ account.last_tested_response }}</span>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Two Column Layout: Recent Transactions & Operation Logs -->
+  <div class="row g-4">
+    <!-- Recent Transactions -->
+    <div class="col-lg-7">
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white h-100">
+        <div class="card-header bg-white py-3 px-4 border-bottom d-flex align-items-center justify-content-between">
+          <h5 class="fw-bold mb-0 text-dark">
+            <i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>Recent Transactions
+          </h5>
+          <a href="{% url 'university:admin_payments_list' %}?account_id={{ account.pk }}" class="text-primary text-decoration-none small fw-semibold">
+            View All &rarr;
+          </a>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light text-muted small text-uppercase">
+              <tr>
+                <th class="ps-4">Reference</th>
+                <th>Student</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th class="pe-4 text-end">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in payments %}
+              <tr>
+                <td class="ps-4">
+                  <a href="{% url 'university:admin_payment_detail' p.pk %}" class="fw-bold text-dark text-decoration-none">
+                    {{ p.internal_reference }}
+                  </a>
+                  <small class="text-muted d-block">{{ p.created_at|naturaltime }}</small>
+                </td>
+                <td>
+                  {% if p.student %}
+                    <span class="fw-semibold text-dark">{{ p.student.user.display_name|default:p.student.roll_no }}</span>
+                    <small class="text-muted d-block">{{ p.student.roll_no }}</small>
+                  {% else %}
+                    <span class="fw-semibold text-dark">{{ p.payer_name|default:'Direct Cashier / N/A' }}</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="fw-bold text-dark">{{ p.currency|default:'KES' }} {{ p.amount|floatformat:2|intcomma }}</span>
+                </td>
+                <td>
+                  {% if p.status == 'SUCCESSFUL' %}
+                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-0.5 small">Successful</span>
+                  {% elif p.status == 'PENDING' or p.status == 'PROCESSING' %}
+                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-2 py-0.5 small">Pending</span>
+                  {% elif p.status == 'REVERSED' or p.status == 'REFUNDED' %}
+                    <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill px-2 py-0.5 small">{{ p.get_status_display }}</span>
+                  {% else %}
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2 py-0.5 small">{{ p.get_status_display }}</span>
+                  {% endif %}
+                </td>
+                <td class="pe-4 text-end">
+                  <a href="{% url 'university:admin_payment_detail' p.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill px-2.5 py-1">
+                    Details
+                  </a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5" class="text-center py-4 text-muted">
+                  No payment transactions processed through this account yet.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Operational Event Logs -->
+    <div class="col-lg-5">
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white h-100">
+        <div class="card-header bg-white py-3 px-4 border-bottom">
+          <h5 class="fw-bold mb-0 text-dark">
+            <i class="fa-solid fa-list-check me-2 text-primary"></i>Operational &amp; Audit Logs
+          </h5>
+        </div>
+        <div class="card-body p-0">
+          <ul class="list-group list-group-flush">
+            {% for log in logs %}
+            <li class="list-group-item px-4 py-3">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="badge {% if log.status == 'SUCCESS' %}bg-success-subtle text-success{% elif log.status == 'FAILED' or log.status == 'ERROR' %}bg-danger-subtle text-danger{% else %}bg-light text-secondary{% endif %} rounded-pill px-2 py-0.5 small">
+                  {{ log.get_event_type_display }}
+                </span>
+                <span class="text-muted small">{{ log.created_at|naturaltime }}</span>
+              </div>
+              <p class="small text-dark mb-1 font-monospace">{{ log.message }}</p>
+              {% if log.performed_by %}
+                <span class="text-muted small" style="font-size: 0.72rem;">User: {{ log.performed_by.username }}</span>
+              {% endif %}
+            </li>
+            {% empty %}
+            <li class="list-group-item px-4 py-4 text-center text-muted">
+              No audit records generated for this fee account yet.
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

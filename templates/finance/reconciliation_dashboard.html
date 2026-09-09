@@ -1,0 +1,213 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}Payment Reconciliation · Finance{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-3 px-md-4">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1 small">
+          <li class="breadcrumb-item"><a href="{% url 'university:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'university:admin_fees' %}" class="text-decoration-none">Finance</a></li>
+          <li class="breadcrumb-item active" aria-current="page">Reconciliation</li>
+        </ol>
+      </nav>
+      <h2 class="fw-bold mb-0 text-dark">
+        <i class="fa-solid fa-scale-balanced me-2 text-primary"></i>Fee Accounts Reconciliation
+      </h2>
+      <p class="text-muted small mb-0 mt-1">Cross-check provider statement reports with university ledger records to catch mismatched or uncredited fees.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{% url 'university:fee_accounts_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+        <i class="fa-solid fa-building-columns me-1"></i> Fee Accounts
+      </a>
+      <a href="{% url 'university:admin_payments_list' %}" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+        <i class="fa-solid fa-receipt me-1"></i> Payments Ledger
+      </a>
+    </div>
+  </div>
+
+  <!-- Stat Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #10b981 !important;">
+        <span class="text-muted small fw-semibold text-uppercase">Matched Transactions</span>
+        <div class="display-6 fw-bold text-success mt-2">{{ summary.matched_count }}</div>
+        <span class="small text-muted mt-1">Confirmed with provider &amp; student ledger</span>
+      </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #ef4444 !important;">
+        <span class="text-muted small fw-semibold text-uppercase">Unmatched Records</span>
+        <div class="display-6 fw-bold text-danger mt-2">{{ summary.unmatched_count }}</div>
+        <span class="small text-muted mt-1">Money received without internal allocation</span>
+      </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #f59e0b !important;">
+        <span class="text-muted small fw-semibold text-uppercase">Amount Mismatches</span>
+        <div class="display-6 fw-bold text-warning mt-2">{{ summary.mismatch_count }}</div>
+        <span class="small text-muted mt-1">Discrepancy in recorded vs bank amount</span>
+      </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #6366f1 !important;">
+        <span class="text-muted small fw-semibold text-uppercase">Requires Review</span>
+        <div class="display-6 fw-bold text-primary mt-2">{{ summary.review_count }}</div>
+        <span class="small text-muted mt-1">Pending investigation by finance staff</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-4">
+    <form method="get" class="row g-2 align-items-center">
+      <div class="col-md-6">
+        <select name="status" class="form-select bg-light border-0">
+          <option value="">All Reconciliation Statuses</option>
+          {% for code, label in statuses %}
+            <option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 d-flex gap-2">
+        <button type="submit" class="btn btn-primary rounded-pill w-100">Filter</button>
+        {% if selected_status %}
+          <a href="{% url 'university:fee_reconciliation_dashboard' %}" class="btn btn-outline-secondary rounded-pill px-3" title="Clear Filter">
+            <i class="fa-solid fa-xmark"></i>
+          </a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+
+  <!-- Reconciliation Records Table -->
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white mb-4">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light text-muted small text-uppercase">
+          <tr>
+            <th class="ps-4">Provider Ref &amp; Account</th>
+            <th>Date</th>
+            <th>Provider Amount</th>
+            <th>Internal Payment</th>
+            <th>Status</th>
+            <th class="pe-4 text-end">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in reconciliations %}
+          <tr>
+            <!-- Provider Ref & Account -->
+            <td class="ps-4">
+              <code class="fw-bold fs-6 text-dark">{{ r.provider_reference }}</code>
+              <small class="text-muted d-block">{{ r.fee_account.name }} ({{ r.fee_account.get_account_type_display }})</small>
+            </td>
+
+            <!-- Date -->
+            <td>
+              <span class="text-dark small">{{ r.transaction_date|date:"M d, Y H:i" }}</span>
+            </td>
+
+            <!-- Provider Amount -->
+            <td>
+              <span class="fw-bold text-dark">KES {{ r.amount|floatformat:2|intcomma }}</span>
+            </td>
+
+            <!-- Internal Payment -->
+            <td>
+              {% if r.payment %}
+                <a href="{% url 'university:admin_payment_detail' r.payment.pk %}" class="fw-semibold text-decoration-none">
+                  {{ r.payment.internal_reference }}
+                </a>
+                <small class="text-muted d-block">{{ r.payment.student.roll_no }} &bull; KES {{ r.payment.amount|floatformat:2|intcomma }}</small>
+              {% else %}
+                <span class="text-danger small"><i class="fa-solid fa-circle-exclamation me-1"></i>No Internal Match</span>
+              {% endif %}
+            </td>
+
+            <!-- Status -->
+            <td>
+              {% if r.status == 'MATCHED' %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1">
+                  <i class="fa-solid fa-circle-check me-1"></i>Matched
+                </span>
+              {% elif r.status == 'UNMATCHED' %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2.5 py-1">
+                  <i class="fa-solid fa-circle-xmark me-1"></i>Unmatched
+                </span>
+              {% elif r.status == 'AMOUNT_MISMATCH' %}
+                <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-2.5 py-1">
+                  <i class="fa-solid fa-triangle-exclamation me-1"></i>Amount Mismatch
+                </span>
+              {% else %}
+                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill px-2.5 py-1">
+                  {{ r.get_status_display }}
+                </span>
+              {% endif %}
+            </td>
+
+            <!-- Actions -->
+            <td class="pe-4 text-end">
+              {% if r.status != 'MATCHED' %}
+                <form method="post" action="{% url 'university:fee_reconciliation_match' r.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-success rounded-pill px-3">
+                    <i class="fa-solid fa-check me-1"></i>Mark Matched
+                  </button>
+                </form>
+              {% else %}
+                <span class="text-muted small">
+                  Reconciled
+                </span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="text-center py-5 text-muted">
+              <div class="py-4">
+                <i class="fa-solid fa-scale-balanced text-muted opacity-50 display-4 mb-3 d-block"></i>
+                <h5 class="fw-bold text-dark">No Reconciliation Records</h5>
+                <p class="text-muted small mb-0">All provider statements and payment transactions are in balance.</p>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if reconciliations.has_other_pages %}
+    <div class="card-footer bg-white py-3 px-4 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <small class="text-muted">
+        Page {{ reconciliations.number }} of {{ reconciliations.paginator.num_pages }}
+      </small>
+      <nav aria-label="Page navigation">
+        <ul class="pagination pagination-sm mb-0">
+          {% if reconciliations.has_previous %}
+            <li class="page-item">
+              <a class="page-link rounded-start-pill" href="?page={{ reconciliations.previous_page_number }}{% if selected_status %}&status={{ selected_status }}{% endif %}">Previous</a>
+            </li>
+          {% endif %}
+          <li class="page-item active">
+            <span class="page-link">{{ reconciliations.number }}</span>
+          </li>
+          {% if reconciliations.has_next %}
+            <li class="page-item">
+              <a class="page-link rounded-end-pill" href="?page={{ reconciliations.next_page_number }}{% if selected_status %}&status={{ selected_status }}{% endif %}">Next</a>
+            </li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

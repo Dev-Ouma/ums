@@ -179,20 +179,29 @@
       {% if 'finance' in active_modules %}
       <!-- Finance Collapsible -->
       <div class="nav-group">
-        <div class="item item-toggle {% if url_name == 'admin_fees' or url_name == 'fee_preview' or url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' %}active{% endif %}"
+        <div class="item item-toggle {% if url_name in 'admin_fees,fee_preview,admin_fee_structures,fee_structure_create,fee_structure_edit,fee_accounts_dashboard,fee_account_create,fee_account_detail,fee_account_edit,admin_payments_list,admin_payment_detail,fee_reconciliation_dashboard' %}active{% endif %}"
              data-bs-toggle="collapse" data-bs-target="#adminFinanceSubmenu" role="button"
-             aria-expanded="{% if url_name == 'admin_fees' or url_name == 'fee_preview' or url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' %}true{% else %}false{% endif %}"
+             aria-expanded="{% if url_name in 'admin_fees,fee_preview,admin_fee_structures,fee_structure_create,fee_structure_edit,fee_accounts_dashboard,fee_account_create,fee_account_detail,fee_account_edit,admin_payments_list,admin_payment_detail,fee_reconciliation_dashboard' %}true{% else %}false{% endif %}"
              aria-controls="adminFinanceSubmenu">
           <i class="fa-solid fa-wallet"></i>
           <span class="item-label">Finance &amp; Fees</span>
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
-        <div class="collapse submenu {% if url_name == 'admin_fees' or url_name == 'fee_preview' or url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' %}show{% endif %}" id="adminFinanceSubmenu">
+        <div class="collapse submenu {% if url_name in 'admin_fees,fee_preview,admin_fee_structures,fee_structure_create,fee_structure_edit,fee_accounts_dashboard,fee_account_create,fee_account_detail,fee_account_edit,admin_payments_list,admin_payment_detail,fee_reconciliation_dashboard' %}show{% endif %}" id="adminFinanceSubmenu">
+          <a class="item sub-item {% if url_name in 'fee_accounts_dashboard,fee_account_create,fee_account_detail,fee_account_edit' %}active{% endif %}" href="{% url 'university:fee_accounts_dashboard' %}">
+            <i class="fa-solid fa-building-columns"></i> <span class="item-label">Fee Accounts</span>
+          </a>
+          <a class="item sub-item {% if url_name in 'admin_payments_list,admin_payment_detail' %}active{% endif %}" href="{% url 'university:admin_payments_list' %}">
+            <i class="fa-solid fa-receipt"></i> <span class="item-label">Payments Ledger</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'fee_reconciliation_dashboard' %}active{% endif %}" href="{% url 'university:fee_reconciliation_dashboard' %}">
+            <i class="fa-solid fa-scale-balanced"></i> <span class="item-label">Reconciliation</span>
+          </a>
           <a class="item sub-item {% if url_name == 'admin_fees' or url_name == 'fee_preview' %}active{% endif %}" href="{% url 'university:admin_fees' %}">
             <i class="fa-solid fa-file-invoice-dollar"></i> <span class="item-label">Fee Invoices</span>
           </a>
           <a class="item sub-item {% if url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' %}active{% endif %}" href="{% url 'university:admin_fee_structures' %}">
-            <i class="fa-solid fa-scale-balanced"></i> <span class="item-label">Fee Structures</span>
+            <i class="fa-solid fa-sliders"></i> <span class="item-label">Fee Structures</span>
           </a>
         </div>
       </div>
@@ -478,16 +487,17 @@
       {% if 'finance' in active_modules %}
       <!-- Student Finance Collapsible -->
       <div class="nav-group">
-        <div class="item item-toggle {% if url_name == 'student_fees' or url_name == 'student_fee_statement' %}active{% endif %}"
+        <div class="item item-toggle {% if url_name in 'student_fees,student_pay_fees,student_payment_status,student_receipt_view,student_fee_statement' %}active{% endif %}"
              data-bs-toggle="collapse" data-bs-target="#studentFinanceSubmenu" role="button"
-             aria-expanded="{% if url_name == 'student_fees' or url_name == 'student_fee_statement' %}true{% else %}false{% endif %}"
+             aria-expanded="{% if url_name in 'student_fees,student_pay_fees,student_payment_status,student_receipt_view,student_fee_statement' %}true{% else %}false{% endif %}"
              aria-controls="studentFinanceSubmenu">
           <i class="fa-solid fa-wallet"></i>
           <span class="item-label">Finance</span>
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
-        <div class="collapse submenu {% if url_name == 'student_fees' or url_name == 'student_fee_statement' %}show{% endif %}" id="studentFinanceSubmenu">
-          <a class="item sub-item {% if url_name == 'student_fees' %}active{% endif %}" href="{% url 'university:student_fees' %}"><i class="fa-solid fa-file-invoice-dollar"></i> <span class="item-label">My Fees &amp; Receipts</span></a>
+        <div class="collapse submenu {% if url_name in 'student_fees,student_pay_fees,student_payment_status,student_receipt_view,student_fee_statement' %}show{% endif %}" id="studentFinanceSubmenu">
+          <a class="item sub-item {% if url_name in 'student_pay_fees,student_payment_status' %}active{% endif %}" href="{% url 'university:student_pay_fees' %}"><i class="fa-solid fa-money-bill-wave"></i> <span class="item-label">Pay Fees</span></a>
+          <a class="item sub-item {% if url_name == 'student_fees' or url_name == 'student_receipt_view' %}active{% endif %}" href="{% url 'university:student_fees' %}"><i class="fa-solid fa-file-invoice-dollar"></i> <span class="item-label">My Fees &amp; Receipts</span></a>
           <a class="item sub-item {% if url_name == 'student_fee_statement' %}active{% endif %}" href="{% url 'university:student_fee_statement' %}"><i class="fa-solid fa-file-lines"></i> <span class="item-label">Statement of Account</span></a>
         </div>
       </div>

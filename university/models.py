@@ -815,18 +815,227 @@ class FeeInvoice(models.Model):
         return f"{self.title} · {self.student.roll_no}"
 
 
-class Payment(models.Model):
-    invoice = models.ForeignKey(FeeInvoice, on_delete=models.CASCADE, related_name="payments")
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    paid_on = models.DateField(default=timezone.now)
-    method = models.CharField(max_length=30, default="Online")
-    reference = models.CharField(max_length=40, default="TXN-0000")
+class FeeAccount(models.Model):
+    class AccountType(models.TextChoices):
+        MPESA_PAYBILL = "MPESA_PAYBILL", "M-Pesa Paybill"
+        MPESA_TILL = "MPESA_TILL", "M-Pesa Buy Goods / Till"
+        CARD_GATEWAY = "CARD_GATEWAY", "Card Payment Gateway"
+        BANK_ACCOUNT = "BANK_ACCOUNT", "Bank Account Transfer"
+        OTHER = "OTHER", "Other Payment Channel"
+
+    class Provider(models.TextChoices):
+        SAFARICOM = "SAFARICOM", "Safaricom M-Pesa"
+        STRIPE = "STRIPE", "Stripe"
+        PESAPAL = "PESAPAL", "Pesapal"
+        EQUITY = "EQUITY", "Equity Bank"
+        KCB = "KCB", "KCB Bank"
+        COOP = "COOP", "Co-operative Bank"
+        STANDARD_CHARTERED = "STANDARD_CHARTERED", "Standard Chartered"
+        GENERIC = "GENERIC", "Generic Payment Gateway"
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        ACTIVE = "ACTIVE", "Active"
+        INACTIVE = "INACTIVE", "Inactive"
+        SUSPENDED = "SUSPENDED", "Suspended"
+        EXPIRED = "EXPIRED", "Expired"
+
+    class Environment(models.TextChoices):
+        SANDBOX = "SANDBOX", "Sandbox / Test"
+        PRODUCTION = "PRODUCTION", "Production / Live"
+
+    name = models.CharField(max_length=120, help_text="Human-readable account label e.g. Main Tuition M-Pesa Paybill")
+    account_type = models.CharField(max_length=30, choices=AccountType.choices, default=AccountType.MPESA_PAYBILL, db_index=True)
+    provider = models.CharField(max_length=40, choices=Provider.choices, default=Provider.SAFARICOM)
+    account_identifier = models.CharField(max_length=80, help_text="Paybill Number, Till Number, Merchant ID, or Bank Account Number")
+    account_name = models.CharField(max_length=120, blank=True, default="", help_text="Business name, paybill account name, or bank account title")
+    currency = models.CharField(max_length=10, default="KES")
+    description = models.TextField(blank=True, default="")
+    environment = models.CharField(max_length=20, choices=Environment.choices, default=Environment.SANDBOX)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE, db_index=True)
+    is_default = models.BooleanField(default=False, help_text="Default account for this payment type")
+    supported_methods = models.JSONField(default=list, blank=True, help_text="List of supported methods e.g. ['MPESA_PAYBILL'], ['VISA', 'MASTERCARD']")
+    configuration = models.JSONField(default=dict, blank=True, help_text="Public configuration such as callback URL, confirmation URL, branch, bank code")
+    encrypted_credentials = models.TextField(blank=True, default="", help_text="Encrypted API keys, consumer secrets, passkeys")
+
+    # Optional routing rules
+    academic_year = models.ForeignKey(AcademicYear, on_delete=models.SET_NULL, null=True, blank=True, related_name="fee_accounts")
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name="fee_accounts")
+    program = models.ForeignKey(Program, on_delete=models.SET_NULL, null=True, blank=True, related_name="fee_accounts")
+
+    # Diagnostics & Health
+    last_tested_at = models.DateTimeField(null=True, blank=True)
+    last_test_status = models.CharField(max_length=40, blank=True, default="")
+    last_test_message = models.TextField(blank=True, default="")
+
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_fee_accounts")
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="updated_fee_accounts")
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["-paid_on"]
+        ordering = ["-is_default", "name"]
 
     def __str__(self):
-        return f"{self.reference} · {self.amount}"
+        return f"{self.name} ({self.get_account_type_display()}) - {self.account_identifier}"
+
+
+class Payment(models.Model):
+    class Status(models.TextChoices):
+        INITIATED = "INITIATED", "Initiated"
+        PENDING = "PENDING", "Pending Confirmation"
+        PROCESSING = "PROCESSING", "Processing"
+        SUCCESSFUL = "SUCCESSFUL", "Successful"
+        FAILED = "FAILED", "Failed"
+        CANCELLED = "CANCELLED", "Cancelled"
+        EXPIRED = "EXPIRED", "Expired"
+        REVERSED = "REVERSED", "Reversed"
+        REFUNDED = "REFUNDED", "Refunded"
+        PARTIALLY_REFUNDED = "PARTIALLY_REFUNDED", "Partially Refunded"
+
+    invoice = models.ForeignKey(FeeInvoice, on_delete=models.CASCADE, related_name="payments", null=True, blank=True)
+    student = models.ForeignKey("accounts.StudentProfile", on_delete=models.CASCADE, related_name="fee_payments", null=True, blank=True)
+    fee_account = models.ForeignKey(FeeAccount, on_delete=models.SET_NULL, null=True, blank=True, related_name="payments")
+    academic_year = models.ForeignKey(AcademicYear, on_delete=models.SET_NULL, null=True, blank=True)
+    term = models.ForeignKey(AcademicTerm, on_delete=models.SET_NULL, null=True, blank=True)
+
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=10, default="KES")
+    paid_on = models.DateField(default=timezone.now)
+    method = models.CharField(max_length=40, default="Online")
+    reference = models.CharField(max_length=64, default="TXN-0000", db_index=True)
+
+    status = models.CharField(max_length=30, choices=Status.choices, default=Status.SUCCESSFUL, db_index=True)
+    internal_reference = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
+    provider_reference = models.CharField(max_length=100, blank=True, default="", db_index=True)
+
+    payer_phone = models.CharField(max_length=25, blank=True, default="")
+    payer_name = models.CharField(max_length=120, blank=True, default="")
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    raw_callback_payload = models.JSONField(default=dict, blank=True)
+    notes = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["-created_at", "-paid_on"]
+
+    def save(self, *args, **kwargs):
+        if not self.student and self.invoice:
+            self.student = self.invoice.student
+        if not self.internal_reference:
+            import uuid
+            self.internal_reference = f"PAY-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.internal_reference or self.reference} · {self.currency} {self.amount} ({self.status})"
+
+
+class PaymentAllocation(models.Model):
+    payment = models.ForeignKey(Payment, on_delete=models.CASCADE, related_name="allocations")
+    invoice = models.ForeignKey(FeeInvoice, on_delete=models.CASCADE, related_name="allocations")
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    allocated_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-allocated_at"]
+
+    def __str__(self):
+        return f"Alloc {self.amount} from {self.payment} to {self.invoice}"
+
+
+class FeeReceipt(models.Model):
+    receipt_number = models.CharField(max_length=64, unique=True, db_index=True)
+    payment = models.OneToOneField(Payment, on_delete=models.CASCADE, related_name="fee_receipt")
+    student = models.ForeignKey("accounts.StudentProfile", on_delete=models.CASCADE, related_name="fee_receipts")
+    issued_at = models.DateTimeField(default=timezone.now)
+    previous_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
+    remaining_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    class Meta:
+        ordering = ["-issued_at"]
+
+    def __str__(self):
+        return f"{self.receipt_number} · {self.student.roll_no} ({self.amount_paid})"
+
+
+class PaymentReconciliation(models.Model):
+    class Status(models.TextChoices):
+        MATCHED = "MATCHED", "Matched"
+        UNMATCHED = "UNMATCHED", "Unmatched"
+        AMOUNT_MISMATCH = "AMOUNT_MISMATCH", "Amount Mismatch"
+        DUPLICATE = "DUPLICATE", "Duplicate Transaction"
+        REQUIRES_REVIEW = "REQUIRES_REVIEW", "Requires Review"
+
+    fee_account = models.ForeignKey(FeeAccount, on_delete=models.CASCADE, related_name="reconciliations")
+    payment = models.ForeignKey(Payment, on_delete=models.SET_NULL, null=True, blank=True, related_name="reconciliations")
+    provider_reference = models.CharField(max_length=100, db_index=True)
+    internal_reference = models.CharField(max_length=64, blank=True, default="")
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=10, default="KES")
+    status = models.CharField(max_length=30, choices=Status.choices, default=Status.UNMATCHED, db_index=True)
+    transaction_date = models.DateTimeField(default=timezone.now)
+    reconciled_at = models.DateTimeField(default=timezone.now)
+    reconciled_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    notes = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["-transaction_date"]
+
+    def __str__(self):
+        return f"Recon {self.provider_reference} - {self.status}"
+
+
+class PaymentReversal(models.Model):
+    class ReversalType(models.TextChoices):
+        REVERSAL = "REVERSAL", "Full Reversal"
+        REFUND = "REFUND", "Full Refund"
+        PARTIAL_REFUND = "PARTIAL_REFUND", "Partial Refund"
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending Approval"
+        APPROVED = "APPROVED", "Approved & Applied"
+        REJECTED = "REJECTED", "Rejected"
+
+    original_payment = models.ForeignKey(Payment, on_delete=models.CASCADE, related_name="reversals")
+    reversal_type = models.CharField(max_length=20, choices=ReversalType.choices, default=ReversalType.REVERSAL)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    reason = models.TextField()
+    provider_reference = models.CharField(max_length=100, blank=True, default="")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.APPROVED)
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="requested_reversals")
+    approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="approved_reversals")
+    created_at = models.DateTimeField(default=timezone.now)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.reversal_type} on {self.original_payment.internal_reference or self.original_payment.reference} ({self.amount})"
+
+
+class FeeAccountLog(models.Model):
+    class EventType(models.TextChoices):
+        TEST_CONNECTION = "TEST_CONNECTION", "Connection Test"
+        INITIATE_PAYMENT = "INITIATE_PAYMENT", "Payment Initiated"
+        CALLBACK_RECEIVED = "CALLBACK_RECEIVED", "Callback Received"
+        VERIFICATION = "VERIFICATION", "Payment Verification"
+        ERROR = "ERROR", "Provider Error"
+        CONFIG_CHANGE = "CONFIG_CHANGE", "Configuration Change"
+
+    fee_account = models.ForeignKey(FeeAccount, on_delete=models.CASCADE, related_name="logs")
+    event_type = models.CharField(max_length=30, choices=EventType.choices, db_index=True)
+    message = models.TextField()
+    payload_preview = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"[{self.event_type}] {self.fee_account.name} - {self.created_at.strftime('%Y-%m-%d %H:%M')}"
 
 
 class Event(models.Model):

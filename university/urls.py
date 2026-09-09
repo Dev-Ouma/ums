@@ -18,6 +18,8 @@ from . import verification_views
 from . import calendar_views
 from . import admission_document_views
 from . import module_views
+from . import fee_payment_views
+from . import fee_account_views
 
 app_name = "university"
 
@@ -113,7 +115,7 @@ urlpatterns = [
     path("courses/<int:pk>/enroll/", views.course_enroll, name="course_enroll"),
     path("enrollments/<int:pk>/remove/", views.enrollment_remove, name="enrollment_remove"),
 
-    # Fees
+    # Fees & Payment Accounts
     path("manage/fees/", views.admin_fees, name="admin_fees"),
     path("manage/fees/export/<str:fmt>/", views.fee_export, name="fee_export"),
     path("manage/fees/preview/", views.fee_preview, name="fee_preview"),
@@ -124,6 +126,31 @@ urlpatterns = [
     path("manage/fees/structures/<int:pk>/edit/", views.fee_structure_edit, name="fee_structure_edit"),
     path("manage/fees/structures/<int:pk>/delete/", views.fee_structure_delete, name="fee_structure_delete"),
     path("manage/fees/receipt/<int:pk>/pdf/", views.fee_receipt_pdf, name="fee_receipt_pdf"),
+
+    # Fee Accounts & Payment Gateway Administration
+    path("finance/fee-accounts/", fee_account_views.fee_accounts_dashboard, name="fee_accounts_dashboard"),
+    path("finance/fee-accounts/new/", fee_account_views.fee_account_create, name="fee_account_create"),
+    path("finance/fee-accounts/<int:pk>/", fee_account_views.fee_account_detail, name="fee_account_detail"),
+    path("finance/fee-accounts/<int:pk>/edit/", fee_account_views.fee_account_edit, name="fee_account_edit"),
+    path("finance/fee-accounts/<int:pk>/toggle-status/", fee_account_views.fee_account_toggle_status, name="fee_account_toggle_status"),
+    path("finance/fee-accounts/<int:pk>/set-default/", fee_account_views.fee_account_set_default, name="fee_account_set_default"),
+    path("finance/fee-accounts/<int:pk>/test/", fee_account_views.fee_account_test, name="fee_account_test"),
+    path("finance/fee-accounts/<int:pk>/delete/", fee_account_views.fee_account_delete, name="fee_account_delete"),
+
+    # Payments Ledger & Admin Verification / Reversal
+    path("manage/fees/payments/", fee_account_views.admin_payments_list, name="admin_payments_list"),
+    path("manage/fees/payments/<int:pk>/", fee_account_views.admin_payment_detail, name="admin_payment_detail"),
+    path("manage/fees/payments/<int:pk>/verify/", fee_account_views.admin_payment_verify, name="admin_payment_verify"),
+    path("manage/fees/payments/<int:pk>/reverse/", fee_account_views.admin_payment_reverse, name="admin_payment_reverse"),
+
+    # Reconciliation Control Center
+    path("finance/fee-accounts/reconciliation/", fee_account_views.fee_reconciliation_dashboard, name="fee_reconciliation_dashboard"),
+    path("finance/fee-accounts/reconciliation/<int:pk>/match/", fee_account_views.fee_reconciliation_match, name="fee_reconciliation_match"),
+
+    # Secure Payment Callbacks / Webhooks
+    path("api/payments/callback/mpesa/", fee_payment_views.mpesa_callback, name="mpesa_callback"),
+    path("api/payments/callback/card/", fee_payment_views.card_callback, name="card_callback"),
+    path("api/payments/callback/bank/", fee_payment_views.bank_callback, name="bank_callback"),
 
     # Timetable
     path("manage/timetable/", views.admin_timetable, name="admin_timetable"),
@@ -169,6 +196,12 @@ urlpatterns = [
     path("me/assignments/", views.student_assignments, name="student_assignments"),
     path("me/assignments/<int:pk>/submit/", views.submit_assignment, name="submit_assignment"),
     path("me/fees/", views.student_fees, name="student_fees"),
+    path("me/fees/pay/", fee_payment_views.student_pay_fees, name="student_pay_fees"),
+    path("me/fees/pay/initiate/", fee_payment_views.student_initiate_payment, name="student_initiate_payment"),
+    path("me/fees/pay/<str:reference>/status/", fee_payment_views.student_payment_status, name="student_payment_status"),
+    path("me/fees/pay/<str:reference>/poll/", fee_payment_views.student_payment_poll, name="student_payment_poll"),
+    path("me/fees/receipt/<str:receipt_number>/", fee_payment_views.student_receipt_view, name="student_receipt_view"),
+    path("me/fees/receipt/<str:receipt_number>/pdf/", fee_payment_views.student_receipt_pdf, name="student_receipt_pdf"),
     path("me/fees/statement/", views.student_fee_statement, name="student_fee_statement"),
     path("me/fees/statement/pdf/", views.student_fee_statement_pdf, name="student_fee_statement_pdf"),
 

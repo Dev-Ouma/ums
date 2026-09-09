@@ -1,0 +1,313 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}{{ payment.internal_reference }} · Payment Details{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-3 px-md-4">
+
+  <!-- Breadcrumbs -->
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb small">
+      <li class="breadcrumb-item"><a href="{% url 'university:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'university:admin_payments_list' %}" class="text-decoration-none">Payments</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{{ payment.internal_reference }}</li>
+    </ol>
+  </nav>
+
+  <!-- Header & Actions -->
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <h2 class="fw-bold mb-0 text-dark">{{ payment.internal_reference }}</h2>
+        {% if payment.status == 'SUCCESSFUL' %}
+          <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1">
+            <i class="fa-solid fa-circle-check me-1"></i>Successful
+          </span>
+        {% elif payment.status == 'PENDING' or payment.status == 'PROCESSING' %}
+          <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-2.5 py-1">
+            <i class="fa-solid fa-spinner fa-spin me-1"></i>{{ payment.get_status_display }}
+          </span>
+        {% elif payment.status == 'REVERSED' or payment.status == 'REFUNDED' %}
+          <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill px-2.5 py-1">
+            <i class="fa-solid fa-arrow-rotate-left me-1"></i>{{ payment.get_status_display }}
+          </span>
+        {% else %}
+          <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2.5 py-1">
+            <i class="fa-solid fa-circle-xmark me-1"></i>{{ payment.get_status_display }}
+          </span>
+        {% endif %}
+      </div>
+      <p class="text-muted small mb-0 mt-1">
+        Created on {{ payment.created_at|date:"F d, Y \a\t H:i:s" }} &bull; Method: <strong>{{ payment.get_payment_method_display }}</strong>
+      </p>
+    </div>
+
+    <!-- Top Action Buttons -->
+    <div class="d-flex gap-2 flex-wrap">
+      {% if receipt %}
+        <a href="{% url 'university:student_receipt_view' receipt.receipt_number %}" class="btn btn-outline-primary btn-sm rounded-pill px-3" target="_blank">
+          <i class="fa-solid fa-file-invoice me-1"></i> View Receipt
+        </a>
+      {% endif %}
+
+      {% if payment.status == 'PENDING' or payment.status == 'PROCESSING' %}
+        <form method="post" action="{% url 'university:admin_payment_verify' payment.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-success btn-sm rounded-pill px-3 shadow-sm">
+            <i class="fa-solid fa-circle-check me-1"></i> Verify &amp; Settle
+          </button>
+        </form>
+      {% endif %}
+
+      {% if payment.status == 'SUCCESSFUL' %}
+        <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#reversalModal">
+          <i class="fa-solid fa-arrow-rotate-left me-1"></i> Reverse / Refund
+        </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Left Column: Details & Allocations -->
+    <div class="col-lg-8">
+      <!-- Payment Details Card -->
+      <div class="card border-0 shadow-sm rounded-4 p-4 bg-white mb-4">
+        <h5 class="fw-bold text-dark border-bottom pb-2 mb-3">
+          <i class="fa-solid fa-circle-info me-2 text-primary"></i>Transaction Overview
+        </h5>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <span class="text-muted small d-block">Student</span>
+            {% if payment.student %}
+              <span class="fw-bold text-dark fs-6">{{ payment.student.user.display_name }}</span>
+              <span class="text-muted small d-block">Reg No: <code>{{ payment.student.roll_no }}</code></span>
+            {% else %}
+              <span class="fw-bold text-dark fs-6">{{ payment.payer_name|default:'Direct / Unlinked' }}</span>
+              <span class="text-muted small d-block">{{ payment.payer_phone|default:'' }}</span>
+            {% endif %}
+          </div>
+          <div class="col-md-6">
+            <span class="text-muted small d-block">Total Amount Paid</span>
+            <span class="display-6 fw-bold text-success">{{ payment.currency|default:'KES' }} {{ payment.amount|floatformat:2|intcomma }}</span>
+          </div>
+          <div class="col-md-6">
+            <span class="text-muted small d-block">Provider Transaction Reference</span>
+            <code class="fw-bold text-dark">{{ payment.provider_reference|default:'None' }}</code>
+          </div>
+          <div class="col-md-6">
+            <span class="text-muted small d-block">Fee Account Utilized</span>
+            {% if payment.fee_account %}
+              <a href="{% url 'university:fee_account_detail' payment.fee_account.pk %}" class="fw-bold text-dark text-decoration-none">
+                {{ payment.fee_account.name }}
+              </a>
+              <span class="text-muted small d-block">{{ payment.fee_account.get_account_type_display }} &bull; {{ payment.fee_account.account_identifier }}</span>
+            {% else %}
+              <span class="text-muted">Standard Direct Settlement</span>
+            {% endif %}
+          </div>
+          <div class="col-md-6">
+            <span class="text-muted small d-block">Academic Period</span>
+            <span class="fw-semibold text-dark">
+              {{ payment.academic_year.name|default:'Current Year' }} &bull; {{ payment.term.name|default:'Current Term' }}
+            </span>
+          </div>
+          <div class="col-md-6">
+            <span class="text-muted small d-block">Payer Phone / Identifier</span>
+            <span class="fw-semibold text-dark">{{ payment.payer_phone|default:'Not recorded' }}</span>
+          </div>
+          {% if payment.notes %}
+          <div class="col-md-12">
+            <span class="text-muted small d-block">Provider Metadata / Notes</span>
+            <div class="p-3 bg-light rounded-3 font-monospace small mt-1 text-secondary" style="max-height: 120px; overflow-y: auto;">
+              {{ payment.notes }}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Invoice Allocations Card -->
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white mb-4">
+        <div class="card-header bg-white py-3 px-4 border-bottom">
+          <h5 class="fw-bold mb-0 text-dark">
+            <i class="fa-solid fa-list-check me-2 text-primary"></i>Fee Invoices Allocation Breakdown
+          </h5>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light text-muted small text-uppercase">
+              <tr>
+                <th class="ps-4">Invoice No</th>
+                <th>Academic Term</th>
+                <th>Invoice Total</th>
+                <th>Allocated Amount</th>
+                <th class="pe-4 text-end">Remaining Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for alloc in allocations %}
+              <tr>
+                <td class="ps-4">
+                  <code class="fw-bold text-dark">{{ alloc.invoice.invoice_number }}</code>
+                </td>
+                <td>{{ alloc.invoice.term.name }}</td>
+                <td>{{ alloc.invoice.currency }} {{ alloc.invoice.total_amount|floatformat:2|intcomma }}</td>
+                <td>
+                  <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1 fw-bold">
+                    + {{ alloc.invoice.currency }} {{ alloc.amount|floatformat:2|intcomma }}
+                  </span>
+                </td>
+                <td class="pe-4 text-end fw-semibold">
+                  {{ alloc.invoice.currency }} {{ alloc.invoice.balance|floatformat:2|intcomma }}
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5" class="text-center py-4 text-muted">
+                  No automated invoice allocations recorded. (Payment may be unallocated credit).
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Reversal & Refund History Card if any -->
+      {% if reversals %}
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white mb-4" style="border-left: 4px solid #ef4444 !important;">
+        <div class="card-header bg-white py-3 px-4 border-bottom">
+          <h5 class="fw-bold mb-0 text-danger">
+            <i class="fa-solid fa-arrow-rotate-left me-2"></i>Reversal &amp; Refund History
+          </h5>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light text-muted small text-uppercase">
+              <tr>
+                <th class="ps-4">Type &amp; Date</th>
+                <th>Amount</th>
+                <th>Initiator</th>
+                <th class="pe-4">Justification Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for rev in reversals %}
+              <tr>
+                <td class="ps-4">
+                  <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2 py-0.5 small">
+                    {{ rev.get_reversal_type_display }}
+                  </span>
+                  <small class="text-muted d-block mt-1">{{ rev.created_at|date:"M d, Y H:i" }}</small>
+                </td>
+                <td>
+                  <span class="fw-bold text-danger">- KES {{ rev.amount|floatformat:2|intcomma }}</span>
+                </td>
+                <td>
+                  <span class="text-dark small">{{ rev.requested_by.username }}</span>
+                </td>
+                <td class="pe-4 small text-secondary">
+                  {{ rev.reason }}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Right Column: Receipt & Actions -->
+    <div class="col-lg-4">
+      <!-- Receipt Snapshot Card -->
+      <div class="card border-0 shadow-sm rounded-4 p-4 bg-white mb-4">
+        <h5 class="fw-bold text-dark border-bottom pb-2 mb-3">
+          <i class="fa-solid fa-receipt me-2 text-primary"></i>Official Receipt
+        </h5>
+        {% if receipt %}
+          <div class="rounded-3 p-3 bg-light text-center mb-3">
+            <span class="text-muted small text-uppercase fw-semibold">Receipt Number</span>
+            <div class="fs-4 fw-bold text-dark mt-1 font-monospace">{{ receipt.receipt_number }}</div>
+            <span class="small text-muted">{{ receipt.issued_at|date:"F d, Y H:i" }}</span>
+          </div>
+          <div class="small mb-2 d-flex justify-content-between">
+            <span class="text-muted">Balance Before Payment:</span>
+            <span class="fw-semibold">KES {{ receipt.balance_before|floatformat:2|intcomma }}</span>
+          </div>
+          <div class="small mb-2 d-flex justify-content-between">
+            <span class="text-muted">Amount Cleared:</span>
+            <span class="text-success fw-bold">KES {{ receipt.amount_paid|floatformat:2|intcomma }}</span>
+          </div>
+          <div class="small mb-3 d-flex justify-content-between border-top pt-2">
+            <span class="text-muted">Remaining Balance:</span>
+            <span class="fw-bold text-dark">KES {{ receipt.balance_after|floatformat:2|intcomma }}</span>
+          </div>
+          <div class="d-grid gap-2">
+            <a href="{% url 'university:student_receipt_view' receipt.receipt_number %}" class="btn btn-outline-primary btn-sm rounded-pill" target="_blank">
+              <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Open Receipt
+            </a>
+            <a href="{% url 'university:student_receipt_pdf' receipt.receipt_number %}" class="btn btn-primary btn-sm rounded-pill shadow-sm">
+              <i class="fa-solid fa-file-pdf me-1"></i> Download PDF
+            </a>
+          </div>
+        {% else %}
+          <div class="py-4 text-center text-muted">
+            <i class="fa-solid fa-receipt text-muted opacity-50 display-6 mb-2 d-block"></i>
+            <p class="small mb-0">No official receipt issued yet. Receipts are automatically generated when payment reaches Successful status.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Reversal Modal -->
+{% if payment.status == 'SUCCESSFUL' %}
+<div class="modal fade" id="reversalModal" tabindex="-1" aria-labelledby="reversalModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <form method="post" action="{% url 'university:admin_payment_reverse' payment.pk %}">
+        {% csrf_token %}
+        <div class="modal-header border-bottom">
+          <h5 class="modal-title fw-bold text-danger" id="reversalModalLabel">
+            <i class="fa-solid fa-arrow-rotate-left me-2"></i>Initiate Payment Reversal / Refund
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="alert alert-danger border-0 rounded-3 p-3 small mb-3">
+            <i class="fa-solid fa-triangle-exclamation me-1"></i>
+            <strong>Audited Financial Operation:</strong> Reversals deduct the specified amount from the settled fee payment, restore the student invoice balance, and write an immutable audit log entry.
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-secondary">Operation Type</label>
+            <select name="reversal_type" class="form-select rounded-3">
+              <option value="REVERSAL">Full Payment Reversal (Wrong Account / Chargeback)</option>
+              <option value="REFUND">Partial / Full Student Refund</option>
+              <option value="CHARGEBACK">Bank Chargeback</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-secondary">Amount (KES)</label>
+            <input type="number" step="0.01" min="1" max="{{ payment.amount }}" name="amount" class="form-control rounded-3" value="{{ payment.amount }}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-secondary">Mandatory Justification Reason <span class="text-danger">*</span></label>
+            <textarea name="reason" class="form-control rounded-3" rows="3" placeholder="Provide full justification reason for audit trail..." required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-top">
+          <button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger rounded-pill px-4 shadow-sm">
+            Confirm Reversal
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
