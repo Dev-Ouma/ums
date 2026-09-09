@@ -88,6 +88,75 @@ def courses_public(request):
     })
 
 
+def public_status(request):
+    """
+    Public system status page displaying operational health of institution services.
+    """
+    from university.module_models import SystemModule, ModuleStatus
+    from university.control_services import current_status
+
+    state = current_status()
+
+    service_defs = [
+        ("students", "Student Portal & Biodata", "fa-user-graduate", "Self-service biodata, profile, and student requests"),
+        ("admissions", "Online Admissions & Applications", "fa-file-signature", "Applicant submission, documents, and admission decisions"),
+        ("academics", "Academic Programmes & Curriculum", "fa-book-open", "Department courses, syllabi, and semester configurations"),
+        ("examinations", "Examinations & Grading", "fa-file-pen", "Exam cards, continuous assessments, and grade sheets"),
+        ("finance", "Tuition Fees & Payments", "fa-credit-card", "Invoicing, online statements, and payment receipts"),
+        ("timetable", "Class Timetables & Schedules", "fa-calendar-week", "Room allocations, class slots, and lecturer schedules"),
+        ("accommodation", "Hostel & Accommodation", "fa-hotel", "Hostel room allocations and check-out clearances"),
+        ("library", "Library Catalog & Services", "fa-book", "Book loans, search catalog, and e-resources"),
+    ]
+
+    modules_map = {m.code: m for m in SystemModule.objects.filter(code__in=[s[0] for s in service_defs])}
+
+    services = []
+    has_incident = state.get("maintenance") or state.get("lockdown")
+    for code, title, icon, desc in service_defs:
+        mod = modules_map.get(code)
+        if has_incident and not state.get("read_only"):
+            status_label = "Under Maintenance" if state.get("maintenance") else "Restricted"
+            status_class = "warning" if state.get("maintenance") else "danger"
+            badge_icon = "fa-screwdriver-wrench" if state.get("maintenance") else "fa-ban"
+        elif mod:
+            if mod.status == ModuleStatus.ENABLED:
+                status_label = "Operational"
+                status_class = "success"
+                badge_icon = "fa-circle-check"
+            elif mod.status == ModuleStatus.MAINTENANCE:
+                status_label = "Maintenance"
+                status_class = "warning"
+                badge_icon = "fa-screwdriver-wrench"
+            elif mod.status == ModuleStatus.COMING_SOON:
+                status_label = "Coming Soon"
+                status_class = "info"
+                badge_icon = "fa-rocket"
+            else:
+                status_label = "Service Offline"
+                status_class = "secondary"
+                badge_icon = "fa-circle-pause"
+        else:
+            status_label = "Operational"
+            status_class = "success"
+            badge_icon = "fa-circle-check"
+
+        services.append({
+            "code": code,
+            "title": title,
+            "icon": icon,
+            "desc": desc,
+            "status_label": status_label,
+            "status_class": status_class,
+            "badge_icon": badge_icon,
+            "notice": mod.status_message if mod and mod.status != ModuleStatus.ENABLED else "",
+        })
+
+    return render(request, "public/status.html", {
+        "state": state,
+        "services": services,
+    })
+
+
 # ==========================================================================
 # DASHBOARD ROUTER
 # ==========================================================================

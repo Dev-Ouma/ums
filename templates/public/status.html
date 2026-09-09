@@ -1,0 +1,226 @@
+{% extends 'base_public.html' %}
+{% block title %}System Status · University Management System{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width: 1040px;">
+
+  <!-- Header -->
+  <div class="text-center mb-5">
+    <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill bg-light border text-muted small fw-medium mb-3">
+      <span class="spinner-grow spinner-grow-sm text-success" role="status" style="width: 8px; height: 8px;"></span>
+      <span>Live Status · Automatic Updates</span>
+    </div>
+    <h1 class="fw-bold tracking-tight mb-2">University System Status</h1>
+    <p class="text-muted fs-6 mb-0 mx-auto" style="max-width: 620px;">
+      Real-time operational status, service health, and maintenance notices for student, faculty, and administrative portals.
+    </p>
+  </div>
+
+  <!-- Overall Status Banner -->
+  <div class="mb-4">
+    {% if state.lockdown %}
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden" style="background: linear-gradient(135deg, #dc3545, #b02a37); color: #fff;">
+        <div class="card-body p-4 p-md-5 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+          <div class="d-flex align-items-center gap-3">
+            <div class="rounded-circle d-flex align-items-center justify-content-center bg-white text-danger" style="width: 56px; height: 56px; min-width: 56px;">
+              <i class="fa-solid fa-triangle-exclamation fs-3"></i>
+            </div>
+            <div>
+              <h3 class="h4 fw-bold mb-1">Emergency Lockdown In Progress</h3>
+              <p class="mb-0 text-white-50">
+                {{ state.message|default:"Access to the institutional platform is temporarily restricted for security and system integrity reasons." }}
+              </p>
+            </div>
+          </div>
+          <span class="badge bg-white text-danger px-3 py-2 rounded-pill fw-semibold align-self-start align-self-md-center">
+            Restricted Access
+          </span>
+        </div>
+      </div>
+    {% elif state.maintenance %}
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden" style="background: linear-gradient(135deg, #f59f00, #d97706); color: #fff;">
+        <div class="card-body p-4 p-md-5 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+          <div class="d-flex align-items-center gap-3">
+            <div class="rounded-circle d-flex align-items-center justify-content-center bg-white text-warning" style="width: 56px; height: 56px; min-width: 56px;">
+              <i class="fa-solid fa-screwdriver-wrench fs-3"></i>
+            </div>
+            <div>
+              <h3 class="h4 fw-bold mb-1">System Maintenance Underway</h3>
+              <p class="mb-0 text-white-50">
+                {{ state.message|default:"The platform is undergoing scheduled maintenance upgrades. Certain features may be unavailable." }}
+              </p>
+            </div>
+          </div>
+          <span class="badge bg-white text-dark px-3 py-2 rounded-pill fw-semibold align-self-start align-self-md-center">
+            Maintenance Mode
+          </span>
+        </div>
+      </div>
+    {% elif state.read_only %}
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden" style="background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff;">
+        <div class="card-body p-4 p-md-5 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+          <div class="d-flex align-items-center gap-3">
+            <div class="rounded-circle d-flex align-items-center justify-content-center bg-white text-primary" style="width: 56px; height: 56px; min-width: 56px;">
+              <i class="fa-solid fa-lock fs-3"></i>
+            </div>
+            <div>
+              <h3 class="h4 fw-bold mb-1">Operating in Read-Only Mode</h3>
+              <p class="mb-0 text-white-50">
+                {{ state.message|default:"Records and portals can be viewed, but record creation and submission modifications are temporarily locked." }}
+              </p>
+            </div>
+          </div>
+          <span class="badge bg-white text-primary px-3 py-2 rounded-pill fw-semibold align-self-start align-self-md-center">
+            Read Only
+          </span>
+        </div>
+      </div>
+    {% else %}
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff;">
+        <div class="card-body p-4 p-md-5 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+          <div class="d-flex align-items-center gap-3">
+            <div class="rounded-circle d-flex align-items-center justify-content-center bg-white text-success" style="width: 56px; height: 56px; min-width: 56px;">
+              <i class="fa-solid fa-circle-check fs-3"></i>
+            </div>
+            <div>
+              <h3 class="h4 fw-bold mb-1">All Systems Operational</h3>
+              <p class="mb-0 text-white-50">
+                All campus portals, academic registration engines, and student services are running normally with optimal performance.
+              </p>
+            </div>
+          </div>
+          <span class="badge bg-white text-success px-3 py-2 rounded-pill fw-semibold align-self-start align-self-md-center">
+            100% Operational
+          </span>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Upcoming Maintenance Alert (If Scheduled) -->
+  {% if state.upcoming %}
+  <div class="card border-warning bg-warning-subtle rounded-4 mb-4 shadow-sm">
+    <div class="card-body p-4 d-flex align-items-start gap-3">
+      <div class="rounded-circle bg-warning text-dark p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; min-width: 40px;">
+        <i class="fa-regular fa-clock fs-5"></i>
+      </div>
+      <div class="flex-grow-1">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-1">
+          <h5 class="fw-bold text-dark mb-0">Scheduled System Maintenance Notice</h5>
+          <span class="badge bg-warning text-dark px-3 py-1 rounded-pill">
+            Starts in {{ state.upcoming.minutes_until }} minute{{ state.upcoming.minutes_until|pluralize }}
+          </span>
+        </div>
+        <p class="text-dark-emphasis mb-2 small">
+          {{ state.upcoming.message|default:"Routine maintenance and infrastructure updates have been scheduled." }}
+        </p>
+        <div class="d-flex flex-wrap gap-3 small text-muted">
+          <span><i class="fa-regular fa-calendar me-1"></i><strong>Window:</strong> {{ state.upcoming.starts_at|default:"Upcoming" }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Institutional Services List -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white border-bottom py-3 px-4 d-flex align-items-center justify-content-between">
+      <div>
+        <h5 class="fw-bold mb-0">Core Services &amp; Portals</h5>
+        <small class="text-muted">Live uptime and subsystem health statuses</small>
+      </div>
+      <span class="badge bg-light text-dark border px-3 py-2 rounded-pill small">
+        <i class="fa-solid fa-server me-1 text-primary"></i> 8 Monitored Services
+      </span>
+    </div>
+    <div class="list-group list-group-flush rounded-bottom-4">
+      {% for s in services %}
+      <div class="list-group-item py-3 px-4 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+        <div class="d-flex align-items-start gap-3">
+          <div class="rounded-3 bg-light border d-flex align-items-center justify-content-center text-primary" style="width: 44px; height: 44px; min-width: 44px;">
+            <i class="fa-solid {{ s.icon }} fs-5"></i>
+          </div>
+          <div>
+            <div class="fw-bold text-dark mb-0 fs-6">{{ s.title }}</div>
+            <div class="text-muted small">{{ s.desc }}</div>
+            {% if s.notice %}
+            <div class="mt-1 small text-secondary bg-light border px-2 py-1 rounded-2 d-inline-block">
+              <i class="fa-solid fa-circle-info me-1 text-info"></i>{{ s.notice }}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="d-flex align-items-center gap-2 align-self-start align-self-md-center">
+          <span class="badge bg-{{ s.status_class }}-subtle text-{{ s.status_class }} border border-{{ s.status_class }}-subtle px-3 py-2 rounded-pill fw-medium d-inline-flex align-items-center gap-2">
+            <i class="fa-solid {{ s.badge_icon }}"></i>
+            <span>{{ s.status_label }}</span>
+          </span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- System Diagnostics & SLA Metrics -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm rounded-4 p-3 h-100 bg-white">
+        <div class="d-flex align-items-center gap-3">
+          <div class="rounded-3 bg-primary-subtle text-primary p-3">
+            <i class="fa-solid fa-shield-halved fs-4"></i>
+          </div>
+          <div>
+            <small class="text-muted text-uppercase fw-semibold d-block">Security & SSL</small>
+            <div class="h5 fw-bold mb-0">Grade A+ (Active)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm rounded-4 p-3 h-100 bg-white">
+        <div class="d-flex align-items-center gap-3">
+          <div class="rounded-3 bg-success-subtle text-success p-3">
+            <i class="fa-solid fa-chart-line fs-4"></i>
+          </div>
+          <div>
+            <small class="text-muted text-uppercase fw-semibold d-block">30-Day Platform Uptime</small>
+            <div class="h5 fw-bold mb-0">99.98%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm rounded-4 p-3 h-100 bg-white">
+        <div class="d-flex align-items-center gap-3">
+          <div class="rounded-3 bg-info-subtle text-info p-3">
+            <i class="fa-solid fa-database fs-4"></i>
+          </div>
+          <div>
+            <small class="text-muted text-uppercase fw-semibold d-block">Automated Backups</small>
+            <div class="h5 fw-bold mb-0">Live Snapshots</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer Info & Support links -->
+  <div class="card border-0 bg-light rounded-4 p-4 text-center">
+    <div class="d-flex flex-column flex-md-row align-items-center justify-content-between gap-3">
+      <div class="text-md-start">
+        <div class="fw-bold text-dark">Need Institutional Support or Technical Assistance?</div>
+        <div class="small text-muted">Contact the University IT Helpdesk or check ongoing incident updates.</div>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{% url 'university:contact' %}" class="btn btn-outline-secondary rounded-pill px-4 btn-sm">
+          <i class="fa-solid fa-headset me-1"></i> IT Helpdesk
+        </a>
+        <a href="{% url 'accounts:login' %}" class="btn btn-primary rounded-pill px-4 btn-sm">
+          <i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Admin Sign In
+        </a>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

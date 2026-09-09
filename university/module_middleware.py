@@ -21,6 +21,8 @@ class ModuleAccessMiddleware:
         "/accounts/logout/",
         "/manage/system/modules/",
         "/django-admin/",
+        "/status/",
+        "/system-control/status/",
     )
 
     def __init__(self, get_response):

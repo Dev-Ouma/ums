@@ -26,6 +26,7 @@ urlpatterns = [
     path("", views.home, name="home"),
     path("about/", views.about, name="about"),
     path("contact/", views.contact, name="contact"),
+    path("status/", views.public_status, name="public_status"),
     path("catalog/", views.courses_public, name="courses_public"),
     path("verify/document/", verification_views.public_verify_document, name="verify_document_query"),
     path("verify/document/<path:reference_no>/", verification_views.public_verify_document, name="verify_document"),
@@ -257,6 +258,8 @@ urlpatterns = [
     path("manage/system/modules/submodule/<int:pk>/update/", module_views.admin_submodule_update, name="admin_submodule_update"),
     path("manage/system/modules/feature/<int:pk>/toggle/", module_views.admin_feature_toggle, name="admin_feature_toggle"),
     path("manage/system/modules/bulk/", module_views.admin_modules_bulk, name="admin_modules_bulk"),
+    path("manage/system/modules/export/", module_views.admin_modules_export_json, name="admin_modules_export_json"),
+    path("manage/system/modules/import/", module_views.admin_modules_import_json, name="admin_modules_import_json"),
     path("manage/system/modules/<int:pk>/dependencies/", module_views.admin_module_dependencies_api, name="admin_module_dependencies_api"),
 
     # System Administration — Admin Setups

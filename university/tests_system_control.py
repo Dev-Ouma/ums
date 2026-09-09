@@ -218,3 +218,60 @@ class SystemControlTests(TestCase):
         self.assertContains(res, "System Temporarily Unavailable", status_code=503)
         self.assertContains(res, "Campus electrical grid upgrade in progress.", status_code=503)
         self.assertContains(res, "Expected Restoration", status_code=503)
+
+    def test_backup_create_snapshot(self):
+        """Verify one-click backup creates a snapshot file, logs audit entry, and redirects to health."""
+        self.client.force_login(self.root)
+        res = self.client.post(reverse('control:backup_create'))
+        self.assertEqual(res.status_code, 302)
+        self.assertEqual(res.url, reverse('control:health'))
+
+        # Check that an AuditLog entry was created
+        log = AuditLog.objects.filter(module=AuditLog.Module.CONFIG, entity="DatabaseBackup").latest("timestamp")
+        self.assertEqual(log.action, AuditLog.Action.CREATE)
+        self.assertIn("ums_backup_", log.entity_id)
+
+        # Check health page lists the created snapshot
+        health_res = self.client.get(reverse('control:health'))
+        self.assertEqual(health_res.status_code, 200)
+        self.assertContains(health_res, "ums_backup_")
+
+    def test_public_status_page(self):
+        """Verify public status page renders at /status/ without requiring authentication."""
+        # 1. Normal operational state
+        res = self.client.get(reverse('university:public_status'))
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "University System Status")
+        self.assertContains(res, "All Systems Operational")
+        self.assertContains(res, "Core Services &amp; Portals")
+        self.assertContains(res, "Student Portal &amp; Biodata")
+        self.assertContains(res, "Tuition Fees &amp; Payments")
+
+        # 2. Active maintenance state reflects immediately on public status
+        restr = self.restriction(kind='MAINTENANCE', public_message="Quarterly core network maintenance.")
+        res_maint = self.client.get(reverse('university:public_status'))
+        self.assertEqual(res_maint.status_code, 200)
+        self.assertContains(res_maint, "System Maintenance Underway")
+        self.assertContains(res_maint, "Quarterly core network maintenance.")
+
+    def test_heartbeat_status_api_upcoming_window(self):
+        """Verify the /system-control/status/ JSON API returns upcoming maintenance info."""
+        # Schedule future maintenance 10 minutes from now
+        future_start = timezone.now() + timedelta(minutes=10)
+        SystemRestriction.objects.create(
+            title='Upcoming Database Patch',
+            kind='MAINTENANCE',
+            status='SCHEDULED',
+            starts_at=future_start,
+            ends_at=future_start + timedelta(hours=1),
+            public_message='Scheduled patch window in 10 minutes.',
+            created_by=self.root,
+        )
+
+        res = self.client.get('/system-control/status/')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn('upcoming', data)
+        self.assertIsNotNone(data['upcoming'])
+        self.assertIn('minutes_until', data['upcoming'])
+        self.assertEqual(data['upcoming']['message'], 'Scheduled patch window in 10 minutes.')
