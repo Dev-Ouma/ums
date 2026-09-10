@@ -3,6 +3,7 @@ from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.shortcuts import redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .forms import (AvatarForm, FacultyDetailsForm, LoginForm, ProfileForm,
@@ -133,7 +134,13 @@ def profile_settings(request):
         active_tab = "password"
         password_form = UMSPasswordChangeForm(user=user, data=request.POST, prefix="password")
         if password_form.is_valid():
-            password_form.save()
+            # Routed through the central identity service so password history,
+            # expiry stamps, token invalidation and session revocation all apply.
+            from university.identity_services import record_password_change
+            record_password_change(
+                user, password_form.cleaned_data["new_password1"], actor=user,
+                request=request, keep_session_key=request.session.session_key,
+                reason="Self-service change from profile settings")
             # Changing the password rotates the auth hash, which would sign the
             # user out of this session too; re-stamp it so they stay signed in.
             update_session_auth_hash(request, password_form.user)
@@ -147,4 +154,112 @@ def profile_settings(request):
         "avatar_form": avatar_form,
         "password_form": password_form,
         "active_tab": active_tab,
+    })
+
+
+# ==============================================================================
+# SELF-SERVICE CREDENTIAL RECOVERY
+# ==============================================================================
+
+def password_reset_request(request):
+    """
+    Start a self-service reset.
+
+    The response is identical whether or not the account exists, so this page
+    cannot be used to discover valid usernames or email addresses.
+    """
+    from django.db.models import Q
+
+    from university.identity_models import PasswordResetToken
+    from university.identity_services import (build_reset_url, get_password_policy,
+                                              issue_reset_token)
+    from university.email_services import notify_password_reset
+    from .forms import PasswordResetRequestForm
+    from .models import User
+
+    form = PasswordResetRequestForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        identifier = form.cleaned_data["identifier"].strip()
+        user = User.objects.filter(
+            Q(username__iexact=identifier) | Q(email__iexact=identifier)
+            | Q(institutional_emails__address__iexact=identifier)
+        ).distinct().first()
+
+        if user is not None and user.email:
+            raw_token, _record = issue_reset_token(
+                user, purpose=PasswordResetToken.Purpose.RESET, request=request)
+            notify_password_reset(user, build_reset_url(raw_token, request),
+                                  get_password_policy()["reset_token_minutes"],
+                                  request=request)
+        return redirect("accounts:password_reset_done")
+
+    return render(request, "accounts/password_reset_request.html", {"form": form})
+
+
+def password_reset_done(request):
+    return render(request, "accounts/password_reset_done.html")
+
+
+def password_reset_confirm(request, token):
+    """
+    Finish a reset or a first-time activation.
+
+    The token is validated on GET as well as POST so an expired link shows a
+    clear message rather than a form that will fail on submit.
+    """
+    from university.identity_services import (consume_reset_token, get_password_policy,
+                                              get_valid_token)
+    from .forms import IdentitySetPasswordForm
+
+    record = get_valid_token(token)
+    if record is None:
+        return render(request, "accounts/password_reset_invalid.html", status=400)
+
+    form = IdentitySetPasswordForm(request.POST or None, user=record.user)
+    if request.method == "POST" and form.is_valid():
+        ok, message, _user = consume_reset_token(
+            token, form.cleaned_data["new_password1"], request=request)
+        if ok:
+            messages.success(request, message)
+            return redirect("accounts:login")
+        messages.error(request, message)
+
+    return render(request, "accounts/password_reset_confirm.html", {
+        "form": form,
+        "token_record": record,
+        "policy": get_password_policy(),
+        "is_activation": record.purpose != record.Purpose.RESET,
+    })
+
+
+@login_required
+def password_change_required(request):
+    """
+    Mandatory password change gate.
+
+    Reached whenever an account is flagged ``must_change_password`` or its
+    password has expired; the middleware keeps redirecting here until it is done.
+    """
+    from university.identity_services import (get_account, get_password_policy,
+                                              record_password_change)
+    from .forms import IdentitySetPasswordForm
+
+    account = get_account(request.user)
+    form = IdentitySetPasswordForm(request.POST or None, user=request.user)
+    if request.method == "POST" and form.is_valid():
+        record_password_change(
+            request.user, form.cleaned_data["new_password1"], actor=request.user,
+            request=request, must_change=False,
+            keep_session_key=request.session.session_key,
+            reason="Mandatory password change")
+        update_session_auth_hash(request, request.user)
+        messages.success(request, "Your password has been updated. Thank you.")
+        return redirect("university:dashboard")
+
+    return render(request, "accounts/password_change_required.html", {
+        "form": form,
+        "account": account,
+        "policy": get_password_policy(),
+        "expired": bool(account and account.password_expires_at
+                        and account.password_expires_at <= timezone.now()),
     })

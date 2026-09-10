@@ -1,0 +1,75 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}Import Report · Bulk Operations · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4><i class="fa-solid fa-clipboard-check me-2 text-primary"></i>Import Report</h4>
+    <p class="text-muted small mb-0">{{ batch.filename|default:"Upload" }} ·
+      run by {{ batch.run_by.username|default:"system" }} {{ batch.created_at|naturaltime }}</p>
+  </div>
+  <a href="{% url 'university:bulk_operations' %}" class="btn btn-outline-secondary btn-sm">
+    <i class="fa-solid fa-arrow-left me-1"></i>Back to Bulk Operations</a>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm rounded-4"><div class="card-body py-3">
+      <div class="small text-uppercase text-muted fw-semibold">Rows processed</div>
+      <div class="h3 fw-bold mb-0">{{ batch.total_rows }}</div></div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm rounded-4"><div class="card-body py-3">
+      <div class="small text-uppercase text-muted fw-semibold">Created</div>
+      <div class="h3 fw-bold mb-0 text-success">{{ batch.created_count }}</div></div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm rounded-4"><div class="card-body py-3">
+      <div class="small text-uppercase text-muted fw-semibold">Skipped</div>
+      <div class="h3 fw-bold mb-0 text-secondary">{{ batch.skipped_count }}</div></div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm rounded-4"><div class="card-body py-3">
+      <div class="small text-uppercase text-muted fw-semibold">Failed</div>
+      <div class="h3 fw-bold mb-0 text-danger">{{ batch.error_count }}</div></div></div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm rounded-4">
+  <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+    <h6 class="mb-0 fw-bold">Row-by-Row Result</h6>
+    <span class="badge bg-{% if batch.status == 'COMPLETED' %}success{% elif batch.status == 'PARTIAL' %}warning{% else %}danger{% endif %}-subtle
+                 text-{% if batch.status == 'COMPLETED' %}success{% elif batch.status == 'PARTIAL' %}warning{% else %}danger{% endif %}-emphasis">
+      {{ batch.get_status_display }}</span>
+  </div>
+  <div class="table-responsive" style="max-height:640px">
+    <table class="table table-sm table-hover mb-0 align-middle">
+      <thead class="table-light position-sticky top-0"><tr class="small text-uppercase text-muted">
+        <th>Row</th><th>Outcome</th><th>Name</th><th>Username</th><th>Notes</th></tr></thead>
+      <tbody>
+        {% for row in rows %}
+          <tr class="small {% if row.outcome == 'ERROR' %}table-danger{% elif row.outcome == 'SKIP' %}table-light{% endif %}">
+            <td class="text-muted">{{ row.row_number }}</td>
+            <td>
+              {% if row.outcome == 'CREATE' %}<span class="badge bg-success-subtle text-success-emphasis">Created</span>
+              {% elif row.outcome == 'SKIP' %}<span class="badge bg-secondary-subtle text-secondary-emphasis">Skipped</span>
+              {% else %}<span class="badge bg-danger-subtle text-danger-emphasis">Failed</span>{% endif %}
+            </td>
+            <td>{{ row.first_name }} {{ row.last_name }}</td>
+            <td>{% if row.username %}<code>{{ row.username }}</code>{% else %}—{% endif %}</td>
+            <td class="text-muted">{{ row.message|default:"" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="text-center text-muted py-4">No detail recorded for this batch.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="small text-muted mt-3 mb-0">
+  <i class="fa-solid fa-lock me-1"></i>
+  Import reports never contain passwords. New users receive their own activation link.</p>
+{% endblock %}

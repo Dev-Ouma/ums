@@ -20,7 +20,11 @@
           <div class="col-md-6 p-4 p-md-5">
             <h4 class="fw-bold mb-1">Sign in</h4>
             <p class="text-muted small">Enter your credentials to continue.</p>
-            {% if form.errors %}
+            {% if form.non_field_errors %}
+              {% for error in form.non_field_errors %}
+                <div class="alert alert-danger py-2 small mb-2">{{ error }}</div>
+              {% endfor %}
+            {% elif form.errors %}
               <div class="alert alert-danger py-2 small">Invalid username or password.</div>
             {% endif %}
             <form method="post">
@@ -30,9 +34,12 @@
               <button class="btn btn-primary btn-lg w-100 rounded-3">
                 <i class="fa-solid fa-right-to-bracket me-2"></i>Login</button>
             </form>
-            <p class="text-center mt-3 mb-0 small">New here?
+            <p class="text-center mt-3 mb-1 small">
+              <a href="{% url 'accounts:password_reset_request' %}" class="text-muted text-decoration-none">
+                <i class="fa-solid fa-key me-1"></i>Forgot Password?</a></p>
+            <p class="text-center mb-0 small">New here?
               <a href="{% url 'accounts:signup' %}" class="text-primary fw-semibold">Create an account</a></p>
-           
+
           </div>
         </div>
       </div>

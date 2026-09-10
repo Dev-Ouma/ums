@@ -9,6 +9,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import FacultyProfile, Role, StudentProfile
+from university.identity_models import UserType
 from university.audit_services import detect_device_type, get_client_ip, log_activity
 from university.models import (
     AuditLog, ClassSchedule, Course, Department, Event,
@@ -130,6 +131,18 @@ def move_to_recycle_bin(obj, user=None, request=None, module=None, is_protected=
     return item
 
 
+def _ensure_identity(user_inst, user_type, actor=None):
+    """
+    Give a restored account its identity envelope back.
+
+    The account returns as Pending rather than Active: a restore reinstates the
+    record, not the right to sign in, so an administrator still has to activate
+    it deliberately.
+    """
+    from university.identity_services import ensure_account
+    return ensure_account(user_inst, user_type=user_type, created_by=actor)
+
+
 @transaction.atomic
 def restore_from_recycle_bin(item_id, user=None, request=None):
     """
@@ -159,8 +172,12 @@ def restore_from_recycle_bin(item_id, user=None, request=None):
             }
         )
         if not user_inst.has_usable_password():
-            user_inst.set_password("demo1234")
-            user_inst.save()
+            # A restored identity never comes back with a known password. It
+            # returns unable to authenticate until someone sends an activation
+            # link from User Management, so a restore cannot hand out access.
+            user_inst.set_unusable_password()
+            user_inst.save(update_fields=["password"])
+        _ensure_identity(user_inst, UserType.STUDENT, actor)
 
         prog = Program.objects.filter(pk=data.get("program")).first()
         restored_obj, _ = StudentProfile.objects.update_or_create(
@@ -186,6 +203,11 @@ def restore_from_recycle_bin(item_id, user=None, request=None):
                 "role": Role.FACULTY,
             }
         )
+        if not user_inst.has_usable_password():
+            user_inst.set_unusable_password()
+            user_inst.save(update_fields=["password"])
+        _ensure_identity(user_inst, UserType.STAFF, actor)
+
         dept = Department.objects.filter(pk=data.get("department")).first()
         restored_obj, _ = FacultyProfile.objects.update_or_create(
             employee_id=data.get("employee_id"),

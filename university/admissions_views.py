@@ -352,10 +352,12 @@ def admin_admission_matriculate(request, pk):
         messages.error(request, "Only accepted applicants can be matriculated.")
         return redirect("university:admin_admission_detail", pk=app.pk)
 
-    student_profile, user, default_password = matriculate_applicant(app, created_by=request.user)
+    student_profile, user, _ = matriculate_applicant(app, created_by=request.user)
     messages.success(
         request,
-        f"Matriculation complete! Created Student profile for {student_profile.roll_no} (User: {user.username}, Password: {default_password})."
+        f"Matriculation complete. Student profile {student_profile.roll_no} created with the "
+        f"username '{user.username}'. An activation link has been emailed so the student sets "
+        f"their own password; resend it from User Management if it does not arrive."
     )
     return redirect("university:student_detail", pk=student_profile.pk)
 

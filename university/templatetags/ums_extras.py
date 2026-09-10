@@ -40,3 +40,14 @@ def url_replace(context, **kwargs):
             query[k] = str(v)
     return query.urlencode()
 
+
+
+@register.filter
+def toggle_sort(current, field):
+    """
+    Flip a column between ascending and descending.
+
+    Clicking the column you are already sorted by reverses it; clicking any
+    other column starts it ascending.
+    """
+    return f"-{field}" if current == field else field

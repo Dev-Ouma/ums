@@ -126,13 +126,15 @@ UniversityManagementSystem/
 │   ├── ai.py               # local AI: predictor, assistant, at-risk, recommendations
 │   ├── services.py         # analytics & chart-data builders
 │   ├── context_processors.py  # per-role theming
+│   ├── identity_*.py       # central User Management & Identity module (see docs/user_management.md)
 │   └── management/commands/seed_demo.py
 ├── templates/
 │   ├── base_public.html    # public navbar + footer
 │   ├── base_dashboard.html # themed sidebar + topbar shell
-│   ├── public/  accounts/  dashboard/
+│   ├── public/  accounts/  dashboard/  identity/
 ├── static/css/ums.css, static/js/ums.js
 ├── docs/screenshots/       # screenshots used in this README
+├── docs/user_management.md # central identity module: architecture & security invariants
 └── report/                 # 50+ page project report (.docx) with all diagrams
 ```
 

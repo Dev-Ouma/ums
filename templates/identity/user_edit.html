@@ -1,0 +1,124 @@
+{% extends 'base_dashboard.html' %}
+
+{% block title %}Edit {{ subject.username }} · User Management · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4><i class="fa-solid fa-user-pen me-2 text-primary"></i>Edit Account Details</h4>
+    <p class="text-muted small mb-0">Changing a username or email updates the identity everywhere it is used.
+      Historical records stay attached to the same account.</p>
+  </div>
+  <div class="breadcrumb-chip">
+    <a href="{% url 'university:user_detail' subject.pk %}" class="text-decoration-none text-muted">{{ subject.username }}</a>
+    <i class="fa-solid fa-angle-right mx-1"></i> Edit
+  </div>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm rounded-4 mb-3">
+        <div class="card-header bg-white border-bottom py-3">
+          <h6 class="mb-0 fw-bold"><i class="fa-solid fa-id-card me-2 text-primary"></i>Identity</h6>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">First name</label>
+              <input type="text" name="first_name" value="{{ subject.first_name }}" class="form-control">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Last name</label>
+              <input type="text" name="last_name" value="{{ subject.last_name }}" class="form-control">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Username</label>
+              <input type="text" name="username" value="{{ subject.username }}" class="form-control">
+              <div class="form-text small">Must stay unique across the whole system.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Email address</label>
+              <input type="email" name="email" value="{{ subject.email }}" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Phone number</label>
+              <input type="text" name="phone" value="{{ subject.phone }}" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Base role</label>
+              <select name="role" class="form-select">
+                {% for value, label in roles %}
+                  <option value="{{ value }}" {% if subject.role == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">User type</label>
+              <select name="user_type" class="form-select">
+                {% for value, label in user_types %}
+                  <option value="{{ value }}" {% if account.user_type == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm rounded-4 mb-3">
+        <div class="card-header bg-white border-bottom py-3">
+          <h6 class="mb-0 fw-bold"><i class="fa-solid fa-note-sticky me-2 text-primary"></i>Administrative Notes</h6>
+        </div>
+        <div class="card-body">
+          <textarea name="notes" rows="4" class="form-control"
+                    placeholder="Internal notes about this account">{{ account.notes }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm rounded-4 mb-3">
+        <div class="card-header bg-white border-bottom py-3">
+          <h6 class="mb-0 fw-bold"><i class="fa-solid fa-toggle-on me-2 text-primary"></i>Lifecycle</h6>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <div class="small text-muted mb-1">Current status</div>
+            {% include 'identity/_status_badge.html' %}
+            <div class="form-text small">Change status from the account's profile page, where the reason is recorded.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Campus</label>
+            <input type="text" name="campus" value="{{ account.campus }}" class="form-control form-control-sm">
+          </div>
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label small fw-semibold">Activation date</label>
+              <input type="date" name="activation_date" class="form-control form-control-sm"
+                     value="{{ account.activation_date|date:'Y-m-d' }}">
+            </div>
+            <div class="col-6">
+              <label class="form-label small fw-semibold">Expiry date</label>
+              <input type="date" name="expiry_date" class="form-control form-control-sm"
+                     value="{{ account.expiry_date|date:'Y-m-d' }}">
+            </div>
+          </div>
+          <div class="form-text small mt-2">An expired account cannot sign in, whatever its stored status says.</div>
+        </div>
+      </div>
+
+      <div class="alert alert-light border rounded-4 small">
+        <i class="fa-solid fa-lock me-1 text-muted"></i>
+        Passwords cannot be viewed or edited here. Use the reset actions on the profile page.
+      </div>
+
+      <div class="d-grid gap-2">
+        <button class="btn btn-primary btn-lg rounded-3">
+          <i class="fa-solid fa-floppy-disk me-2"></i>Save Changes</button>
+        <a href="{% url 'university:user_detail' subject.pk %}" class="btn btn-light rounded-3">Cancel</a>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

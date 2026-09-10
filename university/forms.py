@@ -38,7 +38,8 @@ class StudentForm(forms.Form):
     phone = forms.CharField(max_length=20, initial="0000", required=False)
     username = forms.CharField(max_length=150)
     password = forms.CharField(widget=forms.PasswordInput, required=False,
-                               help_text="Leave blank to keep the current password (on edit).")
+                               help_text="Leave blank to email a single-use activation link "
+                                         "instead, or to keep the current password on edit.")
     roll_no = forms.CharField(max_length=20)
     program = forms.ModelChoiceField(queryset=Program.objects.all(), required=False)
     current_semester = forms.IntegerField(min_value=1, max_value=12, initial=1)
@@ -81,27 +82,55 @@ class StudentForm(forms.Form):
         return roll
 
     def clean(self):
+        """
+        A password is optional. Left blank on a new record, the account is
+        created with an activation link instead, which is the safer default.
+        Supplied, it has to satisfy the institutional password policy.
+        """
         cleaned = super().clean()
-        if not self.instance and not cleaned.get("password"):
-            self.add_error("password", "Password is required for a new student.")
+        password = cleaned.get("password")
+        if password:
+            from university.identity_services import validate_password
+            for message in validate_password(password):
+                self.add_error("password", message)
         return cleaned
 
-    def save(self):
+    def save(self, actor=None):
+        from university.identity_models import UserType
+        from university.identity_services import (
+            create_user_account, provision_student_account, record_password_change,
+        )
         d = self.cleaned_data
         if self.instance:
             u = self.instance.user
             sp = self.instance
+            u.first_name = d["first_name"]
+            u.last_name = d["last_name"]
+            u.email = d["email"]
+            u.phone = d["phone"] or "0000"
+            u.role = Role.STUDENT
+            u.save()
+            if d.get("password"):
+                # Goes through the central service so password history, the audit
+                # entry and the forced-change flag all stay consistent.
+                record_password_change(u, d["password"], actor=actor,
+                                       reason="Administrator edit of student record")
         else:
-            u = User(username=d["username"], role=Role.STUDENT)
+            created = create_user_account(
+                user_type=UserType.STUDENT,
+                first_name=d["first_name"],
+                last_name=d["last_name"],
+                email=d["email"],
+                username=d["username"],
+                phone=d["phone"] or "0000",
+                role=Role.STUDENT,
+                password_mode="MANUAL" if d.get("password") else "LINK",
+                password=d.get("password") or None,
+                actor=actor,
+                notify=True,
+            )
+            u = created["user"]
             sp = StudentProfile(user=u)
-        u.first_name = d["first_name"]
-        u.last_name = d["last_name"]
-        u.email = d["email"]
-        u.phone = d["phone"] or "0000"
-        u.role = Role.STUDENT
-        if d.get("password"):
-            u.set_password(d["password"])
-        u.save()
         sp.user = u
         sp.roll_no = d["roll_no"]
         sp.program = d["program"]
@@ -112,6 +141,8 @@ class StudentForm(forms.Form):
         if not sp.admission_date:
             sp.admission_date = timezone.now().date()
         sp.save()
+        if not self.instance:
+            provision_student_account(sp, actor=actor, notify=False)
         return sp
 
 
@@ -125,7 +156,8 @@ class FacultyForm(forms.Form):
     phone = forms.CharField(max_length=20, initial="0000", required=False)
     username = forms.CharField(max_length=150)
     password = forms.CharField(widget=forms.PasswordInput, required=False,
-                               help_text="Leave blank to keep the current password (on edit).")
+                               help_text="Leave blank to email a single-use activation link "
+                                         "instead, or to keep the current password on edit.")
     employee_id = forms.CharField(max_length=20)
     department = forms.ModelChoiceField(queryset=Department.objects.all(), required=False)
     designation = forms.CharField(max_length=80, initial="Assistant Professor")
@@ -165,27 +197,49 @@ class FacultyForm(forms.Form):
         return eid
 
     def clean(self):
+        """Same rule as students: a blank password means an activation link."""
         cleaned = super().clean()
-        if not self.instance and not cleaned.get("password"):
-            self.add_error("password", "Password is required for a new faculty member.")
+        password = cleaned.get("password")
+        if password:
+            from university.identity_services import validate_password
+            for message in validate_password(password):
+                self.add_error("password", message)
         return cleaned
 
-    def save(self):
+    def save(self, actor=None):
+        from university.identity_models import UserType
+        from university.identity_services import (
+            create_user_account, provision_staff_account, record_password_change,
+        )
         d = self.cleaned_data
         if self.instance:
             u = self.instance.user
             fp = self.instance
+            u.first_name = d["first_name"]
+            u.last_name = d["last_name"]
+            u.email = d["email"]
+            u.phone = d["phone"] or "0000"
+            u.role = Role.FACULTY
+            u.save()
+            if d.get("password"):
+                record_password_change(u, d["password"], actor=actor,
+                                       reason="Administrator edit of staff record")
         else:
-            u = User(username=d["username"], role=Role.FACULTY)
+            created = create_user_account(
+                user_type=UserType.STAFF,
+                first_name=d["first_name"],
+                last_name=d["last_name"],
+                email=d["email"],
+                username=d["username"],
+                phone=d["phone"] or "0000",
+                role=Role.FACULTY,
+                password_mode="MANUAL" if d.get("password") else "LINK",
+                password=d.get("password") or None,
+                actor=actor,
+                notify=True,
+            )
+            u = created["user"]
             fp = FacultyProfile(user=u)
-        u.first_name = d["first_name"]
-        u.last_name = d["last_name"]
-        u.email = d["email"]
-        u.phone = d["phone"] or "0000"
-        u.role = Role.FACULTY
-        if d.get("password"):
-            u.set_password(d["password"])
-        u.save()
         fp.user = u
         fp.employee_id = d["employee_id"]
         fp.department = d["department"]
@@ -194,6 +248,8 @@ class FacultyForm(forms.Form):
         if not fp.joining_date:
             fp.joining_date = timezone.now().date()
         fp.save()
+        if not self.instance:
+            provision_staff_account(fp, actor=actor, notify=False)
         return fp
 
 

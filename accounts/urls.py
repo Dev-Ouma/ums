@@ -10,4 +10,12 @@ urlpatterns = [
     path("signup/", views.signup, name="signup"),
     path("profile/", views.profile, name="profile"),
     path("profile/settings/", views.profile_settings, name="profile_settings"),
+
+    # Self-service credential recovery
+    path("password/forgot/", views.password_reset_request, name="password_reset_request"),
+    path("password/forgot/sent/", views.password_reset_done, name="password_reset_done"),
+    path("password/reset/<str:token>/", views.password_reset_confirm,
+         name="password_reset_confirm"),
+    path("password/change-required/", views.password_change_required,
+         name="password_change_required"),
 ]

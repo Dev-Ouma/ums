@@ -1,0 +1,81 @@
+{% comment %}
+Server-side filter bar. Every filter is applied in the queryset, so the result
+count and export always agree with what is on screen.
+{% endcomment %}
+<form method="get" class="row g-2 align-items-end">
+  <div class="col-lg-3 col-md-6">
+    <label class="form-label small text-muted mb-1">Search</label>
+    <div class="input-group input-group-sm">
+      <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+      <input type="search" name="q" value="{{ filters.q }}" class="form-control"
+             placeholder="Name, username, email, reg. no or staff ID">
+    </div>
+  </div>
+  <div class="col-lg-2 col-md-3 col-6">
+    <label class="form-label small text-muted mb-1">User type</label>
+    <select name="user_type" class="form-select form-select-sm">
+      <option value="">All types</option>
+      {% for value, label in user_types %}
+        <option value="{{ value }}" {% if filters.user_type == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-lg-2 col-md-3 col-6">
+    <label class="form-label small text-muted mb-1">Status</label>
+    <select name="status" class="form-select form-select-sm">
+      <option value="">All statuses</option>
+      {% for value, label in statuses %}
+        <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-lg-2 col-md-4 col-6">
+    <label class="form-label small text-muted mb-1">Department</label>
+    <select name="department" class="form-select form-select-sm">
+      <option value="">All departments</option>
+      {% for dept in departments %}
+        <option value="{{ dept.pk }}" {% if filters.department == dept.pk|stringformat:"s" %}selected{% endif %}>{{ dept.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-lg-2 col-md-4 col-6">
+    <label class="form-label small text-muted mb-1">Programme</label>
+    <select name="program" class="form-select form-select-sm">
+      <option value="">All programmes</option>
+      {% for prog in programs %}
+        <option value="{{ prog.pk }}" {% if filters.program == prog.pk|stringformat:"s" %}selected{% endif %}>{{ prog.code }} — {{ prog.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-lg-1 col-md-4 col-6 d-grid">
+    <button class="btn btn-primary btn-sm"><i class="fa-solid fa-filter me-1"></i>Filter</button>
+  </div>
+  <div class="col-12">
+    <div class="d-flex flex-wrap gap-2 align-items-center pt-1">
+      <select name="group" class="form-select form-select-sm" style="max-width:210px">
+        <option value="">Any user group</option>
+        {% for grp in groups %}
+          <option value="{{ grp.pk }}" {% if filters.group == grp.pk|stringformat:"s" %}selected{% endif %}>{{ grp.name }}</option>
+        {% endfor %}
+      </select>
+      <select name="role" class="form-select form-select-sm" style="max-width:180px">
+        <option value="">Any base role</option>
+        {% for value, label in roles %}
+          <option value="{{ value }}" {% if filters.role == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="campus" value="{{ filters.campus }}" class="form-control form-control-sm"
+             placeholder="Campus" style="max-width:150px">
+      <select name="per_page" class="form-select form-select-sm" style="max-width:130px">
+        <option value="25" {% if request.GET.per_page == '25' %}selected{% endif %}>25 per page</option>
+        <option value="50" {% if request.GET.per_page == '50' %}selected{% endif %}>50 per page</option>
+        <option value="100" {% if request.GET.per_page == '100' %}selected{% endif %}>100 per page</option>
+        <option value="200" {% if request.GET.per_page == '200' %}selected{% endif %}>200 per page</option>
+      </select>
+      <a href="{{ request.path }}" class="btn btn-light btn-sm">
+        <i class="fa-solid fa-rotate-left me-1"></i>Clear</a>
+      <span class="ms-auto small text-muted">
+        <strong>{{ total_matched }}</strong> account{{ total_matched|pluralize }} matched</span>
+    </div>
+  </div>
+</form>

@@ -1,0 +1,335 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}User Management Dashboard · Identity Administration · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4><i class="fa-solid fa-users-gear me-2 text-primary"></i>User Management &amp; Identity Administration</h4>
+    <p class="text-muted small mb-0">One central account for every student, lecturer and administrator —
+      credentials, access, institutional email and account lifecycle in a single place.</p>
+  </div>
+  <div class="breadcrumb-chip">
+    <span class="text-muted">System Admin</span>
+    <i class="fa-solid fa-angle-right mx-1"></i> User Management
+  </div>
+</div>
+
+{% include 'identity/_module_nav.html' with nav='dashboard' %}
+
+<!-- Headline account metrics -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">
+    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#6C5CE7,#8f7bff)">
+      <div class="d-flex justify-content-between align-items-start">
+        <div><div class="val">{{ total_users|intcomma }}</div><div class="lbl mt-1">Total Users</div></div>
+        <span class="fs-3 opacity-75"><i class="fa-solid fa-users"></i></span>
+      </div>
+      <div class="delta mt-2"><i class="fa-solid fa-user-plus"></i> {{ new_users_this_week }} joined this week</div>
+      <i class="fa-solid fa-users ghost"></i>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#00b894,#55efc4)">
+      <div class="d-flex justify-content-between align-items-start">
+        <div><div class="val">{{ active_users|intcomma }}</div><div class="lbl mt-1">Active Accounts</div></div>
+        <span class="fs-3 opacity-75"><i class="fa-solid fa-circle-check"></i></span>
+      </div>
+      <div class="delta mt-2"><i class="fa-solid fa-right-to-bracket"></i> Able to sign in right now</div>
+      <i class="fa-solid fa-circle-check ghost"></i>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#fdcb6e,#e17055)">
+      <div class="d-flex justify-content-between align-items-start">
+        <div><div class="val">{{ pending_users|intcomma }}</div><div class="lbl mt-1">Pending Activation</div></div>
+        <span class="fs-3 opacity-75"><i class="fa-solid fa-hourglass-half"></i></span>
+      </div>
+      <div class="delta mt-2"><i class="fa-solid fa-envelope"></i> Awaiting first sign-in</div>
+      <i class="fa-solid fa-hourglass-half ghost"></i>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="card stat-tile card-lift" style="background:linear-gradient(135deg,#d63031,#ff7675)">
+      <div class="d-flex justify-content-between align-items-start">
+        <div><div class="val">{{ locked_users|intcomma }}</div><div class="lbl mt-1">Locked Accounts</div></div>
+        <span class="fs-3 opacity-75"><i class="fa-solid fa-lock"></i></span>
+      </div>
+      <div class="delta mt-2"><i class="fa-solid fa-triangle-exclamation"></i> {{ failed_logins_this_week }} failed sign-ins this week</div>
+      <i class="fa-solid fa-lock ghost"></i>
+    </div>
+  </div>
+</div>
+
+<!-- Population breakdown -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <i class="fa-solid fa-user-graduate text-primary"></i>
+          <span class="small text-uppercase text-muted fw-semibold">Students</span>
+        </div>
+        <div class="h3 fw-bold mb-0">{{ student_accounts|intcomma }}</div>
+        <div class="small text-muted">{{ students_without_accounts }} student record{{ students_without_accounts|pluralize }} without an account</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <i class="fa-solid fa-chalkboard-user text-info"></i>
+          <span class="small text-uppercase text-muted fw-semibold">Staff</span>
+        </div>
+        <div class="h3 fw-bold mb-0">{{ staff_accounts|intcomma }}</div>
+        <div class="small text-muted">{{ admin_accounts }} administrator account{{ admin_accounts|pluralize }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <i class="fa-solid fa-envelope-open-text text-success"></i>
+          <span class="small text-uppercase text-muted fw-semibold">Institutional Email</span>
+        </div>
+        <div class="h3 fw-bold mb-0">{{ no_institutional_email|intcomma }}</div>
+        <div class="small text-muted">accounts still without an address</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <i class="fa-solid fa-key text-warning"></i>
+          <span class="small text-uppercase text-muted fw-semibold">Password Attention</span>
+        </div>
+        <div class="h3 fw-bold mb-0">{{ must_change_password|intcomma }}</div>
+        <div class="small text-muted">{{ resets_this_week }} reset{{ resets_this_week|pluralize }} requested this week</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="row g-3 mb-4">
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-chart-line me-2 text-primary"></i>Sign-in Activity — Last 14 Days</h6>
+      </div>
+      <div class="card-body"><canvas id="chartLogins" height="110"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-chart-pie me-2 text-primary"></i>Users by Type</h6>
+      </div>
+      <div class="card-body"><canvas id="chartTypes" height="200"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-signal me-2 text-primary"></i>Account Status</h6>
+      </div>
+      <div class="card-body"><canvas id="chartStatus" height="200"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-building-columns me-2 text-primary"></i>Staff by Department</h6>
+      </div>
+      <div class="card-body"><canvas id="chartDepartments" height="200"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-graduation-cap me-2 text-primary"></i>Students by Programme</h6>
+      </div>
+      <div class="card-body"><canvas id="chartPrograms" height="200"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent activity -->
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-user-plus me-2 text-primary"></i>Recently Created Accounts</h6>
+        <a href="{% url 'university:user_list' %}" class="small text-decoration-none">View all</a>
+      </div>
+      <div class="list-group list-group-flush">
+        {% for u in recent_users %}
+          <a href="{% url 'university:user_detail' u.pk %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+            <div>
+              <div class="fw-semibold small">{{ u.get_full_name|default:u.username }}</div>
+              <div class="text-muted" style="font-size:.75rem">{{ u.username }} · {{ u.get_role_display }}</div>
+            </div>
+            <div class="text-end">
+              {% include 'identity/_status_badge.html' with account=u.account %}
+              <div class="text-muted" style="font-size:.7rem">{{ u.date_joined|naturaltime }}</div>
+            </div>
+          </a>
+        {% empty %}
+          <div class="list-group-item text-center text-muted small py-4">No accounts yet.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-shield-halved me-2 text-danger"></i>Recent Failed Sign-ins</h6>
+        <a href="{% url 'university:login_history' %}" class="small text-decoration-none">Login history</a>
+      </div>
+      <div class="list-group list-group-flush">
+        {% for record in recent_failed_logins %}
+          <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <div class="fw-semibold small">{{ record.username_attempted }}</div>
+              <div class="text-muted" style="font-size:.75rem">
+                {{ record.get_failure_reason_display|default:"Failed" }} · {{ record.ip_address|default:"unknown IP" }}</div>
+            </div>
+            <span class="text-muted" style="font-size:.7rem">{{ record.login_at|naturaltime }}</span>
+          </div>
+        {% empty %}
+          <div class="list-group-item text-center text-muted small py-4">No failed sign-in attempts recorded.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-key me-2 text-warning"></i>Recent Password Reset Requests</h6>
+      </div>
+      <div class="list-group list-group-flush">
+        {% for token in recent_resets %}
+          <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <div class="fw-semibold small">{{ token.user.username }}</div>
+              <div class="text-muted" style="font-size:.75rem">{{ token.get_purpose_display }}</div>
+            </div>
+            <div class="text-end">
+              {% if token.used_at %}<span class="badge bg-success-subtle text-success-emphasis">Used</span>
+              {% elif token.is_valid %}<span class="badge bg-info-subtle text-info-emphasis">Pending</span>
+              {% else %}<span class="badge bg-secondary-subtle text-secondary-emphasis">Expired</span>{% endif %}
+              <div class="text-muted" style="font-size:.7rem">{{ token.created_at|naturaltime }}</div>
+            </div>
+          </div>
+        {% empty %}
+          <div class="list-group-item text-center text-muted small py-4">No reset requests recorded.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>Account Changes</h6>
+        <a href="{% url 'university:user_activity' %}" class="small text-decoration-none">User activity</a>
+      </div>
+      <div class="list-group list-group-flush">
+        {% for entry in recent_account_changes %}
+          <div class="list-group-item">
+            <div class="d-flex justify-content-between align-items-start">
+              <div class="small">{{ entry.description }}</div>
+              <span class="text-muted ms-2 flex-shrink-0" style="font-size:.7rem">{{ entry.timestamp|naturaltime }}</span>
+            </div>
+            <div class="text-muted" style="font-size:.72rem">{{ entry.user_display|default:"System" }}</div>
+          </div>
+        {% empty %}
+          <div class="list-group-item text-center text-muted small py-4">No account changes recorded.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{{ chart_types|json_script:"data-types" }}
+{{ chart_status|json_script:"data-status" }}
+{{ chart_departments|json_script:"data-departments" }}
+{{ chart_programs|json_script:"data-programs" }}
+{{ chart_logins|json_script:"data-logins" }}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const PALETTE = ['#6C5CE7', '#00b894', '#0984e3', '#fdcb6e', '#e84393',
+                   '#00cec9', '#e17055', '#636e72', '#a29bfe', '#55efc4'];
+  const read = id => JSON.parse(document.getElementById(id).textContent);
+  const baseOpts = { responsive: true, maintainAspectRatio: false,
+                     plugins: { legend: { labels: { font: { family: 'Quicksand' } } } } };
+
+  const donut = (canvasId, rows, labelKey, valueKey) => {
+    const el = document.getElementById(canvasId);
+    if (!el || !rows.length) { return; }
+    new Chart(el, {
+      type: 'doughnut',
+      data: {
+        labels: rows.map(r => r[labelKey]),
+        datasets: [{ data: rows.map(r => r[valueKey]), backgroundColor: PALETTE, borderWidth: 0 }]
+      },
+      options: Object.assign({ cutout: '62%' }, baseOpts)
+    });
+  };
+
+  donut('chartTypes', read('data-types'), 'label', 'value');
+  donut('chartStatus', read('data-status'), 'label', 'value');
+
+  const bar = (canvasId, rows, labelKey, valueKey, colour) => {
+    const el = document.getElementById(canvasId);
+    if (!el || !rows.length) { return; }
+    new Chart(el, {
+      type: 'bar',
+      data: {
+        labels: rows.map(r => r[labelKey]),
+        datasets: [{ label: 'Accounts', data: rows.map(r => r[valueKey]),
+                     backgroundColor: colour, borderRadius: 6 }]
+      },
+      options: Object.assign({
+        indexAxis: 'y',
+        scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+        plugins: { legend: { display: false } }
+      }, { responsive: true, maintainAspectRatio: false })
+    });
+  };
+
+  bar('chartDepartments', read('data-departments'), 'code', 'n', '#0984e3');
+  bar('chartPrograms', read('data-programs'), 'code', 'n', '#00b894');
+
+  const logins = read('data-logins');
+  const loginEl = document.getElementById('chartLogins');
+  if (loginEl && logins.length) {
+    new Chart(loginEl, {
+      type: 'line',
+      data: {
+        labels: logins.map(r => r.day),
+        datasets: [
+          { label: 'Successful', data: logins.map(r => r.success), borderColor: '#00b894',
+            backgroundColor: 'rgba(0,184,148,.12)', fill: true, tension: .35, borderWidth: 2 },
+          { label: 'Failed', data: logins.map(r => r.failed), borderColor: '#d63031',
+            backgroundColor: 'rgba(214,48,49,.10)', fill: true, tension: .35, borderWidth: 2 }
+        ]
+      },
+      options: Object.assign({ scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }, baseOpts)
+    });
+  }
+})();
+</script>
+{% endblock %}

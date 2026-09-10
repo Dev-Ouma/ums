@@ -398,3 +398,145 @@ def set_setting(key, value, user=None, request=None):
     )
 
     return setting
+
+
+# ==============================================================================
+# USER MANAGEMENT & IDENTITY ADMINISTRATION
+# ==============================================================================
+# Every rule the identity layer enforces — usernames, passwords, lockout, email
+# domains, notifications — is stored here so an institution can change policy
+# without a code change.
+
+def _sec(key, label, value, description, value_type=SystemSetting.ValueType.STRING,
+         category=SystemSetting.Category.SECURITY):
+    return {
+        "category": category,
+        "key": key,
+        "label": label,
+        "value_type": value_type,
+        "value": value,
+        "description": description,
+        "is_public": False,
+    }
+
+
+_BOOL = SystemSetting.ValueType.BOOLEAN
+_INT = SystemSetting.ValueType.INTEGER
+
+IDENTITY_SETTINGS = [
+    # --- Username rules ---
+    _sec("username_student_format", "Student Username Format", "{REGNO}",
+         "Pattern tokens: {REGNO} {FIRST} {LAST} {INITIAL} {PROG} {YEAR} {SEQ}."),
+    _sec("username_staff_format", "Staff Username Format", "{FIRST}.{LAST}",
+         "Pattern tokens: {STAFFID} {FIRST} {LAST} {INITIAL} {YEAR} {SEQ}."),
+    _sec("username_prefix", "Username Prefix", "", "Optional institutional prefix."),
+    _sec("username_suffix", "Username Suffix", "", "Optional institutional suffix."),
+    _sec("username_separator", "Username Separator", ".",
+         "Character joining name parts when a pattern contains spaces."),
+    _sec("username_case", "Username Case", "LOWER", "LOWER or UPPER."),
+    _sec("username_max_length", "Maximum Username Length", "30",
+         "Usernames are truncated to this length before collision handling.", _INT),
+    _sec("username_allowed_characters", "Allowed Username Characters", "a-zA-Z0-9._-",
+         "Regex character class of permitted characters."),
+    _sec("username_sequential_numbering", "Use Sequential Username Numbering", "false",
+         "Feed an incrementing {SEQ} token into the username pattern.", _BOOL),
+    _sec("username_sequence_padding", "Username Sequence Padding", "4",
+         "Zero-padding width for the {SEQ} token.", _INT),
+
+    # --- Password policy ---
+    _sec("password_min_length", "Minimum Password Length", "8",
+         "Shortest password accepted anywhere in the system.", _INT),
+    _sec("password_max_length", "Maximum Password Length", "128",
+         "Longest password accepted.", _INT),
+    _sec("password_require_uppercase", "Require Uppercase Letter", "true",
+         "Passwords must contain at least one A-Z character.", _BOOL),
+    _sec("password_require_lowercase", "Require Lowercase Letter", "true",
+         "Passwords must contain at least one a-z character.", _BOOL),
+    _sec("password_require_number", "Require Number", "true",
+         "Passwords must contain at least one digit.", _BOOL),
+    _sec("password_require_special", "Require Special Character", "false",
+         "Passwords must contain at least one non-alphanumeric character.", _BOOL),
+    _sec("password_history_depth", "Prohibited Previous Passwords", "5",
+         "How many recent passwords may not be reused. 0 disables the check.", _INT),
+    _sec("password_expiry_days", "Password Expiry (Days)", "0",
+         "Force a password change after this many days. 0 means never.", _INT),
+    _sec("temporary_password_expiry_hours", "Temporary Password Expiry (Hours)", "48",
+         "How long an administrator-issued temporary password stays usable.", _INT),
+    _sec("password_reset_token_minutes", "Reset Link Validity (Minutes)", "60",
+         "Lifetime of a self-service password reset link.", _INT),
+    _sec("activation_token_minutes", "Activation Link Validity (Minutes)", "4320",
+         "Lifetime of a new-account activation link (default 3 days).", _INT),
+    _sec("generated_password_length", "Generated Password Length", "12",
+         "Length used by the secure password generator.", _INT),
+
+    # --- Lockout & sessions ---
+    _sec("account_lock_duration_minutes", "Account Lock Duration (Minutes)", "30",
+         "How long an automatic lockout lasts before it lifts on its own.", _INT),
+    _sec("login_progressive_delay", "Progressive Login Delay", "true",
+         "Apply an increasing delay after repeated failed sign-in attempts.", _BOOL),
+    _sec("force_logout_after_password_reset", "Force Logout After Password Reset", "true",
+         "Invalidate every other active session when a password changes.", _BOOL),
+
+    # --- Account lifecycle ---
+    _sec("auto_create_student_accounts", "Auto-Create Student Accounts", "true",
+         "Provision a user account automatically when a student is admitted.", _BOOL),
+    _sec("auto_activate_student_accounts", "Auto-Activate Student Accounts", "true",
+         "Activate provisioned student accounts immediately instead of leaving them pending.", _BOOL),
+    _sec("auto_create_staff_accounts", "Auto-Create Staff Accounts", "true",
+         "Provision a user account automatically when a staff record is created.", _BOOL),
+    _sec("auto_activate_staff_accounts", "Auto-Activate Staff Accounts", "true",
+         "Activate provisioned staff accounts immediately.", _BOOL),
+    _sec("auto_generate_email", "Auto-Generate Institutional Email", "true",
+         "Generate an institutional address whenever an account is created.", _BOOL),
+
+    # --- Email identity ---
+    _sec("email_student_domain", "Student Email Domain", "students.university.edu",
+         "Domain used for generated student addresses."),
+    _sec("email_staff_domain", "Staff Email Domain", "university.edu",
+         "Domain used for generated staff addresses."),
+    _sec("email_admin_domain", "Administrator Email Domain", "university.edu",
+         "Domain used for generated administrator addresses."),
+    _sec("email_student_format", "Student Email Format", "{REGNO}",
+         "Tokens: {REGNO} {FIRST} {LAST} {INITIAL} {USERNAME}."),
+    _sec("email_staff_format", "Staff Email Format", "{FIRST}.{LAST}",
+         "Tokens: {STAFFID} {FIRST} {LAST} {INITIAL} {USERNAME}."),
+    _sec("email_admin_format", "Administrator Email Format", "{FIRST}.{LAST}",
+         "Tokens: {FIRST} {LAST} {INITIAL} {USERNAME}."),
+    _sec("email_case", "Email Address Case", "LOWER", "LOWER or UPPER for generated local parts."),
+
+    # --- Email provider ---
+    _sec("email_enabled", "Outbound Email Enabled", "true",
+         "Master switch for all system-generated email.", _BOOL),
+    _sec("email_provider", "Email Provider", "CONSOLE",
+         "CONSOLE, SMTP, MICROSOFT365, GOOGLE_WORKSPACE or DISABLED."),
+    _sec("email_host", "Email Host / API Endpoint", "",
+         "SMTP host. Left blank, Microsoft 365 and Google Workspace use their default relays."),
+    _sec("email_port", "Email Port", "587", "SMTP port.", _INT),
+    _sec("email_encryption", "Email Encryption", "TLS", "TLS, SSL or NONE."),
+    _sec("email_host_user", "Email Account Username", "", "Authentication username for the provider."),
+    _sec("email_host_password", "Email Account Password / API Key", "",
+         "Provider secret. Never rendered back to the browser."),
+    _sec("email_from_name", "Sender Display Name", "University Management System",
+         "Friendly name on outbound messages."),
+    _sec("email_from_address", "Sender Email Address", "no-reply@university.edu",
+         "Envelope sender for system mail."),
+    _sec("email_reply_to", "Reply-To Address", "", "Optional reply-to header."),
+    _sec("email_timeout_seconds", "Email Timeout (Seconds)", "20",
+         "Connection timeout for the mail provider.", _INT),
+    _sec("email_provisioning_enabled", "Automatic Mailbox Provisioning", "false",
+         "Ask the provider API to create mailboxes. Requires a provider driver.", _BOOL),
+    _sec("site_base_url", "System Base URL", "",
+         "Absolute base URL used in emailed links when no request context exists."),
+
+    # --- Notifications ---
+    _sec("notify_account_created", "Notify On Account Creation", "true",
+         "Email the user when their account is created.", _BOOL),
+    _sec("notify_password_reset", "Notify On Password Reset Request", "true",
+         "Email the secure reset link when a reset is requested.", _BOOL),
+    _sec("notify_password_changed", "Notify On Password Change", "true",
+         "Email a security confirmation after a password changes.", _BOOL),
+    _sec("notify_account_status", "Notify On Account Status Change", "true",
+         "Email the user when their account is activated, suspended or disabled.", _BOOL),
+]
+
+DEFAULT_SETTINGS.extend(IDENTITY_SETTINGS)

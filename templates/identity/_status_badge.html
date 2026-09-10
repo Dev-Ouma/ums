@@ -1,0 +1,8 @@
+{% comment %}Renders the effective status — the one the backend actually enforces.{% endcomment %}
+{% if account %}
+  <span class="badge rounded-pill bg-{{ account.status_color }}-subtle text-{{ account.status_color }}-emphasis border border-{{ account.status_color }}-subtle">
+    {{ account.get_status_display }}{% if account.effective_status != account.status %} · {{ account.effective_status|title }}{% endif %}
+  </span>
+{% else %}
+  <span class="badge rounded-pill bg-secondary-subtle text-secondary-emphasis">Not provisioned</span>
+{% endif %}

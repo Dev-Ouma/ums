@@ -1,0 +1,352 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}{{ subject.get_full_name|default:subject.username }} · User Management · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4><i class="fa-solid fa-id-badge me-2 text-primary"></i>{{ subject.get_full_name|default:subject.username }}</h4>
+    <p class="text-muted small mb-0">Complete identity record — credentials, access, email, sessions and history.</p>
+  </div>
+  <div class="breadcrumb-chip">
+    <a href="{% url 'university:user_list' %}" class="text-decoration-none text-muted">All Users</a>
+    <i class="fa-solid fa-angle-right mx-1"></i> {{ subject.username }}
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Identity summary -->
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm rounded-4 mb-3">
+      <div class="card-body text-center">
+        <span class="d-inline-flex align-items-center justify-content-center rounded-circle text-white fw-bold mb-3"
+              style="width:88px;height:88px;font-size:1.8rem;background:var(--gradient)">
+          {{ subject.first_name|slice:":1"|upper }}{{ subject.last_name|slice:":1"|upper }}</span>
+        <h5 class="fw-bold mb-1">{{ subject.get_full_name|default:subject.username }}</h5>
+        <div class="text-muted small mb-2"><code>{{ subject.username }}</code></div>
+        <div class="mb-3">{% include 'identity/_status_badge.html' %}</div>
+
+        <div class="d-flex justify-content-center gap-2 flex-wrap mb-3">
+          <span class="badge bg-primary-subtle text-primary-emphasis">{{ subject.get_role_display }}</span>
+          {% if account %}<span class="badge bg-info-subtle text-info-emphasis">{{ account.get_user_type_display }}</span>{% endif %}
+          {% if subject.is_superuser %}<span class="badge bg-dark">Superuser</span>{% endif %}
+        </div>
+
+        <div class="d-grid gap-2">
+          <a href="{% url 'university:user_edit' subject.pk %}" class="btn btn-outline-primary btn-sm">
+            <i class="fa-solid fa-pen me-1"></i>Edit Details</a>
+        </div>
+      </div>
+      <ul class="list-group list-group-flush small">
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Email</span><span>{{ subject.email|default:"—" }}</span></li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Phone</span><span>{{ subject.phone|default:"—" }}</span></li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Campus</span><span>{{ account.campus|default:"—" }}</span></li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Created</span><span>{{ subject.date_joined|date:"d M Y" }}</span></li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Last sign-in</span>
+          <span>{% if subject.last_login %}{{ subject.last_login|naturaltime }}{% else %}<span class="text-warning">Never</span>{% endif %}</span></li>
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Password changed</span>
+          <span>{% if account.password_changed_at %}{{ account.password_changed_at|naturaltime }}{% else %}—{% endif %}</span></li>
+        {% if account.password_expires_at %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Password expires</span><span>{{ account.password_expires_at|date:"d M Y H:i" }}</span></li>
+        {% endif %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Failed attempts</span><span>{{ account.failed_login_attempts|default:0 }}</span></li>
+        {% if account.locked_until %}
+        <li class="list-group-item d-flex justify-content-between text-danger">
+          <span>Locked until</span><span>{{ account.locked_until|date:"d M Y H:i" }}</span></li>
+        {% endif %}
+        <li class="list-group-item d-flex justify-content-between">
+          <span class="text-muted">Multi-factor</span>
+          <span>{% if account.mfa_enabled %}<span class="badge bg-success-subtle text-success-emphasis">Enabled</span>{% else %}Not enabled{% endif %}</span></li>
+      </ul>
+      <div class="card-footer bg-white small text-muted">
+        <i class="fa-solid fa-lock me-1"></i>Passwords are stored as one-way hashes and can never be viewed.
+      </div>
+    </div>
+
+    <!-- Academic / employment record -->
+    {% if student %}
+    <div class="card border-0 shadow-sm rounded-4 mb-3">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-graduation-cap me-2 text-primary"></i>Student Record</h6>
+      </div>
+      <ul class="list-group list-group-flush small">
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Registration no.</span><span>{{ student.roll_no }}</span></li>
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Programme</span><span>{{ student.program.code|default:"—" }}</span></li>
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Year of study</span><span>{{ student.year_of_study }}</span></li>
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Semester</span><span>{{ student.semester }}</span></li>
+      </ul>
+    </div>
+    {% endif %}
+    {% if staff %}
+    <div class="card border-0 shadow-sm rounded-4 mb-3">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-briefcase me-2 text-primary"></i>Staff Record</h6>
+      </div>
+      <ul class="list-group list-group-flush small">
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Employee ID</span><span>{{ staff.employee_id }}</span></li>
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Department</span><span>{{ staff.department.name|default:"—" }}</span></li>
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Designation</span><span>{{ staff.designation|default:"—" }}</span></li>
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-8">
+    <!-- Administrative actions -->
+    <div class="card border-0 shadow-sm rounded-4 mb-3">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-bolt me-2 text-primary"></i>Administrative Actions</h6>
+      </div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-md-6">
+            <div class="small fw-semibold text-uppercase text-muted mb-2">Credentials</div>
+            <form method="post" action="{% url 'university:user_action' subject.pk 'send_reset_link' %}" class="d-grid mb-2">
+              {% csrf_token %}
+              <button class="btn btn-outline-primary btn-sm text-start">
+                <i class="fa-solid fa-paper-plane me-2"></i>Send password reset link
+                <span class="d-block text-muted" style="font-size:.72rem">Preferred: the user chooses their own password.</span>
+              </button>
+            </form>
+            <form method="post" action="{% url 'university:user_action' subject.pk 'force_password_change' %}" class="d-grid mb-2">
+              {% csrf_token %}
+              <button class="btn btn-outline-warning btn-sm text-start">
+                <i class="fa-solid fa-key me-2"></i>Require password change at next sign-in</button>
+            </form>
+            <form method="post" action="{% url 'university:user_action' subject.pk 'temporary_password' %}" class="d-grid mb-2"
+                  onsubmit="return confirm('Generate a temporary password? It will be shown once, to you only.')">
+              {% csrf_token %}
+              <button class="btn btn-outline-secondary btn-sm text-start">
+                <i class="fa-solid fa-dice me-2"></i>Issue a temporary password
+                <span class="d-block text-muted" style="font-size:.72rem">Use only when a link cannot be delivered.</span>
+              </button>
+            </form>
+          </div>
+
+          <div class="col-md-6">
+            <div class="small fw-semibold text-uppercase text-muted mb-2">Account &amp; Sessions</div>
+            <form method="post" action="{% url 'university:user_action' subject.pk 'unlock' %}" class="d-grid mb-2">
+              {% csrf_token %}
+              <button class="btn btn-outline-success btn-sm text-start">
+                <i class="fa-solid fa-lock-open me-2"></i>Unlock account</button>
+            </form>
+            <form method="post" action="{% url 'university:user_action' subject.pk 'revoke_sessions' %}" class="d-grid mb-2"
+                  onsubmit="return confirm('Sign this user out of every device?')">
+              {% csrf_token %}
+              <button class="btn btn-outline-secondary btn-sm text-start">
+                <i class="fa-solid fa-right-from-bracket me-2"></i>Revoke all sessions
+                <span class="d-block text-muted" style="font-size:.72rem">{{ sessions|length }} active session{{ sessions|length|pluralize }}.</span>
+              </button>
+            </form>
+            <form method="post" action="{% url 'university:user_action' subject.pk 'generate_email' %}" class="d-grid mb-2">
+              {% csrf_token %}
+              <button class="btn btn-outline-info btn-sm text-start">
+                <i class="fa-solid fa-envelope me-2"></i>Issue institutional email address</button>
+            </form>
+          </div>
+        </div>
+
+        <hr class="my-3">
+
+        <div class="small fw-semibold text-uppercase text-muted mb-2">Account Status</div>
+        <form method="post" class="row g-2 align-items-end">
+          {% csrf_token %}
+          <div class="col-md-7">
+            <input type="text" name="reason" class="form-control form-control-sm"
+                   placeholder="Reason (recorded in the audit trail)">
+          </div>
+          <div class="col-md-5">
+            <div class="btn-group btn-group-sm w-100">
+              <button class="btn btn-outline-success" formaction="{% url 'university:user_action' subject.pk 'activate' %}">Activate</button>
+              <button class="btn btn-outline-secondary" formaction="{% url 'university:user_action' subject.pk 'deactivate' %}">Deactivate</button>
+              <button class="btn btn-outline-warning" formaction="{% url 'university:user_action' subject.pk 'suspend' %}">Suspend</button>
+              <button class="btn btn-outline-danger" formaction="{% url 'university:user_action' subject.pk 'disable' %}"
+                      onclick="return confirm('Disable this account? They will be signed out immediately and unable to sign in.')">Disable</button>
+              <button class="btn btn-outline-dark" formaction="{% url 'university:user_action' subject.pk 'archive' %}"
+                      onclick="return confirm('Archive this account? All historical records stay intact and attributable.')">Archive</button>
+            </div>
+          </div>
+        </form>
+        <p class="small text-muted mt-2 mb-0">
+          <i class="fa-solid fa-circle-info me-1"></i>Accounts are archived, never deleted, so marks, results,
+          documents and audit entries remain attributable.</p>
+      </div>
+    </div>
+
+    <!-- Access -->
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+          <div class="card-header bg-white border-bottom py-3">
+            <h6 class="mb-0 fw-bold"><i class="fa-solid fa-users-rectangle me-2 text-primary"></i>User Groups</h6>
+          </div>
+          <ul class="list-group list-group-flush small">
+            {% for m in memberships %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span><i class="{{ m.group.icon }} me-2" style="color:{{ m.group.color }}"></i>{{ m.group.name }}</span>
+                <form method="post" action="{% url 'university:user_action' subject.pk 'remove_group' %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="group" value="{{ m.group.pk }}">
+                  <button class="btn btn-sm btn-link text-danger p-0"><i class="fa-solid fa-xmark"></i></button>
+                </form>
+              </li>
+            {% empty %}
+              <li class="list-group-item text-muted text-center py-3">No group memberships.</li>
+            {% endfor %}
+          </ul>
+          <div class="card-footer bg-white">
+            <form method="post" action="{% url 'university:user_action' subject.pk 'assign_group' %}" class="input-group input-group-sm">
+              {% csrf_token %}
+              <select name="group" class="form-select" required>
+                <option value="">Add to group…</option>
+                {% for grp in groups %}<option value="{{ grp.pk }}">{{ grp.name }}</option>{% endfor %}
+              </select>
+              <button class="btn btn-outline-primary"><i class="fa-solid fa-plus"></i></button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+          <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold"><i class="fa-solid fa-user-shield me-2 text-primary"></i>Roles</h6>
+            <a href="{% url 'university:user_roles_permissions' %}" class="small text-decoration-none">Manage</a>
+          </div>
+          <ul class="list-group list-group-flush small">
+            {% for assignment in role_assignments %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span>{{ assignment.role.name }}
+                  {% if assignment.department %}<span class="text-muted">· {{ assignment.department.code }}</span>{% endif %}</span>
+                {% if assignment.is_active %}
+                  <span class="badge bg-success-subtle text-success-emphasis">Active</span>
+                {% else %}
+                  <span class="badge bg-secondary-subtle text-secondary-emphasis">Inactive</span>
+                {% endif %}
+              </li>
+            {% empty %}
+              <li class="list-group-item text-muted text-center py-3">No granular roles assigned.</li>
+            {% endfor %}
+          </ul>
+          <div class="card-footer bg-white">
+            <form method="post" action="{% url 'university:user_action' subject.pk 'assign_role' %}" class="input-group input-group-sm">
+              {% csrf_token %}
+              <select name="staff_role" class="form-select" required>
+                <option value="">Assign role…</option>
+                {% for role in staff_roles %}<option value="{{ role.pk }}">{{ role.name }}</option>{% endfor %}
+              </select>
+              <button class="btn btn-outline-primary"><i class="fa-solid fa-plus"></i></button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Institutional email -->
+    <div class="card border-0 shadow-sm rounded-4 mb-3">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-envelope me-2 text-primary"></i>Institutional Email</h6>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+          <thead class="table-light"><tr class="small text-uppercase text-muted">
+            <th>Address</th><th>Status</th><th>Provider</th><th>Issued</th></tr></thead>
+          <tbody>
+            {% for mail in emails %}
+              <tr class="small">
+                <td>{{ mail.address }}{% if mail.is_primary %}
+                  <span class="badge bg-primary-subtle text-primary-emphasis ms-1">Primary</span>{% endif %}</td>
+                <td><span class="badge bg-{{ mail.status_color }}-subtle text-{{ mail.status_color }}-emphasis">{{ mail.get_status_display }}</span>
+                  {% if mail.provider_message %}
+                    <div class="text-muted" style="font-size:.7rem">{{ mail.provider_message }}</div>{% endif %}</td>
+                <td>{{ mail.provider|default:"—" }}</td>
+                <td class="text-muted">{{ mail.created_at|date:"d M Y" }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" class="text-center text-muted py-3 small">No institutional address issued yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Sessions -->
+    <div class="card border-0 shadow-sm rounded-4 mb-3">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-desktop me-2 text-primary"></i>Active Sessions</h6>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+          <thead class="table-light"><tr class="small text-uppercase text-muted">
+            <th>Session</th><th>Expires</th></tr></thead>
+          <tbody>
+            {% for session in sessions %}
+              <tr class="small">
+                <td><code>{{ session.session_key|slice:":12" }}…</code></td>
+                <td class="text-muted">{{ session.expire_date|naturaltime }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="2" class="text-center text-muted py-3 small">No active sessions.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+          <div class="card-header bg-white border-bottom py-3">
+            <h6 class="mb-0 fw-bold"><i class="fa-solid fa-right-to-bracket me-2 text-primary"></i>Recent Sign-ins</h6>
+          </div>
+          <ul class="list-group list-group-flush small" style="max-height:340px;overflow:auto">
+            {% for record in login_records %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                  {% if record.success %}<i class="fa-solid fa-circle-check text-success me-2"></i>
+                  {% else %}<i class="fa-solid fa-circle-xmark text-danger me-2"></i>{% endif %}
+                  {{ record.ip_address|default:"unknown IP" }}
+                  {% if not record.success %}
+                    <span class="d-block text-muted ms-4" style="font-size:.72rem">{{ record.get_failure_reason_display }}</span>{% endif %}
+                </div>
+                <span class="text-muted" style="font-size:.72rem">{{ record.login_at|naturaltime }}</span>
+              </li>
+            {% empty %}
+              <li class="list-group-item text-muted text-center py-3">No sign-in history.</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+          <div class="card-header bg-white border-bottom py-3">
+            <h6 class="mb-0 fw-bold"><i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>Account History</h6>
+          </div>
+          <ul class="list-group list-group-flush small" style="max-height:340px;overflow:auto">
+            {% for entry in account_events %}
+              <li class="list-group-item">
+                <div>{{ entry.description }}</div>
+                <div class="text-muted" style="font-size:.72rem">
+                  {{ entry.user_display|default:"System" }} · {{ entry.timestamp|naturaltime }}</div>
+              </li>
+            {% empty %}
+              <li class="list-group-item text-muted text-center py-3">No account changes recorded.</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

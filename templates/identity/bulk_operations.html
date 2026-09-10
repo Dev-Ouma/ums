@@ -1,0 +1,142 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}Bulk User Operations · User Management · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4><i class="fa-solid fa-layer-group me-2 text-primary"></i>Bulk User Operations</h4>
+    <p class="text-muted small mb-0">Import many accounts at once. Every file is validated and previewed
+      before a single record is written.</p>
+  </div>
+  <div class="breadcrumb-chip">
+    <a href="{% url 'university:user_dashboard' %}" class="text-decoration-none text-muted">User Management</a>
+    <i class="fa-solid fa-angle-right mx-1"></i> Bulk Operations
+  </div>
+</div>
+
+{% include 'identity/_module_nav.html' with nav='bulk' %}
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card border-0 shadow-sm rounded-4 mb-3">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-file-arrow-up me-2 text-primary"></i>Import Users</h6>
+      </div>
+      <form method="post" action="{% url 'university:bulk_import_preview' %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-5">
+              <label class="form-label small fw-semibold">Import type</label>
+              <select name="user_type" class="form-select">
+                <option value="STUDENT">Student accounts</option>
+                <option value="STAFF">Staff accounts</option>
+              </select>
+            </div>
+            <div class="col-md-7">
+              <label class="form-label small fw-semibold">CSV or Excel file</label>
+              <input type="file" name="file" class="form-control" accept=".csv,.xlsx" required>
+            </div>
+          </div>
+
+          <div class="alert alert-light border rounded-3 small mt-3 mb-0 d-flex align-items-start gap-2">
+            <i class="fa-solid fa-shield-halved mt-1 text-muted"></i>
+            <div>The file is only validated at this stage. You will see exactly which rows would be created,
+              skipped or rejected, and nothing is written until you confirm.</div>
+          </div>
+        </div>
+        <div class="card-footer bg-white text-end">
+          <button class="btn btn-primary">
+            <i class="fa-solid fa-magnifying-glass-chart me-2"></i>Validate &amp; Preview</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>Recent Imports</h6>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+          <thead class="table-light"><tr class="small text-uppercase text-muted">
+            <th>File</th><th>Type</th><th>Created</th><th>Skipped</th><th>Failed</th><th>Run by</th><th></th>
+          </tr></thead>
+          <tbody>
+            {% for batch in recent_batches %}
+              <tr class="small">
+                <td>{{ batch.filename|default:"upload"|truncatechars:26 }}
+                  <div class="text-muted" style="font-size:.7rem">{{ batch.created_at|naturaltime }}</div></td>
+                <td>{{ batch.get_user_type_display }}</td>
+                <td class="text-success fw-semibold">{{ batch.created_count }}</td>
+                <td class="text-muted">{{ batch.skipped_count }}</td>
+                <td class="{% if batch.error_count %}text-danger fw-semibold{% else %}text-muted{% endif %}">{{ batch.error_count }}</td>
+                <td class="text-muted">{{ batch.run_by.username|default:"—" }}</td>
+                <td class="text-end">
+                  <a href="{% url 'university:bulk_import_report' batch.pk %}" class="btn btn-sm btn-outline-secondary py-0">
+                    Report</a></td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="7" class="text-center text-muted py-4 small">No imports run yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm rounded-4 mb-3">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-download me-2 text-primary"></i>Import Templates</h6>
+      </div>
+      <div class="card-body">
+        <p class="small text-muted">Start from a template so the column headings match exactly.</p>
+        <div class="mb-3">
+          <div class="small fw-semibold mb-1">Students</div>
+          <div class="btn-group btn-group-sm">
+            <a class="btn btn-outline-secondary" href="{% url 'university:bulk_import_template' 'STUDENT' 'csv' %}">
+              <i class="fa-solid fa-file-csv me-1"></i>CSV</a>
+            <a class="btn btn-outline-secondary" href="{% url 'university:bulk_import_template' 'STUDENT' 'excel' %}">
+              <i class="fa-solid fa-file-excel me-1"></i>Excel</a>
+          </div>
+          <div class="small text-muted mt-2">Columns: {{ student_columns|join:", " }}</div>
+        </div>
+        <div>
+          <div class="small fw-semibold mb-1">Staff</div>
+          <div class="btn-group btn-group-sm">
+            <a class="btn btn-outline-secondary" href="{% url 'university:bulk_import_template' 'STAFF' 'csv' %}">
+              <i class="fa-solid fa-file-csv me-1"></i>CSV</a>
+            <a class="btn btn-outline-secondary" href="{% url 'university:bulk_import_template' 'STAFF' 'excel' %}">
+              <i class="fa-solid fa-file-excel me-1"></i>Excel</a>
+          </div>
+          <div class="small text-muted mt-2">Columns: {{ staff_columns|join:", " }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-bolt me-2 text-primary"></i>Other Bulk Actions</h6>
+      </div>
+      <div class="card-body">
+        <p class="small text-muted mb-3">Select accounts on any user list, then apply an action to all of them.</p>
+        <ul class="list-unstyled small mb-3">
+          <li class="mb-2"><i class="fa-solid fa-paper-plane text-primary me-2"></i>Send password reset links</li>
+          <li class="mb-2"><i class="fa-solid fa-key text-warning me-2"></i>Require a password change at next sign-in</li>
+          <li class="mb-2"><i class="fa-solid fa-lock-open text-success me-2"></i>Unlock accounts</li>
+          <li class="mb-2"><i class="fa-solid fa-envelope text-info me-2"></i>Generate institutional email addresses</li>
+          <li class="mb-2"><i class="fa-solid fa-toggle-on text-secondary me-2"></i>Activate, suspend or disable accounts</li>
+        </ul>
+        <div class="alert alert-light border rounded-3 small mb-3">
+          <i class="fa-solid fa-lock me-1 text-muted"></i>
+          Bulk password actions never produce a list of plaintext passwords. Users always set their own.
+        </div>
+        <a href="{% url 'university:user_list' %}" class="btn btn-outline-primary btn-sm w-100">
+          <i class="fa-solid fa-users me-1"></i>Go to All Users</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

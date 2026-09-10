@@ -1,0 +1,54 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+{% load ums_extras %}
+
+{% block title %}Student Accounts · User Management · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4><i class="fa-solid fa-user-graduate me-2 text-primary"></i>Student Accounts</h4>
+    <p class="text-muted small mb-0">Student identities created from the admissions pipeline, with their credentials, institutional email and account status.</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'university:password_management' %}?scope=students" class="btn btn-outline-secondary btn-sm">
+      <i class="fa-solid fa-key me-1"></i>Password Console</a>
+    <a href="{% url 'university:user_create' %}" class="btn btn-primary btn-sm">
+      <i class="fa-solid fa-user-plus me-1"></i>Create Student Account</a>
+  </div>
+</div>
+
+{% include 'identity/_module_nav.html' with nav='students' %}
+
+{% if unlinked_students %}
+<div class="alert alert-warning border-0 shadow-sm rounded-4 d-flex align-items-start gap-3">
+  <i class="fa-solid fa-triangle-exclamation fa-lg mt-1"></i>
+  <div class="flex-grow-1">
+    <div class="fw-semibold">Student records without a login account</div>
+    <p class="small mb-2">These student records exist academically but cannot sign in yet. Create an account to give them portal access.</p>
+    <div class="d-flex flex-wrap gap-1">
+      {% for sp in unlinked_students|slice:":18" %}
+        <a href="{% url 'university:user_create' %}?student_profile={{ sp.pk }}"
+           class="badge bg-white text-dark border text-decoration-none">{{ sp.roll_no }}</a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card border-0 shadow-sm rounded-4 mb-3">
+  <div class="card-body">{% include 'identity/_filter_bar.html' %}</div>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-header bg-white border-bottom py-3">{% include 'identity/_bulk_bar.html' %}</div>
+    {% include 'identity/_user_table.html' %}
+    {% include 'identity/_pagination.html' %}
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}{% include 'identity/_table_scripts.html' %}{% endblock %}

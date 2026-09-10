@@ -1,0 +1,177 @@
+{% extends 'base_dashboard.html' %}
+
+{% block title %}Username Management · User Management · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4><i class="fa-solid fa-signature me-2 text-primary"></i>Username Management</h4>
+    <p class="text-muted small mb-0">Configure how usernames are built. Nothing is hard-coded —
+      collisions are resolved automatically and every generated name is checked for uniqueness.</p>
+  </div>
+  <div class="breadcrumb-chip">
+    <a href="{% url 'university:user_dashboard' %}" class="text-decoration-none text-muted">User Management</a>
+    <i class="fa-solid fa-angle-right mx-1"></i> Usernames
+  </div>
+</div>
+
+{% include 'identity/_module_nav.html' with nav='usernames' %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <form method="post">
+      {% csrf_token %}
+      <div class="card border-0 shadow-sm rounded-4 mb-3">
+        <div class="card-header bg-white border-bottom py-3">
+          <h6 class="mb-0 fw-bold"><i class="fa-solid fa-sliders me-2 text-primary"></i>Generation Rules</h6>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Student username format</label>
+              <input type="text" name="username_student_format" class="form-control"
+                     value="{{ settings.username_student_format }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Staff username format</label>
+              <input type="text" name="username_staff_format" class="form-control"
+                     value="{{ settings.username_staff_format }}">
+            </div>
+
+            <div class="col-12">
+              <div class="bg-light rounded-3 p-3">
+                <div class="small fw-semibold mb-2">Available placeholders</div>
+                <div class="d-flex flex-wrap gap-2 small">
+                  <code class="bg-white border rounded px-2 py-1">{FIRST}</code>
+                  <code class="bg-white border rounded px-2 py-1">{LAST}</code>
+                  <code class="bg-white border rounded px-2 py-1">{F}</code>
+                  <code class="bg-white border rounded px-2 py-1">{L}</code>
+                  <code class="bg-white border rounded px-2 py-1">{REGNO}</code>
+                  <code class="bg-white border rounded px-2 py-1">{STAFFID}</code>
+                  <code class="bg-white border rounded px-2 py-1">{PROGRAMME}</code>
+                  <code class="bg-white border rounded px-2 py-1">{YEAR}</code>
+                  <code class="bg-white border rounded px-2 py-1">{SEQ}</code>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Prefix</label>
+              <input type="text" name="username_prefix" class="form-control" value="{{ settings.username_prefix }}">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Suffix</label>
+              <input type="text" name="username_suffix" class="form-control" value="{{ settings.username_suffix }}">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Separator</label>
+              <input type="text" name="username_separator" class="form-control" value="{{ settings.username_separator }}">
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Letter case</label>
+              <select name="username_case" class="form-select">
+                <option value="lower" {% if settings.username_case == 'lower' %}selected{% endif %}>lowercase</option>
+                <option value="upper" {% if settings.username_case == 'upper' %}selected{% endif %}>UPPERCASE</option>
+                <option value="preserve" {% if settings.username_case == 'preserve' %}selected{% endif %}>Preserve as entered</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Maximum length</label>
+              <input type="number" name="username_max_length" class="form-control" min="4" max="150"
+                     value="{{ settings.username_max_length }}">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Allowed characters</label>
+              <input type="text" name="username_allowed_characters" class="form-control"
+                     value="{{ settings.username_allowed_characters }}">
+            </div>
+
+            <div class="col-md-6">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="username_sequential_numbering"
+                       id="seqNumbering" {% if settings.username_sequential_numbering %}checked{% endif %}>
+                <label class="form-check-label small" for="seqNumbering">
+                  Use sequential numbering for collisions</label>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Sequence padding</label>
+              <input type="number" name="username_sequence_padding" class="form-control" min="0" max="8"
+                     value="{{ settings.username_sequence_padding }}">
+            </div>
+          </div>
+        </div>
+        <div class="card-footer bg-white text-end">
+          <button class="btn btn-primary"><i class="fa-solid fa-floppy-disk me-2"></i>Save Rules</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm rounded-4 mb-3">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-flask me-2 text-primary"></i>Try the Generator</h6>
+      </div>
+      <div class="card-body">
+        <p class="small text-muted">Preview a username without creating anything.</p>
+        <div class="mb-2">
+          <select id="tryType" class="form-select form-select-sm">
+            <option value="STUDENT">Student</option>
+            <option value="STAFF">Staff / Faculty</option>
+            <option value="ADMIN">Administrator</option>
+          </select>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6"><input id="tryFirst" class="form-control form-control-sm" placeholder="First name"></div>
+          <div class="col-6"><input id="tryLast" class="form-control form-control-sm" placeholder="Last name"></div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6"><input id="tryReg" class="form-control form-control-sm" placeholder="Reg. no."></div>
+          <div class="col-6"><input id="tryStaff" class="form-control form-control-sm" placeholder="Staff ID"></div>
+        </div>
+        <button type="button" id="btnTry" class="btn btn-outline-primary btn-sm w-100">
+          <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Generate preview</button>
+        <div id="tryResult" class="alert alert-light border mt-3 mb-0 small d-none"></div>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>Recently Issued</h6>
+      </div>
+      <ul class="list-group list-group-flush small">
+        {% for u in recent_usernames %}
+          <li class="list-group-item d-flex justify-content-between">
+            <code>{{ u.username }}</code>
+            <span class="text-muted">{{ u.get_role_display }}</span>
+          </li>
+        {% empty %}
+          <li class="list-group-item text-muted text-center py-3">No accounts yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('btnTry').addEventListener('click', async () => {
+  const params = new URLSearchParams({
+    user_type: document.getElementById('tryType').value,
+    first_name: document.getElementById('tryFirst').value,
+    last_name: document.getElementById('tryLast').value,
+    reg_no: document.getElementById('tryReg').value,
+    staff_id: document.getElementById('tryStaff').value
+  });
+  const res = await fetch('{% url "university:api_generate_username" %}?' + params);
+  const box = document.getElementById('tryResult');
+  if (!res.ok) { box.textContent = 'Could not generate a preview.'; box.classList.remove('d-none'); return; }
+  const data = await res.json();
+  box.innerHTML = 'Would be issued as <code class="fw-bold">' + data.username + '</code>';
+  box.classList.remove('d-none');
+});
+</script>
+{% endblock %}

@@ -1,0 +1,76 @@
+{% extends 'base_dashboard.html' %}
+
+{% block title %}User Groups · User Management · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4><i class="fa-solid fa-users-rectangle me-2 text-primary"></i>User Groups</h4>
+    <p class="text-muted small mb-0">Groups bundle roles so access can be granted by population rather than
+      person. Where two groups disagree, the lower precedence number wins.</p>
+  </div>
+  <a href="{% url 'university:group_create' %}" class="btn btn-primary btn-sm">
+    <i class="fa-solid fa-plus me-1"></i>New Group</a>
+</div>
+
+{% include 'identity/_module_nav.html' with nav='groups' %}
+
+<div class="row g-3">
+  {% for group in groups %}
+    <div class="col-md-6 col-xl-4">
+      <div class="card border-0 shadow-sm rounded-4 h-100 card-lift">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <span class="d-inline-flex align-items-center justify-content-center rounded-3 text-white"
+                  style="width:44px;height:44px;background:{{ group.color }}">
+              <i class="{{ group.icon }}"></i></span>
+            <div class="text-end">
+              <span class="badge bg-light text-dark border">Precedence {{ group.precedence }}</span>
+              {% if group.is_system_group %}
+                <div><span class="badge bg-dark mt-1">System</span></div>{% endif %}
+            </div>
+          </div>
+          <h6 class="fw-bold mb-1">{{ group.name }}</h6>
+          <div class="small text-muted mb-2"><code>{{ group.code }}</code> · {{ group.get_user_type_display }}</div>
+          <p class="small text-muted mb-3">{{ group.description|default:"No description."|truncatechars:110 }}</p>
+
+          <div class="d-flex flex-wrap gap-1 mb-3">
+            {% for role in group.roles.all %}
+              <span class="badge bg-primary-subtle text-primary-emphasis">{{ role.name }}</span>
+            {% empty %}
+              <span class="small text-muted">No roles attached — membership grants no extra access.</span>
+            {% endfor %}
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="small text-muted">
+              <i class="fa-solid fa-user me-1"></i>{{ group.members }} member{{ group.members|pluralize }}</span>
+            <div class="btn-group btn-group-sm">
+              <a href="{% url 'university:group_edit' group.pk %}" class="btn btn-outline-secondary">
+                <i class="fa-solid fa-pen"></i></a>
+              {% if not group.is_system_group %}
+                <form method="post" action="{% url 'university:group_delete' group.pk %}"
+                      onsubmit="return confirm('Delete this group? Members keep their accounts and history.')">
+                  {% csrf_token %}
+                  <button class="btn btn-outline-danger"><i class="fa-solid fa-trash"></i></button>
+                </form>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% empty %}
+    <div class="col-12">
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body text-center py-5">
+          <i class="fa-solid fa-users-slash fa-2x text-muted opacity-50 d-block mb-3"></i>
+          <h6 class="fw-bold">No user groups yet</h6>
+          <p class="text-muted small mb-3">Create groups to manage access by population instead of one person at a time.</p>
+          <a href="{% url 'university:group_create' %}" class="btn btn-primary btn-sm">Create the first group</a>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

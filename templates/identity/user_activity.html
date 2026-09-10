@@ -1,0 +1,78 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+{% load ums_extras %}
+
+{% block title %}User Activity · User Management · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4><i class="fa-solid fa-wave-square me-2 text-primary"></i>User Activity</h4>
+    <p class="text-muted small mb-0">Read from the system-wide audit trail, so this module keeps no
+      second activity log that could drift out of step.</p>
+  </div>
+  <a href="{% url 'university:audit_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+    <i class="fa-solid fa-clipboard-list me-1"></i>Full Audit Trail</a>
+</div>
+
+{% include 'identity/_module_nav.html' with nav='users' %}
+
+<div class="card border-0 shadow-sm rounded-4">
+  <div class="card-header bg-white border-bottom py-3">
+    <form method="get" class="row g-2 align-items-center">
+      <div class="col-md-4">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+          <input type="search" name="q" value="{{ q }}" class="form-control"
+                 placeholder="Actor, description or record">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <select name="module" class="form-select form-select-sm">
+          <option value="">All modules</option>
+          {% for value, label in modules %}
+            <option value="{{ value }}" {% if module == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <select name="action" class="form-select form-select-sm">
+          <option value="">All actions</option>
+          {% for value, label in actions %}
+            <option value="{{ value }}" {% if action == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-1"><button class="btn btn-primary btn-sm w-100">Filter</button></div>
+      <div class="col-md-1"><a href="{{ request.path }}" class="btn btn-light btn-sm w-100">Clear</a></div>
+    </form>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 align-middle">
+      <thead class="table-light"><tr class="small text-uppercase text-muted">
+        <th>When</th><th>User</th><th>Module</th><th>Action</th><th>Description</th><th>IP</th></tr></thead>
+      <tbody>
+        {% for entry in page_obj %}
+          <tr class="small">
+            <td class="text-muted">{{ entry.timestamp|date:"d M Y H:i" }}</td>
+            <td>
+              {% if entry.user %}
+                <a href="{% url 'university:user_detail' entry.user.pk %}" class="text-decoration-none">
+                  {{ entry.user_display|default:entry.user.username }}</a>
+              {% else %}{{ entry.user_display|default:"System" }}{% endif %}
+            </td>
+            <td class="text-muted">{{ entry.get_module_display }}</td>
+            <td><span class="badge bg-light text-dark border">{{ entry.get_action_display }}</span></td>
+            <td>{{ entry.description|truncatechars:110 }}</td>
+            <td class="text-muted">{{ entry.ip_address|default:"—" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-5">No activity matches these filters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include 'identity/_pagination.html' %}
+</div>
+{% endblock %}

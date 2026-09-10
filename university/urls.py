@@ -21,6 +21,7 @@ from . import module_views
 from . import fee_payment_views
 from . import fee_account_views
 from . import backup_views
+from . import identity_views
 
 app_name = "university"
 
@@ -385,6 +386,43 @@ urlpatterns = [
     path("manage/evaluation/<int:course_id>/", evaluation_views.admin_evaluation_course_detail, name="admin_evaluation_course_detail"),
     path("manage/evaluation/window/toggle/", evaluation_views.admin_evaluation_window_toggle, name="admin_evaluation_window_toggle"),
     path("manage/evaluation/export/<str:fmt>/", evaluation_views.admin_evaluation_export, name="admin_evaluation_export"),
+
+    # ---------------------------------------------------------------------
+    # System Admin → User Management & Identity Administration
+    # ---------------------------------------------------------------------
+    path("system-admin/users/", identity_views.user_dashboard, name="user_dashboard"),
+    path("system-admin/users/all/", identity_views.user_list, name="user_list"),
+    path("system-admin/users/create/", identity_views.user_create, name="user_create"),
+    path("system-admin/users/students/", identity_views.student_accounts, name="student_accounts"),
+    path("system-admin/users/staff/", identity_views.staff_accounts, name="staff_accounts"),
+    path("system-admin/users/passwords/", identity_views.password_management, name="password_management"),
+    path("system-admin/users/status/", identity_views.account_status_board, name="account_status_board"),
+    path("system-admin/users/usernames/", identity_views.username_management, name="username_management"),
+    path("system-admin/users/groups/", identity_views.group_list, name="group_list"),
+    path("system-admin/users/groups/new/", identity_views.group_edit, name="group_create"),
+    path("system-admin/users/groups/<int:pk>/", identity_views.group_edit, name="group_edit"),
+    path("system-admin/users/groups/<int:pk>/delete/", identity_views.group_delete, name="group_delete"),
+    path("system-admin/users/roles/", identity_views.roles_permissions_redirect, name="user_roles_permissions"),
+    path("system-admin/users/emails/", identity_views.email_accounts, name="email_accounts"),
+    path("system-admin/users/emails/<int:pk>/<str:action>/", identity_views.email_action, name="email_action"),
+    path("system-admin/users/security/", identity_views.login_security, name="login_security"),
+    path("system-admin/users/login-history/", identity_views.login_history, name="login_history"),
+    path("system-admin/users/activity/", identity_views.user_activity, name="user_activity"),
+    path("system-admin/users/bulk/", identity_views.bulk_operations, name="bulk_operations"),
+    path("system-admin/users/bulk/template/<str:user_type>/<str:fmt>/", identity_views.bulk_import_template, name="bulk_import_template"),
+    path("system-admin/users/bulk/preview/", identity_views.bulk_import_preview, name="bulk_import_preview"),
+    path("system-admin/users/bulk/commit/", identity_views.bulk_import_commit, name="bulk_import_commit"),
+    path("system-admin/users/bulk/report/<int:pk>/", identity_views.bulk_import_report, name="bulk_import_report"),
+    path("system-admin/users/bulk/action/", identity_views.bulk_user_action, name="bulk_user_action"),
+    path("system-admin/users/export/<str:fmt>/", identity_views.user_export, name="user_export"),
+    path("system-admin/users/settings/", identity_views.user_settings, name="user_settings"),
+    path("system-admin/users/settings/test-email/", identity_views.send_test_email_view, name="send_test_email"),
+    path("system-admin/users/api/generate-username/", identity_views.api_generate_username, name="api_generate_username"),
+    path("system-admin/users/api/generate-password/", identity_views.api_generate_password, name="api_generate_password"),
+    path("system-admin/users/api/check-username/", identity_views.api_check_username, name="api_check_username"),
+    path("system-admin/users/<int:pk>/", identity_views.user_detail, name="user_detail"),
+    path("system-admin/users/<int:pk>/edit/", identity_views.user_edit, name="user_edit"),
+    path("system-admin/users/<int:pk>/<str:action>/", identity_views.user_action, name="user_action"),
 
     # University Reporting System & Analytics Hub
     path("manage/reports/", reporting_views.admin_reports_dashboard, name="admin_reports_dashboard"),

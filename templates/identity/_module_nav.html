@@ -1,0 +1,19 @@
+{% comment %}Sub-navigation shared by every User Management page.{% endcomment %}
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+  <div class="card-body p-2">
+    <ul class="nav nav-pills gap-1 flex-wrap small">
+      <li class="nav-item"><a class="nav-link rounded-pill px-3 py-1 fw-semibold {% if nav == 'dashboard' %}active{% endif %}" href="{% url 'university:user_dashboard' %}"><i class="fa-solid fa-gauge-high me-1"></i>Dashboard</a></li>
+      <li class="nav-item"><a class="nav-link rounded-pill px-3 py-1 fw-semibold {% if nav == 'users' %}active{% endif %}" href="{% url 'university:user_list' %}"><i class="fa-solid fa-users me-1"></i>All Users</a></li>
+      <li class="nav-item"><a class="nav-link rounded-pill px-3 py-1 fw-semibold {% if nav == 'students' %}active{% endif %}" href="{% url 'university:student_accounts' %}"><i class="fa-solid fa-user-graduate me-1"></i>Students</a></li>
+      <li class="nav-item"><a class="nav-link rounded-pill px-3 py-1 fw-semibold {% if nav == 'staff' %}active{% endif %}" href="{% url 'university:staff_accounts' %}"><i class="fa-solid fa-chalkboard-user me-1"></i>Staff</a></li>
+      <li class="nav-item"><a class="nav-link rounded-pill px-3 py-1 fw-semibold {% if nav == 'passwords' %}active{% endif %}" href="{% url 'university:password_management' %}"><i class="fa-solid fa-key me-1"></i>Passwords</a></li>
+      <li class="nav-item"><a class="nav-link rounded-pill px-3 py-1 fw-semibold {% if nav == 'status' %}active{% endif %}" href="{% url 'university:account_status_board' %}"><i class="fa-solid fa-toggle-on me-1"></i>Account Status</a></li>
+      <li class="nav-item"><a class="nav-link rounded-pill px-3 py-1 fw-semibold {% if nav == 'groups' %}active{% endif %}" href="{% url 'university:group_list' %}"><i class="fa-solid fa-users-rectangle me-1"></i>Groups</a></li>
+      <li class="nav-item"><a class="nav-link rounded-pill px-3 py-1 fw-semibold {% if nav == 'emails' %}active{% endif %}" href="{% url 'university:email_accounts' %}"><i class="fa-solid fa-envelope me-1"></i>Email Accounts</a></li>
+      <li class="nav-item"><a class="nav-link rounded-pill px-3 py-1 fw-semibold {% if nav == 'usernames' %}active{% endif %}" href="{% url 'university:username_management' %}"><i class="fa-solid fa-signature me-1"></i>Usernames</a></li>
+      <li class="nav-item"><a class="nav-link rounded-pill px-3 py-1 fw-semibold {% if nav == 'security' %}active{% endif %}" href="{% url 'university:login_security' %}"><i class="fa-solid fa-shield-halved me-1"></i>Login & Security</a></li>
+      <li class="nav-item"><a class="nav-link rounded-pill px-3 py-1 fw-semibold {% if nav == 'bulk' %}active{% endif %}" href="{% url 'university:bulk_operations' %}"><i class="fa-solid fa-layer-group me-1"></i>Bulk Operations</a></li>
+      <li class="nav-item"><a class="nav-link rounded-pill px-3 py-1 fw-semibold {% if nav == 'settings' %}active{% endif %}" href="{% url 'university:user_settings' %}"><i class="fa-solid fa-sliders me-1"></i>Settings</a></li>
+    </ul>
+  </div>
+</div>

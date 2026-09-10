@@ -1,0 +1,33 @@
+{% comment %}
+Bulk action bar. It posts the selected IDs to one endpoint that re-checks the
+operator's permission for each operation before touching anything.
+{% endcomment %}
+<div class="d-flex flex-wrap gap-2 align-items-center">
+  <select name="operation" class="form-select form-select-sm" style="max-width:250px" required>
+    <option value="">Bulk action on selected…</option>
+    <optgroup label="Credentials">
+      <option value="SEND_RESET_LINK">Send password reset link</option>
+      <option value="FORCE_CHANGE">Require password change at next sign-in</option>
+      <option value="UNLOCK">Unlock accounts</option>
+    </optgroup>
+    <optgroup label="Institutional email">
+      <option value="GENERATE_EMAIL">Generate institutional email address</option>
+    </optgroup>
+    <optgroup label="Account status">
+      <option value="ACTIVATE">Activate accounts</option>
+      <option value="SUSPEND">Suspend accounts</option>
+      <option value="DISABLE">Disable accounts</option>
+    </optgroup>
+  </select>
+  <input type="text" name="reason" class="form-control form-control-sm" style="max-width:230px"
+         placeholder="Reason (recorded in the audit trail)">
+  <div class="form-check form-check-inline small mb-0">
+    <input class="form-check-input" type="checkbox" name="send_notification" id="bulkNotify" checked>
+    <label class="form-check-label" for="bulkNotify">Notify users by email</label>
+  </div>
+  <button type="submit" formaction="{% url 'university:bulk_user_action' %}" formmethod="post"
+          class="btn btn-sm btn-outline-primary"
+          onclick="return confirm('Apply this action to every selected account?')">
+    <i class="fa-solid fa-bolt me-1"></i>Apply</button>
+  <span class="small text-muted"><span id="selectedCount">0</span> selected</span>
+</div>

@@ -2326,3 +2326,16 @@ from .backup_models import (  # noqa: E402,F401
     BackupLog,
     BackupSetting,
 )
+from .identity_models import (  # noqa: E402,F401
+    AccountStatus,
+    UserType,
+    UserGroup,
+    UserGroupMembership,
+    UserAccount,
+    PasswordHistoryEntry,
+    PasswordResetToken,
+    LoginRecord,
+    InstitutionalEmail,
+    EmailDeliveryRecord,
+    UserImportBatch,
+)

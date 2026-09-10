@@ -1,0 +1,17 @@
+<script>
+(function () {
+  const master = document.getElementById('selectAllUsers');
+  const boxes = () => Array.from(document.querySelectorAll('.user-select'));
+  const counter = document.getElementById('selectedCount');
+  const sync = () => { if (counter) { counter.textContent = boxes().filter(b => b.checked).length; } };
+
+  if (master) {
+    master.addEventListener('change', () => {
+      boxes().forEach(b => { b.checked = master.checked; });
+      sync();
+    });
+  }
+  boxes().forEach(b => b.addEventListener('change', sync));
+  sync();
+})();
+</script>

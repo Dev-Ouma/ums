@@ -1,0 +1,107 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+{% load ums_extras %}
+
+{% block title %}Account Status · User Management · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4><i class="fa-solid fa-toggle-on me-2 text-primary"></i>Account Status</h4>
+    <p class="text-muted small mb-0">Every status takes effect on the backend immediately.
+      A non-active account is signed out and refused at the authentication layer.</p>
+  </div>
+  <div class="breadcrumb-chip">
+    <a href="{% url 'university:user_dashboard' %}" class="text-decoration-none text-muted">User Management</a>
+    <i class="fa-solid fa-angle-right mx-1"></i> Account Status
+  </div>
+</div>
+
+{% include 'identity/_module_nav.html' with nav='status' %}
+
+<div class="row g-2 mb-3">
+  {% for value, label in statuses %}
+    <div class="col-6 col-md-3 col-xl">
+      <a href="?status={{ value }}" class="text-decoration-none">
+        <div class="card border-0 shadow-sm rounded-4 h-100 {% if status == value %}border border-primary border-2{% endif %}">
+          <div class="card-body py-3 text-center">
+            <div class="h4 fw-bold mb-0">{{ summary|get_item:value|default:0 }}</div>
+            <div class="small text-muted">{{ label }}</div>
+          </div>
+        </div>
+      </a>
+    </div>
+  {% endfor %}
+</div>
+
+<div class="card border-0 shadow-sm rounded-4">
+  <div class="card-header bg-white border-bottom py-3">
+    <form method="get" class="row g-2 align-items-center">
+      <div class="col-md-5">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+          <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Search by name or username">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <select name="status" class="form-select form-select-sm">
+          <option value="">All statuses</option>
+          {% for value, label in statuses %}
+            <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2"><button class="btn btn-primary btn-sm w-100">Filter</button></div>
+      <div class="col-md-2"><a href="{{ request.path }}" class="btn btn-light btn-sm w-100">Clear</a></div>
+    </form>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light"><tr class="small text-uppercase text-muted">
+        <th>User</th><th>Type</th><th>Status</th><th>Reason</th><th>Changed</th><th class="text-end">Change to</th>
+      </tr></thead>
+      <tbody>
+        {% for acc in page_obj %}
+          <tr>
+            <td>
+              <a href="{% url 'university:user_detail' acc.user.pk %}" class="fw-semibold text-decoration-none">
+                {{ acc.user.get_full_name|default:acc.user.username }}</a>
+              <div class="small text-muted"><code>{{ acc.user.username }}</code></div>
+            </td>
+            <td class="small">{{ acc.get_user_type_display }}</td>
+            <td>{% include 'identity/_status_badge.html' with account=acc %}</td>
+            <td class="small text-muted">{{ acc.status_reason|default:"—"|truncatechars:60 }}</td>
+            <td class="small text-muted">
+              {% if acc.status_changed_at %}{{ acc.status_changed_at|naturaltime }}{% else %}—{% endif %}
+              {% if acc.status_changed_by %}<div style="font-size:.7rem">by {{ acc.status_changed_by.username }}</div>{% endif %}
+            </td>
+            <td class="text-end">
+              <form method="post" class="d-inline-flex gap-1 justify-content-end">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <input type="text" name="reason" class="form-control form-control-sm d-none d-xl-block"
+                       style="max-width:160px" placeholder="Reason">
+                <div class="btn-group btn-group-sm">
+                  <button class="btn btn-outline-success" title="Activate"
+                          formaction="{% url 'university:user_action' acc.user.pk 'activate' %}"><i class="fa-solid fa-check"></i></button>
+                  <button class="btn btn-outline-warning" title="Suspend"
+                          formaction="{% url 'university:user_action' acc.user.pk 'suspend' %}"><i class="fa-solid fa-ban"></i></button>
+                  <button class="btn btn-outline-danger" title="Disable"
+                          formaction="{% url 'university:user_action' acc.user.pk 'disable' %}"
+                          onclick="return confirm('Disable this account?')"><i class="fa-solid fa-xmark"></i></button>
+                  <button class="btn btn-outline-secondary" title="Unlock"
+                          formaction="{% url 'university:user_action' acc.user.pk 'unlock' %}"><i class="fa-solid fa-lock-open"></i></button>
+                </div>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-5">No accounts match these filters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include 'identity/_pagination.html' %}
+</div>
+{% endblock %}

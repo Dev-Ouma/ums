@@ -1,0 +1,157 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+{% load ums_extras %}
+
+{% block title %}Login & Security · User Management · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4><i class="fa-solid fa-shield-halved me-2 text-primary"></i>Login &amp; Security</h4>
+    <p class="text-muted small mb-0">Lockouts, security events and the policy that produces them.</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'university:login_history' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="fa-solid fa-clock-rotate-left me-1"></i>Login History</a>
+    <a href="{% url 'university:user_settings' %}?tab=security" class="btn btn-outline-secondary btn-sm">
+      <i class="fa-solid fa-gear me-1"></i>Security Settings</a>
+  </div>
+</div>
+
+{% include 'identity/_module_nav.html' with nav='security' %}
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm rounded-4 h-100"><div class="card-body py-3">
+      <div class="small text-uppercase text-muted fw-semibold">Lockout threshold</div>
+      <div class="h4 fw-bold mb-0">{{ policy.max_attempts }}</div>
+      <div class="small text-muted">failed attempts</div></div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm rounded-4 h-100"><div class="card-body py-3">
+      <div class="small text-uppercase text-muted fw-semibold">Lock duration</div>
+      <div class="h4 fw-bold mb-0">{{ policy.lock_minutes }}</div>
+      <div class="small text-muted">minutes</div></div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm rounded-4 h-100"><div class="card-body py-3">
+      <div class="small text-uppercase text-muted fw-semibold">Password expiry</div>
+      <div class="h4 fw-bold mb-0">{% if policy.expiry_days %}{{ policy.expiry_days }}{% else %}Off{% endif %}</div>
+      <div class="small text-muted">{% if policy.expiry_days %}days{% else %}not enforced{% endif %}</div></div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm rounded-4 h-100"><div class="card-body py-3">
+      <div class="small text-uppercase text-muted fw-semibold">Multi-factor enabled</div>
+      <div class="h4 fw-bold mb-0">{{ mfa_enabled_count }}</div>
+      <div class="small text-muted">accounts</div></div></div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-lock me-2 text-danger"></i>Locked Accounts</h6>
+      </div>
+      <ul class="list-group list-group-flush small" style="max-height:340px;overflow:auto">
+        {% for acc in locked_accounts %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <a href="{% url 'university:user_detail' acc.user.pk %}" class="fw-semibold text-decoration-none">
+                {{ acc.user.get_full_name|default:acc.user.username }}</a>
+              <div class="text-muted" style="font-size:.72rem">
+                {{ acc.failed_login_attempts }} failed attempt{{ acc.failed_login_attempts|pluralize }}
+                {% if acc.locked_until %}· unlocks {{ acc.locked_until|naturaltime }}{% endif %}</div>
+            </div>
+            <form method="post" action="{% url 'university:user_action' acc.user.pk 'unlock' %}">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button class="btn btn-sm btn-outline-success py-0">
+                <i class="fa-solid fa-lock-open me-1"></i>Unlock</button>
+            </form>
+          </li>
+        {% empty %}
+          <li class="list-group-item text-muted text-center py-4">
+            <i class="fa-solid fa-circle-check text-success me-1"></i>No accounts are locked.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-key me-2 text-warning"></i>Awaiting Password Change</h6>
+      </div>
+      <ul class="list-group list-group-flush small" style="max-height:340px;overflow:auto">
+        {% for acc in flagged_password_change %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <a href="{% url 'university:user_detail' acc.user.pk %}" class="text-decoration-none">
+              {{ acc.user.get_full_name|default:acc.user.username }}</a>
+            <span class="text-muted" style="font-size:.72rem">
+              {% if acc.password_changed_at %}last changed {{ acc.password_changed_at|naturaltime }}
+              {% else %}never changed{% endif %}</span>
+          </li>
+        {% empty %}
+          <li class="list-group-item text-muted text-center py-4">No accounts are flagged.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm rounded-4">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="fa-solid fa-triangle-exclamation me-2 text-danger"></i>Recent Failed Sign-ins</h6>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+          <thead class="table-light"><tr class="small text-uppercase text-muted">
+            <th>When</th><th>Username attempted</th><th>Reason</th><th>IP Address</th></tr></thead>
+          <tbody>
+            {% for record in recent_failures %}
+              <tr class="small">
+                <td class="text-muted">{{ record.login_at|date:"d M Y H:i" }}</td>
+                <td>{{ record.username_attempted }}</td>
+                <td><span class="badge bg-danger-subtle text-danger-emphasis">
+                  {{ record.get_failure_reason_display|default:"Refused" }}</span></td>
+                <td class="text-muted">{{ record.ip_address|default:"—" }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" class="text-center text-muted py-3 small">No failed sign-ins recorded.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm rounded-4">
+  <div class="card-header bg-white border-bottom py-3">
+    <h6 class="mb-0 fw-bold"><i class="fa-solid fa-list-check me-2 text-primary"></i>Security Event Log</h6>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 align-middle">
+      <thead class="table-light"><tr class="small text-uppercase text-muted">
+        <th>When</th><th>Actor</th><th>Action</th><th>Description</th><th>IP</th></tr></thead>
+      <tbody>
+        {% for entry in page_obj %}
+          <tr class="small">
+            <td class="text-muted">{{ entry.timestamp|date:"d M Y H:i" }}</td>
+            <td>{{ entry.user_display|default:"System" }}</td>
+            <td><span class="badge bg-light text-dark border">{{ entry.get_action_display }}</span></td>
+            <td>{{ entry.description|truncatechars:110 }}</td>
+            <td class="text-muted">{{ entry.ip_address|default:"—" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="text-center text-muted py-4">No security events recorded.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include 'identity/_pagination.html' %}
+</div>
+{% endblock %}
