@@ -34,7 +34,6 @@ FACULTY_IMPORT_COLUMNS = [
     ("email", "Email", True),
     ("phone", "Phone", False),
     ("username", "Username", False),
-    ("password", "Password", False),
     ("department_code", "Department Code", False),
     ("designation", "Designation", False),
     ("specialization", "Specialization", False),
@@ -47,7 +46,6 @@ SAMPLE_FACULTY_ROW = {
     "email": "sarah.connor@example.com",
     "phone": "+254 722 000 111",
     "username": "sarah.connor",
-    "password": "Faculty@2026",
     "department_code": "CSE",
     "designation": "Associate Professor",
     "specialization": "Machine Learning & Robotics",
@@ -359,7 +357,6 @@ def generate_faculty_template_csv():
         SAMPLE_FACULTY_ROW["email"],
         SAMPLE_FACULTY_ROW["phone"],
         SAMPLE_FACULTY_ROW["username"],
-        SAMPLE_FACULTY_ROW["password"],
         SAMPLE_FACULTY_ROW["department_code"],
         SAMPLE_FACULTY_ROW["designation"],
         SAMPLE_FACULTY_ROW["specialization"],
@@ -403,7 +400,6 @@ def generate_faculty_template_excel():
         SAMPLE_FACULTY_ROW["email"],
         SAMPLE_FACULTY_ROW["phone"],
         SAMPLE_FACULTY_ROW["username"],
-        SAMPLE_FACULTY_ROW["password"],
         SAMPLE_FACULTY_ROW["department_code"],
         SAMPLE_FACULTY_ROW["designation"],
         SAMPLE_FACULTY_ROW["specialization"],
@@ -546,7 +542,9 @@ def validate_faculty_import_rows(raw_rows):
             username = f"{first_name.lower()}.{last_name.lower()}" if first_name else f"faculty_{idx}"
         username = re.sub(r"[^a-zA-Z0-9._-]", "", username)
 
-        password = raw.get("password", "").strip() or "Faculty@2026"
+        # Tolerated in legacy files, never invented: a row without a password
+        # gets a single-use activation link instead.
+        password = raw.get("password", "").strip()
         dept_raw = raw.get("department_code", "").strip()
         designation = raw.get("designation", "").strip() or "Assistant Professor"
         specialization = raw.get("specialization", "").strip()
@@ -644,17 +642,25 @@ def validate_faculty_import_rows(raw_rows):
 # 4. BATCH EXECUTION
 # ==============================================================================
 
-def execute_faculty_import(valid_items):
+def execute_faculty_import(valid_items, actor=None):
     """
-    Atomically insert validated faculty records and user accounts.
+    Atomically insert validated faculty records and their central accounts.
+
+    Accounts come from the user management service, so an imported member of
+    staff gets the same identity envelope as one created by hand: one account,
+    an institutional email, an audit entry and an activation link rather than a
+    shared starting password.
     Returns (imported_count, failed_count).
     """
+    from university.identity_models import UserType
+    from university.identity_services import create_user_account, provision_staff_account
+
     imported_count = 0
     failed_count = 0
 
-    with transaction.atomic():
-        for item in valid_items:
-            try:
+    for item in valid_items:
+        try:
+            with transaction.atomic():
                 if FacultyProfile.objects.filter(employee_id=item["employee_id"]).exists():
                     failed_count += 1
                     continue
@@ -662,16 +668,21 @@ def execute_faculty_import(valid_items):
                     failed_count += 1
                     continue
 
-                user = User(
-                    username=item["username"],
-                    email=item["email"],
+                supplied_password = item.get("password") or ""
+                created = create_user_account(
+                    user_type=UserType.STAFF,
                     first_name=item["first_name"],
                     last_name=item["last_name"],
+                    email=item["email"],
+                    username=item["username"],
                     phone=item["phone"],
                     role=Role.FACULTY,
+                    password_mode="MANUAL" if supplied_password else "LINK",
+                    password=supplied_password or None,
+                    actor=actor,
+                    notify=False,
                 )
-                user.set_password(item["password"])
-                user.save()
+                user = created["user"]
 
                 fp = FacultyProfile(
                     user=user,
@@ -682,8 +693,11 @@ def execute_faculty_import(valid_items):
                     joining_date=timezone.now().date(),
                 )
                 fp.save()
+                provision_staff_account(fp, actor=actor, notify=False)
                 imported_count += 1
-            except Exception:
-                failed_count += 1
+        except Exception:
+            # One bad row must not cost the whole batch.
+            failed_count += 1
 
     return imported_count, failed_count
+

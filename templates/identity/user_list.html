@@ -1,0 +1,47 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+{% load ums_extras %}
+
+{% block title %}All Users · User Management · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4><i class="fa-solid fa-users me-2 text-primary"></i>All Users</h4>
+    <p class="text-muted small mb-0">Every account in the system — students, staff and administrators — searchable, filterable and exportable.</p>
+  </div>
+  <div class="d-flex gap-2 align-items-center">
+    <div class="btn-group btn-group-sm">
+      <a class="btn btn-outline-secondary" href="{% url 'university:user_export' 'csv' %}?{{ request.GET.urlencode }}"><i class="fa-solid fa-file-csv me-1"></i>CSV</a>
+      <a class="btn btn-outline-secondary" href="{% url 'university:user_export' 'excel' %}?{{ request.GET.urlencode }}"><i class="fa-solid fa-file-excel me-1"></i>Excel</a>
+      <a class="btn btn-outline-secondary" href="{% url 'university:user_export' 'pdf' %}?{{ request.GET.urlencode }}"><i class="fa-solid fa-file-pdf me-1"></i>PDF</a>
+    </div>
+    <a href="{% url 'university:user_create' %}" class="btn btn-primary btn-sm">
+      <i class="fa-solid fa-user-plus me-1"></i>Create User</a>
+  </div>
+</div>
+
+{% include 'identity/_module_nav.html' with nav='users' %}
+
+<div class="card border-0 shadow-sm rounded-4 mb-3">
+  <div class="card-body">{% include 'identity/_filter_bar.html' %}</div>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-header bg-white border-bottom py-3">
+      {% include 'identity/_bulk_bar.html' %}
+    </div>
+    {% include 'identity/_user_table.html' %}
+    {% include 'identity/_pagination.html' %}
+  </div>
+</form>
+
+<p class="small text-muted mt-3 mb-0">
+  <i class="fa-solid fa-circle-info me-1"></i>
+  Exports never include passwords, reset tokens or authentication secrets.</p>
+{% endblock %}
+
+{% block extra_js %}{% include 'identity/_table_scripts.html' %}{% endblock %}

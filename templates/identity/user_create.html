@@ -1,0 +1,295 @@
+{% extends 'base_dashboard.html' %}
+
+{% block title %}Create User · User Management · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4><i class="fa-solid fa-user-plus me-2 text-primary"></i>Create User Account</h4>
+    <p class="text-muted small mb-0">Creates one central identity. Link it to an existing student or staff record
+      instead of re-typing details the system already holds.</p>
+  </div>
+  <div class="breadcrumb-chip">
+    <a href="{% url 'university:user_dashboard' %}" class="text-decoration-none text-muted">User Management</a>
+    <i class="fa-solid fa-angle-right mx-1"></i> Create User
+  </div>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-lg-8">
+
+      <!-- Identity -->
+      <div class="card border-0 shadow-sm rounded-4 mb-3">
+        <div class="card-header bg-white border-bottom py-3">
+          <h6 class="mb-0 fw-bold"><i class="fa-solid fa-id-card me-2 text-primary"></i>Identity</h6>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">User type <span class="text-danger">*</span></label>
+              <select name="user_type" id="userType" class="form-select" required>
+                {% for value, label in user_types %}
+                  <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">First name <span class="text-danger">*</span></label>
+              <input type="text" name="first_name" id="firstName" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Last name <span class="text-danger">*</span></label>
+              <input type="text" name="last_name" id="lastName" class="form-control" required>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Username</label>
+              <div class="input-group">
+                <input type="text" name="username" id="usernameField" class="form-control"
+                       placeholder="Generated automatically if left blank">
+                <button class="btn btn-outline-secondary" type="button" id="btnGenerateUsername">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i></button>
+              </div>
+              <div class="form-text small" id="usernameHint">Follows the configured username rules.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Personal email address</label>
+              <input type="email" name="email" class="form-control"
+                     placeholder="Used to deliver the activation link">
+              <div class="form-text small">An institutional address is issued separately.</div>
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Phone number</label>
+              <input type="text" name="phone" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Base role</label>
+              <select name="role" class="form-select">
+                <option value="">Derive from user type</option>
+                {% for value, label in roles %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Campus</label>
+              <input type="text" name="campus" class="form-control" placeholder="Main campus">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Link an existing record -->
+      <div class="card border-0 shadow-sm rounded-4 mb-3">
+        <div class="card-header bg-white border-bottom py-3">
+          <h6 class="mb-0 fw-bold"><i class="fa-solid fa-link me-2 text-primary"></i>Link to an Existing Record</h6>
+        </div>
+        <div class="card-body">
+          <p class="small text-muted">Linking keeps one identity per person, so marks, fees, timetable and
+            transcript history all stay attached to the same account.</p>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Student record</label>
+              <select name="student_profile" class="form-select">
+                <option value="">Not linked</option>
+                {% for sp in unlinked_students %}
+                  <option value="{{ sp.pk }}"
+                    {% if request.GET.student_profile == sp.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ sp.roll_no }} — {{ sp.program.code|default:"No programme" }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Staff record</label>
+              <select name="faculty_profile" class="form-select">
+                <option value="">Not linked</option>
+                {% for fp in unlinked_staff %}
+                  <option value="{{ fp.pk }}"
+                    {% if request.GET.faculty_profile == fp.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ fp.employee_id }} — {{ fp.department.name|default:"No department" }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Access -->
+      <div class="card border-0 shadow-sm rounded-4 mb-3">
+        <div class="card-header bg-white border-bottom py-3">
+          <h6 class="mb-0 fw-bold"><i class="fa-solid fa-user-shield me-2 text-primary"></i>Access</h6>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">User groups</label>
+              <select name="groups" class="form-select" multiple size="6">
+                {% for grp in groups %}
+                  <option value="{{ grp.pk }}">{{ grp.name }} ({{ grp.get_user_type_display }})</option>
+                {% endfor %}
+              </select>
+              <div class="form-text small">Groups grant the roles attached to them.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Direct staff roles</label>
+              <select name="staff_roles" class="form-select" multiple size="6">
+                {% for role in staff_roles %}
+                  <option value="{{ role.code }}">{{ role.name }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-text small">Granular permissions come from these roles.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+
+      <!-- Credentials -->
+      <div class="card border-0 shadow-sm rounded-4 mb-3">
+        <div class="card-header bg-white border-bottom py-3">
+          <h6 class="mb-0 fw-bold"><i class="fa-solid fa-key me-2 text-primary"></i>Initial Credentials</h6>
+        </div>
+        <div class="card-body">
+          <div class="form-check mb-2">
+            <input class="form-check-input password-mode" type="radio" name="password_mode"
+                   value="LINK" id="modeLink" checked>
+            <label class="form-check-label small" for="modeLink">
+              <span class="fw-semibold">Send a secure activation link</span>
+              <span class="d-block text-muted">Recommended. The user sets their own password; nothing
+                secret is ever emailed or displayed.</span>
+            </label>
+          </div>
+          <div class="form-check mb-2">
+            <input class="form-check-input password-mode" type="radio" name="password_mode"
+                   value="GENERATE" id="modeGenerate">
+            <label class="form-check-label small" for="modeGenerate">
+              <span class="fw-semibold">Generate a temporary password</span>
+              <span class="d-block text-muted">Shown once, to you, for controlled hand-over. Expires and
+                must be changed at first sign-in.</span>
+            </label>
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input password-mode" type="radio" name="password_mode"
+                   value="MANUAL" id="modeManual">
+            <label class="form-check-label small" for="modeManual">
+              <span class="fw-semibold">Set a password now</span>
+              <span class="d-block text-muted">For offline enrolment where no email exists.</span>
+            </label>
+          </div>
+
+          <div id="manualPasswordBox" class="d-none">
+            <div class="input-group input-group-sm mb-2">
+              <input type="password" name="password" id="passwordField" class="form-control"
+                     placeholder="New password" autocomplete="new-password">
+              <button class="btn btn-outline-secondary" type="button" id="btnGeneratePassword"
+                      title="Generate a secure password"><i class="fa-solid fa-dice"></i></button>
+              <button class="btn btn-outline-secondary" type="button" id="btnRevealPassword"
+                      title="Show"><i class="fa-solid fa-eye"></i></button>
+            </div>
+            <div class="bg-light rounded-3 p-2 mb-2">
+              <div class="small fw-semibold mb-1">Password policy</div>
+              {% include 'identity/_password_policy.html' %}
+            </div>
+          </div>
+
+          <div class="form-check form-switch small">
+            <input class="form-check-input" type="checkbox" name="must_change_password"
+                   id="mustChange" checked>
+            <label class="form-check-label" for="mustChange">Require a password change at first sign-in</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lifecycle -->
+      <div class="card border-0 shadow-sm rounded-4 mb-3">
+        <div class="card-header bg-white border-bottom py-3">
+          <h6 class="mb-0 fw-bold"><i class="fa-solid fa-toggle-on me-2 text-primary"></i>Lifecycle</h6>
+        </div>
+        <div class="card-body">
+          <label class="form-label small fw-semibold">Initial status</label>
+          <select name="status" class="form-select form-select-sm mb-3">
+            {% for value, label in statuses %}
+              <option value="{{ value }}" {% if value == 'PENDING' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label small fw-semibold">Activation date</label>
+              <input type="date" name="activation_date" class="form-control form-control-sm">
+            </div>
+            <div class="col-6">
+              <label class="form-label small fw-semibold">Expiry date</label>
+              <input type="date" name="expiry_date" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="form-check form-switch small mt-3">
+            <input class="form-check-input" type="checkbox" name="generate_email"
+                   id="generateEmail" checked>
+            <label class="form-check-label" for="generateEmail">Issue an institutional email address</label>
+          </div>
+          <div class="form-check form-switch small">
+            <input class="form-check-input" type="checkbox" name="send_notification"
+                   id="sendNotification" checked>
+            <label class="form-check-label" for="sendNotification">Email the user about their new account</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-grid gap-2">
+        <button class="btn btn-primary btn-lg rounded-3">
+          <i class="fa-solid fa-user-plus me-2"></i>Create Account</button>
+        <a href="{% url 'university:user_list' %}" class="btn btn-light rounded-3">Cancel</a>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const modes = document.querySelectorAll('.password-mode');
+  const manualBox = document.getElementById('manualPasswordBox');
+  const mustChange = document.getElementById('mustChange');
+
+  const applyMode = () => {
+    const mode = document.querySelector('.password-mode:checked').value;
+    manualBox.classList.toggle('d-none', mode !== 'MANUAL');
+    if (mode === 'GENERATE') { mustChange.checked = true; }
+  };
+  modes.forEach(m => m.addEventListener('change', applyMode));
+  applyMode();
+
+  const params = () => new URLSearchParams({
+    user_type: document.getElementById('userType').value,
+    first_name: document.getElementById('firstName').value,
+    last_name: document.getElementById('lastName').value
+  });
+
+  document.getElementById('btnGenerateUsername').addEventListener('click', async () => {
+    const res = await fetch('{% url "university:api_generate_username" %}?' + params());
+    if (!res.ok) { return; }
+    const data = await res.json();
+    document.getElementById('usernameField').value = data.username;
+    document.getElementById('usernameHint').textContent = 'Suggested from the configured format.';
+  });
+
+  document.getElementById('btnGeneratePassword').addEventListener('click', async () => {
+    const res = await fetch('{% url "university:api_generate_password" %}');
+    if (!res.ok) { return; }
+    const data = await res.json();
+    const field = document.getElementById('passwordField');
+    field.type = 'text';
+    field.value = data.password;
+  });
+
+  document.getElementById('btnRevealPassword').addEventListener('click', () => {
+    const field = document.getElementById('passwordField');
+    field.type = field.type === 'password' ? 'text' : 'password';
+  });
+})();
+</script>
+{% endblock %}

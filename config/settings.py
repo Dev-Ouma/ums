@@ -33,6 +33,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "university.control_middleware.SystemControlMiddleware",
     "accounts.activity.LastSeenMiddleware",
+    "accounts.identity.PasswordChangeRequiredMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "university.module_middleware.ModuleAccessMiddleware",
@@ -94,6 +95,13 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # AUTH ---------------------------------------------------------------------
 AUTH_USER_MODEL = "accounts.User"
+
+# One authentication path for every user type. The identity backend adds the
+# account-status gate on top of Django's credential check, so a disabled,
+# suspended, locked or expired account cannot sign in even with a valid password.
+AUTHENTICATION_BACKENDS = [
+    "accounts.identity.IdentityModelBackend",
+]
 LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "university:dashboard"
 LOGOUT_REDIRECT_URL = "university:home"

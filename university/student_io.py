@@ -37,7 +37,6 @@ IMPORT_COLUMNS = [
     ("email", "Email", True),
     ("phone", "Phone", False),
     ("username", "Username", False),
-    ("password", "Password", False),
     ("program_code", "Program Code", False),
     ("current_semester", "Current Semester", False),
     ("gender", "Gender", False),
@@ -52,7 +51,6 @@ SAMPLE_STUDENT_ROW = {
     "email": "jane.doe@example.com",
     "phone": "+254 712 345 678",
     "username": "jane.doe",
-    "password": "Student@2026",
     "program_code": "BT-CSE",
     "current_semester": "1",
     "gender": "Female",
@@ -377,7 +375,6 @@ def generate_import_template_csv():
         SAMPLE_STUDENT_ROW["email"],
         SAMPLE_STUDENT_ROW["phone"],
         SAMPLE_STUDENT_ROW["username"],
-        SAMPLE_STUDENT_ROW["password"],
         SAMPLE_STUDENT_ROW["program_code"],
         SAMPLE_STUDENT_ROW["current_semester"],
         SAMPLE_STUDENT_ROW["gender"],
@@ -423,7 +420,6 @@ def generate_import_template_excel():
         SAMPLE_STUDENT_ROW["email"],
         SAMPLE_STUDENT_ROW["phone"],
         SAMPLE_STUDENT_ROW["username"],
-        SAMPLE_STUDENT_ROW["password"],
         SAMPLE_STUDENT_ROW["program_code"],
         int(SAMPLE_STUDENT_ROW["current_semester"]),
         SAMPLE_STUDENT_ROW["gender"],
@@ -572,7 +568,10 @@ def validate_import_rows(raw_rows):
             username = f"{first_name.lower()}.{last_name.lower()}" if first_name else f"student_{idx}"
         username = re.sub(r"[^a-zA-Z0-9._-]", "", username)
 
-        password = raw.get("password", "").strip() or "Student@2026"
+        # A password column is tolerated in legacy files but never invented here:
+        # a row without one gets a single-use activation link instead, so no
+        # predictable starting credential is ever written to the database.
+        password = raw.get("password", "").strip()
         program_code = raw.get("program_code", "").strip().upper()
         
         raw_sem = raw.get("current_semester", "1").strip()
@@ -692,17 +691,25 @@ def validate_import_rows(raw_rows):
 # 4. BATCH EXECUTION
 # ==============================================================================
 
-def execute_student_import(valid_items):
+def execute_student_import(valid_items, actor=None):
     """
-    Atomically insert validated student records and user accounts.
+    Atomically insert validated student records and their central accounts.
+
+    Accounts are provisioned through the user management service rather than
+    created here, so an imported student gets the same identity envelope as one
+    admitted through admissions: one account, an institutional email, an audit
+    entry and an activation link instead of a shared starting password.
     Returns (imported_count, failed_count).
     """
+    from university.identity_models import UserType
+    from university.identity_services import create_user_account, provision_student_account
+
     imported_count = 0
     failed_count = 0
 
-    with transaction.atomic():
-        for item in valid_items:
-            try:
+    for item in valid_items:
+        try:
+            with transaction.atomic():
                 # Double-check uniqueness before inserting
                 if StudentProfile.objects.filter(roll_no=item["roll_no"]).exists():
                     failed_count += 1
@@ -711,16 +718,21 @@ def execute_student_import(valid_items):
                     failed_count += 1
                     continue
 
-                user = User(
-                    username=item["username"],
-                    email=item["email"],
+                supplied_password = item.get("password") or ""
+                created = create_user_account(
+                    user_type=UserType.STUDENT,
                     first_name=item["first_name"],
                     last_name=item["last_name"],
+                    email=item["email"],
+                    username=item["username"],
                     phone=item["phone"],
                     role=Role.STUDENT,
+                    password_mode="MANUAL" if supplied_password else "LINK",
+                    password=supplied_password or None,
+                    actor=actor,
+                    notify=False,
                 )
-                user.set_password(item["password"])
-                user.save()
+                user = created["user"]
 
                 sp = StudentProfile(
                     user=user,
@@ -733,8 +745,11 @@ def execute_student_import(valid_items):
                     admission_date=timezone.now().date(),
                 )
                 sp.save()
+                provision_student_account(sp, actor=actor, notify=False)
                 imported_count += 1
-            except Exception:
-                failed_count += 1
+        except Exception:
+            # One bad row must not cost the whole batch, so each record commits
+            # or rolls back on its own.
+            failed_count += 1
 
     return imported_count, failed_count

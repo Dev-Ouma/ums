@@ -1,0 +1,103 @@
+{% load humanize %}
+{% load ums_extras %}
+{% comment %}
+Shared server-side user table. Selection checkboxes feed the bulk action form,
+which re-validates every permission on the server.
+{% endcomment %}
+<div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead class="table-light">
+      <tr class="small text-uppercase text-muted">
+        <th style="width:34px"><input type="checkbox" class="form-check-input" id="selectAllUsers"></th>
+        <th><a class="text-decoration-none text-muted"
+               href="?{% url_replace sort=sort|toggle_sort:'first_name' %}">User
+               <i class="fa-solid {% if sort == 'first_name' %}fa-sort-up{% elif sort == '-first_name' %}fa-sort-down{% else %}fa-sort opacity-50{% endif %} ms-1"></i></a></th>
+        <th><a class="text-decoration-none text-muted"
+               href="?{% url_replace sort=sort|toggle_sort:'username' %}">Username
+               <i class="fa-solid {% if sort == 'username' %}fa-sort-up{% elif sort == '-username' %}fa-sort-down{% else %}fa-sort opacity-50{% endif %} ms-1"></i></a></th>
+        <th>Type</th>
+        <th>Role</th>
+        <th>Institutional Email</th>
+        <th><a class="text-decoration-none text-muted"
+               href="?{% url_replace sort=sort|toggle_sort:'account__status' %}">Status
+               <i class="fa-solid {% if sort == 'account__status' %}fa-sort-up{% elif sort == '-account__status' %}fa-sort-down{% else %}fa-sort opacity-50{% endif %} ms-1"></i></a></th>
+        <th><a class="text-decoration-none text-muted"
+               href="?{% url_replace sort=sort|toggle_sort:'last_login' %}">Last Sign-in
+               <i class="fa-solid {% if sort == 'last_login' %}fa-sort-up{% elif sort == '-last_login' %}fa-sort-down{% else %}fa-sort opacity-50{% endif %} ms-1"></i></a></th>
+        <th class="text-end">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in page_obj %}
+        <tr>
+          <td><input type="checkbox" class="form-check-input user-select" name="user_ids" value="{{ u.pk }}"></td>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <span class="avatar-initials rounded-circle d-inline-flex align-items-center justify-content-center text-white fw-bold"
+                    style="width:34px;height:34px;font-size:.78rem;background:var(--gradient)">
+                {{ u.first_name|slice:":1"|upper }}{{ u.last_name|slice:":1"|upper }}</span>
+              <div>
+                <a href="{% url 'university:user_detail' u.pk %}" class="fw-semibold text-decoration-none">
+                  {{ u.get_full_name|default:u.username }}</a>
+                <div class="small text-muted">
+                  {% if u.student_profile %}{{ u.student_profile.roll_no }}
+                  {% elif u.faculty_profile %}{{ u.faculty_profile.employee_id }}
+                  {% else %}{{ u.email|default:"—" }}{% endif %}
+                </div>
+              </div>
+            </div>
+          </td>
+          <td><code class="small">{{ u.username }}</code></td>
+          <td class="small">{{ u.account.get_user_type_display|default:"—" }}</td>
+          <td><span class="badge bg-light text-dark border">{{ u.get_role_display }}</span></td>
+          <td class="small">
+            {% for mail in u.institutional_emails.all %}
+              {% if mail.is_primary %}
+                <span class="d-inline-flex align-items-center gap-1">
+                  <span class="badge bg-{{ mail.status_color }}-subtle text-{{ mail.status_color }}-emphasis">{{ mail.get_status_display }}</span>
+                  {{ mail.address }}
+                </span>
+              {% endif %}
+            {% empty %}
+              <span class="text-muted">Not issued</span>
+            {% endfor %}
+          </td>
+          <td>{% include 'identity/_status_badge.html' with account=u.account %}</td>
+          <td class="small text-muted">
+            {% if u.last_login %}{{ u.last_login|naturaltime }}{% else %}<span class="text-warning">Never</span>{% endif %}
+          </td>
+          <td class="text-end">
+            <div class="btn-group btn-group-sm">
+              <a href="{% url 'university:user_detail' u.pk %}" class="btn btn-outline-secondary"
+                 title="View profile"><i class="fa-solid fa-eye"></i></a>
+              <a href="{% url 'university:user_edit' u.pk %}" class="btn btn-outline-secondary"
+                 title="Edit"><i class="fa-solid fa-pen"></i></a>
+              <button type="button" class="btn btn-outline-secondary dropdown-toggle"
+                      data-bs-toggle="dropdown" aria-expanded="false"></button>
+              <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                <li><button class="dropdown-item small" type="submit" formaction="{% url 'university:user_action' u.pk 'send_reset_link' %}">
+                  <i class="fa-solid fa-paper-plane me-2 text-primary"></i>Send reset link</button></li>
+                <li><button class="dropdown-item small" type="submit" formaction="{% url 'university:user_action' u.pk 'force_password_change' %}">
+                  <i class="fa-solid fa-key me-2 text-warning"></i>Force password change</button></li>
+                <li><button class="dropdown-item small" type="submit" formaction="{% url 'university:user_action' u.pk 'unlock' %}">
+                  <i class="fa-solid fa-lock-open me-2 text-success"></i>Unlock account</button></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><button class="dropdown-item small" type="submit" formaction="{% url 'university:user_action' u.pk 'activate' %}">
+                  <i class="fa-solid fa-circle-check me-2 text-success"></i>Activate</button></li>
+                <li><button class="dropdown-item small" type="submit" formaction="{% url 'university:user_action' u.pk 'suspend' %}">
+                  <i class="fa-solid fa-ban me-2 text-warning"></i>Suspend</button></li>
+                <li><button class="dropdown-item small text-danger" type="submit" formaction="{% url 'university:user_action' u.pk 'disable' %}">
+                  <i class="fa-solid fa-circle-xmark me-2"></i>Disable</button></li>
+              </ul>
+            </div>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="9" class="text-center text-muted py-5">
+          <i class="fa-solid fa-users-slash fa-2x d-block mb-2 opacity-50"></i>
+          No user accounts match the current filters.
+        </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

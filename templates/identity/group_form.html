@@ -1,0 +1,123 @@
+{% extends 'base_dashboard.html' %}
+
+{% block title %}{% if group %}Edit {{ group.name }}{% else %}New Group{% endif %} · User Management · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4><i class="fa-solid fa-users-rectangle me-2 text-primary"></i>
+      {% if group %}Edit Group{% else %}New User Group{% endif %}</h4>
+    <p class="text-muted small mb-0">Attaching a role to a group grants that role to every member.
+      Permissions still resolve through the single system-wide permission engine.</p>
+  </div>
+  <div class="breadcrumb-chip">
+    <a href="{% url 'university:group_list' %}" class="text-decoration-none text-muted">User Groups</a>
+    <i class="fa-solid fa-angle-right mx-1"></i> {% if group %}{{ group.name }}{% else %}New{% endif %}
+  </div>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="card border-0 shadow-sm rounded-4 mb-3">
+        <div class="card-header bg-white border-bottom py-3">
+          <h6 class="mb-0 fw-bold"><i class="fa-solid fa-circle-info me-2 text-primary"></i>Group Details</h6>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-5">
+              <label class="form-label small fw-semibold">Code <span class="text-danger">*</span></label>
+              <input type="text" name="code" class="form-control" required
+                     value="{{ group.code|default:'' }}" {% if group.is_system_group %}readonly{% endif %}>
+            </div>
+            <div class="col-md-7">
+              <label class="form-label small fw-semibold">Name <span class="text-danger">*</span></label>
+              <input type="text" name="name" class="form-control" required value="{{ group.name|default:'' }}">
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Description</label>
+              <textarea name="description" rows="3" class="form-control">{{ group.description|default:'' }}</textarea>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Applies to</label>
+              <select name="user_type" class="form-select">
+                {% for value, label in user_types %}
+                  <option value="{{ value }}" {% if group.user_type == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Precedence</label>
+              <input type="number" name="precedence" class="form-control" min="1" max="999"
+                     value="{{ group.precedence|default:100 }}">
+              <div class="form-text small">Lower wins a conflict.</div>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small fw-semibold">Colour</label>
+              <input type="color" name="color" class="form-control form-control-color w-100"
+                     value="{{ group.color|default:'#6C5CE7' }}">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small fw-semibold">Icon</label>
+              <input type="text" name="icon" class="form-control"
+                     value="{{ group.icon|default:'fa-solid fa-users-rectangle' }}">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {% if group %}
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-header bg-white border-bottom py-3">
+          <h6 class="mb-0 fw-bold"><i class="fa-solid fa-user-group me-2 text-primary"></i>Members</h6>
+        </div>
+        <ul class="list-group list-group-flush small" style="max-height:360px;overflow:auto">
+          {% for m in members %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <a href="{% url 'university:user_detail' m.user.pk %}" class="text-decoration-none">
+                {{ m.user.get_full_name|default:m.user.username }}</a>
+              <span class="text-muted"><code>{{ m.user.username }}</code></span>
+            </li>
+          {% empty %}
+            <li class="list-group-item text-muted text-center py-3">No members yet.</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card border-0 shadow-sm rounded-4 mb-3">
+        <div class="card-header bg-white border-bottom py-3">
+          <h6 class="mb-0 fw-bold"><i class="fa-solid fa-user-shield me-2 text-primary"></i>Roles Granted</h6>
+        </div>
+        <div class="card-body">
+          <p class="small text-muted">Members receive a real role assignment for each role ticked here,
+            so there is no second, parallel way for permissions to be granted.</p>
+          <div style="max-height:380px;overflow:auto">
+            {% for role in staff_roles %}
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="roles" value="{{ role.pk }}"
+                       id="role{{ role.pk }}" {% if role.pk in selected_roles %}checked{% endif %}>
+                <label class="form-check-label small" for="role{{ role.pk }}">
+                  {{ role.name }}
+                  {% if role.description %}
+                    <span class="d-block text-muted" style="font-size:.72rem">{{ role.description|truncatechars:70 }}</span>
+                  {% endif %}
+                </label>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="d-grid gap-2">
+        <button class="btn btn-primary btn-lg rounded-3">
+          <i class="fa-solid fa-floppy-disk me-2"></i>Save Group</button>
+        <a href="{% url 'university:group_list' %}" class="btn btn-light rounded-3">Cancel</a>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

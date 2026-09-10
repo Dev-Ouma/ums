@@ -1,0 +1,388 @@
+{% extends 'base_dashboard.html' %}
+{% load ums_extras %}
+
+{% block title %}User Management Settings · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h4><i class="fa-solid fa-sliders me-2 text-primary"></i>User Management Settings</h4>
+    <p class="text-muted small mb-0">Every rule this module enforces is configured here, not written into code.</p>
+  </div>
+  <div class="breadcrumb-chip">
+    <a href="{% url 'university:user_dashboard' %}" class="text-decoration-none text-muted">User Management</a>
+    <i class="fa-solid fa-angle-right mx-1"></i> Settings
+  </div>
+</div>
+
+{% include 'identity/_module_nav.html' with nav='settings' %}
+
+<div class="card border-0 shadow-sm rounded-4">
+  <div class="card-header bg-white border-bottom p-3">
+    <ul class="nav nav-pills gap-2 flex-wrap">
+      <li class="nav-item"><a href="?tab=account" class="nav-link rounded-pill px-3 py-1 fw-semibold {% if tab == 'account' %}active{% endif %}">
+        <i class="fa-solid fa-user-gear me-1"></i>Accounts &amp; Usernames</a></li>
+      <li class="nav-item"><a href="?tab=password" class="nav-link rounded-pill px-3 py-1 fw-semibold {% if tab == 'password' %}active{% endif %}">
+        <i class="fa-solid fa-key me-1"></i>Password Policy</a></li>
+      <li class="nav-item"><a href="?tab=email" class="nav-link rounded-pill px-3 py-1 fw-semibold {% if tab == 'email' %}active{% endif %}">
+        <i class="fa-solid fa-envelope me-1"></i>Email &amp; Notifications</a></li>
+      <li class="nav-item"><a href="?tab=security" class="nav-link rounded-pill px-3 py-1 fw-semibold {% if tab == 'security' %}active{% endif %}">
+        <i class="fa-solid fa-shield-halved me-1"></i>Login Security</a></li>
+    </ul>
+  </div>
+
+  <div class="card-body">
+
+    {% if tab == 'account' %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="section" value="account">
+      <h6 class="fw-bold mb-3">Automatic Account Provisioning</h6>
+      <div class="row g-3 mb-4">
+        <div class="col-md-6">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="auto_create_student_accounts" id="acsa"
+                   {% if values.auto_create_student_accounts %}checked{% endif %}>
+            <label class="form-check-label small" for="acsa">Create a student account automatically on admission
+              <span class="d-block text-muted">Runs when an applicant is matriculated.</span></label>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="auto_activate_student_accounts" id="aasa"
+                   {% if values.auto_activate_student_accounts %}checked{% endif %}>
+            <label class="form-check-label small" for="aasa">Activate student accounts immediately
+              <span class="d-block text-muted">Otherwise they stay pending until first sign-in.</span></label>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="auto_create_staff_accounts" id="acst"
+                   {% if values.auto_create_staff_accounts %}checked{% endif %}>
+            <label class="form-check-label small" for="acst">Create a staff account automatically on hire</label>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="auto_activate_staff_accounts" id="aast"
+                   {% if values.auto_activate_staff_accounts %}checked{% endif %}>
+            <label class="form-check-label small" for="aast">Activate staff accounts immediately</label>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="auto_generate_email" id="age"
+                   {% if values.auto_generate_email %}checked{% endif %}>
+            <label class="form-check-label small" for="age">Issue an institutional email with every new account</label>
+          </div>
+        </div>
+      </div>
+
+      <h6 class="fw-bold mb-3">Username Generation</h6>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label small fw-semibold">Student format</label>
+          <input type="text" name="username_student_format" class="form-control form-control-sm"
+                 value="{{ values.username_student_format }}"></div>
+        <div class="col-md-6">
+          <label class="form-label small fw-semibold">Staff format</label>
+          <input type="text" name="username_staff_format" class="form-control form-control-sm"
+                 value="{{ values.username_staff_format }}"></div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Prefix</label>
+          <input type="text" name="username_prefix" class="form-control form-control-sm" value="{{ values.username_prefix }}"></div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Suffix</label>
+          <input type="text" name="username_suffix" class="form-control form-control-sm" value="{{ values.username_suffix }}"></div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Separator</label>
+          <input type="text" name="username_separator" class="form-control form-control-sm" value="{{ values.username_separator }}"></div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Letter case</label>
+          <select name="username_case" class="form-select form-select-sm">
+            <option value="lower" {% if values.username_case == 'lower' %}selected{% endif %}>lowercase</option>
+            <option value="upper" {% if values.username_case == 'upper' %}selected{% endif %}>UPPERCASE</option>
+            <option value="preserve" {% if values.username_case == 'preserve' %}selected{% endif %}>Preserve</option>
+          </select></div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Maximum length</label>
+          <input type="number" name="username_max_length" class="form-control form-control-sm" value="{{ values.username_max_length }}"></div>
+        <div class="col-md-5">
+          <label class="form-label small fw-semibold">Allowed characters</label>
+          <input type="text" name="username_allowed_characters" class="form-control form-control-sm"
+                 value="{{ values.username_allowed_characters }}"></div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Sequence padding</label>
+          <input type="number" name="username_sequence_padding" class="form-control form-control-sm"
+                 value="{{ values.username_sequence_padding }}"></div>
+        <div class="col-md-2 d-flex align-items-end">
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" name="username_sequential_numbering" id="usn"
+                   {% if values.username_sequential_numbering %}checked{% endif %}>
+            <label class="form-check-label small" for="usn">Sequential</label>
+          </div>
+        </div>
+      </div>
+      <div class="text-end mt-4">
+        <button class="btn btn-primary"><i class="fa-solid fa-floppy-disk me-2"></i>Save Account Settings</button>
+      </div>
+    </form>
+
+    {% elif tab == 'password' %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="section" value="password">
+      <h6 class="fw-bold mb-3">Password Strength</h6>
+      <div class="row g-3 mb-4">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Minimum length</label>
+          <input type="number" name="password_min_length" class="form-control form-control-sm" min="6" max="64"
+                 value="{{ values.password_min_length }}"></div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Maximum length</label>
+          <input type="number" name="password_max_length" class="form-control form-control-sm" min="8" max="256"
+                 value="{{ values.password_max_length }}"></div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Generated length</label>
+          <input type="number" name="generated_password_length" class="form-control form-control-sm" min="8" max="64"
+                 value="{{ values.generated_password_length }}"></div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Password history depth</label>
+          <input type="number" name="password_history_depth" class="form-control form-control-sm" min="0" max="24"
+                 value="{{ values.password_history_depth }}">
+          <div class="form-text small">Only hashes are kept, never old passwords.</div></div>
+      </div>
+
+      <h6 class="fw-bold mb-3">Complexity Requirements</h6>
+      <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" name="password_require_uppercase" id="pru"
+                 {% if values.password_require_uppercase %}checked{% endif %}>
+          <label class="form-check-label small" for="pru">Require an uppercase letter</label></div></div>
+        <div class="col-md-3"><div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" name="password_require_lowercase" id="prl"
+                 {% if values.password_require_lowercase %}checked{% endif %}>
+          <label class="form-check-label small" for="prl">Require a lowercase letter</label></div></div>
+        <div class="col-md-3"><div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" name="password_require_number" id="prn"
+                 {% if values.password_require_number %}checked{% endif %}>
+          <label class="form-check-label small" for="prn">Require a number</label></div></div>
+        <div class="col-md-3"><div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" name="password_require_special" id="prs"
+                 {% if values.password_require_special %}checked{% endif %}>
+          <label class="form-check-label small" for="prs">Require a special character</label></div></div>
+      </div>
+
+      <h6 class="fw-bold mb-3">Expiry &amp; Tokens</h6>
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Password expiry (days)</label>
+          <input type="number" name="password_expiry_days" class="form-control form-control-sm" min="0" max="3650"
+                 value="{{ values.password_expiry_days }}">
+          <div class="form-text small">0 disables expiry.</div></div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Temporary password validity (hours)</label>
+          <input type="number" name="temporary_password_expiry_hours" class="form-control form-control-sm" min="1" max="720"
+                 value="{{ values.temporary_password_expiry_hours }}"></div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Reset link validity (minutes)</label>
+          <input type="number" name="password_reset_token_minutes" class="form-control form-control-sm" min="5" max="1440"
+                 value="{{ values.password_reset_token_minutes }}"></div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Activation link validity (minutes)</label>
+          <input type="number" name="activation_token_minutes" class="form-control form-control-sm" min="30" max="20160"
+                 value="{{ values.activation_token_minutes }}"></div>
+      </div>
+
+      <div class="alert alert-light border rounded-3 small mt-4 mb-0">
+        <div class="fw-semibold mb-2">A password set today would need to satisfy</div>
+        {% include 'identity/_password_policy.html' %}
+      </div>
+
+      <div class="text-end mt-4">
+        <button class="btn btn-primary"><i class="fa-solid fa-floppy-disk me-2"></i>Save Password Policy</button>
+      </div>
+    </form>
+
+    {% elif tab == 'email' %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="section" value="email">
+
+      <h6 class="fw-bold mb-3">Delivery Provider</h6>
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Provider</label>
+          <select name="email_provider" class="form-select form-select-sm">
+            {% for value, label in providers %}
+              <option value="{{ value }}" {% if values.email_provider == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select></div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">SMTP host</label>
+          <input type="text" name="email_host" class="form-control form-control-sm" value="{{ values.email_host }}"
+                 placeholder="Leave blank to use the provider default"></div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Port</label>
+          <input type="number" name="email_port" class="form-control form-control-sm" value="{{ values.email_port }}"></div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Encryption</label>
+          <select name="email_encryption" class="form-select form-select-sm">
+            <option value="TLS" {% if values.email_encryption == 'TLS' %}selected{% endif %}>TLS</option>
+            <option value="SSL" {% if values.email_encryption == 'SSL' %}selected{% endif %}>SSL</option>
+            <option value="NONE" {% if values.email_encryption == 'NONE' %}selected{% endif %}>None</option>
+          </select></div>
+
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Username</label>
+          <input type="text" name="email_host_user" class="form-control form-control-sm" value="{{ values.email_host_user }}"></div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Password</label>
+          <input type="password" name="email_host_password" class="form-control form-control-sm"
+                 autocomplete="new-password"
+                 placeholder="{% if has_email_secret %}Stored — leave blank to keep{% else %}Not set{% endif %}">
+          <div class="form-text small">Write-only. The stored secret is never displayed.</div></div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Timeout (seconds)</label>
+          <input type="number" name="email_timeout_seconds" class="form-control form-control-sm"
+                 value="{{ values.email_timeout_seconds }}"></div>
+        <div class="col-md-2 d-flex align-items-end">
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" name="email_enabled" id="emailEnabled"
+                   {% if values.email_enabled %}checked{% endif %}>
+            <label class="form-check-label small" for="emailEnabled">Sending enabled</label></div></div>
+
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">From name</label>
+          <input type="text" name="email_from_name" class="form-control form-control-sm" value="{{ values.email_from_name }}"></div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">From address</label>
+          <input type="email" name="email_from_address" class="form-control form-control-sm" value="{{ values.email_from_address }}"></div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Reply-to address</label>
+          <input type="email" name="email_reply_to" class="form-control form-control-sm" value="{{ values.email_reply_to }}"></div>
+
+        <div class="col-md-6">
+          <label class="form-label small fw-semibold">Portal base URL</label>
+          <input type="url" name="site_base_url" class="form-control form-control-sm" value="{{ values.site_base_url }}"
+                 placeholder="https://portal.university.ac.ke">
+          <div class="form-text small">Used to build activation and reset links in emails.</div></div>
+        <div class="col-md-6 d-flex align-items-end">
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" name="email_provisioning_enabled" id="epe"
+                   {% if values.email_provisioning_enabled %}checked{% endif %}>
+            <label class="form-check-label small" for="epe">Attempt mailbox provisioning through the provider API
+              <span class="d-block text-muted">Without a bound provider API, addresses stay pending rather than
+                being falsely reported as created.</span></label></div></div>
+      </div>
+
+      <h6 class="fw-bold mb-3">Institutional Address Format</h6>
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Student domain</label>
+          <input type="text" name="email_student_domain" class="form-control form-control-sm" value="{{ values.email_student_domain }}"></div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Staff domain</label>
+          <input type="text" name="email_staff_domain" class="form-control form-control-sm" value="{{ values.email_staff_domain }}"></div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Administrator domain</label>
+          <input type="text" name="email_admin_domain" class="form-control form-control-sm" value="{{ values.email_admin_domain }}"></div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Student address format</label>
+          <input type="text" name="email_student_format" class="form-control form-control-sm" value="{{ values.email_student_format }}"></div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Staff address format</label>
+          <input type="text" name="email_staff_format" class="form-control form-control-sm" value="{{ values.email_staff_format }}"></div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Administrator address format</label>
+          <input type="text" name="email_admin_format" class="form-control form-control-sm" value="{{ values.email_admin_format }}"></div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Address case</label>
+          <select name="email_case" class="form-select form-select-sm">
+            <option value="lower" {% if values.email_case == 'lower' %}selected{% endif %}>lowercase</option>
+            <option value="preserve" {% if values.email_case == 'preserve' %}selected{% endif %}>Preserve</option>
+          </select></div>
+      </div>
+
+      <h6 class="fw-bold mb-3">Notifications</h6>
+      <div class="row g-3">
+        <div class="col-md-3"><div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" name="notify_account_created" id="nac"
+                 {% if values.notify_account_created %}checked{% endif %}>
+          <label class="form-check-label small" for="nac">Account created</label></div></div>
+        <div class="col-md-3"><div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" name="notify_password_reset" id="npr"
+                 {% if values.notify_password_reset %}checked{% endif %}>
+          <label class="form-check-label small" for="npr">Password reset requested</label></div></div>
+        <div class="col-md-3"><div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" name="notify_password_changed" id="npc"
+                 {% if values.notify_password_changed %}checked{% endif %}>
+          <label class="form-check-label small" for="npc">Password changed</label></div></div>
+        <div class="col-md-3"><div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" name="notify_account_status" id="nas"
+                 {% if values.notify_account_status %}checked{% endif %}>
+          <label class="form-check-label small" for="nas">Account status changed</label></div></div>
+      </div>
+
+      <div class="text-end mt-4">
+        <button class="btn btn-primary"><i class="fa-solid fa-floppy-disk me-2"></i>Save Email Settings</button>
+      </div>
+    </form>
+
+    <hr class="my-4">
+    <form method="post" action="{% url 'university:send_test_email' %}" class="row g-2 align-items-end">
+      {% csrf_token %}
+      <div class="col-md-5">
+        <label class="form-label small fw-semibold">Send a test email to</label>
+        <input type="email" name="test_email" class="form-control form-control-sm" required
+               placeholder="you@example.com"></div>
+      <div class="col-md-3">
+        <button class="btn btn-outline-primary btn-sm w-100">
+          <i class="fa-solid fa-paper-plane me-1"></i>Send Test Email</button></div>
+      <div class="col-md-4">
+        <div class="small text-muted">Sends through the saved configuration and reports the real result.</div></div>
+    </form>
+
+    {% else %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="section" value="security">
+      <h6 class="fw-bold mb-3">Lockout &amp; Sessions</h6>
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Failed attempts before lockout</label>
+          <input type="number" name="max_login_attempts" class="form-control form-control-sm" min="1" max="20"
+                 value="{{ values.max_login_attempts }}"></div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Lock duration (minutes)</label>
+          <input type="number" name="account_lock_duration_minutes" class="form-control form-control-sm" min="1" max="1440"
+                 value="{{ values.account_lock_duration_minutes }}"></div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Session timeout (minutes)</label>
+          <input type="number" name="session_timeout_minutes" class="form-control form-control-sm" min="5" max="1440"
+                 value="{{ values.session_timeout_minutes }}"></div>
+        <div class="col-md-3 d-flex align-items-end">
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" name="login_progressive_delay" id="lpd"
+                   {% if values.login_progressive_delay %}checked{% endif %}>
+            <label class="form-check-label small" for="lpd">Progressive delay on repeated failures</label></div></div>
+        <div class="col-md-6">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="force_logout_after_password_reset" id="flapr"
+                   {% if values.force_logout_after_password_reset %}checked{% endif %}>
+            <label class="form-check-label small" for="flapr">Sign the user out everywhere after a password reset
+              <span class="d-block text-muted">Recommended: a stolen session cannot survive a reset.</span></label></div></div>
+      </div>
+      <div class="text-end mt-4">
+        <button class="btn btn-primary"><i class="fa-solid fa-floppy-disk me-2"></i>Save Security Settings</button>
+      </div>
+    </form>
+    {% endif %}
+
+  </div>
+</div>
+
+<p class="small text-muted mt-3 mb-0">
+  <i class="fa-solid fa-lock me-1"></i>
+  Provider secrets are stored server-side and are never sent to the browser.</p>
+{% endblock %}

@@ -8,3 +8,5 @@ class AccountsConfig(AppConfig):
     def ready(self):
         # Registers the user_logged_in receiver that stamps login activity.
         from . import activity  # noqa: F401
+        # Registers the login ledger, lockout counters and status enforcement.
+        from . import identity  # noqa: F401

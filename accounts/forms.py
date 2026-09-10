@@ -11,11 +11,48 @@ FIELD = "form-control"
 SELECT = "form-select"
 
 
+# Shown only to someone who already proved they know the password, so the
+# message cannot be used to enumerate or probe accounts.
+BLOCKED_ACCOUNT_MESSAGES = {
+    "LOCKED": "This account is temporarily locked after repeated failed sign-in "
+              "attempts. Try again later or contact the ICT service desk.",
+    "SUSPENDED": "This account is suspended. Contact the ICT service desk.",
+    "DISABLED": "This account has been disabled and can no longer sign in.",
+    "EXPIRED": "This account has expired. Contact the ICT service desk to renew it.",
+    "PENDING": "This account has not been activated yet. Use the activation link "
+               "sent to your email, or request a new one below.",
+    "INACTIVE": "This account is not active. Contact the ICT service desk.",
+    "ARCHIVED": "This account has been archived and can no longer sign in.",
+}
+
+
 class LoginForm(AuthenticationForm):
     username = forms.CharField(widget=forms.TextInput(
         attrs={"class": INPUT, "placeholder": "Username", "autofocus": True}))
     password = forms.CharField(widget=forms.PasswordInput(
         attrs={"class": INPUT, "placeholder": "Password"}))
+
+    def clean(self):
+        """
+        Explain a blocked account instead of reporting bad credentials.
+
+        The status is only disclosed once the supplied password checks out, so
+        an attacker without the password still learns nothing.
+        """
+        username = self.cleaned_data.get("username")
+        password = self.cleaned_data.get("password")
+        if username and password:
+            from university.identity_models import UserAccount
+            user = User.objects.filter(username__iexact=username).first()
+            if user is not None and user.check_password(password):
+                account = UserAccount.objects.filter(user=user).first()
+                if account is not None and not account.can_authenticate:
+                    raise forms.ValidationError(
+                        BLOCKED_ACCOUNT_MESSAGES.get(
+                            account.effective_status,
+                            "This account cannot sign in at the moment."),
+                        code="account_blocked")
+        return super().clean()
 
 
 class SignUpForm(forms.ModelForm):
@@ -183,3 +220,72 @@ class UMSPasswordChangeForm(PasswordChangeForm):
                 "placeholder": placeholders.get(name, ""),
                 "autocomplete": "new-password",
             })
+
+    def clean_new_password1(self):
+        """Apply the institution's configured password policy, not just Django's."""
+        from university.identity_services import validate_password
+        password = self.cleaned_data["new_password1"]
+        errors = validate_password(password, user=self.user)
+        if errors:
+            raise forms.ValidationError(errors)
+        return password
+
+
+# ==============================================================================
+# CENTRAL IDENTITY — SELF-SERVICE CREDENTIAL FORMS
+# ==============================================================================
+
+class PasswordResetRequestForm(forms.Form):
+    """
+    Step one of self-service recovery.
+
+    Accepts either a username or an email address and never confirms which of
+    them exists — account enumeration is prevented by the view always reporting
+    the same outcome.
+    """
+    identifier = forms.CharField(
+        label="Username or email",
+        max_length=254,
+        widget=forms.TextInput(attrs={
+            "class": INPUT, "placeholder": "Username or institutional email",
+            "autofocus": True, "autocomplete": "username",
+        }),
+    )
+
+
+class IdentitySetPasswordForm(forms.Form):
+    """
+    Choose a new password, validated against the institution's password policy.
+
+    The policy lives in ``identity_services`` so this form, the administrator
+    tools and the bulk operations all enforce exactly the same rules.
+    """
+    new_password1 = forms.CharField(
+        label="New password",
+        widget=forms.PasswordInput(attrs={
+            "class": INPUT, "placeholder": "New password", "autocomplete": "new-password"}),
+    )
+    new_password2 = forms.CharField(
+        label="Confirm new password",
+        widget=forms.PasswordInput(attrs={
+            "class": INPUT, "placeholder": "Repeat new password", "autocomplete": "new-password"}),
+    )
+
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def clean_new_password1(self):
+        from university.identity_services import validate_password
+        password = self.cleaned_data["new_password1"]
+        errors = validate_password(password, user=self.user)
+        if errors:
+            raise forms.ValidationError(errors)
+        return password
+
+    def clean(self):
+        cleaned = super().clean()
+        first, second = cleaned.get("new_password1"), cleaned.get("new_password2")
+        if first and second and first != second:
+            self.add_error("new_password2", "The two passwords do not match.")
+        return cleaned

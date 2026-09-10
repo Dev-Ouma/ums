@@ -280,6 +280,70 @@
       </div>
       {% endif %}
 
+      <!-- User Management & Identity Collapsible -->
+      {% if 'user_management' in active_modules %}
+      <div class="nav-group">
+        <div class="item item-toggle {% if '/system-admin/users/' in request.path %}active{% endif %}"
+             data-bs-toggle="collapse" data-bs-target="#adminUsersSubmenu" role="button"
+             aria-expanded="{% if '/system-admin/users/' in request.path %}true{% else %}false{% endif %}"
+             aria-controls="adminUsersSubmenu">
+          <i class="fa-solid fa-users-gear"></i>
+          <span class="item-label">User Management</span>
+          <i class="fa-solid fa-chevron-right chevron item-label"></i>
+        </div>
+        <div class="collapse submenu {% if '/system-admin/users/' in request.path %}show{% endif %}" id="adminUsersSubmenu">
+          <a class="item sub-item {% if url_name == 'user_dashboard' %}active{% endif %}" href="{% url 'university:user_dashboard' %}">
+            <i class="fa-solid fa-gauge-high"></i> <span class="item-label">User Dashboard</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'user_list' or url_name == 'user_detail' or url_name == 'user_edit' %}active{% endif %}" href="{% url 'university:user_list' %}">
+            <i class="fa-solid fa-users"></i> <span class="item-label">All Users</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'user_create' %}active{% endif %}" href="{% url 'university:user_create' %}">
+            <i class="fa-solid fa-user-plus"></i> <span class="item-label">Create User</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'student_accounts' %}active{% endif %}" href="{% url 'university:student_accounts' %}">
+            <i class="fa-solid fa-user-graduate"></i> <span class="item-label">Student Accounts</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'staff_accounts' %}active{% endif %}" href="{% url 'university:staff_accounts' %}">
+            <i class="fa-solid fa-user-tie"></i> <span class="item-label">Staff Accounts</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'password_management' %}active{% endif %}" href="{% url 'university:password_management' %}">
+            <i class="fa-solid fa-key"></i> <span class="item-label">Password Management</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'account_status_board' %}active{% endif %}" href="{% url 'university:account_status_board' %}">
+            <i class="fa-solid fa-toggle-on"></i> <span class="item-label">Account Status</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'group_list' or url_name == 'group_create' or url_name == 'group_edit' %}active{% endif %}" href="{% url 'university:group_list' %}">
+            <i class="fa-solid fa-users-rectangle"></i> <span class="item-label">User Groups</span>
+          </a>
+          <a class="item sub-item" href="{% url 'university:user_roles_permissions' %}">
+            <i class="fa-solid fa-user-shield"></i> <span class="item-label">Roles &amp; Permissions</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'email_accounts' %}active{% endif %}" href="{% url 'university:email_accounts' %}">
+            <i class="fa-solid fa-envelope"></i> <span class="item-label">Email Accounts</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'username_management' %}active{% endif %}" href="{% url 'university:username_management' %}">
+            <i class="fa-solid fa-id-badge"></i> <span class="item-label">Username Management</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'login_security' %}active{% endif %}" href="{% url 'university:login_security' %}">
+            <i class="fa-solid fa-shield-halved"></i> <span class="item-label">Login &amp; Security</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'login_history' %}active{% endif %}" href="{% url 'university:login_history' %}">
+            <i class="fa-solid fa-right-to-bracket"></i> <span class="item-label">Login History</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'user_activity' %}active{% endif %}" href="{% url 'university:user_activity' %}">
+            <i class="fa-solid fa-wave-square"></i> <span class="item-label">User Activity</span>
+          </a>
+          <a class="item sub-item {% if 'bulk' in url_name %}active{% endif %}" href="{% url 'university:bulk_operations' %}">
+            <i class="fa-solid fa-layer-group"></i> <span class="item-label">Bulk Operations</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'user_settings' %}active{% endif %}" href="{% url 'university:user_settings' %}">
+            <i class="fa-solid fa-sliders"></i> <span class="item-label">User Settings</span>
+          </a>
+        </div>
+      </div>
+      {% endif %}
+
       <!-- System Administration Collapsible -->
       <div class="nav-group">
         <div class="item item-toggle {% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or request.resolver_match.namespace == 'control' %}active{% endif %}"

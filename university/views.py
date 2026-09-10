@@ -441,7 +441,8 @@ def student_import(request):
                 messages.error(request, "There are no valid records to import.")
                 return render(request, "dashboard/student_import.html", {"preview_data": session_data})
 
-            imported_count, failed_count = student_io.execute_student_import(valid_items)
+            imported_count, failed_count = student_io.execute_student_import(
+                valid_items, actor=request.user)
             total_failed = errors_count + failed_count
 
             # Clear session
@@ -490,8 +491,9 @@ def student_detail(request, pk):
 def student_create(request):
     form = StudentForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
-        sp = form.save()
-        messages.success(request, f"Student {sp.user.display_name} added.")
+        sp = form.save(actor=request.user)
+        messages.success(request, f"Student {sp.user.display_name} added. Sign-in details were "
+                                  f"emailed; manage the account from User Management.")
         return redirect("university:student_detail", pk=sp.pk)
     return _render_form(request, form, "Add Student", "Create a new student account and profile",
                         "fa-user-plus", "university:admin_students")
@@ -502,7 +504,7 @@ def student_edit(request, pk):
     sp = get_object_or_404(StudentProfile, pk=pk)
     form = StudentForm(request.POST or None, instance=sp)
     if request.method == "POST" and form.is_valid():
-        form.save()
+        form.save(actor=request.user)
         messages.success(request, "Student updated.")
         return redirect("university:student_detail", pk=sp.pk)
     return _render_form(request, form, "Edit Student", sp.user.display_name,
@@ -755,7 +757,8 @@ def faculty_import(request):
                 messages.error(request, "There are no valid records to import.")
                 return render(request, "dashboard/faculty_import.html", {"preview_data": session_data})
 
-            imported_count, failed_count = faculty_io.execute_faculty_import(valid_items)
+            imported_count, failed_count = faculty_io.execute_faculty_import(
+                valid_items, actor=request.user)
             total_failed = errors_count + failed_count
 
             request.session.pop("pending_faculty_import", None)
@@ -799,8 +802,9 @@ def faculty_detail(request, pk):
 def faculty_create(request):
     form = FacultyForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
-        fp = form.save()
-        messages.success(request, f"Faculty {fp.user.display_name} added.")
+        fp = form.save(actor=request.user)
+        messages.success(request, f"Faculty {fp.user.display_name} added. Sign-in details were "
+                                  f"emailed; manage the account from User Management.")
         return redirect("university:faculty_detail", pk=fp.pk)
     return _render_form(request, form, "Add Faculty", "Create a new faculty account and profile",
                         "fa-user-plus", "university:admin_faculty")
@@ -811,7 +815,7 @@ def faculty_edit(request, pk):
     fp = get_object_or_404(FacultyProfile, pk=pk)
     form = FacultyForm(request.POST or None, instance=fp)
     if request.method == "POST" and form.is_valid():
-        form.save()
+        form.save(actor=request.user)
         messages.success(request, "Faculty updated.")
         return redirect("university:faculty_detail", pk=fp.pk)
     return _render_form(request, form, "Edit Faculty", fp.user.display_name,

@@ -487,3 +487,122 @@ def assign_staff_role(user, role_id_or_code, department_id=None, actor=None, req
         description=f"Assigned role '{role.name}'{dept_str} to staff user {user.username}.",
     )
     return assignment
+
+
+# ==============================================================================
+# 6. USER MANAGEMENT & IDENTITY ADMINISTRATION PERMISSIONS
+# ==============================================================================
+# Identity work is split into narrow grants so that, for example, a registry
+# clerk can reset a student's password without also being able to change roles.
+
+USER_MANAGEMENT_PERMISSIONS = [
+    ("users.view", "View User Accounts", "User Management",
+     "Browse the user directory, account profiles, and status information."),
+    ("users.create", "Create User Accounts", "User Management",
+     "Provision new student, staff, and administrator accounts."),
+    ("users.edit", "Edit User Accounts", "User Management",
+     "Modify identity details, organisation links, and account metadata."),
+    ("users.manage_status", "Manage Account Status", "User Management",
+     "Activate, deactivate, suspend, disable, unlock, and archive accounts."),
+    ("users.reset_password", "Reset User Passwords", "User Management",
+     "Send reset links, force password changes, and issue temporary credentials."),
+    ("users.generate_credentials", "Generate Usernames & Passwords", "User Management",
+     "Run the username and secure password generators."),
+    ("users.manage_emails", "Manage Institutional Email Accounts", "User Management",
+     "Generate, provision, suspend, and archive institutional email identities."),
+    ("users.manage_groups", "Manage User Groups", "User Management",
+     "Create user groups and manage group membership and inherited roles."),
+    ("users.bulk_operations", "Run Bulk User Operations", "User Management",
+     "Import users in bulk and run bulk password, email, and status operations."),
+    ("users.view_login_history", "View Login & Security History", "User Management",
+     "Inspect login history, failed attempts, and account security events."),
+    ("users.manage_sessions", "Manage User Sessions", "User Management",
+     "View active sessions and force-revoke a user's authenticated sessions."),
+    ("users.export", "Export User Data", "User Management",
+     "Export filtered user lists to PDF, Excel, and CSV."),
+    ("users.manage_settings", "Manage User Management Settings", "User Management",
+     "Configure username rules, password policy, email domains, and providers."),
+]
+
+DEFAULT_PERMISSIONS += USER_MANAGEMENT_PERMISSIONS
+
+DEFAULT_ROLES.append({
+    "name": "ICT & Identity Administrator",
+    "code": "identity_admin",
+    "color": "#00b894",
+    "description": "Custodian of the central user directory, credentials, institutional "
+                   "email identities, and account security.",
+    "permissions": [code for code, _n, _m, _d in USER_MANAGEMENT_PERMISSIONS] + [
+        "admin.view_audit_logs", "admin.manage_roles_permissions",
+    ],
+})
+
+DEFAULT_ROLES.append({
+    "name": "Registry Service Desk",
+    "code": "registry_service_desk",
+    "color": "#0984e3",
+    "description": "Front-line desk that helps students and staff recover access without "
+                   "holding role-escalation or configuration authority.",
+    "permissions": [
+        "users.view", "users.reset_password", "users.manage_status",
+        "users.view_login_history", "students.view_all",
+    ],
+})
+
+
+# ==============================================================================
+# 7. DEFAULT USER GROUPS
+# ==============================================================================
+
+DEFAULT_USER_GROUPS = [
+    {"code": "students", "name": "Students", "user_type": "STUDENT", "precedence": 90,
+     "icon": "fa-solid fa-user-graduate", "color": "#0984e3", "roles": [],
+     "description": "All enrolled students."},
+    {"code": "faculty", "name": "Faculty", "user_type": "STAFF", "precedence": 60,
+     "icon": "fa-solid fa-chalkboard-user", "color": "#00cec9", "roles": ["lecturer"],
+     "description": "Teaching staff delivering course units."},
+    {"code": "finance_staff", "name": "Finance Staff", "user_type": "STAFF", "precedence": 50,
+     "icon": "fa-solid fa-coins", "color": "#fdcb6e", "roles": ["finance_officer"],
+     "description": "Bursary and fee accounts staff."},
+    {"code": "registry_staff", "name": "Registry Staff", "user_type": "STAFF", "precedence": 50,
+     "icon": "fa-solid fa-folder-open", "color": "#a29bfe", "roles": ["admissions_officer"],
+     "description": "Admissions and student records officers."},
+    {"code": "department_heads", "name": "Department Heads", "user_type": "STAFF", "precedence": 30,
+     "icon": "fa-solid fa-sitemap", "color": "#6C5CE7", "roles": ["hod"],
+     "description": "Heads of department and academic chairs."},
+    {"code": "examinations_staff", "name": "Examinations Staff", "user_type": "STAFF",
+     "precedence": 40, "icon": "fa-solid fa-file-pen", "color": "#e84393",
+     "roles": ["exam_officer"], "description": "Examinations office and Senate secretariat."},
+    {"code": "system_administrators", "name": "System Administrators", "user_type": "ADMIN",
+     "precedence": 10, "icon": "fa-solid fa-user-shield", "color": "#2d3436",
+     "roles": ["identity_admin"], "description": "ICT and system administration team."},
+]
+
+
+@transaction.atomic
+def seed_default_user_groups():
+    """
+    Idempotently create the standard user groups.
+
+    Group roles resolve to the same ``StaffRole`` objects the permission engine
+    already evaluates, so groups never become a second source of authority.
+    """
+    from university.identity_models import UserGroup
+
+    created = 0
+    for spec in DEFAULT_USER_GROUPS:
+        group, was_created = UserGroup.objects.update_or_create(
+            code=spec["code"],
+            defaults={
+                "name": spec["name"],
+                "description": spec["description"],
+                "user_type": spec["user_type"],
+                "precedence": spec["precedence"],
+                "icon": spec["icon"],
+                "color": spec["color"],
+                "is_system_group": True,
+            },
+        )
+        group.roles.set(StaffRole.objects.filter(code__in=spec["roles"]))
+        created += int(was_created)
+    return created

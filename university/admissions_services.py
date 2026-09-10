@@ -271,28 +271,37 @@ def matriculate_applicant(application, created_by=None):
 
     roll_no = application.admitted_reg_no
 
-    # Create User account
+    # Central identity. Admissions never mints credentials of its own: it asks
+    # the user management service for the one account this person will ever have,
+    # and that service issues a single-use activation link instead of a password.
+    from university.identity_models import UserType
+    from university.identity_services import create_user_account, provision_student_account
+
     username = roll_no.lower().replace("/", ".").replace(" ", "")
     existing_user = User.objects.filter(username=username).first()
     if not existing_user:
         existing_user = User.objects.filter(email=application.email).first()
 
-    default_password = "demo1234"
-    if not existing_user:
-        user = User.objects.create_user(
-            username=username,
-            email=application.email,
-            first_name=application.first_name,
-            last_name=application.last_name,
-            role=Role.STUDENT,
-        )
-        user.set_password(default_password)
-        user.save()
-    else:
+    if existing_user:
+        # Re-matriculation or a pre-existing identity: reuse it, never duplicate it.
         user = existing_user
         if user.role != Role.STUDENT:
             user.role = Role.STUDENT
             user.save(update_fields=["role"])
+    else:
+        created = create_user_account(
+            user_type=UserType.STUDENT,
+            first_name=application.first_name,
+            last_name=application.last_name,
+            email=application.email or "",
+            username=username,
+            phone=application.phone or "",
+            role=Role.STUDENT,
+            password_mode="LINK",
+            actor=created_by,
+            notify=True,
+        )
+        user = created["user"]
 
     # Create StudentProfile
     student_profile = StudentProfile.objects.filter(user=user).first()
@@ -307,6 +316,10 @@ def matriculate_applicant(application, created_by=None):
             status=StudentProfile.Status.ACTIVE,
             guardian_name=f"Parent of {application.first_name}",
         )
+
+    # Institutional email, account status and the student's identity envelope.
+    # Idempotent, so re-running matriculation never produces a second identity.
+    provision_student_account(student_profile, actor=created_by, notify=False)
 
     # Initialize the first SemesterRegistration for the active academic term,
     if active_term and active_term.academic_year:
@@ -381,4 +394,7 @@ def matriculate_applicant(application, created_by=None):
         }
     )
 
-    return student_profile, user, default_password
+    # The third value is retained for callers that used to surface a starting
+    # password. Matriculation no longer issues one: the student sets their own
+    # through the activation link, so there is nothing to hand over.
+    return student_profile, user, None
