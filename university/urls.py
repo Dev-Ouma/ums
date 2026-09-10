@@ -22,6 +22,7 @@ from . import fee_payment_views
 from . import fee_account_views
 from . import backup_views
 from . import identity_views
+from . import golive_views
 
 app_name = "university"
 
@@ -51,6 +52,8 @@ urlpatterns = [
     path("manage/academic-years/<int:pk>/action/<str:action>/", calendar_views.academic_year_action, name="academic_year_action"),
 
     # Semesters under Academic Years
+    path("manage/semester/", calendar_views.admin_semesters, name="admin_semesters"),
+    path("manage/semester/new/", calendar_views.semester_create_global, name="semester_create_global"),
     path("manage/academic-years/<int:year_id>/semesters/new/", calendar_views.semester_create, name="semester_create"),
     path("manage/semesters/<int:pk>/edit/", calendar_views.semester_edit, name="semester_edit"),
     path("manage/semesters/<int:pk>/delete/", calendar_views.semester_delete, name="semester_delete"),
@@ -83,6 +86,13 @@ urlpatterns = [
     path("manage/faculty/<int:pk>/", views.faculty_detail, name="faculty_detail"),
     path("manage/faculty/<int:pk>/edit/", views.faculty_edit, name="faculty_edit"),
     path("manage/faculty/<int:pk>/delete/", views.faculty_delete, name="faculty_delete"),
+
+    # Admin — schools / faculties
+    path("manage/schools/", views.admin_schools, name="admin_schools"),
+    path("manage/schools/new/", views.school_create, name="school_create"),
+    path("schools/<int:pk>/", views.school_detail, name="school_detail"),
+    path("manage/schools/<int:pk>/edit/", views.school_edit, name="school_edit"),
+    path("manage/schools/<int:pk>/delete/", views.school_delete, name="school_delete"),
 
     # Admin — departments & programmes
     path("manage/departments/", views.admin_departments, name="admin_departments"),
@@ -248,6 +258,8 @@ urlpatterns = [
 
 
     # Academics — Student
+    path("manage/academics/semestar-reg/", academics_views.student_semester_registration, name="student_semester_registration_legacy"),
+    path("manage/academics/semester-reg/", academics_views.student_semester_registration, name="student_semester_registration"),
     path("academics/register/", academics_views.student_register_units, name="student_register_units"),
     path("academics/exam-card/", academics_views.student_exam_card, name="student_exam_card"),
     path("academics/exam-card/pdf/", academics_views.student_exam_card_pdf, name="student_exam_card_pdf"),
@@ -323,6 +335,13 @@ urlpatterns = [
     path("system-admin/backups/settings/", backup_views.backup_settings, name="backup_settings"),
     path("system-admin/backups/logs/", backup_views.backup_logs, name="backup_logs"),
     path("system-admin/backups/export/", backup_views.backup_export, name="backup_export"),
+
+    # Go-Live Command Center
+    path("system-admin/go-live/", golive_views.golive_dashboard, name="golive_dashboard"),
+    path("system-admin/go-live/category/<int:pk>/update/", golive_views.golive_category_update, name="golive_category_update"),
+    path("system-admin/go-live/issues/create/", golive_views.golive_issue_create, name="golive_issue_create"),
+    path("system-admin/go-live/issues/<int:pk>/update/", golive_views.golive_issue_update, name="golive_issue_update"),
+    path("system-admin/go-live/issues/<int:pk>/delete/", golive_views.golive_issue_delete, name="golive_issue_delete"),
 
     # System Administration — Admin Setups
     path("manage/setups/", setups_views.admin_setups_dashboard, name="admin_setups_dashboard"),
