@@ -95,6 +95,39 @@ class CentralIdentityTests(IdentityTestBase):
                 email="first.claimant@example.com", username="second.claimant",
                 password_mode="LINK", actor=self.admin, notify=False)
 
+    def test_signup_form_provisions_identity_account(self):
+        from accounts.forms import SignUpForm
+        from accounts.models import StudentProfile
+        from university.identity_models import InstitutionalEmail, UserAccount, UserType, AccountStatus
+
+        form_data = {
+            "username": "selfreg.student",
+            "first_name": "Self",
+            "last_name": "Registered",
+            "email": "selfreg@example.com",
+            "password1": "ComplexP@ssw0rd!2026",
+            "password2": "ComplexP@ssw0rd!2026",
+            "program": self.program.pk,
+        }
+        form = SignUpForm(data=form_data)
+        self.assertTrue(form.is_valid(), form.errors)
+        user = form.save()
+
+        self.assertIsNotNone(user)
+        self.assertTrue(UserAccount.objects.filter(user=user).exists())
+        account = user.account
+        self.assertEqual(account.user_type, UserType.STUDENT)
+        self.assertEqual(account.status, AccountStatus.ACTIVE)
+        self.assertTrue(account.can_authenticate)
+
+        # Profile and email provisioning
+        self.assertTrue(StudentProfile.objects.filter(user=user).exists())
+        self.assertTrue(InstitutionalEmail.objects.filter(user=user).exists())
+
+        # Authentication test via IdentityModelBackend
+        auth_user = authenticate(username="selfreg.student", password="ComplexP@ssw0rd!2026")
+        self.assertEqual(auth_user, user)
+
 
 # ==============================================================================
 # 2. STUDENT PROVISIONING FROM ADMISSIONS

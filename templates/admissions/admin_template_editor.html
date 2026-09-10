@@ -40,7 +40,7 @@
         <div class="row g-3">
           <div class="col-md-8">
             <label class="form-label fw-semibold">Template Name <span class="text-danger">*</span></label>
-            <input type="text" name="name" class="form-control rounded-3" value="{{ template.name|default:'Standard Undergraduate Admission Letter' }}" required>
+            <input type="text" name="name" class="form-control rounded-3" value="{{ template.name|default:defaults.name }}" required>
           </div>
           <div class="col-md-4">
             <label class="form-label fw-semibold">Document Type</label>
@@ -95,17 +95,17 @@
         <div class="row g-3">
           <div class="col-12">
             <label class="form-label fw-semibold">Letterhead Header Banner Title</label>
-            <input type="text" name="header_title" class="form-control rounded-3" value="{{ template.header_title|default:'OFFICE OF THE REGISTRAR (ACADEMIC AFFAIRS)' }}" required>
+            <input type="text" name="header_title" class="form-control rounded-3" value="{{ template.header_title|default:defaults.header_title }}" required>
           </div>
 
           <div class="col-md-6">
             <label class="form-label fw-semibold">Salutation Template</label>
-            <input type="text" name="salutation_template" class="form-control rounded-3" value="{{ template.salutation_template|default:'Dear {{student_name}},' }}" required>
+            <input type="text" name="salutation_template" class="form-control rounded-3" value="{{ template.salutation_template|default:defaults.salutation_template }}" required>
           </div>
 
           <div class="col-md-6">
             <label class="form-label fw-semibold">Subject Line Template</label>
-            <input type="text" name="subject_template" class="form-control rounded-3" value="{{ template.subject_template|default:'LETTER OF OFFER: ADMISSION TO {{programme_name}} ({{programme_code}})' }}" required>
+            <input type="text" name="subject_template" class="form-control rounded-3" value="{{ template.subject_template|default:defaults.subject_template }}" required>
           </div>
 
           <div class="col-12">
@@ -113,17 +113,17 @@
               <label class="form-label fw-semibold mb-0">Main Body Paragraphs</label>
               <small class="text-muted">Separate paragraphs with double enter (blank line)</small>
             </div>
-            <textarea name="body_template" id="bodyTemplateInput" class="form-control rounded-3 font-monospace" rows="8" required>{{ template.body_template|default:"I am pleased to inform you that following your application, the University Admissions Board has offered you admission into the {{programme_name}} in the {{faculty_name}} for the {{intake}} commencing in {{academic_year}} ({{semester}}).\n\nYou are required to report to the Main Campus for orientation, document verification, and formal registration on {{reporting_date}} at 8:00 AM. Failure to report within two weeks of the scheduled date without prior written approval from the Registrar will result in the forfeiture of this offer." }}</textarea>
+            <textarea name="body_template" id="bodyTemplateInput" class="form-control rounded-3 font-monospace" rows="8" required>{{ template.body_template|default:defaults.body_template }}</textarea>
           </div>
 
           <div class="col-12">
             <label class="form-label fw-semibold">Mandatory Conditions & Guidelines</label>
-            <textarea name="terms_and_conditions" class="form-control rounded-3 font-monospace" rows="4">{{ template.terms_and_conditions|default:"1. This offer of provisional admission is subject to physical verification of your original KCSE / High School certificates, National ID card / passport, and birth certificate.\n2. All registered students are bound by the University Charter, Statutes, Rules and Regulations governing Student Conduct and Discipline.\n3. At least 75% of first-semester fees must be paid prior to biometric registration and unit enrolment.\n4. The university reserves the right to withdraw this offer at any time should any submitted documents or academic qualifications be found fraudulent or falsified." }}</textarea>
+            <textarea name="terms_and_conditions" class="form-control rounded-3 font-monospace" rows="4">{{ template.terms_and_conditions|default:defaults.terms_and_conditions }}</textarea>
           </div>
 
           <div class="col-12">
             <label class="form-label fw-semibold">Fee Payment Instructions</label>
-            <textarea name="fee_schedule_instructions" class="form-control rounded-3 font-monospace" rows="3">{{ template.fee_schedule_instructions|default:"Tuition and statutory fees must be deposited directly to the University Bank Account:\n• Depository Bank: {{bank_name}}\n• Account Number: {{bank_account}} ({{bank_branch}})\n• M-Pesa Paybill: {{mpesa_paybill}} (Account: {{application_number}})\n• Estimated First Semester Total: {{total_fees}} (Tuition: {{tuition_fee}})\nCheques and cash payments at campus counters are strictly not accepted." }}</textarea>
+            <textarea name="fee_schedule_instructions" class="form-control rounded-3 font-monospace" rows="3">{{ template.fee_schedule_instructions|default:defaults.fee_schedule_instructions }}</textarea>
           </div>
         </div>
       </div>
@@ -133,17 +133,17 @@
         <div class="row g-3">
           <div class="col-md-6">
             <label class="form-label fw-semibold">Authorized Signatory Full Name</label>
-            <input type="text" name="signatory_name" class="form-control rounded-3" value="{{ template.signatory_name|default:'Dr. Margaret Omolo, PhD' }}" required>
+            <input type="text" name="signatory_name" class="form-control rounded-3" value="{{ template.signatory_name|default:defaults.signatory_name }}" required>
           </div>
 
           <div class="col-md-6">
             <label class="form-label fw-semibold">Signatory Title / Designation</label>
-            <input type="text" name="signatory_title" class="form-control rounded-3" value="{{ template.signatory_title|default:'Registrar, Academic & Student Affairs' }}" required>
+            <input type="text" name="signatory_title" class="form-control rounded-3" value="{{ template.signatory_title|default:defaults.signatory_title }}" required>
           </div>
 
           <div class="col-12">
             <label class="form-label fw-semibold">Online Verification Base URL</label>
-            <input type="text" name="verification_base_url" class="form-control rounded-3" value="{{ template.verification_base_url|default:'https://ums.ac.ke/verify-admission/' }}">
+            <input type="text" name="verification_base_url" class="form-control rounded-3" value="{{ template.verification_base_url|default:defaults.verification_base_url }}">
             <div class="form-text">Reference number will be appended automatically to generate the verification link.</div>
           </div>
         </div>

@@ -411,6 +411,8 @@ class Command(BaseCommand):
                  email=f"{username}@{EMAIL_DOMAIN}", role=role, phone=PHONE)
         u.set_password(PASSWORD)
         u.save()
+        from university.identity_services import ensure_account
+        ensure_account(u)
         return u
 
     def _unique_username(self, base):
