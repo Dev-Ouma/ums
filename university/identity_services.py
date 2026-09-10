@@ -290,14 +290,20 @@ def generate_password(length=None, use_upper=None, use_lower=None, use_digits=No
 
 @transaction.atomic
 def record_password_change(user, raw_password, actor=None, request=None,
-                           must_change=False, notify=True, invalidate_sessions=True,
+                           must_change=False, notify=True, invalidate_sessions=None,
                            keep_session_key=None, reason=""):
     """
     Apply a new password and every consequence the security policy requires.
 
     Hashing, history, expiry stamps, token invalidation, session revocation,
     notification and audit all happen here so no caller can do half the job.
+
+    ``invalidate_sessions`` defaults to the administrator-configured
+    ``force_logout_after_password_reset`` setting when left unspecified; pass
+    an explicit ``True``/``False`` to override that policy for a given flow.
     """
+    if invalidate_sessions is None:
+        invalidate_sessions = bool(get_setting("force_logout_after_password_reset", True))
     policy = get_password_policy()
     user.set_password(raw_password)
     user.save(update_fields=["password"])

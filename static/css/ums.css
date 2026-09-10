@@ -126,6 +126,39 @@ html.sidebar-collapsed .sidebar .chevron{display:none!important}
 .status.UNPAID,.status.ABSENT,.status.A,.status.PENDING,.status.DROPPED{background:#fdecef;color:#e6488a}
 .status.PARTIAL,.status.LATE,.status.L,.status.SUBMITTED{background:#fff5e6;color:#e08e0b}
 
+.system-ticker-stack{display:grid;gap:10px;margin-bottom:20px;max-width:100%;overflow:hidden}
+.system-ticker{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:12px;
+  width:100%;max-width:100%;min-width:0;overflow:hidden;border-radius:8px;padding:8px 12px;
+  color:#fff;background:linear-gradient(90deg,var(--primary-dark),var(--primary));box-shadow:var(--shadow-sm)}
+.system-ticker-high{background:linear-gradient(90deg,#9a5b00,#d97706)}
+.system-ticker-critical{background:linear-gradient(90deg,#9f1239,#e11d48)}
+.system-ticker-low{background:linear-gradient(90deg,#2563eb,#0891b2)}
+.system-ticker-label{display:flex;align-items:center;gap:8px;min-width:150px;font-weight:800;text-transform:uppercase;
+  letter-spacing:0;font-size:.78rem;white-space:nowrap}
+.system-ticker-label i{font-size:.9rem}
+.system-ticker-viewport{position:relative;min-width:0;overflow:hidden;white-space:nowrap}
+.system-ticker-track{display:inline-flex;align-items:center;gap:18px;min-width:max-content;
+  animation:umsTicker var(--ticker-duration,28s) linear infinite;will-change:transform}
+.system-ticker-track a,.system-ticker-action{color:#fff;font-weight:800;text-decoration:underline;text-underline-offset:3px}
+.system-ticker-action{white-space:nowrap;font-size:.84rem}
+.system-ticker:hover .system-ticker-track,.system-ticker:focus-within .system-ticker-track{animation-play-state:paused}
+.system-ticker-static .system-ticker-track{animation:none;transform:none;min-width:0;white-space:normal}
+.system-ticker-static .system-ticker-viewport{white-space:normal}
+.system-ticker .btn-close{position:static;filter:none;opacity:.85;flex:none}
+@keyframes umsTicker{from{transform:translateX(100%)}to{transform:translateX(-100%)}}
+.system-ticker-track-reverse{animation-name:umsTickerReverse}
+@keyframes umsTickerReverse{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+@media(max-width:767px){
+  .system-ticker{grid-template-columns:1fr auto;gap:8px;padding:10px}
+  .system-ticker-label{min-width:0;grid-column:1/-1;font-size:.72rem}
+  .system-ticker-viewport{grid-column:1/2}
+  .system-ticker-action{grid-column:1/2}
+}
+@media(prefers-reduced-motion:reduce){
+  .system-ticker-track{animation:none!important;transform:none!important;min-width:0;white-space:normal}
+  .system-ticker-viewport{white-space:normal}
+}
+
 .progress{height:8px;border-radius:20px;background:#eef0f6}
 .ai-fab{position:fixed;right:26px;bottom:26px;width:60px;height:60px;border-radius:50%;
   background:var(--gradient);color:#fff;display:grid;place-items:center;font-size:1.5rem;
@@ -720,6 +753,16 @@ html.sidebar-collapsed .sidebar .chevron{display:none!important}
 .ums-toast.toast-danger .ums-toast-icon{color:#e84393}
 .ums-toast.toast-warning .ums-toast-icon{color:#f0932b}
 .ums-toast.toast-info .ums-toast-icon{color:var(--primary)}
+.ums-toast.toast-critical{background:#fff5f5;border-left:4px solid #c0392b;box-shadow:0 10px 30px rgba(192,57,43,.22),0 0 0 1px rgba(192,57,43,.18)}
+.ums-toast.toast-critical .ums-toast-icon{color:#c0392b}
+.ums-toast.toast-critical .ums-toast-title{color:#c0392b}
+
+/* Critical-severity system banner: visually distinct from routine Error/Warning
+   alerts and intentionally not dismissible -- it must stay visible for the
+   duration of the underlying critical condition. */
+.alert-critical{background:#fff5f5;color:#7a1f14;border-left:4px solid #c0392b!important}
+.alert-critical strong{color:#c0392b}
+.alert-critical .fa-circle-exclamation{color:#c0392b}
 .ums-toast-body{
   flex-grow:1;
   min-width:0;
@@ -1060,4 +1103,3 @@ html.sidebar-collapsed .sidebar .chevron{display:none!important}
   .table-responsive { overflow: visible !important; }
   a { color: inherit !important; text-decoration: none !important; }
 }
-

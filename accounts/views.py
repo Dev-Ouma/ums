@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
@@ -36,7 +37,15 @@ class UMSLoginView(LoginView):
         if recovery:
             self.request.session['_control_recovery_login'] = True
         messages.success(self.request, f"Welcome back, {form.get_user().display_name}!")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        # "Remember me" controls whether the session cookie survives the
+        # browser closing; unchecked, it expires with the browser session
+        # instead of lingering for SESSION_COOKIE_AGE.
+        if form.cleaned_data.get("remember_me"):
+            self.request.session.set_expiry(settings.SESSION_COOKIE_AGE)
+        else:
+            self.request.session.set_expiry(0)
+        return response
 
 
 @require_POST
@@ -71,7 +80,33 @@ def signup(request):
 
 @login_required
 def profile(request):
-    return render(request, "accounts/profile.html")
+    from university.identity_services import active_sessions_for
+
+    current_key = request.session.session_key
+    sessions = [
+        {"session": s, "is_current": s.session_key == current_key}
+        for s in active_sessions_for(request.user)
+    ]
+    return render(request, "accounts/profile.html", {"sessions": sessions})
+
+
+@require_POST
+@login_required
+def revoke_other_sessions(request):
+    """Self-service equivalent of the admin "revoke sessions" action.
+
+    Only ever revokes *other* sessions — the caller's own session is always
+    kept alive so this can never accidentally sign the user out of the page
+    they clicked the button from.
+    """
+    from university.identity_services import invalidate_user_sessions
+
+    killed = invalidate_user_sessions(request.user, keep_session_key=request.session.session_key)
+    if killed:
+        messages.success(request, f"Signed out of {killed} other device(s).")
+    else:
+        messages.info(request, "No other active sessions were found.")
+    return redirect("accounts:profile")
 
 
 def _details_form_for(user, data=None):

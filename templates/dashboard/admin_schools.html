@@ -1,0 +1,38 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Schools & Faculties · UMS{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h4><i class="fa-solid fa-landmark me-2 text-primary"></i>Schools & Faculties</h4>
+  <div class="d-flex gap-2">
+    <a href="{% url 'university:school_create' %}" class="btn btn-primary rounded-pill px-3"><i class="fa-solid fa-plus me-1"></i>Add School</a>
+  </div>
+</div>
+<div class="row g-4">
+  {% for s in schools %}
+  <div class="col-md-6 col-lg-4">
+    <div class="card card-ums h-100 overflow-hidden">
+      <div class="p-4 text-white" style="background:var(--gradient)">
+        <div class="d-flex justify-content-between align-items-center">
+          <i class="fa-solid fa-landmark fa-2x"></i><span class="badge bg-light text-dark">{{ s.code }}</span>
+        </div>
+        <h5 class="fw-bold mt-3 mb-0">{{ s.name }}</h5>
+      </div>
+      <div class="card-body">
+        <p class="small text-muted">{{ s.description|truncatewords:16|default:"No description." }}</p>
+        <div class="d-flex gap-3 small">
+          <span><i class="fa-solid fa-building-columns me-1 text-primary"></i>{{ s.n_departments }} departments</span>
+          {% if s.dean_name %}<span><i class="fa-solid fa-user-tie me-1 text-primary"></i>{{ s.dean_name }}</span>{% endif %}
+        </div>
+        <div class="btn-group btn-group-sm mt-3">
+          <a href="{% url 'university:school_detail' s.id %}" class="btn btn-outline-primary rounded-start-pill"><i class="fa-solid fa-eye me-1"></i>Open</a>
+          <a href="{% url 'university:school_edit' s.id %}" class="btn btn-outline-secondary"><i class="fa-solid fa-pen"></i></a>
+          <a href="{% url 'university:school_delete' s.id %}" class="btn btn-outline-danger rounded-end-pill"><i class="fa-solid fa-trash"></i></a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  <div class="col-12"><div class="card card-ums text-center p-5 text-muted">No schools or faculties yet.</div></div>
+  {% endfor %}
+</div>
+{% endblock %}

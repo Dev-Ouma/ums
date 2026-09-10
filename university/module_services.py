@@ -67,7 +67,7 @@ SYSTEM_MODULES_CATALOG = [
         "is_critical": True,
         "sort_order": 2,
         "target_roles": ["ADMIN"],
-        "route_prefixes": ["university:admin_modules", "university:admin_setups_dashboard", "university:staff_permissions_dashboard", "university:audit_dashboard", "university:recycle_bin_dashboard", "university:backup_dashboard"],
+        "route_prefixes": ["university:admin_modules", "university:admin_setups_dashboard", "university:staff_permissions_dashboard", "university:audit_dashboard", "university:recycle_bin_dashboard", "university:backup_dashboard", "university:golive_dashboard"],
         "submodules": [
             {
                 "code": "module_mgmt",
@@ -129,6 +129,18 @@ SYSTEM_MODULES_CATALOG = [
                     "backup_export"
                 ],
                 "path_patterns": ["/system-admin/backups/"],
+            },
+            {
+                "code": "golive_readiness",
+                "name": "Go-Live Command Center",
+                "description": "Pre-launch readiness scoreboard across all functional, security, data, and operational categories, plus the tracked issue/warning ledger.",
+                "icon": "fa-solid fa-rocket",
+                "is_critical": True,
+                "route_names": [
+                    "golive_dashboard", "golive_category_update", "golive_issue_create",
+                    "golive_issue_update", "golive_issue_delete",
+                ],
+                "path_patterns": ["/system-admin/go-live/"],
             },
         ],
     },
@@ -365,7 +377,7 @@ SYSTEM_MODULES_CATALOG = [
         "is_critical": False,
         "sort_order": 5,
         "target_roles": ["ADMIN", "FACULTY"],
-        "route_prefixes": ["university:admin_programs", "university:admin_departments", "university:admin_courses"],
+        "route_prefixes": ["university:admin_programs", "university:admin_schools", "university:admin_departments", "university:admin_courses"],
         "submodules": [
             {
                 "code": "programmes",
@@ -382,8 +394,8 @@ SYSTEM_MODULES_CATALOG = [
                 "description": "Faculties, schools, and academic departments.",
                 "icon": "fa-solid fa-building-columns",
                 "is_critical": False,
-                "route_names": ["admin_departments", "department_create", "department_detail", "department_edit", "department_delete"],
-                "path_patterns": ["/manage/departments/", "/departments/"],
+                "route_names": ["admin_schools", "school_create", "school_detail", "school_edit", "school_delete", "admin_departments", "department_create", "department_detail", "department_edit", "department_delete"],
+                "path_patterns": ["/manage/schools/", "/schools/", "/manage/departments/", "/departments/"],
             },
             {
                 "code": "courses",

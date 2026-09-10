@@ -1,0 +1,21 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}{{ school.name }} · UMS{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h4><i class="fa-solid fa-landmark me-2 text-primary"></i>{{ school.name }}</h4>
+  <span class="breadcrumb-chip">{{ school.code }}</span>
+</div>
+<div class="card card-ums mb-4"><div class="card-body">
+  <p class="text-muted mb-2">{{ school.description|default:"No description." }}</p>
+  {% if school.dean_name %}<p class="mb-0"><i class="fa-solid fa-user-tie me-2 text-primary"></i><strong>Dean:</strong> {{ school.dean_name }}</p>{% endif %}
+</div></div>
+<div class="card card-ums">
+  <div class="card-header"><i class="fa-solid fa-building-columns me-2 text-primary"></i>Departments</div>
+  <ul class="list-group list-group-flush">
+    {% for d in departments %}<li class="list-group-item d-flex justify-content-between align-items-center">
+      <a href="{% url 'university:department_detail' d.id %}">{{ d.code }} · {{ d.name }}</a>
+      <span class="text-muted small">{{ d.courses.count }} courses</span></li>
+    {% empty %}<li class="list-group-item text-muted">No departments assigned to this school.</li>{% endfor %}
+  </ul>
+</div>
+{% endblock %}

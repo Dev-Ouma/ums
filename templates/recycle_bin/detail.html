@@ -24,12 +24,9 @@
             <i class="fa-solid fa-rotate-left me-1"></i> Restore Record
           </button>
         </form>
-        <form method="post" action="{% url 'university:recycle_bin_purge' item.pk %}" onsubmit="return confirm('CRITICAL WARNING: Irreversible permanent deletion.\nProceed?');">
-          {% csrf_token %}
-          <button type="submit" class="btn btn-outline-danger">
-            <i class="fa-solid fa-trash-can me-1"></i> Permanent Purge
-          </button>
-        </form>
+        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalPermanentPurge">
+          <i class="fa-solid fa-trash-can me-1"></i> Permanent Purge
+        </button>
       {% endif %}
     </div>
   </div>
@@ -148,4 +145,39 @@
     </div>
   </div>
 </div>
+
+{% if not item.is_restored %}
+<!-- ======================================================================= -->
+<!-- MODAL: PERMANENT PURGE (typed-confirmation) -->
+<!-- ======================================================================= -->
+<div class="modal fade" id="modalPermanentPurge" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <form method="post" action="{% url 'university:recycle_bin_purge' item.pk %}">
+        {% csrf_token %}
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold text-danger"><i class="fa-solid fa-triangle-exclamation me-2"></i>Permanently delete this record?</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-3">
+          <p class="mb-2">Permanently delete "{{ item.object_repr }}"? This action cannot be undone and may permanently remove associated data.</p>
+          <p class="small text-muted mb-3">Type <strong>PERMANENTLY DELETE</strong> below to confirm.</p>
+          <input type="text" id="purgeConfirmInputDetail" class="form-control" autocomplete="off" placeholder="Type here to confirm">
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" id="purgeConfirmSubmitDetail" class="btn btn-danger rounded-pill px-4 fw-semibold" disabled>
+            <i class="fa-solid fa-trash-can me-1"></i> Permanently Delete
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+  document.getElementById('purgeConfirmInputDetail').addEventListener('input', function() {
+    document.getElementById('purgeConfirmSubmitDetail').disabled = this.value.trim() !== 'PERMANENTLY DELETE';
+  });
+</script>
+{% endif %}
 {% endblock %}

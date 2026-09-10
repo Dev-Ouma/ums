@@ -17,7 +17,7 @@ from reportlab.platypus import (
 )
 
 from university.financial_services import check_financial_clearance
-from university.models import Enrollment, Exam, Result
+from university.models import Course, Enrollment, Exam, Result
 
 
 def generate_exam_card_pdf(student, term=None, verify_url=None, tracking_info=None):
@@ -159,7 +159,7 @@ def generate_exam_card_pdf(student, term=None, verify_url=None, tracking_info=No
     courses = [e.course for e in enrollments_qs]
     if not courses:
         # Fallback to general program courses if none enrolled
-        courses = list(student.program.courses.filter(is_active=True)[:6]) if student.program else []
+        courses = list(student.program.courses.filter(status=Course.STATUS_ACTIVE)[:6]) if student.program else []
 
     table_rows = [
         [

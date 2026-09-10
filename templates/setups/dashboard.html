@@ -63,7 +63,7 @@
 
     <!-- Tab Settings Form Panel -->
     <div class="col-12 col-lg-9">
-      <form method="post" action="{% url 'university:admin_setups_update' current_group.category %}">
+      <form method="post" action="{% url 'university:admin_setups_update' current_group.category %}" data-unsaved-guard>
         {% csrf_token %}
         <div class="card border-0 shadow-sm rounded-4">
           <div class="card-header bg-white border-0 p-4 pb-3 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2">

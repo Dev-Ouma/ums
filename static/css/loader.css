@@ -1,0 +1,204 @@
+/* ==========================================================================
+   UMS Centralized Loading / Processing System
+   LoadingService -> GlobalLoadingOverlay -> SectionLoader -> ButtonLoadingState -> InlineLoader
+   Uses the same --primary / --accent / --gradient / --app-font tokens as the
+   rest of the app so the loader automatically matches each role's theme.
+   ========================================================================== */
+
+/* ---------- Core spinner unit (dual-ring, counter-rotating "Lottie-style") ---
+   A single rotating border ring reads as the default OS/system spinner
+   (Android/stock "please wait" indicator). Two arcs orbiting in opposite
+   directions at different speeds, in the brand's two accent tones, reads as
+   a deliberate product animation instead -- while staying pure CSS (no
+   external animation runtime, nothing to preload or cache separately). */
+.ums-spin {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.ums-spin::before,
+.ums-spin::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid transparent;
+}
+.ums-spin::before {
+  border-top-color: var(--primary, #6C5CE7);
+  border-right-color: var(--primary, #6C5CE7);
+  animation: ums-orbit-a .95s cubic-bezier(.5, .05, .5, .95) infinite;
+}
+.ums-spin::after {
+  inset: 22%;
+  border-bottom-color: var(--accent, #e84393);
+  border-left-color: var(--accent, #e84393);
+  animation: ums-orbit-b .75s cubic-bezier(.5, .05, .5, .95) infinite reverse;
+}
+
+.ums-spin-sm { width: 16px; height: 16px; }
+.ums-spin-sm::before, .ums-spin-sm::after { border-width: 2px; }
+.ums-spin-md { width: 30px; height: 30px; }
+.ums-spin-md::before, .ums-spin-md::after { border-width: 3px; }
+.ums-spin-lg { width: 50px; height: 50px; }
+.ums-spin-lg::before, .ums-spin-lg::after { border-width: 3px; }
+
+@keyframes ums-orbit-a {
+  to { transform: rotate(360deg); }
+}
+@keyframes ums-orbit-b {
+  to { transform: rotate(360deg); }
+}
+
+/* Soft ambient glow behind the larger spinner sizes only (overlay/section) --
+   a subtle premium-SaaS touch, not applied to button/inline spinners so it
+   never adds render cost to the buttons used everywhere. */
+.ums-loader-halo {
+  position: relative;
+  display: inline-flex;
+}
+.ums-loader-halo::before {
+  content: '';
+  position: absolute;
+  inset: -16px;
+  border-radius: 50%;
+  background: var(--gradient, linear-gradient(135deg, #6C5CE7, #8f7bff));
+  filter: blur(18px);
+  opacity: .18;
+  animation: ums-halo-pulse 1.6s ease-in-out infinite;
+}
+@keyframes ums-halo-pulse {
+  0%, 100% { opacity: .14; transform: scale(.92); }
+  50% { opacity: .26; transform: scale(1.04); }
+}
+
+/* ---------- Global full-screen overlay ---------- */
+#umsGlobalLoader {
+  position: fixed;
+  inset: 0;
+  z-index: 99990; /* below the 99999 system status/lockdown banner, above all app content */
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(244, 245, 251, .72);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+#umsGlobalLoader.active {
+  display: flex;
+  animation: ums-backdrop-in .15s ease;
+}
+@keyframes ums-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.ums-loader-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 28px 34px;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 20px 50px rgba(30, 20, 70, .18);
+  min-width: 200px;
+  /* Pops up centered on screen, like a native USSD/system dialog -- a quick
+     scale + fade rather than sliding in from an edge. */
+  animation: ums-pop-in .22s cubic-bezier(.34, 1.56, .64, 1);
+}
+@keyframes ums-pop-in {
+  from { opacity: 0; transform: scale(.82); }
+  to { opacity: 1; transform: scale(1); }
+}
+.ums-loader-text {
+  font-family: var(--app-font, 'Quicksand', sans-serif);
+  font-weight: 600;
+  font-size: .95rem;
+  color: #2d2d3a;
+  text-align: center;
+  letter-spacing: .01em;
+}
+
+/* ---------- Section / local loader (relative-positioned container) ---------- */
+.ums-section-loading {
+  position: relative;
+  min-height: 80px;
+}
+.ums-section-loader {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, .82);
+  border-radius: inherit;
+}
+.ums-section-loader .ums-loader-text {
+  font-size: .82rem;
+  color: #555;
+}
+
+/* ---------- Button processing state ---------- */
+.ums-btn-loading {
+  position: relative;
+  pointer-events: none;
+  opacity: .85;
+}
+.ums-btn-loading .ums-btn-label {
+  visibility: hidden;
+}
+.ums-btn-loading .ums-spin {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.ums-btn-loading .ums-spin::before {
+  border-top-color: #fff;
+  border-right-color: #fff;
+}
+.ums-btn-loading .ums-spin::after {
+  border-bottom-color: rgba(255, 255, 255, .55);
+  border-left-color: rgba(255, 255, 255, .55);
+}
+.ums-btn-loading.btn-outline-primary .ums-spin::before,
+.ums-btn-loading.btn-outline-danger .ums-spin::before,
+.ums-btn-loading.btn-light .ums-spin::before {
+  border-top-color: var(--primary, #6C5CE7);
+  border-right-color: var(--primary, #6C5CE7);
+}
+.ums-btn-loading.btn-outline-primary .ums-spin::after,
+.ums-btn-loading.btn-outline-danger .ums-spin::after,
+.ums-btn-loading.btn-light .ums-spin::after {
+  border-bottom-color: var(--accent, #e84393);
+  border-left-color: var(--accent, #e84393);
+}
+
+/* ---------- Inline loader (small, for search boxes / dropdowns / filters) --- */
+.ums-inline-loader {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--app-font, 'Quicksand', sans-serif);
+  font-size: .8rem;
+  color: #6a6a7a;
+}
+
+/* ---------- Reduced motion: no spin, no pop, keep a static, visible state ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .ums-spin::before,
+  .ums-spin::after {
+    animation: none;
+  }
+  .ums-loader-halo::before {
+    animation: none;
+    opacity: .18;
+  }
+  #umsGlobalLoader.active,
+  .ums-loader-card {
+    animation: none;
+  }
+}

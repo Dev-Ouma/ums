@@ -1,0 +1,89 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Semester Registration · Academics · UMS{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h4><i class="fa-solid fa-calendar-check me-2" style="color:var(--primary)"></i>Semester Registration</h4>
+    <small class="text-muted">{{ student.roll_no }} · {{ student.user.display_name }} · {{ student.program.name|default:'No Programme Assigned' }}</small>
+  </div>
+  {% if registration %}
+    <span class="badge bg-success rounded-pill px-3 py-2">Registered</span>
+  {% elif can_register %}
+    <span class="badge bg-primary rounded-pill px-3 py-2">Open</span>
+  {% else %}
+    <span class="badge bg-secondary rounded-pill px-3 py-2">Locked</span>
+  {% endif %}
+</div>
+
+<div class="card card-ums mb-4">
+  <div class="card-body">
+    <div class="row g-4 align-items-center">
+      <div class="col-lg-8">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="border rounded-3 p-3 h-100">
+              <div class="text-muted small">Academic Year</div>
+              <div class="fw-bold text-dark">{{ academic_year.name|default:'Not configured' }}</div>
+              <span class="status {{ academic_year.status|default:'DRAFT' }}">{{ academic_year.get_status_display|default:'Unavailable' }}</span>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="border rounded-3 p-3 h-100">
+              <div class="text-muted small">Semester</div>
+              <div class="fw-bold text-dark">{{ term.name|default:'Not configured' }}</div>
+              <span class="status {{ term.status|default:'DRAFT' }}">{{ term.get_status_display|default:'Unavailable' }}</span>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="border rounded-3 p-3 h-100">
+              <div class="text-muted small">Registration Period</div>
+              <div class="fw-semibold">
+                {{ term.registration_start_date|date:"d M Y"|default:'Open date not set' }}
+                -
+                {{ term.registration_end_date|date:"d M Y"|default:'No deadline set' }}
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="border rounded-3 p-3 h-100">
+              <div class="text-muted small">Your Status</div>
+              {% if registration %}
+                <div class="fw-bold text-success">{{ registration.get_status_display }}</div>
+                <div class="small text-muted">Registered {{ registration.created_at|date:"d M Y H:i" }}</div>
+              {% else %}
+                <div class="fw-bold {% if can_register %}text-primary{% else %}text-secondary{% endif %}">
+                  {% if can_register %}Not Registered{% else %}Unavailable{% endif %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        {% if registration %}
+          <div class="alert alert-success rounded-3">
+            <i class="fa-solid fa-circle-check me-2"></i>Semester registration completed. Unit registration is available.
+          </div>
+          <a class="btn btn-primary w-100 rounded-pill" href="{% url 'university:student_register_units' %}">
+            <i class="fa-solid fa-clipboard-list me-1"></i>Register Units
+          </a>
+        {% elif can_register %}
+          <div class="alert alert-info rounded-3">
+            <i class="fa-solid fa-circle-info me-2"></i>You must complete semester registration before registering units.
+          </div>
+          <form method="post">
+            {% csrf_token %}
+            <button class="btn btn-primary w-100 rounded-pill" type="submit">
+              <i class="fa-solid fa-check me-1"></i>Register Semester
+            </button>
+          </form>
+        {% else %}
+          <div class="alert alert-warning rounded-3 mb-0">
+            <i class="fa-solid fa-triangle-exclamation me-2"></i>{{ blocked_reason|default:'Semester registration is not available.' }}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

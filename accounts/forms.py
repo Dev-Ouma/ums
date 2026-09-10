@@ -28,9 +28,13 @@ BLOCKED_ACCOUNT_MESSAGES = {
 
 class LoginForm(AuthenticationForm):
     username = forms.CharField(widget=forms.TextInput(
-        attrs={"class": INPUT, "placeholder": "Username", "autofocus": True}))
+        attrs={"class": INPUT, "placeholder": "Username", "autofocus": True,
+               "autocomplete": "username"}))
     password = forms.CharField(widget=forms.PasswordInput(
-        attrs={"class": INPUT, "placeholder": "Password"}))
+        attrs={"class": INPUT, "placeholder": "Password", "autocomplete": "current-password"}))
+    remember_me = forms.BooleanField(
+        label="Remember me", required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}))
 
     def clean(self):
         """

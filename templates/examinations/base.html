@@ -47,7 +47,7 @@ details summary { cursor: pointer; color: var(--primary, #6C5CE7); font-weight: 
   {% if user.is_admin_role or user.is_superuser %}
     <a href="{% url 'examinations:report' %}"><i class="fa-solid fa-chart-line me-1"></i>Results &amp; Appeals</a>
     <a href="{% url 'examinations:rooms' %}"><i class="fa-solid fa-door-open me-1"></i>Rooms</a>
-    <a href="{% url 'examinations:terms' %}"><i class="fa-solid fa-clock-rotate-left me-1"></i>Academic Terms</a>
+    <a href="{% url 'university:admin_academic_calendar' %}"><i class="fa-solid fa-clock-rotate-left me-1"></i>Academic Terms</a>
     <a href="{% url 'examinations:grading' %}"><i class="fa-solid fa-scale-balanced me-1"></i>CUE Grading Scale</a>
   {% elif user.is_student %}
     <a href="{% url 'examinations:statement' %}"><i class="fa-solid fa-award me-1"></i>My Results &amp; Statement</a>
