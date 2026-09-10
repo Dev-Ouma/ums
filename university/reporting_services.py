@@ -64,6 +64,7 @@ REPORT_CATEGORIES = [
         "title": "Student Reports",
         "icon": "fa-user-graduate",
         "color": "#2563eb",
+        "bg_soft": "rgba(37, 99, 235, 0.08)",
         "description": "Student population, demographic breakdowns, registers, and status distributions."
     },
     {
@@ -71,6 +72,7 @@ REPORT_CATEGORIES = [
         "title": "Academic & Senate Reports",
         "icon": "fa-scroll",
         "color": "#0f766e",
+        "bg_soft": "rgba(15, 118, 110, 0.08)",
         "description": "Senate consolidated marksheets, academic performance, GPA distributions, and progression."
     },
     {
@@ -78,6 +80,7 @@ REPORT_CATEGORIES = [
         "title": "Examination Reports",
         "icon": "fa-file-pen",
         "color": "#4338ca",
+        "bg_soft": "rgba(67, 56, 202, 0.08)",
         "description": "CAT vs Exam analyses, pass/fail statistics, missing marks audits, and nominal rolls."
     },
     {
@@ -85,6 +88,7 @@ REPORT_CATEGORIES = [
         "title": "Registration Reports",
         "icon": "fa-clipboard-check",
         "color": "#0369a1",
+        "bg_soft": "rgba(3, 105, 161, 0.08)",
         "description": "Unit enrollment demand, semester registration counts, and registered vs unregistered cohorts."
     },
     {
@@ -92,6 +96,7 @@ REPORT_CATEGORIES = [
         "title": "Faculty & Teaching Reports",
         "icon": "fa-chalkboard-user",
         "color": "#0d9488",
+        "bg_soft": "rgba(13, 148, 136, 0.08)",
         "description": "Lecturer teaching workloads, course assignments, and departmental directories."
     },
     {
@@ -99,6 +104,7 @@ REPORT_CATEGORIES = [
         "title": "Timetable & Venue Reports",
         "icon": "fa-calendar-week",
         "color": "#6366f1",
+        "bg_soft": "rgba(99, 102, 241, 0.08)",
         "description": "Master program schedules, venue utilization rates, and lecturer timetables."
     },
     {
@@ -106,6 +112,7 @@ REPORT_CATEGORIES = [
         "title": "Administrative & Compliance",
         "icon": "fa-shield-halved",
         "color": "#475569",
+        "bg_soft": "rgba(71, 85, 105, 0.08)",
         "description": "User activity ledgers, audit trail forensic logs, and recycle bin deletion recovery logs."
     },
     {
@@ -113,6 +120,7 @@ REPORT_CATEGORIES = [
         "title": "Admissions & Documents",
         "icon": "fa-folder-tree",
         "color": "#1e3a8a",
+        "bg_soft": "rgba(30, 58, 138, 0.08)",
         "description": "Admission letter issuance, document delivery tracking, and application attachment verification."
     },
 ]
@@ -350,7 +358,7 @@ def build_report_data(report_key, params, user=None):
     data["key"] = report_key
     data["meta"] = meta
     data["generated_at"] = timezone.now()
-    data["generated_by"] = user.display_name if user else "System Administrator"
+    data["generated_by"] = getattr(user, "display_name", "System Administrator") if user else "System Administrator"
     return data
 
 
@@ -403,10 +411,10 @@ def _query_student_register(params, user):
         ])
 
     kpis = [
-        {"label": "Total Students", "val": total_count, "icon": "fa-users", "color": "#6C5CE7"},
-        {"label": "Male Students", "val": male_count, "icon": "fa-person", "color": "#0984e3"},
-        {"label": "Female Students", "val": female_count, "icon": "fa-person-dress", "color": "#e84393"},
-        {"label": "Programmes", "val": qs.values("program").distinct().count(), "icon": "fa-graduation-cap", "color": "#00b894"},
+        {"label": "Total Students", "val": f"{total_count:,}", "icon": "fa-users", "color": "#6C5CE7"},
+        {"label": "Male Students", "val": f"{male_count:,}", "icon": "fa-person", "color": "#0984e3"},
+        {"label": "Female Students", "val": f"{female_count:,}", "icon": "fa-person-dress", "color": "#e84393"},
+        {"label": "Programmes", "val": f"{qs.values('program').distinct().count():,}", "icon": "fa-graduation-cap", "color": "#00b894"},
     ]
 
     return {
@@ -448,10 +456,10 @@ def _query_student_demographics(params, user):
         rows.append([dname, str(m), str(f), str(o), str(t), f"{pct}%"])
 
     kpis = [
-        {"label": "Total Students", "val": total, "icon": "fa-users", "color": "#6C5CE7"},
+        {"label": "Total Students", "val": f"{total:,}", "icon": "fa-users", "color": "#6C5CE7"},
         {"label": "Male Ratio", "val": f"{round(qs.filter(gender='M').count() / (total or 1) * 100, 1)}%", "icon": "fa-mars", "color": "#0984e3"},
         {"label": "Female Ratio", "val": f"{round(qs.filter(gender='F').count() / (total or 1) * 100, 1)}%", "icon": "fa-venus", "color": "#e84393"},
-        {"label": "Departments", "val": dept_breakdown.count(), "icon": "fa-building-columns", "color": "#00b894"},
+        {"label": "Departments", "val": f"{dept_breakdown.count():,}", "icon": "fa-building-columns", "color": "#00b894"},
     ]
 
     return {
@@ -492,9 +500,9 @@ def _query_students_by_program(params, user):
         ])
 
     kpis = [
-        {"label": "Total Programmes", "val": qs.count(), "icon": "fa-graduation-cap", "color": "#6C5CE7"},
-        {"label": "Total Enrolled", "val": total_enrolled, "icon": "fa-users", "color": "#00b894"},
-        {"label": "Avg per Programme", "val": round(total_enrolled / (qs.count() or 1), 1), "icon": "fa-chart-line", "color": "#e84393"},
+        {"label": "Total Programmes", "val": f"{qs.count():,}", "icon": "fa-graduation-cap", "color": "#6C5CE7"},
+        {"label": "Total Enrolled", "val": f"{total_enrolled:,}", "icon": "fa-users", "color": "#00b894"},
+        {"label": "Avg per Programme", "val": f"{round(total_enrolled / (qs.count() or 1), 1):,}", "icon": "fa-chart-line", "color": "#e84393"},
     ]
 
     return {
@@ -529,7 +537,6 @@ def _query_senate_consolidated_sheet(params, user):
         c = Course.objects.filter(pk=params["course"]).first()
         if c: applied_filters.append(f"Course: {c.code} - {c.title}")
 
-    # Group by student
     students_map = {}
     for r in results_qs:
         sid = r.student_id
@@ -586,10 +593,10 @@ def _query_senate_consolidated_sheet(params, user):
         ])
 
     kpis = [
-        {"label": "Candidates Examined", "val": len(students_map), "icon": "fa-users", "color": "#6C5CE7"},
-        {"label": "Pass & Proceed", "val": pass_count, "icon": "fa-circle-check", "color": "#00b894"},
-        {"label": "Supplementary", "val": supp_count, "icon": "fa-arrows-rotate", "color": "#f0932b"},
-        {"label": "Repeat / Probation", "val": repeat_count, "icon": "fa-circle-xmark", "color": "#e84393"},
+        {"label": "Candidates Examined", "val": f"{len(students_map):,}", "icon": "fa-users", "color": "#6C5CE7"},
+        {"label": "Pass & Proceed", "val": f"{pass_count:,}", "icon": "fa-circle-check", "color": "#00b894"},
+        {"label": "Supplementary", "val": f"{supp_count:,}", "icon": "fa-arrows-rotate", "color": "#f0932b"},
+        {"label": "Repeat / Probation", "val": f"{repeat_count:,}", "icon": "fa-circle-xmark", "color": "#e84393"},
     ]
 
     return {
@@ -650,9 +657,9 @@ def _query_academic_performance(params, user):
     overall_avg = round(float(overall_sum) / (total_candidates or 1), 1)
 
     kpis = [
-        {"label": "Courses Examined", "val": course_stats.count(), "icon": "fa-book", "color": "#6C5CE7"},
-        {"label": "Total Marks Logged", "val": total_candidates, "icon": "fa-clipboard-check", "color": "#0984e3"},
-        {"label": "Overall Mean Score", "val": f"{overall_avg}", "icon": "fa-chart-line", "color": "#00b894"},
+        {"label": "Courses Examined", "val": f"{course_stats.count():,}", "icon": "fa-book", "color": "#6C5CE7"},
+        {"label": "Total Marks Logged", "val": f"{total_candidates:,}", "icon": "fa-clipboard-check", "color": "#0984e3"},
+        {"label": "Overall Mean Score", "val": f"{overall_avg}%", "icon": "fa-chart-line", "color": "#00b894"},
     ]
 
     return {
@@ -678,7 +685,6 @@ def _query_grade_distribution(params, user):
         c = Course.objects.filter(pk=params["course"]).first()
         if c: applied_filters.append(f"Course: {c.code} - {c.title}")
 
-    # Grade thresholds: A (70+), B (60-69), C (50-59), D (40-49), F (<40)
     total = qs.count()
     grade_a = qs.filter(marks_obtained__gte=70).count()
     grade_b = qs.filter(marks_obtained__gte=60, marks_obtained__lt=70).count()
@@ -699,9 +705,9 @@ def _query_grade_distribution(params, user):
     pass_pct = round(pass_total / (total or 1) * 100, 1)
 
     kpis = [
-        {"label": "Total Candidates", "val": total, "icon": "fa-users", "color": "#6C5CE7"},
-        {"label": "Passed (A–D)", "val": pass_total, "icon": "fa-circle-check", "color": "#00b894"},
-        {"label": "Failed (F)", "val": grade_f, "icon": "fa-circle-xmark", "color": "#e84393"},
+        {"label": "Total Candidates", "val": f"{total:,}", "icon": "fa-users", "color": "#6C5CE7"},
+        {"label": "Passed (A–D)", "val": f"{pass_total:,}", "icon": "fa-circle-check", "color": "#00b894"},
+        {"label": "Failed (F)", "val": f"{grade_f:,}", "icon": "fa-circle-xmark", "color": "#e84393"},
         {"label": "Overall Pass Rate", "val": f"{pass_pct}%", "icon": "fa-percent", "color": "#0984e3"},
     ]
 
@@ -757,9 +763,9 @@ def _query_examination_results_summary(params, user):
         ])
 
     kpis = [
-        {"label": "Examinations Scheduled", "val": qs.count(), "icon": "fa-file-pen", "color": "#6C5CE7"},
-        {"label": "Total Registrations", "val": tot_reg, "icon": "fa-users", "color": "#0984e3"},
-        {"label": "Passed Results", "val": tot_pass, "icon": "fa-circle-check", "color": "#00b894"},
+        {"label": "Examinations Scheduled", "val": f"{qs.count():,}", "icon": "fa-file-pen", "color": "#6C5CE7"},
+        {"label": "Total Registrations", "val": f"{tot_reg:,}", "icon": "fa-users", "color": "#0984e3"},
+        {"label": "Passed Results", "val": f"{tot_pass:,}", "icon": "fa-circle-check", "color": "#00b894"},
     ]
 
     return {
@@ -801,7 +807,6 @@ def _query_cat_vs_exam_analysis(params, user):
         cat_sum += cat
         exam_sum += ex
 
-        # CAT normalized to 100% vs Exam normalized to 100%
         cat_norm = float(cat) / 30.0 * 100.0
         ex_norm = float(ex) / 70.0 * 100.0
         variance = round(ex_norm - cat_norm, 1)
@@ -822,7 +827,7 @@ def _query_cat_vs_exam_analysis(params, user):
     avg_exam = round(float(exam_sum) / (count or 1), 1)
 
     kpis = [
-        {"label": "Candidates Analyzed", "val": count, "icon": "fa-users", "color": "#6C5CE7"},
+        {"label": "Candidates Analyzed", "val": f"{count:,}", "icon": "fa-users", "color": "#6C5CE7"},
         {"label": "Avg CAT (Max 30)", "val": f"{avg_cat}", "icon": "fa-pen-clip", "color": "#0984e3"},
         {"label": "Avg Exam (Max 70)", "val": f"{avg_exam}", "icon": "fa-file-lines", "color": "#00b894"},
     ]
@@ -837,9 +842,6 @@ def _query_cat_vs_exam_analysis(params, user):
 
 
 def _query_missing_marks_audit(params, user):
-    """
-    Finds enrolled students without a Result record or with attendance PENDING or null marks.
-    """
     qs = Result.objects.select_related("exam", "exam__course", "student", "student__user").filter(
         Q(marks_obtained__isnull=True) | Q(attendance="PENDING")
     )
@@ -871,8 +873,8 @@ def _query_missing_marks_audit(params, user):
         ])
 
     kpis = [
-        {"label": "Missing Marks Exceptions", "val": qs.count(), "icon": "fa-triangle-exclamation", "color": "#e84393"},
-        {"label": "Courses Affected", "val": qs.values("exam__course").distinct().count(), "icon": "fa-book", "color": "#f0932b"},
+        {"label": "Missing Marks Exceptions", "val": f"{qs.count():,}", "icon": "fa-triangle-exclamation", "color": "#e84393"},
+        {"label": "Courses Affected", "val": f"{qs.values('exam__course').distinct().count():,}", "icon": "fa-book", "color": "#f0932b"},
     ]
 
     return {
@@ -917,10 +919,10 @@ def _query_registration_summary(params, user):
         ])
 
     kpis = [
-        {"label": "Total Registrations", "val": total, "icon": "fa-clipboard-check", "color": "#6C5CE7"},
-        {"label": "Approved Units", "val": approved, "icon": "fa-circle-check", "color": "#00b894"},
-        {"label": "Pending Approval", "val": submitted, "icon": "fa-hourglass-half", "color": "#f0932b"},
-        {"label": "Drafts", "val": draft, "icon": "fa-file-lines", "color": "#8d92a5"},
+        {"label": "Total Registrations", "val": f"{total:,}", "icon": "fa-clipboard-check", "color": "#6C5CE7"},
+        {"label": "Approved Units", "val": f"{approved:,}", "icon": "fa-circle-check", "color": "#00b894"},
+        {"label": "Pending Approval", "val": f"{submitted:,}", "icon": "fa-hourglass-half", "color": "#f0932b"},
+        {"label": "Drafts", "val": f"{draft:,}", "icon": "fa-file-lines", "color": "#8d92a5"},
     ]
 
     return {
@@ -957,8 +959,8 @@ def _query_unit_enrollment_counts(params, user):
         ])
 
     kpis = [
-        {"label": "Total Units", "val": qs.count(), "icon": "fa-book-open", "color": "#6C5CE7"},
-        {"label": "Total Enrollments", "val": sum(c.enrolled_count for c in qs), "icon": "fa-users", "color": "#00b894"},
+        {"label": "Total Units", "val": f"{qs.count():,}", "icon": "fa-book-open", "color": "#6C5CE7"},
+        {"label": "Total Enrollments", "val": f"{sum(c.enrolled_count for c in qs):,}", "icon": "fa-users", "color": "#00b894"},
     ]
 
     return {
@@ -985,7 +987,6 @@ def _query_faculty_workload(params, user):
     columns = ["Staff ID", "Lecturer Name", "Department", "Designation", "Courses Assigned", "Students Taught", "Estimated Hours / Wk"]
     rows = []
     for f in qs:
-        # Standard estimation: 3 contact hours per course unit
         contact_hours = f.assigned_courses * 3
         rows.append([
             f.employee_id,
@@ -998,8 +999,8 @@ def _query_faculty_workload(params, user):
         ])
 
     kpis = [
-        {"label": "Academic Staff", "val": qs.count(), "icon": "fa-chalkboard-user", "color": "#6C5CE7"},
-        {"label": "Courses Assigned", "val": sum(f.assigned_courses for f in qs), "icon": "fa-book", "color": "#00b894"},
+        {"label": "Academic Staff", "val": f"{qs.count():,}", "icon": "fa-chalkboard-user", "color": "#6C5CE7"},
+        {"label": "Courses Assigned", "val": f"{sum(f.assigned_courses for f in qs):,}", "icon": "fa-book", "color": "#00b894"},
     ]
 
     return {
@@ -1034,8 +1035,8 @@ def _query_faculty_directory(params, user):
         ])
 
     kpis = [
-        {"label": "Total Faculty", "val": qs.count(), "icon": "fa-id-badge", "color": "#6C5CE7"},
-        {"label": "Departments", "val": qs.values("department").distinct().count(), "icon": "fa-building-columns", "color": "#00b894"},
+        {"label": "Total Faculty", "val": f"{qs.count():,}", "icon": "fa-id-badge", "color": "#6C5CE7"},
+        {"label": "Departments", "val": f"{qs.values('department').distinct().count():,}", "icon": "fa-building-columns", "color": "#00b894"},
     ]
 
     return {
@@ -1048,7 +1049,7 @@ def _query_faculty_directory(params, user):
 
 
 def _query_timetable_by_program(params, user):
-    qs = ClassSchedule.objects.select_related("course", "course__program", "venue", "instructor", "instructor__user").all()
+    qs = ClassSchedule.objects.select_related("course", "course__program", "room", "course__faculty__user").all()
     applied_filters = []
 
     if params.get("program"):
@@ -1061,17 +1062,17 @@ def _query_timetable_by_program(params, user):
     for s in qs:
         time_slot = f"{s.start_time.strftime('%H:%M')} – {s.end_time.strftime('%H:%M')}"
         rows.append([
-            s.get_day_of_week_display(),
+            s.get_day_display(),
             time_slot,
             s.course.code,
             s.course.title,
-            s.venue.name if s.venue else "TBA",
-            s.instructor.user.display_name if s.instructor else "TBA",
+            s.room.name if s.room else "TBA",
+            s.course.faculty.user.display_name if (s.course.faculty and s.course.faculty.user) else "TBA",
             s.get_session_type_display()
         ])
 
     kpis = [
-        {"label": "Scheduled Slots", "val": qs.count(), "icon": "fa-calendar-week", "color": "#6C5CE7"},
+        {"label": "Scheduled Slots", "val": f"{qs.count():,}", "icon": "fa-calendar-week", "color": "#6C5CE7"},
     ]
 
     return {
@@ -1084,29 +1085,28 @@ def _query_timetable_by_program(params, user):
 
 
 def _query_timetable_by_venue(params, user):
-    qs = ClassSchedule.objects.select_related("course", "venue", "instructor").filter(venue__isnull=False)
+    qs = ClassSchedule.objects.select_related("course", "room").filter(room__isnull=False)
     applied_filters = []
 
-    venue_stats = qs.values("venue__name", "venue__code", "venue__capacity").annotate(
+    venue_stats = qs.values("room__name", "room__capacity").annotate(
         slots_count=Count("id")
     ).order_by("-slots_count")
 
-    columns = ["Venue Code", "Venue Name", "Room Capacity", "Scheduled Slots / Wk", "Total Hours / Wk", "Utilization Status"]
+    columns = ["Venue Name", "Room Capacity", "Scheduled Slots / Wk", "Total Hours / Wk", "Utilization Status"]
     rows = []
     for v in venue_stats:
-        hrs = v["slots_count"] * 2  # standard 2-hour slots
+        hrs = v["slots_count"] * 2
         status = "Heavy Usage" if hrs >= 20 else "Normal Usage" if hrs >= 8 else "Light Usage"
         rows.append([
-            v["venue__code"] or "—",
-            v["venue__name"],
-            str(v["venue__capacity"] or 0),
+            v["room__name"],
+            str(v["room__capacity"] or 0),
             str(v["slots_count"]),
             f"{hrs} hrs",
             status
         ])
 
     kpis = [
-        {"label": "Active Venues", "val": venue_stats.count(), "icon": "fa-building-columns", "color": "#6C5CE7"},
+        {"label": "Active Venues", "val": f"{venue_stats.count():,}", "icon": "fa-building-columns", "color": "#6C5CE7"},
     ]
 
     return {
@@ -1147,8 +1147,8 @@ def _query_user_activity_audit(params, user):
         ])
 
     kpis = [
-        {"label": "Total Logged Operations", "val": qs.count(), "icon": "fa-clock-rotate-left", "color": "#6C5CE7"},
-        {"label": "Unique Actors", "val": qs.values("user_display").distinct().count(), "icon": "fa-user-shield", "color": "#00b894"},
+        {"label": "Total Logged Operations", "val": f"{qs.count():,}", "icon": "fa-clock-rotate-left", "color": "#6C5CE7"},
+        {"label": "Unique Actors", "val": f"{qs.values('user_display').distinct().count():,}", "icon": "fa-user-shield", "color": "#00b894"},
     ]
 
     return {
@@ -1172,25 +1172,26 @@ def _query_recycle_bin_audit(params, user):
         applied_filters.append(f"To: {params['date_to']}")
     if params.get("q"):
         q = params["q"].strip()
-        qs = qs.filter(Q(object_repr__icontains=q) | Q(deleted_by_username__icontains=q) | Q(model_name__icontains=q))
+        qs = qs.filter(Q(object_repr__icontains=q) | Q(module__icontains=q))
         applied_filters.append(f"Search: '{q}'")
 
-    columns = ["Deleted At", "Model", "Object Description", "Deleted By", "Status", "Protected", "IP Address"]
+    columns = ["Deleted At", "Module", "Object Description", "Deleted By", "Status", "Protected", "IP Address"]
     rows = []
     for item in qs[:250]:
+        del_by = item.deleted_by.display_name if (item.deleted_by and hasattr(item.deleted_by, "display_name")) else "System"
         rows.append([
             item.deleted_at.strftime("%Y-%m-%d %H:%M"),
-            item.model_name,
+            item.module,
             item.object_repr[:50],
-            item.deleted_by_username or "System",
-            item.get_status_display(),
+            del_by,
+            "Restored" if item.is_restored else "Deleted",
             "Yes" if item.is_protected else "No",
             item.ip_address or "—"
         ])
 
     kpis = [
-        {"label": "Recycle Bin Records", "val": qs.count(), "icon": "fa-trash-can-arrow-up", "color": "#e84393"},
-        {"label": "Protected Records", "val": qs.filter(is_protected=True).count(), "icon": "fa-shield", "color": "#0984e3"},
+        {"label": "Recycle Bin Records", "val": f"{qs.count():,}", "icon": "fa-trash-can-arrow-up", "color": "#e84393"},
+        {"label": "Protected Records", "val": f"{qs.filter(is_protected=True).count():,}", "icon": "fa-shield", "color": "#0984e3"},
     ]
 
     return {
@@ -1268,10 +1269,10 @@ def _query_admission_documents_status(params, user):
         ])
 
     kpis = [
-        {"label": "Total Applications", "val": total_apps, "icon": "fa-users-rectangle", "color": "#1e3a8a"},
-        {"label": "Letters Issued", "val": total_issued, "icon": "fa-file-circle-check", "color": "#00b894"},
-        {"label": "Letters Pending", "val": total_pending, "icon": "fa-clock", "color": "#f39c12"},
-        {"label": "Dispatches Logged", "val": total_resent, "icon": "fa-paper-plane", "color": "#6c5ce7"},
+        {"label": "Total Applications", "val": f"{total_apps:,}", "icon": "fa-users-rectangle", "color": "#1e3a8a"},
+        {"label": "Letters Issued", "val": f"{total_issued:,}", "icon": "fa-file-circle-check", "color": "#00b894"},
+        {"label": "Letters Pending", "val": f"{total_pending:,}", "icon": "fa-clock", "color": "#f39c12"},
+        {"label": "Dispatches Logged", "val": f"{total_resent:,}", "icon": "fa-paper-plane", "color": "#6c5ce7"},
     ]
 
     return {
@@ -1323,10 +1324,10 @@ def _query_application_attachments_audit(params, user):
         ])
 
     kpis = [
-        {"label": "Uploaded Files", "val": total_files, "icon": "fa-paperclip", "color": "#1e3a8a"},
-        {"label": "Verified & Approved", "val": verified_count, "icon": "fa-circle-check", "color": "#00b894"},
-        {"label": "Pending Verification", "val": pending_count, "icon": "fa-clock", "color": "#f39c12"},
-        {"label": "Rejected Files", "val": rejected_count, "icon": "fa-circle-xmark", "color": "#e74c3c"},
+        {"label": "Uploaded Files", "val": f"{total_files:,}", "icon": "fa-paperclip", "color": "#1e3a8a"},
+        {"label": "Verified & Approved", "val": f"{verified_count:,}", "icon": "fa-circle-check", "color": "#00b894"},
+        {"label": "Pending Verification", "val": f"{pending_count:,}", "icon": "fa-clock", "color": "#f39c12"},
+        {"label": "Rejected Files", "val": f"{rejected_count:,}", "icon": "fa-circle-xmark", "color": "#e74c3c"},
     ]
 
     return {
@@ -1394,14 +1395,12 @@ def generate_report_pdf(report_data):
         generated_at=report_data['generated_at'], generated_by=report_data['generated_by']))
     elements.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#6C5CE7"), spaceAfter=10))
 
-    # 2. Active Filter summary
     if report_data.get("applied_filters"):
         filter_str = "  |  ".join(report_data["applied_filters"])
         filter_para = Paragraph(f"<b>Applied Filters:</b> {escape(filter_str)}", meta_style)
         elements.append(filter_para)
         elements.append(Spacer(1, 8))
 
-    # 3. Data Table
     cols = report_data.get("columns", [])
     raw_rows = report_data.get("rows", [])
 
@@ -1425,7 +1424,6 @@ def generate_report_pdf(report_data):
             ('RIGHTPADDING', (0, 0), (-1, -1), 4),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E2E8F0")),
         ]
-        # Alternating row colors
         for i in range(1, len(table_data)):
             if i % 2 == 0:
                 t_style.append(('BACKGROUND', (0, i), (-1, i), colors.HexColor("#F7FAFC")))
@@ -1452,14 +1450,12 @@ def generate_report_excel(report_data):
     ws = wb.active
     ws.title = report_data.get("key", "Report")[:31]
 
-    # Primary colors
     brand_fill = PatternFill(start_color="2D2A4A", end_color="2D2A4A", fill_type="solid")
     header_fill = PatternFill(start_color="6C5CE7", end_color="6C5CE7", fill_type="solid")
     alt_fill = PatternFill(start_color="F4F5FB", end_color="F4F5FB", fill_type="solid")
     border_side = Side(style="thin", color="E2E8F0")
     thin_border = Border(left=border_side, right=border_side, top=border_side, bottom=border_side)
 
-    # 1. University Banner
     last_col = get_column_letter(max(1, len(report_data.get("columns", []))))
     ws.merge_cells(f"A1:{last_col}1")
     ws["A1"] = get_branding()["site_name"].upper() + " — OFFICIAL REPORT"
@@ -1468,7 +1464,6 @@ def generate_report_excel(report_data):
     ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[1].height = 32
 
-    # 2. Title & metadata
     ws.merge_cells(f"A2:{last_col}2")
     ws["A2"] = report_data.get("title", "Report").upper()
     ws["A2"].font = Font(name="Quicksand", size=11, bold=True, color="2D2A4A")
@@ -1484,7 +1479,6 @@ def generate_report_excel(report_data):
     ws["A3"].alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[3].height = 18
 
-    # 3. Table Column Headers
     cols = report_data.get("columns", [])
     raw_rows = report_data.get("rows", [])
     start_row = 5
@@ -1497,7 +1491,6 @@ def generate_report_excel(report_data):
         cell.border = thin_border
     ws.row_dimensions[start_row].height = 24
 
-    # 4. Data Rows
     for r_idx, row_data in enumerate(raw_rows, start=start_row + 1):
         is_alt = (r_idx % 2 == 0)
         for c_idx, val in enumerate(row_data, start=1):
@@ -1509,7 +1502,6 @@ def generate_report_excel(report_data):
                 cell.fill = alt_fill
         ws.row_dimensions[r_idx].height = 19
 
-    # Auto-adjust column widths
     for col in ws.columns:
         max_len = max(len(str(cell.value or '')) for cell in col)
         col_letter = get_column_letter(col[0].column)
@@ -1527,11 +1519,9 @@ def generate_report_csv(report_data):
     Generates a streaming CSV response with UTF-8 BOM encoding and formula escaping.
     """
     output = io.StringIO()
-    # Write UTF-8 BOM
     output.write('\ufeff')
     writer = csv.writer(output)
 
-    # Table columns and rows
     writer.writerow(report_data.get("columns", []))
     for row in report_data.get("rows", []):
         writer.writerow([sanitize_csv_value(val) for val in row])
