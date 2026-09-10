@@ -16,6 +16,21 @@ from .module_models import (
 )
 
 
+def default_grade_bands():
+    return [
+        {"grade": "A", "minimum": 70, "gp": 4.0, "description": "Excellent"},
+        {"grade": "B", "minimum": 60, "gp": 3.0, "description": "Good"},
+        {"grade": "C", "minimum": 50, "gp": 2.0, "description": "Satisfactory"},
+        {"grade": "D", "minimum": 40, "gp": 1.0, "description": "Pass"},
+        {"grade": "F", "minimum": 0, "gp": 0.0, "description": "Fail"},
+    ]
+
+
+def grade_point_for(grade):
+    points = {"A": 4.0, "B": 3.0, "C": 2.0, "D": 1.0, "F": 0.0}
+    return points.get(grade, 0.0)
+
+
 class School(models.Model):
     name = models.CharField(max_length=120, unique=True)
     code = models.CharField(max_length=15, unique=True)
@@ -343,7 +358,7 @@ class Course(models.Model):
 
     @property
     def enrolled_count(self):
-        return self.enrollments.filter(status=Enrollment.ACTIVE).count()
+        return self.enrollments.filter(status="ACTIVE").count()
 
     @property
     def level_display(self):
@@ -505,21 +520,6 @@ class GradingScale(models.Model):
 
     def __str__(self):
         return f"Grade {self.grade} ({self.min_mark}% – {self.max_mark}%, {self.grade_point} GP)"
-
-
-def default_grade_bands():
-    return [
-        {"grade": "A", "minimum": 70, "gp": 4.0, "description": "Excellent"},
-        {"grade": "B", "minimum": 60, "gp": 3.0, "description": "Good"},
-        {"grade": "C", "minimum": 50, "gp": 2.0, "description": "Satisfactory"},
-        {"grade": "D", "minimum": 40, "gp": 1.0, "description": "Pass"},
-        {"grade": "F", "minimum": 0, "gp": 0.0, "description": "Fail"},
-    ]
-
-
-def grade_point_for(grade):
-    points = {"A": 4.0, "B": 3.0, "C": 2.0, "D": 1.0, "F": 0.0}
-    return points.get(grade, 0.0)
 
 
 class ExamRoom(models.Model):
