@@ -27,12 +27,28 @@
             {% elif form.errors %}
               <div class="alert alert-danger py-2 small">Invalid username or password.</div>
             {% endif %}
-            <form method="post">
+            <form method="post" id="loginForm">
               {% csrf_token %}
+              {% if request.GET.next %}
+                <input type="hidden" name="next" value="{{ request.GET.next }}">
+              {% endif %}
               <div class="mb-3">{{ form.username }}</div>
-              <div class="mb-3">{{ form.password }}</div>
-              <button class="btn btn-primary btn-lg w-100 rounded-3">
-                <i class="fa-solid fa-right-to-bracket me-2"></i>Login</button>
+              <div class="mb-3 position-relative">
+                {{ form.password }}
+                <button type="button" class="btn btn-link text-muted p-0 position-absolute top-50 end-0
+                        translate-middle-y me-3" id="togglePassword" tabindex="-1"
+                        aria-label="Show password">
+                  <i class="fa-solid fa-eye"></i>
+                </button>
+              </div>
+              <div class="form-check mb-3">
+                {{ form.remember_me }}
+                <label class="form-check-label small text-muted" for="{{ form.remember_me.id_for_label }}">
+                  Remember me on this device</label>
+              </div>
+              <button class="btn btn-primary btn-lg w-100 rounded-3" id="loginSubmit" data-loading-text="Authenticating…">
+                <i class="fa-solid fa-right-to-bracket me-2"></i>
+                <span id="loginSubmitLabel">Login</span></button>
             </form>
             <p class="text-center mt-3 mb-1 small">
               <a href="{% url 'accounts:password_reset_request' %}" class="text-muted text-decoration-none">
@@ -46,4 +62,17 @@
     </div>
   </div>
 </div>
+<script>
+  document.getElementById('togglePassword').addEventListener('click', function () {
+    var field = document.getElementById('{{ form.password.id_for_label }}');
+    var icon = this.querySelector('i');
+    var showing = field.type === 'text';
+    field.type = showing ? 'password' : 'text';
+    icon.classList.toggle('fa-eye', showing);
+    icon.classList.toggle('fa-eye-slash', !showing);
+    this.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+  });
+  // Button processing state (disable + "Authenticating…") is applied
+  // automatically by the global LoadingService submit listener.
+</script>
 {% endblock %}

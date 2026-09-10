@@ -9,7 +9,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Q, Sum
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -28,7 +28,7 @@ from .models import (
 )
 from .transcript_views import document as render_transcript_document
 from .document_access_services import check_document_access
-from .audit_services import get_client_ip, detect_device_type
+from .audit_services import get_client_ip, detect_device_type, log_activity
 from .academic_calendar_services import get_current_academic_year, get_current_semester, get_active_academic_context
 
 
@@ -43,6 +43,93 @@ def _get_student(request):
 # ==============================================================================
 # STUDENT ACADEMICS SUBMODULES
 # ==============================================================================
+
+def _semester_registration_context(sp):
+    active_ay = get_current_academic_year()
+    active_term = get_current_semester()
+    registration = None
+    blocked_reason = ""
+    can_register = False
+
+    if not sp.is_active_student:
+        blocked_reason = f"Semester registration is unavailable while your status is '{sp.get_status_display()}'."
+    elif not sp.program_id:
+        blocked_reason = "A valid programme is required before semester registration."
+    elif not active_ay:
+        blocked_reason = "No current academic year is configured."
+    elif not active_term:
+        blocked_reason = "No current semester is configured."
+    else:
+        registration = SemesterRegistration.objects.filter(student=sp, term=active_term).first()
+        from .models import AcademicYear
+        if active_ay.status not in [AcademicYear.Status.PUBLISHED, AcademicYear.Status.CURRENT]:
+            blocked_reason = f"{active_ay.name} is not open for student registration."
+        elif active_term.status not in [AcademicYear.Status.PUBLISHED, AcademicYear.Status.CURRENT]:
+            blocked_reason = f"{active_term.name} is not open for student registration."
+        elif not active_term.is_registration_open:
+            blocked_reason = "The semester registration period is closed."
+        elif registration:
+            can_register = False
+        else:
+            can_register = True
+
+    return {
+        "student": sp,
+        "academic_year": active_ay,
+        "term": active_term,
+        "registration": registration,
+        "blocked_reason": blocked_reason,
+        "can_register": can_register,
+    }
+
+
+@login_required
+def student_semester_registration(request):
+    """Student confirms the current academic year and semester before units unlock."""
+    sp = _get_student(request)
+    context = _semester_registration_context(sp)
+
+    if request.method == "POST":
+        if not context["can_register"]:
+            messages.error(request, context["blocked_reason"] or "You are already registered for this semester.")
+            return redirect("university:student_semester_registration")
+
+        active_ay = context["academic_year"]
+        active_term = context["term"]
+        try:
+            with transaction.atomic():
+                registration, created = SemesterRegistration.objects.get_or_create(
+                    student=sp,
+                    term=active_term,
+                    defaults={
+                        "semester_no": sp.current_semester,
+                        "academic_year": active_ay.name if active_ay else "",
+                        "status": SemesterRegistration.REGISTERED,
+                        "submitted_at": timezone.now(),
+                    },
+                )
+                if not created and registration.status == SemesterRegistration.DRAFT:
+                    registration.status = SemesterRegistration.REGISTERED
+                    registration.submitted_at = registration.submitted_at or timezone.now()
+                    registration.save(update_fields=["status", "submitted_at", "updated_at"])
+                log_activity(
+                    request=request,
+                    user=request.user,
+                    action=AuditLog.Action.UNIT_REGISTRATION,
+                    module=AuditLog.Module.ACADEMICS,
+                    entity="SemesterRegistration",
+                    entity_id=registration.pk,
+                    description=f"Student {sp.roll_no} registered for {active_term.name}.",
+                    new_state={"student": sp.roll_no, "term": active_term.name, "academic_year": registration.academic_year, "status": registration.status},
+                )
+        except IntegrityError:
+            registration = SemesterRegistration.objects.get(student=sp, term=active_term)
+
+        messages.success(request, "Semester registration completed. Unit registration is now available.")
+        return redirect("university:student_register_units")
+
+    return render(request, "academics/student_semester_registration.html", context)
+
 
 @login_required
 def student_register_units(request):
@@ -81,22 +168,22 @@ def student_register_units(request):
             "blocked": True,
         })
 
-    # Get or create semester registration
-    ay_str = active_ay.name if active_ay else f"{active_term.start_date.year}/{active_term.end_date.year}"
-    registration, created = SemesterRegistration.objects.get_or_create(
+    registration = SemesterRegistration.objects.filter(
         student=sp,
         term=active_term,
-        defaults={
-            "semester_no": sp.current_semester,
-            "academic_year": ay_str,
-            "status": SemesterRegistration.DRAFT,
-        }
-    )
+        status__in=[SemesterRegistration.REGISTERED, SemesterRegistration.DRAFT, SemesterRegistration.SUBMITTED, SemesterRegistration.APPROVED, SemesterRegistration.FINAL],
+    ).first()
+    if not registration:
+        messages.warning(request, "Semester registration is required before you can register your units.")
+        return render(request, "academics/student_register.html", {
+            "student": sp, "term": active_term, "registration": None, "enrolled_units": [], "available_courses": [],
+            "blocked": True, "requires_semester_registration": True, "academic_year": active_ay,
+        })
 
     # Check registration dates & editable status
     is_window_open = active_term.is_registration_open
     is_deadline_passed = not is_window_open
-    is_editable = registration.status in [SemesterRegistration.DRAFT, SemesterRegistration.REJECTED] and is_window_open
+    is_editable = registration.status in [SemesterRegistration.REGISTERED, SemesterRegistration.DRAFT, SemesterRegistration.REJECTED] and is_window_open
 
     if request.method == "POST":
         action = request.POST.get("action")
@@ -498,7 +585,7 @@ def student_exam_card(request):
 
     courses = [e.course for e in enrollments_qs]
     if not courses and sp.program:
-        courses = list(sp.program.courses.filter(is_active=True)[:6])
+        courses = list(sp.program.courses.filter(status=Course.STATUS_ACTIVE)[:6])
 
     # Attach exam dates if scheduled
     courses_with_exams = []
@@ -977,7 +1064,5 @@ def admin_document_controls(request):
         "selected_term_id": term_id,
         "display_rows": display_rows,
     })
-
-
 
 

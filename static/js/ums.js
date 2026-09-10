@@ -212,10 +212,15 @@ const UmsToast = {
       success: 'fa-circle-check',
       danger: 'fa-circle-xmark',
       warning: 'fa-triangle-exclamation',
+      critical: 'fa-circle-exclamation',
       info: 'fa-circle-info'
     };
     const iconClass = iconMap[type] || 'fa-bell';
-    const defaultTitle = type.charAt(0).toUpperCase() + type.slice(1);
+    const defaultTitle = type === 'critical' ? 'Critical' : type.charAt(0).toUpperCase() + type.slice(1);
+
+    // Critical alerts must stay on screen until the user manually
+    // dismisses them -- they never auto-vanish like routine toasts.
+    if (type === 'critical' && duration === 4200) duration = 0;
 
     toast.innerHTML = `
       <i class="fa-solid ${iconClass} ums-toast-icon"></i>

@@ -1,8 +1,8 @@
 """
 Authentication enforcement for the central identity layer.
 
-Three pieces live here and they are deliberately kept together because they are
-the same rule seen from three angles:
+Four pieces live here and they are deliberately kept together because they are
+the same rule seen from four angles:
 
 * ``IdentityModelBackend`` — a disabled, suspended, locked or expired account
   cannot authenticate even with the correct password.
@@ -10,11 +10,16 @@ the same rule seen from three angles:
   ledger, and repeated failures drive the lockout counter.
 * ``PasswordChangeRequiredMiddleware`` — an account flagged
   ``must_change_password`` cannot reach the rest of the system until it does.
+* ``SessionIdleTimeoutMiddleware`` — a session that has been idle longer than
+  the configured ``session_timeout_minutes`` is signed out server-side, not
+  just left to the cookie's own expiry.
 """
 
+from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.backends import ModelBackend
 from django.contrib.auth.signals import (user_logged_in, user_logged_out,
                                          user_login_failed)
+from django.contrib import messages
 from django.dispatch import receiver
 from django.shortcuts import redirect
 from django.urls import resolve, reverse
@@ -156,3 +161,58 @@ class PasswordChangeRequiredMiddleware:
             return self.get_response(request)
 
         return redirect(reverse("accounts:password_change_required"))
+
+
+# ==============================================================================
+# IDLE SESSION TIMEOUT
+# ==============================================================================
+
+# Session key holding the timestamp of the last request seen for this session.
+_IDLE_ACTIVITY_KEY = "_last_activity_at"
+# Only rewrite the timestamp this often, so an active session costs at most
+# one extra session write per interval instead of one per request — the same
+# throttling pattern as LastSeenMiddleware.
+_IDLE_WRITE_THROTTLE_SECONDS = 60
+
+
+class SessionIdleTimeoutMiddleware:
+    """
+    Sign a user out server-side once their session has been idle too long.
+
+    The window is the administrator-configured ``session_timeout_minutes``
+    setting, read fresh on every request so a policy change takes effect
+    immediately rather than only for sessions created afterwards. A timeout
+    of ``0`` (or unset) disables idle enforcement entirely.
+
+    Must run after ``MessageMiddleware`` in ``MIDDLEWARE`` so the "signed out
+    due to inactivity" notice has somewhere to land.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        user = getattr(request, "user", None)
+        if user is None or not user.is_authenticated:
+            return self.get_response(request)
+
+        path = request.path
+        if path.startswith(_EXEMPT_PREFIXES):
+            return self.get_response(request)
+
+        from university.settings_services import get_setting
+        timeout_minutes = get_setting("session_timeout_minutes", 60) or 0
+        if timeout_minutes <= 0:
+            return self.get_response(request)
+
+        now = timezone.now().timestamp()
+        last_seen = request.session.get(_IDLE_ACTIVITY_KEY)
+        if last_seen is not None and (now - last_seen) > timeout_minutes * 60:
+            auth_logout(request)
+            messages.info(request, "You were signed out after a period of inactivity.")
+            return redirect(reverse("accounts:login"))
+
+        if last_seen is None or (now - last_seen) >= _IDLE_WRITE_THROTTLE_SECONDS:
+            request.session[_IDLE_ACTIVITY_KEY] = now
+
+        return self.get_response(request)

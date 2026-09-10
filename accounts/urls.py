@@ -10,6 +10,8 @@ urlpatterns = [
     path("signup/", views.signup, name="signup"),
     path("profile/", views.profile, name="profile"),
     path("profile/settings/", views.profile_settings, name="profile_settings"),
+    path("profile/sessions/revoke-others/", views.revoke_other_sessions,
+         name="revoke_other_sessions"),
 
     # Self-service credential recovery
     path("password/forgot/", views.password_reset_request, name="password_reset_request"),

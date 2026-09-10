@@ -26,12 +26,13 @@ from .audit_services import log_activity
 from .recycle_bin_services import move_to_recycle_bin
 from .forms import (
     AssignmentForm, ClassScheduleForm, CourseForm, DepartmentForm, EventForm,
-    ExamForm, FacultyForm, FeeInvoiceForm, FeeStructureForm, ProgramForm, StudentForm,
+    ExamForm, FacultyForm, FeeInvoiceForm, FeeStructureForm, ProgramForm, SchoolForm,
+    StudentForm,
 )
 from .models import (
     AcademicTerm, Assignment, Attendance, ClassSchedule, Course, Department,
-    Enrollment, Event, Exam, ExamRoom, FeeInvoice, FeeStructure, Notice, Payment,
-    Program, Result, Submission, School, AuditLog,
+    Enrollment, Event, Exam, ExamRoom, FeeAccount, FeeInvoice, FeeReceipt, FeeStructure,
+    Notice, Payment, PaymentAllocation, Program, Result, Submission, School, AuditLog,
 )
 
 DAY_LABELS_MAP = dict(ClassSchedule.Day.choices)
@@ -833,6 +834,52 @@ def faculty_delete(request, pk):
     return render(request, "dashboard/confirm_delete.html", {
         "object": fp, "label": "faculty", "back_url": reverse("university:admin_faculty"),
     })
+
+
+# ==========================================================================
+# ADMIN AREA — SCHOOLS / FACULTIES
+# ==========================================================================
+@role_required(Role.ADMIN)
+def admin_schools(request):
+    schools = School.objects.annotate(n_departments=Count("departments", distinct=True))
+    return render(request, "dashboard/admin_schools.html", {"schools": schools})
+
+
+@login_required
+def school_detail(request, pk):
+    school = get_object_or_404(School, pk=pk)
+    return render(request, "dashboard/school_detail.html", {
+        "school": school, "departments": school.departments.all(),
+    })
+
+
+@role_required(Role.ADMIN)
+def school_create(request):
+    form = SchoolForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        school = form.save()
+        messages.success(request, f"School {school.name} created.")
+        return redirect("university:school_detail", pk=school.pk)
+    return _render_form(request, form, "Add School / Faculty", "", "fa-landmark",
+                        "university:admin_schools")
+
+
+@role_required(Role.ADMIN)
+def school_edit(request, pk):
+    school = get_object_or_404(School, pk=pk)
+    form = SchoolForm(request.POST or None, instance=school)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "School updated.")
+        return redirect("university:school_detail", pk=school.pk)
+    return _render_form(request, form, "Edit School / Faculty", school.name, "fa-pen",
+                        "university:admin_schools")
+
+
+@role_required(Role.ADMIN)
+def school_delete(request, pk):
+    school = get_object_or_404(School, pk=pk)
+    return _confirm_delete(request, school, "school", "university:admin_schools")
 
 
 # ==========================================================================
@@ -1759,10 +1806,53 @@ def record_payment(request, pk):
     except (InvalidOperation, TypeError):
         amount = Decimal("0")
     if amount > 0:
+        prev_balance = invoice.balance
         invoice.amount_paid += amount
         invoice.save()
-        Payment.objects.create(invoice=invoice, amount=amount, method="Front-desk",
-                               reference=f"TXN-{timezone.now().strftime('%H%M%S')}")
+        fee_acc = FeeAccount.objects.filter(status=FeeAccount.Status.ACTIVE).first()
+        ref = f"TXN-{timezone.now().strftime('%H%M%S')}"
+        pmt = Payment.objects.create(
+            invoice=invoice,
+            student=invoice.student,
+            fee_account=fee_acc,
+            amount=amount,
+            currency="KES",
+            method="Front-desk",
+            reference=ref,
+            internal_reference=f"FNT-{timezone.now().strftime('%Y%m%d%H%M%S%f')[:20]}",
+            status=Payment.Status.SUCCESSFUL,
+            academic_year=getattr(invoice.term, "academic_year", None) if invoice.term else None,
+            term=invoice.term,
+            completed_at=timezone.now(),
+            payer_name=getattr(invoice.student.user, "display_name", str(invoice.student.user)),
+        )
+        PaymentAllocation.objects.create(
+            payment=pmt,
+            invoice=invoice,
+            amount=amount,
+            allocated_at=timezone.now(),
+        )
+        receipt_no = f"REC-{pmt.paid_on.year}-{pmt.id:06d}"
+        FeeReceipt.objects.get_or_create(
+            payment=pmt,
+            defaults={
+                "receipt_number": receipt_no,
+                "student": invoice.student,
+                "issued_at": timezone.now(),
+                "previous_balance": prev_balance,
+                "amount_paid": amount,
+                "remaining_balance": invoice.balance,
+            },
+        )
+        log_activity(
+            request=request,
+            user=request.user,
+            action=AuditLog.Action.CREATE,
+            module=AuditLog.Module.FEES,
+            entity="Payment",
+            entity_id=pmt.reference,
+            description=f"Front-desk fee payment of KES {amount:,.0f} recorded against {invoice.title} for {invoice.student.roll_no}.",
+        )
         if amount > invoice.amount - (invoice.amount_paid - amount):
             credit = invoice.credit
             messages.success(request, f"Recorded KES {amount:,.0f} against {invoice.title}. Credit of KES {credit:,.0f} applied to student account.")
@@ -2505,13 +2595,57 @@ def student_fees(request):
             amt = Decimal("0.00")
 
         if amt > 0:
+            prev_balance = invoice.balance
             invoice.amount_paid += amt
             invoice.save()
-            pmt = Payment.objects.create(invoice=invoice, amount=amt, method=method, reference=reference)
+            fee_acc = FeeAccount.objects.filter(status=FeeAccount.Status.ACTIVE).first()
+            pmt = Payment.objects.create(
+                invoice=invoice,
+                student=sp,
+                fee_account=fee_acc,
+                amount=amt,
+                currency="KES",
+                method=method,
+                reference=reference,
+                internal_reference=f"STU-{timezone.now().strftime('%Y%m%d%H%M%S%f')[:20]}",
+                status=Payment.Status.SUCCESSFUL,
+                academic_year=getattr(invoice.term, "academic_year", None) if invoice.term else None,
+                term=invoice.term,
+                completed_at=timezone.now(),
+                payer_name=getattr(sp.user, "display_name", str(sp.user)),
+                payer_phone=getattr(sp.user, "phone", ""),
+            )
+            PaymentAllocation.objects.create(
+                payment=pmt,
+                invoice=invoice,
+                amount=amt,
+                allocated_at=timezone.now(),
+            )
+            receipt_no = f"REC-{pmt.paid_on.year}-{pmt.id:06d}"
+            FeeReceipt.objects.get_or_create(
+                payment=pmt,
+                defaults={
+                    "receipt_number": receipt_no,
+                    "student": sp,
+                    "issued_at": timezone.now(),
+                    "previous_balance": prev_balance,
+                    "amount_paid": amt,
+                    "remaining_balance": invoice.balance,
+                },
+            )
+            log_activity(
+                request=request,
+                user=request.user,
+                action=AuditLog.Action.CREATE,
+                module=AuditLog.Module.FEES,
+                entity="Payment",
+                entity_id=pmt.reference,
+                description=f"Student portal fee payment of KES {amt:,.2f} recorded for {sp.roll_no}.",
+            )
             if invoice.credit > 0:
-                messages.success(request, f"Payment of KES {amt:,.2f} recorded successfully (Ref: {reference}). Receipt REC-{pmt.id:06d} generated. Credit of KES {invoice.credit:,.2f} applied to your account.")
+                messages.success(request, f"Payment of KES {amt:,.2f} recorded successfully (Ref: {reference}). Receipt {receipt_no} generated. Credit of KES {invoice.credit:,.2f} applied to your account.")
             else:
-                messages.success(request, f"Payment of KES {amt:,.2f} recorded successfully (Ref: {reference}). Receipt REC-{pmt.id:06d} generated.")
+                messages.success(request, f"Payment of KES {amt:,.2f} recorded successfully (Ref: {reference}). Receipt {receipt_no} generated.")
         else:
             messages.error(request, "Please enter a valid payment amount.")
         return redirect("university:student_fees")

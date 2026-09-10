@@ -41,7 +41,7 @@
 
         <div class="d-flex justify-content-end gap-2">
           <a href="{% url 'university:admin_timetable' %}" class="btn btn-light border rounded-pill px-4">Cancel</a>
-          <button type="submit" id="submitTtUploadBtn" class="btn btn-primary rounded-pill px-4 fw-semibold" disabled>
+          <button type="submit" id="submitTtUploadBtn" class="btn btn-primary rounded-pill px-4 fw-semibold" disabled data-loading-text="Validating…">
             <i class="fa-solid fa-magnifying-glass me-1"></i> Validate & Preview File
           </button>
         </div>

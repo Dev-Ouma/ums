@@ -12,6 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="{% static 'css/ums.css' %}?v={{ asset_version }}" rel="stylesheet">
+  <link href="{% static 'css/loader.css' %}?v={{ asset_version }}" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script>
     // Chart.js draws to a canvas and so ignores CSS entirely; its axis ticks,
@@ -236,18 +237,21 @@
       {% if 'academic_calendar' in active_modules or 'students' in active_modules or 'faculty_ops' in active_modules or 'curriculum' in active_modules or 'timetable' in active_modules %}
       <!-- Management Collapsible -->
       <div class="nav-group">
-        <div class="item item-toggle {% if url_name == 'admin_students' or url_name == 'student_detail' or url_name == 'admin_faculty' or url_name == 'faculty_detail' or url_name == 'admin_departments' or url_name == 'department_detail' or url_name == 'admin_academic_years' or url_name == 'admin_academic_calendar' or url_name == 'academic_year_detail' or url_name == 'admin_programs' or url_name == 'admin_programmes' or url_name == 'admin_courses' or url_name == 'course_detail' or url_name == 'admin_timetable' %}active{% endif %}"
+        <div class="item item-toggle {% if url_name == 'admin_students' or url_name == 'student_detail' or url_name == 'admin_faculty' or url_name == 'faculty_detail' or url_name == 'admin_schools' or url_name == 'school_detail' or url_name == 'admin_departments' or url_name == 'department_detail' or url_name == 'admin_academic_years' or url_name == 'admin_academic_calendar' or url_name == 'academic_year_detail' or url_name == 'admin_semesters' or url_name == 'semester_create_global' or url_name == 'semester_edit' or url_name == 'admin_programs' or url_name == 'admin_programmes' or url_name == 'admin_courses' or url_name == 'course_detail' or url_name == 'admin_timetable' %}active{% endif %}"
              data-bs-toggle="collapse" data-bs-target="#adminManagementSubmenu" role="button"
-             aria-expanded="{% if url_name == 'admin_students' or url_name == 'student_detail' or url_name == 'admin_faculty' or url_name == 'faculty_detail' or url_name == 'admin_departments' or url_name == 'department_detail' or url_name == 'admin_academic_years' or url_name == 'admin_academic_calendar' or url_name == 'academic_year_detail' or url_name == 'admin_programs' or url_name == 'admin_programmes' or url_name == 'admin_courses' or url_name == 'course_detail' or url_name == 'admin_timetable' %}true{% else %}false{% endif %}"
+             aria-expanded="{% if url_name == 'admin_students' or url_name == 'student_detail' or url_name == 'admin_faculty' or url_name == 'faculty_detail' or url_name == 'admin_schools' or url_name == 'school_detail' or url_name == 'admin_departments' or url_name == 'department_detail' or url_name == 'admin_academic_years' or url_name == 'admin_academic_calendar' or url_name == 'academic_year_detail' or url_name == 'admin_semesters' or url_name == 'semester_create_global' or url_name == 'semester_edit' or url_name == 'admin_programs' or url_name == 'admin_programmes' or url_name == 'admin_courses' or url_name == 'course_detail' or url_name == 'admin_timetable' %}true{% else %}false{% endif %}"
              aria-controls="adminManagementSubmenu">
           <i class="fa-solid fa-sitemap"></i>
           <span class="item-label">Management</span>
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
-        <div class="collapse submenu {% if url_name == 'admin_students' or url_name == 'student_detail' or url_name == 'admin_faculty' or url_name == 'faculty_detail' or url_name == 'admin_departments' or url_name == 'department_detail' or url_name == 'admin_academic_years' or url_name == 'admin_academic_calendar' or url_name == 'academic_year_detail' or url_name == 'admin_programs' or url_name == 'admin_programmes' or url_name == 'program_detail' or url_name == 'program_import' or url_name == 'admin_courses' or url_name == 'course_detail' or url_name == 'admin_timetable' %}show{% endif %}" id="adminManagementSubmenu">
+        <div class="collapse submenu {% if url_name == 'admin_students' or url_name == 'student_detail' or url_name == 'admin_faculty' or url_name == 'faculty_detail' or url_name == 'admin_schools' or url_name == 'school_detail' or url_name == 'admin_departments' or url_name == 'department_detail' or url_name == 'admin_academic_years' or url_name == 'admin_academic_calendar' or url_name == 'academic_year_detail' or url_name == 'admin_semesters' or url_name == 'semester_create_global' or url_name == 'semester_edit' or url_name == 'admin_programs' or url_name == 'admin_programmes' or url_name == 'program_detail' or url_name == 'program_import' or url_name == 'admin_courses' or url_name == 'course_detail' or url_name == 'admin_timetable' %}show{% endif %}" id="adminManagementSubmenu">
           {% if 'academic_calendar' in active_modules %}
           <a class="item sub-item {% if url_name == 'admin_academic_years' or url_name == 'admin_academic_calendar' or url_name == 'academic_year_detail' or url_name == 'academic_year_create' or url_name == 'academic_year_edit' %}active{% endif %}" href="{% url 'university:admin_academic_years' %}">
             <i class="fa-solid fa-calendar-days"></i> <span class="item-label">Academic Calendar</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'admin_semesters' or url_name == 'semester_create_global' or url_name == 'semester_edit' %}active{% endif %}" href="{% url 'university:admin_semesters' %}">
+            <i class="fa-solid fa-clock"></i> <span class="item-label">Semester Setup</span>
           </a>
           {% endif %}
           {% if 'students' in active_modules %}
@@ -261,6 +265,9 @@
           </a>
           {% endif %}
           {% if 'curriculum' in active_modules %}
+          <a class="item sub-item {% if url_name == 'admin_schools' or url_name == 'school_detail' %}active{% endif %}" href="{% url 'university:admin_schools' %}">
+            <i class="fa-solid fa-landmark"></i> <span class="item-label">Schools</span>
+          </a>
           <a class="item sub-item {% if url_name == 'admin_departments' or url_name == 'department_detail' %}active{% endif %}" href="{% url 'university:admin_departments' %}">
             <i class="fa-solid fa-building-columns"></i> <span class="item-label">Departments</span>
           </a>
@@ -316,8 +323,8 @@
           <a class="item sub-item {% if url_name == 'group_list' or url_name == 'group_create' or url_name == 'group_edit' %}active{% endif %}" href="{% url 'university:group_list' %}">
             <i class="fa-solid fa-users-rectangle"></i> <span class="item-label">User Groups</span>
           </a>
-          <a class="item sub-item" href="{% url 'university:user_roles_permissions' %}">
-            <i class="fa-solid fa-user-shield"></i> <span class="item-label">Roles &amp; Permissions</span>
+          <a class="item sub-item {% if url_name == 'staff_permissions_dashboard' or url_name == 'staff_user_access_detail' or url_name == 'role_create' or url_name == 'role_edit' or url_name == 'user_roles_permissions' %}active{% endif %}" href="{% url 'university:staff_permissions_dashboard' %}">
+            <i class="fa-solid fa-user-shield"></i> <span class="item-label">Staff Permissions</span>
           </a>
           <a class="item sub-item {% if url_name == 'email_accounts' %}active{% endif %}" href="{% url 'university:email_accounts' %}">
             <i class="fa-solid fa-envelope"></i> <span class="item-label">Email Accounts</span>
@@ -346,20 +353,23 @@
 
       <!-- System Administration Collapsible -->
       <div class="nav-group">
-        <div class="item item-toggle {% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or request.resolver_match.namespace == 'control' %}active{% endif %}"
+        <div class="item item-toggle {% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or url_name == 'golive_dashboard' or request.resolver_match.namespace == 'control' %}active{% endif %}"
              data-bs-toggle="collapse" data-bs-target="#adminSystemSubmenu" role="button"
-             aria-expanded="{% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or request.resolver_match.namespace == 'control' %}true{% else %}false{% endif %}"
+             aria-expanded="{% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or url_name == 'golive_dashboard' or request.resolver_match.namespace == 'control' %}true{% else %}false{% endif %}"
              aria-controls="adminSystemSubmenu">
           <i class="fa-solid fa-shield-halved"></i>
           <span class="item-label">System Admin</span>
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
-        <div class="collapse submenu {% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'staff_permissions_dashboard' or url_name == 'staff_user_access_detail' or url_name == 'role_create' or url_name == 'role_edit' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or request.resolver_match.namespace == 'control' %}show{% endif %}" id="adminSystemSubmenu">
+        <div class="collapse submenu {% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'staff_permissions_dashboard' or url_name == 'staff_user_access_detail' or url_name == 'role_create' or url_name == 'role_edit' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or url_name == 'golive_dashboard' or request.resolver_match.namespace == 'control' %}show{% endif %}" id="adminSystemSubmenu">
           <a class="item sub-item {% if url_name == 'admin_modules' %}active{% endif %}" href="{% url 'university:admin_modules' %}">
             <i class="fa-solid fa-cubes-stacked"></i> <span class="item-label">Module Management</span>
           </a>
           <a class="item sub-item {% if 'backup' in url_name %}active{% endif %}" href="{% url 'university:backup_dashboard' %}">
             <i class="fa-solid fa-database"></i> <span class="item-label">System Backups</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'golive_dashboard' %}active{% endif %}" href="{% url 'university:golive_dashboard' %}">
+            <i class="fa-solid fa-rocket"></i> <span class="item-label">Go-Live Command Center</span>
           </a>
           {% if can_control_maintenance %}
           <a class="item sub-item {% if request.resolver_match.namespace == 'control' and request.resolver_match.url_name in 'dashboard,status,health' and not request.GET.section == 'lockdown' %}active{% endif %}" href="{% url 'control:dashboard' %}">
@@ -444,15 +454,18 @@
       <div class="menu-label">Academics</div>
       <!-- Student Academics Collapsible -->
       <div class="nav-group">
-        <div class="item item-toggle {% if url_name == 'student_register_units' or url_name == 'student_requests' or url_name == 'student_provisional_transcript' or url_name == 'student_academic_transcript' or url_name == 'student_progressive_report' or url_name == 'student_exam_card' or url_name == 'student_supplementary' or url_name == 'student_graduation' or url_name == 'student_attachment_portal' or url_name == 'student_evaluation_portal' or url_name == 'student_evaluation_submit' or url_name == 'student_reports' or request.resolver_match.namespace == 'examinations' %}active{% endif %}" 
+        <div class="item item-toggle {% if url_name == 'student_semester_registration' or url_name == 'student_semester_registration_legacy' or url_name == 'student_register_units' or url_name == 'student_requests' or url_name == 'student_provisional_transcript' or url_name == 'student_academic_transcript' or url_name == 'student_progressive_report' or url_name == 'student_exam_card' or url_name == 'student_supplementary' or url_name == 'student_graduation' or url_name == 'student_attachment_portal' or url_name == 'student_evaluation_portal' or url_name == 'student_evaluation_submit' or url_name == 'student_reports' or request.resolver_match.namespace == 'examinations' %}active{% endif %}"
              data-bs-toggle="collapse" data-bs-target="#academicsSubmenu" role="button"
-             aria-expanded="{% if url_name == 'student_register_units' or url_name == 'student_requests' or url_name == 'student_provisional_transcript' or url_name == 'student_academic_transcript' or url_name == 'student_progressive_report' or url_name == 'student_exam_card' or url_name == 'student_supplementary' or url_name == 'student_graduation' or url_name == 'student_attachment_portal' or url_name == 'student_reports' or request.resolver_match.namespace == 'examinations' %}true{% else %}false{% endif %}" 
+             aria-expanded="{% if url_name == 'student_semester_registration' or url_name == 'student_semester_registration_legacy' or url_name == 'student_register_units' or url_name == 'student_requests' or url_name == 'student_provisional_transcript' or url_name == 'student_academic_transcript' or url_name == 'student_progressive_report' or url_name == 'student_exam_card' or url_name == 'student_supplementary' or url_name == 'student_graduation' or url_name == 'student_attachment_portal' or url_name == 'student_reports' or request.resolver_match.namespace == 'examinations' %}true{% else %}false{% endif %}"
              aria-controls="academicsSubmenu">
           <i class="fa-solid fa-graduation-cap"></i>
           <span class="item-label">Academics</span>
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
-        <div class="collapse submenu {% if url_name == 'student_register_units' or url_name == 'student_requests' or url_name == 'student_provisional_transcript' or url_name == 'student_academic_transcript' or url_name == 'student_progressive_report' or url_name == 'student_exam_card' or url_name == 'student_supplementary' or url_name == 'student_graduation' or url_name == 'student_attachment_portal' or url_name == 'student_reports' or request.resolver_match.namespace == 'examinations' %}show{% endif %}" id="academicsSubmenu">
+        <div class="collapse submenu {% if url_name == 'student_semester_registration' or url_name == 'student_semester_registration_legacy' or url_name == 'student_register_units' or url_name == 'student_requests' or url_name == 'student_provisional_transcript' or url_name == 'student_academic_transcript' or url_name == 'student_progressive_report' or url_name == 'student_exam_card' or url_name == 'student_supplementary' or url_name == 'student_graduation' or url_name == 'student_attachment_portal' or url_name == 'student_reports' or request.resolver_match.namespace == 'examinations' %}show{% endif %}" id="academicsSubmenu">
+          <a class="item sub-item {% if url_name == 'student_semester_registration' or url_name == 'student_semester_registration_legacy' %}active{% endif %}" href="{% url 'university:student_semester_registration' %}">
+            <i class="fa-solid fa-calendar-check"></i> <span class="item-label">Semester Registration</span>
+          </a>
           {% if 'unit_registration' in active_submodules %}
           <a class="item sub-item {% if url_name == 'student_register_units' %}active{% endif %}" href="{% url 'university:student_register_units' %}">
             <i class="fa-solid fa-clipboard-list"></i> <span class="item-label">Register Units</span>
@@ -682,6 +695,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>const AI_REPLY_URL = "{% url 'university:ai_reply' %}";</script>
+<script src="{% static 'js/loading.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'js/unsaved-changes.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'js/ums.js' %}?v={{ asset_version }}"></script>
 {% block extra_js %}{% endblock %}
 </body>

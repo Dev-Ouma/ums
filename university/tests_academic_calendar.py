@@ -270,6 +270,16 @@ class AcademicCalendarTests(TestCase):
         reg_url = reverse("university:student_register_units")
         res = client.get(reg_url)
         self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.context.get("requires_semester_registration", False))
+
+        sem_reg_url = reverse("university:student_semester_registration")
+        sem_res = client.post(sem_reg_url)
+        self.assertEqual(sem_res.status_code, 302)
+        self.assertEqual(SemesterRegistration.objects.filter(student=sp, term=self.sem1).count(), 1)
+
+        res_after_sem_reg = client.get(reg_url)
+        self.assertEqual(res_after_sem_reg.status_code, 200)
+        self.assertFalse(res_after_sem_reg.context.get("requires_semester_registration", False))
 
         # Now close sem1 and sem2
         close_semester(self.sem1.pk, user=self.admin_user)
@@ -281,6 +291,22 @@ class AcademicCalendarTests(TestCase):
         self.assertEqual(res_closed.status_code, 200)
         # Should be blocked
         self.assertTrue(res_closed.context.get("blocked", False))
+
+    def test_semester_registration_is_unique_on_repeated_posts(self):
+        u = User.objects.create_user(username="student_sem_unique", email="sem_unique@uni.edu", role=Role.STUDENT)
+        sp = StudentProfile.objects.create(user=u, roll_no="REG-002", program=self.program, current_semester=1)
+
+        client = Client()
+        client.force_login(u)
+        sem_reg_url = reverse("university:student_semester_registration")
+
+        first = client.post(sem_reg_url)
+        second = client.post(sem_reg_url)
+
+        self.assertEqual(first.status_code, 302)
+        self.assertEqual(second.status_code, 302)
+        self.assertEqual(SemesterRegistration.objects.filter(student=sp, term=self.sem1).count(), 1)
+        self.assertEqual(SemesterRegistration.objects.get(student=sp, term=self.sem1).status, SemesterRegistration.REGISTERED)
 
     def test_academic_calendar_admin_views_and_actions(self):
         """Test admin views for academic years, semester creation, and actions."""
@@ -311,6 +337,13 @@ class AcademicCalendarTests(TestCase):
         self.assertEqual(res_post_sem.status_code, 302)
         self.assertTrue(AcademicTerm.objects.filter(name__icontains="Summer Session").exists())
 
+        # 3b. System-wide semester setup page uses the same AcademicTerm records.
+        semesters_url = reverse("university:admin_semesters")
+        res_semesters = client.get(semesters_url)
+        self.assertEqual(res_semesters.status_code, 200)
+        self.assertContains(res_semesters, self.sem1.name)
+        self.assertContains(res_semesters, self.ay_2026.name)
+
         # 4. AJAX numbering preview endpoint
         preview_url = reverse("university:api_numbering_preview")
         res_preview = client.get(f"{preview_url}?pattern={{PROG}}/{{SEQ:03d}}/{{YEAR_END}}")
@@ -318,6 +351,23 @@ class AcademicCalendarTests(TestCase):
         data = res_preview.json()
         self.assertEqual(data["status"], "ok")
         self.assertEqual(data["preview"], f"BS-CS/001/{self.ay_2026.end_date.year}")
+
+    def test_global_semester_setup_rejects_duplicate_semester_number(self):
+        client = Client()
+        client.force_login(self.admin_user)
+
+        response = client.post(reverse("university:semester_create_global"), {
+            "academic_year": self.ay_2026.pk,
+            "name": "Duplicate Semester 1",
+            "term_type": "SEMESTER",
+            "semester_number": 1,
+            "start_date": datetime.date(self.cur_year, 8, 1),
+            "end_date": datetime.date(self.cur_year, 11, 1),
+            "status": AcademicYear.Status.PUBLISHED,
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(AcademicTerm.objects.filter(name="Duplicate Semester 1").exists())
 
     def test_audit_log_and_recycle_bin_integration(self):
         """Test that academic year transitions are audited and soft-deletes move to Recycle Bin."""

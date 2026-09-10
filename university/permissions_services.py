@@ -78,6 +78,10 @@ DEFAULT_PERMISSIONS = [
     ("backups.delete", "Delete Backup Archives", "Backups", "Permanently remove backup archives and storage artifacts."),
     ("backups.manage_storage", "Configure Backup Storage Destinations", "Backups", "Configure local, network, and cloud storage targets."),
     ("backups.manage_settings", "Manage Backup Policies & Settings", "Backups", "Configure retention rules, health thresholds, and storage alerts."),
+
+    # --- Go-Live Command Center ---
+    ("golive.view", "View Go-Live Readiness Dashboard", "Go-Live", "Access the pre-launch readiness scoreboard and issue ledger."),
+    ("golive.manage", "Manage Go-Live Readiness & Issues", "Go-Live", "Update category status/sign-off and create, edit, or close readiness issues."),
 ]
 
 # System control grants never inherit the ADMIN base-role default.

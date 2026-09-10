@@ -63,6 +63,37 @@
         </div>
       </div>
     </div>
+
+    <div class="card card-ums p-4 mt-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="fw-bold mb-0"><i class="fa-solid fa-desktop me-2 text-primary"></i>Active sessions</h6>
+        {% if sessions|length > 1 %}
+          <form method="post" action="{% url 'accounts:revoke_other_sessions' %}"
+                onsubmit="return confirm('Sign out of every other device? This session stays signed in.');">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-danger rounded-pill">
+              <i class="fa-solid fa-right-from-bracket me-1"></i>Sign out other devices</button>
+          </form>
+        {% endif %}
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+          <thead class="table-light"><tr class="small text-uppercase text-muted">
+            <th>Session</th><th>Expires</th><th></th></tr></thead>
+          <tbody>
+            {% for entry in sessions %}
+              <tr class="small">
+                <td><code>{{ entry.session.session_key|slice:":12" }}…</code></td>
+                <td class="text-muted">{{ entry.session.expire_date|timeuntil }}</td>
+                <td>{% if entry.is_current %}<span class="badge bg-success-subtle text-success">This device</span>{% endif %}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="3" class="text-center text-muted py-3 small">No active sessions.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

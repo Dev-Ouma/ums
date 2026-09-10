@@ -1,0 +1,509 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}Go-Live Command Center &bull; System Administration · UMS{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+
+  <!-- PAGE HEADER -->
+  <div class="page-head d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <h4 class="mb-0 fw-bold text-dark">
+          <i class="fa-solid fa-rocket text-primary me-2"></i>Go-Live Command Center
+        </h4>
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1 font-monospace" style="font-size:0.75rem;">
+          Launch Readiness Cockpit
+        </span>
+      </div>
+      <small class="text-muted">
+        System Admin &bull; Every readiness area and every warning, tracked to a final status. Nothing here is silently ignored.
+      </small>
+    </div>
+
+    {% if can_manage %}
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCreateIssue">
+        <i class="fa-solid fa-triangle-exclamation me-1.5"></i> Log Issue / Warning
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- READINESS BANNER -->
+  {% if summary.is_ready %}
+    <div class="card border-0 shadow-sm rounded-4 mb-4 p-4 text-white" style="background: linear-gradient(135deg, #10b981, #059669);">
+      <div class="d-flex align-items-center gap-3">
+        <i class="fa-solid fa-circle-check fa-2x"></i>
+        <div>
+          <div class="h5 fw-bold mb-0">READY FOR GO-LIVE</div>
+          <small class="opacity-75">All readiness categories are signed off and there are no open Critical/High issues.</small>
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <div class="card border-0 shadow-sm rounded-4 mb-4 p-4 text-white" style="background: linear-gradient(135deg, #ef4444, #b91c1c);">
+      <div class="d-flex align-items-center gap-3 mb-2">
+        <i class="fa-solid fa-triangle-exclamation fa-2x"></i>
+        <div>
+          <div class="h5 fw-bold mb-0">NOT READY FOR GO-LIVE</div>
+          <small class="opacity-75">{{ summary.not_ready_reasons|length }} blocking reason(s) outstanding.</small>
+        </div>
+      </div>
+      <ul class="mb-0 ps-4 small">
+        {% for reason in summary.not_ready_reasons %}
+          <li>{{ reason }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  <!-- STATS CARDS ROW -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 border-start border-3 border-success">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-semibold">Pass</span>
+          <span class="badge bg-success-subtle text-success rounded-circle p-2"><i class="fa-solid fa-circle-check"></i></span>
+        </div>
+        <div class="h3 fw-bold mb-0 text-success">{{ summary.status_counts.PASS }}</div>
+        <small class="text-muted" style="font-size:0.75rem;">of {{ summary.total_categories }} categories</small>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 border-start border-3 border-warning">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-semibold">Warning</span>
+          <span class="badge bg-warning-subtle text-warning rounded-circle p-2"><i class="fa-solid fa-triangle-exclamation"></i></span>
+        </div>
+        <div class="h3 fw-bold mb-0 text-warning">{{ summary.status_counts.WARN }}</div>
+        <small class="text-muted" style="font-size:0.75rem;">categories flagged</small>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 border-start border-3 border-danger">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-semibold">Fail</span>
+          <span class="badge bg-danger-subtle text-danger rounded-circle p-2"><i class="fa-solid fa-circle-xmark"></i></span>
+        </div>
+        <div class="h3 fw-bold mb-0 text-danger">{{ summary.status_counts.FAIL }}</div>
+        <small class="text-muted" style="font-size:0.75rem;">blocking categories</small>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 border-start border-3 border-danger">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-semibold">Critical Issues</span>
+          <span class="badge bg-danger-subtle text-danger rounded-circle p-2"><i class="fa-solid fa-fire"></i></span>
+        </div>
+        <div class="h3 fw-bold mb-0 text-danger">{{ summary.critical_open }}</div>
+        <small class="text-muted" style="font-size:0.75rem;">open, blocking</small>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 border-start border-3 border-warning">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-semibold">High Issues</span>
+          <span class="badge bg-warning-subtle text-warning rounded-circle p-2"><i class="fa-solid fa-circle-exclamation"></i></span>
+        </div>
+        <div class="h3 fw-bold mb-0 text-warning">{{ summary.high_open }}</div>
+        <small class="text-muted" style="font-size:0.75rem;">open, blocking</small>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100 border-start border-3 border-info">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-semibold">Overdue</span>
+          <span class="badge bg-info-subtle text-info rounded-circle p-2"><i class="fa-solid fa-clock"></i></span>
+        </div>
+        <div class="h3 fw-bold mb-0 text-info">{{ summary.overdue_open }}</div>
+        <small class="text-muted" style="font-size:0.75rem;">past due date</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- READINESS STATUS BOARD -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white border-0 pt-3 px-4">
+      <h6 class="fw-bold text-dark mb-0"><i class="fa-solid fa-list-check text-primary me-2"></i>Readiness Status Board</h6>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-4">Category</th>
+              <th>Status</th>
+              <th>Owner</th>
+              <th>Notes</th>
+              <th>Sign-off</th>
+              <th>Updated</th>
+              {% if can_manage %}<th class="text-end pe-4">Action</th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in summary.rows %}
+            <tr>
+              <td class="ps-4 fw-semibold text-dark">{{ row.get_category_display }}</td>
+              <td>
+                {% if row.status == 'PASS' %}
+                  <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1"><i class="fa-solid fa-circle-check me-1"></i>Pass</span>
+                {% elif row.status == 'WARN' %}
+                  <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-2.5 py-1"><i class="fa-solid fa-triangle-exclamation me-1"></i>Warning</span>
+                {% elif row.status == 'FAIL' %}
+                  <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2.5 py-1"><i class="fa-solid fa-circle-xmark me-1"></i>Fail</span>
+                {% elif row.status == 'IN_PROGRESS' %}
+                  <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill px-2.5 py-1"><i class="fa-solid fa-spinner me-1"></i>In Progress</span>
+                {% elif row.status == 'NOT_APPLICABLE' %}
+                  <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill px-2.5 py-1">N/A</span>
+                {% else %}
+                  <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill px-2.5 py-1">Not Started</span>
+                {% endif %}
+              </td>
+              <td class="small">{{ row.owner.display_name|default:row.owner|default:"—" }}</td>
+              <td class="small text-muted" style="max-width:220px;">{{ row.notes|truncatechars:70|default:"—" }}</td>
+              <td class="small">
+                {% if row.is_signed_off %}
+                  <span class="text-success fw-semibold"><i class="fa-solid fa-signature me-1"></i>{{ row.signed_off_by.display_name|default:row.signed_off_by }}</span>
+                  <div class="text-muted" style="font-size:0.72rem;">{{ row.signed_off_at|naturaltime }}</div>
+                {% else %}
+                  <span class="text-muted">Not signed off</span>
+                {% endif %}
+              </td>
+              <td class="small text-muted">{{ row.updated_at|naturaltime }}</td>
+              {% if can_manage %}
+              <td class="text-end pe-4">
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-2.5 py-1 text-dark fw-medium"
+                        onclick="openCategoryModal({{ row.id }}, '{{ row.get_category_display|escapejs }}', '{{ row.status }}', {{ row.owner_id|default:'null' }}, '{{ row.notes|escapejs }}', '{{ row.evidence_url|escapejs }}')">
+                  <i class="fa-solid fa-pen me-1 text-muted"></i> Update
+                </button>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ISSUE / WARNING LEDGER -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white border-0 pt-3 px-4 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+      <h6 class="fw-bold text-dark mb-0"><i class="fa-solid fa-bug text-primary me-2"></i>Issue &amp; Warning Ledger</h6>
+      <form method="get" class="d-flex flex-wrap gap-2">
+        <select name="severity" class="form-select form-select-sm rounded-pill" style="width:auto;" onchange="this.form.submit()">
+          <option value="">All Severities</option>
+          {% for val, label in severities %}
+            <option value="{{ val }}" {% if severity_filter == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <select name="status" class="form-select form-select-sm rounded-pill" style="width:auto;" onchange="this.form.submit()">
+          <option value="">All Statuses</option>
+          {% for val, label in issue_statuses %}
+            <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <select name="category" class="form-select form-select-sm rounded-pill" style="width:auto;" onchange="this.form.submit()">
+          <option value="">All Categories</option>
+          {% for val, label in categories %}
+            <option value="{{ val }}" {% if category_filter == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-4">Severity</th>
+              <th>Description</th>
+              <th>Impact</th>
+              <th>Owner</th>
+              <th>Due Date</th>
+              <th>Status</th>
+              {% if can_manage %}<th class="text-end pe-4">Action</th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for issue in issues %}
+            <tr class="{% if issue.is_overdue %}table-danger{% endif %}">
+              <td class="ps-4">
+                {% if issue.severity == 'CRITICAL' %}
+                  <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2.5 py-1">Critical</span>
+                {% elif issue.severity == 'HIGH' %}
+                  <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-2.5 py-1">High</span>
+                {% elif issue.severity == 'MEDIUM' %}
+                  <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill px-2.5 py-1">Medium</span>
+                {% else %}
+                  <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill px-2.5 py-1">Low</span>
+                {% endif %}
+              </td>
+              <td class="small" style="max-width:260px;">
+                <div class="fw-semibold text-dark">{{ issue.description|truncatechars:90 }}</div>
+                <div class="text-muted" style="font-size:0.72rem;">{{ issue.get_category_display }} &bull; #{{ issue.pk }}</div>
+              </td>
+              <td class="small text-muted" style="max-width:180px;">{{ issue.impact|truncatechars:70|default:"—" }}</td>
+              <td class="small">{{ issue.owner.display_name|default:issue.owner|default:"—" }}</td>
+              <td class="small {% if issue.is_overdue %}text-danger fw-semibold{% endif %}">{{ issue.due_date|default:"—" }}</td>
+              <td>
+                {% if issue.status == 'OPEN' %}
+                  <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2.5 py-1">Open</span>
+                {% elif issue.status == 'IN_PROGRESS' %}
+                  <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-2.5 py-1">In Progress</span>
+                {% elif issue.status == 'RESOLVED' %}
+                  <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill px-2.5 py-1">Resolved</span>
+                {% elif issue.status == 'RETESTED' %}
+                  <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-2.5 py-1">Retested</span>
+                {% else %}
+                  <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1">Closed</span>
+                {% endif %}
+              </td>
+              {% if can_manage %}
+              <td class="text-end pe-4">
+                <div class="d-flex align-items-center justify-content-end gap-1.5">
+                  <button type="button" class="btn btn-sm btn-light border rounded-pill px-2.5 py-1 text-dark fw-medium"
+                          onclick="openIssueModal({{ issue.pk }}, '{{ issue.category }}', '{{ issue.severity }}', '{{ issue.status }}', '{{ issue.description|escapejs }}', '{{ issue.impact|escapejs }}', {{ issue.owner_id|default:'null' }}, '{{ issue.due_date|date:'Y-m-d' }}', '{{ issue.resolution|escapejs }}', '{{ issue.evidence_url|escapejs }}', '{{ issue.retest_result|escapejs }}')">
+                    <i class="fa-solid fa-pen me-1 text-muted"></i> Edit
+                  </button>
+                  <form method="post" action="{% url 'university:golive_issue_delete' issue.pk %}" class="d-inline" onsubmit="return confirm('Delete this issue permanently? This cannot be undone.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-1"><i class="fa-solid fa-trash"></i></button>
+                  </form>
+                </div>
+              </td>
+              {% endif %}
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="text-center text-muted py-4">No issues logged for the current filters.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{% if can_manage %}
+<!-- ======================================================================= -->
+<!-- MODAL: UPDATE READINESS CATEGORY -->
+<!-- ======================================================================= -->
+<div class="modal fade" id="modalCategoryUpdate" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <form id="formCategoryUpdate" method="post" action="">
+        {% csrf_token %}
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold text-dark"><i class="fa-solid fa-sliders text-primary me-2"></i><span id="catModalName">Update Category</span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-3">
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-uppercase">Status</label>
+            <select name="status" id="catModalStatus" class="form-select">
+              {% for val, label in readiness_statuses %}
+                <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-uppercase">Owner</label>
+            <select name="owner" id="catModalOwner" class="form-select">
+              <option value="">— Unassigned —</option>
+              {% for u in staff_users %}
+                <option value="{{ u.id }}">{{ u.display_name|default:u }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-uppercase">Notes</label>
+            <textarea name="notes" id="catModalNotes" rows="3" class="form-control" placeholder="Context, blockers, or verification detail..."></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-uppercase">Evidence Link</label>
+            <input type="text" name="evidence_url" id="catModalEvidence" class="form-control" placeholder="Link/reference to sign-off document or test report...">
+          </div>
+          <div class="form-check">
+            <input type="checkbox" name="sign_off" value="1" class="form-check-input" id="catModalSignOff">
+            <label class="form-check-label small fw-medium" for="catModalSignOff">
+              Sign off as {{ request.user.display_name|default:request.user }} (only applies when status is Pass)
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ======================================================================= -->
+<!-- MODAL: LOG NEW ISSUE -->
+<!-- ======================================================================= -->
+<div class="modal fade" id="modalCreateIssue" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <form method="post" action="{% url 'university:golive_issue_create' %}">
+        {% csrf_token %}
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold text-dark"><i class="fa-solid fa-triangle-exclamation text-warning me-2"></i>Log Issue / Warning</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-3">
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label fw-semibold small text-uppercase">Category</label>
+              <select name="category" class="form-select">
+                {% for val, label in categories %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold small text-uppercase">Severity</label>
+              <select name="severity" class="form-select">
+                {% for val, label in severities %}<option value="{{ val }}" {% if val == 'MEDIUM' %}selected{% endif %}>{{ label }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="mb-3 mt-3">
+            <label class="form-label fw-semibold small text-uppercase">Description</label>
+            <textarea name="description" rows="2" class="form-control" required placeholder="What is the issue?"></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-uppercase">Impact</label>
+            <textarea name="impact" rows="2" class="form-control" placeholder="Who/what is affected if unresolved?"></textarea>
+          </div>
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label fw-semibold small text-uppercase">Owner</label>
+              <select name="owner" class="form-select">
+                <option value="">— Unassigned —</option>
+                {% for u in staff_users %}<option value="{{ u.id }}">{{ u.display_name|default:u }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold small text-uppercase">Due Date</label>
+              <input type="date" name="due_date" class="form-control">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">Log Issue</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ======================================================================= -->
+<!-- MODAL: EDIT ISSUE (full lifecycle) -->
+<!-- ======================================================================= -->
+<div class="modal fade" id="modalEditIssue" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <form id="formEditIssue" method="post" action="">
+        {% csrf_token %}
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold text-dark"><i class="fa-solid fa-bug text-primary me-2"></i>Update Issue <span id="issueModalId" class="text-muted"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-3">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold small text-uppercase">Category</label>
+              <select name="category" id="issueModalCategory" class="form-select">
+                {% for val, label in categories %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold small text-uppercase">Severity</label>
+              <select name="severity" id="issueModalSeverity" class="form-select">
+                {% for val, label in severities %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold small text-uppercase">Final Status</label>
+              <select name="status" id="issueModalStatus" class="form-select">
+                {% for val, label in issue_statuses %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="mb-3 mt-3">
+            <label class="form-label fw-semibold small text-uppercase">Description</label>
+            <textarea name="description" id="issueModalDescription" rows="2" class="form-control" required></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-uppercase">Impact</label>
+            <textarea name="impact" id="issueModalImpact" rows="2" class="form-control"></textarea>
+          </div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold small text-uppercase">Owner</label>
+              <select name="owner" id="issueModalOwner" class="form-select">
+                <option value="">— Unassigned —</option>
+                {% for u in staff_users %}<option value="{{ u.id }}">{{ u.display_name|default:u }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold small text-uppercase">Due Date</label>
+              <input type="date" name="due_date" id="issueModalDueDate" class="form-control">
+            </div>
+          </div>
+          <hr class="my-3">
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-uppercase">Resolution</label>
+            <textarea name="resolution" id="issueModalResolution" rows="2" class="form-control" placeholder="What was done to resolve this?"></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-uppercase">Evidence Link</label>
+            <input type="text" name="evidence_url" id="issueModalEvidence" class="form-control" placeholder="Link/reference proving the fix...">
+          </div>
+          <div class="mb-1">
+            <label class="form-label fw-semibold small text-uppercase">Retest Result</label>
+            <textarea name="retest_result" id="issueModalRetest" rows="2" class="form-control" placeholder="Result of the retest that confirmed the fix..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">Save Issue</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  function openCategoryModal(id, name, status, ownerId, notes, evidenceUrl) {
+    document.getElementById('catModalName').textContent = 'Update: ' + name;
+    document.getElementById('catModalStatus').value = status;
+    document.getElementById('catModalOwner').value = ownerId || '';
+    document.getElementById('catModalNotes').value = notes || '';
+    document.getElementById('catModalEvidence').value = evidenceUrl || '';
+    document.getElementById('catModalSignOff').checked = false;
+    document.getElementById('formCategoryUpdate').action = `/system-admin/go-live/category/${id}/update/`;
+    new bootstrap.Modal(document.getElementById('modalCategoryUpdate')).show();
+  }
+
+  function openIssueModal(id, category, severity, status, description, impact, ownerId, dueDate, resolution, evidenceUrl, retestResult) {
+    document.getElementById('issueModalId').textContent = '#' + id;
+    document.getElementById('issueModalCategory').value = category;
+    document.getElementById('issueModalSeverity').value = severity;
+    document.getElementById('issueModalStatus').value = status;
+    document.getElementById('issueModalDescription').value = description || '';
+    document.getElementById('issueModalImpact').value = impact || '';
+    document.getElementById('issueModalOwner').value = ownerId || '';
+    document.getElementById('issueModalDueDate').value = dueDate || '';
+    document.getElementById('issueModalResolution').value = resolution || '';
+    document.getElementById('issueModalEvidence').value = evidenceUrl || '';
+    document.getElementById('issueModalRetest').value = retestResult || '';
+    document.getElementById('formEditIssue').action = `/system-admin/go-live/issues/${id}/update/`;
+    new bootstrap.Modal(document.getElementById('modalEditIssue')).show();
+  }
+</script>
+{% endif %}
+{% endblock %}

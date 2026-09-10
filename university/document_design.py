@@ -95,10 +95,19 @@ def get_branding():
     logo_path = os.path.join(settings.BASE_DIR, "static", "img", "ums-logo.png")
 
     try:
+        from university.models import SystemSetting
+        inst = SystemSetting.objects.filter(key="institution_name").first()
+        if inst and inst.value and inst.value.strip():
+            site_name = inst.value.strip()
+    except Exception:
+        pass
+
+    try:
         from cms.models import SiteSettings
         site = SiteSettings.objects.first()
         if site:
-            site_name = site.site_name or site_name
+            if site_name == "University Management System" and site.site_name:
+                site_name = site.site_name
             contact_address = site.contact_address or ""
             contact_email = site.contact_email or ""
             contact_phone = site.contact_phone or ""

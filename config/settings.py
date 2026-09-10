@@ -35,6 +35,8 @@ MIDDLEWARE = [
     "accounts.activity.LastSeenMiddleware",
     "accounts.identity.PasswordChangeRequiredMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    # After MessageMiddleware so an idle-timeout logout can flash a message.
+    "accounts.identity.SessionIdleTimeoutMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "university.module_middleware.ModuleAccessMiddleware",
 ]
@@ -107,3 +109,18 @@ LOGIN_REDIRECT_URL = "university:dashboard"
 LOGOUT_REDIRECT_URL = "university:home"
 
 MESSAGE_STORAGE = "django.contrib.messages.storage.session.SessionStorage"
+
+# SESSIONS & CSRF ------------------------------------------------------------
+# "Remember me" (accounts.views.UMSLoginView) sets the session cookie's expiry
+# to this age; unchecked, the session is cleared when the browser closes.
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 14  # 14 days
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_SAVE_EVERY_REQUEST = False
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SECURE = not DEBUG
+
+# CSRF_COOKIE_HTTPONLY is intentionally left at its default (False): static/js/ums.js
+# reads the csrftoken cookie directly to set the X-CSRFToken header on AJAX requests.
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = not DEBUG

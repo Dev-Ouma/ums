@@ -7,6 +7,11 @@
     <small class="text-muted">{{ student.roll_no }} · {{ student.user.display_name }} · {{ student.program.name|default:'No Programme Assigned' }}</small>
   </div>
   <div class="d-flex align-items-center gap-2">
+    {% if not registration %}
+    <span class="badge rounded-pill px-3 py-2 fs-6 bg-secondary">
+      <i class="fa-solid fa-lock me-1"></i>Semester Required
+    </span>
+    {% else %}
     <span class="badge rounded-pill px-3 py-2 fs-6 
       {% if registration.status == 'APPROVED' or registration.status == 'REGISTERED' %}bg-success
       {% elif registration.status == 'SUBMITTED' %}bg-warning text-dark
@@ -14,10 +19,16 @@
       {% else %}bg-secondary{% endif %}">
       <i class="fa-solid fa-circle-dot me-1"></i>Status: {{ registration.get_status_display|default:'Draft' }}
     </span>
+    {% endif %}
   </div>
 </div>
 
-{% if blocked %}
+{% if requires_semester_registration %}
+  <div class="alert alert-warning rounded-3">
+    <i class="fa-solid fa-lock me-2"></i>Semester registration is required before you can register your units.
+    <a href="{% url 'university:student_semester_registration' %}" class="alert-link">Register Semester</a>
+  </div>
+{% elif blocked %}
   <div class="alert alert-danger rounded-3">
     <i class="fa-solid fa-lock me-2"></i>Unit registration is unavailable while your status is
     <strong>{{ student.get_status_display }}</strong>.

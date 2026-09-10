@@ -1,8 +1,8 @@
 from functools import wraps
 
 from django.contrib import messages
+from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
-from django.shortcuts import redirect
 
 
 def role_required(*roles):
@@ -10,7 +10,7 @@ def role_required(*roles):
         @wraps(view)
         def _wrapped(request, *args, **kwargs):
             if not request.user.is_authenticated:
-                return redirect("accounts:login")
+                return redirect_to_login(request.get_full_path())
             if request.user.role not in roles and not request.user.is_superuser:
                 messages.error(request, "You don't have access to that area.")
                 raise PermissionDenied
@@ -33,7 +33,7 @@ def permission_required(*codes, require_all=False):
         def _wrapped(request, *args, **kwargs):
             from university.permissions_services import has_user_permission
             if not request.user.is_authenticated:
-                return redirect("accounts:login")
+                return redirect_to_login(request.get_full_path())
             checks = [has_user_permission(request.user, code) for code in codes]
             allowed = all(checks) if require_all else any(checks)
             if not allowed:

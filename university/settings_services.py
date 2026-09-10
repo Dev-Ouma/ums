@@ -384,6 +384,17 @@ def set_setting(key, value, user=None, request=None):
             is_public=False
         )
 
+    # Synchronize CMS branding if institution_name is updated
+    if key == "institution_name":
+        try:
+            from cms.models import SiteSettings
+            cms_site = SiteSettings.load()
+            if cms_site and cms_site.site_name != val_str:
+                cms_site.site_name = val_str
+                cms_site.save(update_fields=["site_name", "updated_at"])
+        except Exception:
+            pass
+
     # Log to Audit Log
     log_activity(
         request=request,

@@ -69,12 +69,16 @@ class MessageForm(StyledForm):
     locations=forms.MultipleChoiceField(choices=LOCATIONS,required=False)
     class Meta:
         model=Notice
-        fields=['title','body','message_type','priority','audience','recipients','target_roles','departments','programmes','modules','starts_at','ends_at','locations','template']
+        fields=['title','body','message_type','priority','audience','recipients','target_roles','departments','programmes','modules','starts_at','ends_at','locations','banner_mode','animation_enabled','animation_speed','animation_direction','dismissible','persistent','action_url','action_label','display_order','template']
         widgets={'starts_at':forms.DateTimeInput(attrs={'type':'datetime-local'}),'ends_at':forms.DateTimeInput(attrs={'type':'datetime-local'})}
     def clean(self):
         data=super().clean()
         if data.get('ends_at') and data.get('starts_at') and data['ends_at']<=data['starts_at']:
             self.add_error('ends_at','End must follow start.')
+        if data.get('animation_speed') and data['animation_speed'] < 10:
+            self.add_error('animation_speed','Use at least 10 seconds so ticker messages remain readable.')
+        if data.get('action_url') and data['action_url'].startswith(('javascript:', 'data:')):
+            self.add_error('action_url','Enter a normal application URL or path.')
         if 'EMAIL' in data.get('locations',[]) and not getattr(settings,'SYSTEM_CONTROL_EMAIL_ENABLED',False):
             self.add_error('locations','Email delivery is not configured. Select in-app delivery.')
         for key in ['title','body']:

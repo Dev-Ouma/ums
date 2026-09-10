@@ -381,12 +381,14 @@ def resolve(request, pk):
 def setup(request, kind, pk=None):
     if not workflow.is_admin(request.user):
         raise PermissionDenied
+    if kind == 'terms':
+        messages.info(request, "Academic terms and semesters are managed centrally in Academic Calendar & Sessions.")
+        return redirect('university:admin_academic_calendar')
+
     from .models import GradingScale
     from .examination_forms import GradingScaleForm
     if kind == 'rooms':
         model, form_class, title = ExamRoom, RoomForm, 'Examination room'
-    elif kind == 'terms':
-        model, form_class, title = AcademicTerm, TermForm, 'Academic term'
     elif kind == 'grading':
         model, form_class, title = GradingScale, GradingScaleForm, 'CUE Grading Scale'
     else:

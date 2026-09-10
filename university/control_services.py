@@ -253,7 +253,7 @@ def active_messages(user, location=None, module_ids=None, include_archived=False
         n.rendered_title=render_fields(n.title,user,n.restriction)
         output.append(n)
     weights={'CRITICAL':0,'HIGH':1,'NORMAL':2,'LOW':3}
-    return sorted(output,key=lambda n:(weights[n.priority],-n.pk))
+    return sorted(output,key=lambda n:(weights[n.priority],n.display_order,-n.pk))
 
 
 DYNAMIC_FIELDS = {'system_name','university_name','academic_year','semester','maintenance_start','maintenance_end','start_time','end_time','student_name','programme_name','registration_deadline','deadline','exam_start_date','system_status'}

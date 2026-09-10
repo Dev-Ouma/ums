@@ -248,11 +248,106 @@ def academic_year_action(request, pk, action):
 # ==============================================================================
 
 @role_required(Role.ADMIN)
+def admin_semesters(request):
+    """System-wide semester setup directory backed by AcademicTerm."""
+    if not AcademicYear.objects.exists():
+        seed_default_academic_calendar()
+
+    q = request.GET.get("q", "").strip()
+    year_id = request.GET.get("academic_year", "").strip()
+    status_filter = request.GET.get("status", "").strip()
+
+    semesters_qs = AcademicTerm.objects.select_related("academic_year", "created_by").annotate(
+        registrations_count=Count("academic_registrations", distinct=True),
+        enrollments_count=Count("enrollment", distinct=True),
+    ).order_by("-academic_year__start_date", "semester_number", "start_date")
+
+    if q:
+        semesters_qs = semesters_qs.filter(
+            Q(name__icontains=q)
+            | Q(academic_year__name__icontains=q)
+            | Q(academic_year__code__icontains=q)
+        )
+    if year_id.isdigit():
+        semesters_qs = semesters_qs.filter(academic_year_id=year_id)
+    if status_filter:
+        semesters_qs = semesters_qs.filter(status=status_filter)
+
+    paginator = Paginator(semesters_qs, 20)
+    page_obj = paginator.get_page(request.GET.get("page", 1))
+    current_year = get_current_academic_year()
+    current_semester = get_current_semester()
+
+    initial_year = current_year or AcademicYear.objects.order_by("-start_date").first()
+    form = SemesterForm(initial={
+        "academic_year": initial_year,
+        "start_date": initial_year.start_date if initial_year else None,
+        "end_date": initial_year.end_date if initial_year else None,
+        "status": AcademicYear.Status.DRAFT,
+    })
+
+    return render(request, "dashboard/admin_semesters.html", {
+        "page_obj": page_obj,
+        "semesters": page_obj.object_list,
+        "academic_years": AcademicYear.objects.all().order_by("-start_date"),
+        "statuses": AcademicYear.Status.choices,
+        "q": q,
+        "selected_year": year_id,
+        "status_filter": status_filter,
+        "form": form,
+        "current_year": current_year,
+        "current_semester": current_semester,
+        "active_context": get_active_academic_context(),
+    })
+
+
+@role_required(Role.ADMIN)
+def semester_create_global(request):
+    """Create a semester from the system-wide semester setup page."""
+    if request.method != "POST":
+        return redirect("university:admin_semesters")
+
+    form = SemesterForm(request.POST)
+    if form.is_valid():
+        sem = form.save(commit=False)
+        sem.created_by = request.user
+        sem.save()
+
+        if sem.is_current:
+            set_current_semester(sem.pk, user=request.user, request=request)
+
+        log_activity(
+            request=request,
+            user=request.user,
+            action=AuditLog.Action.CREATE,
+            module=AuditLog.Module.CALENDAR,
+            entity="AcademicTerm",
+            entity_id=sem.id,
+            description=f"Created Semester '{sem.name}' in Academic Year '{sem.academic_year.name}'.",
+            new_state={
+                "name": sem.name,
+                "academic_year": sem.academic_year.name,
+                "semester_number": sem.semester_number,
+                "status": sem.status,
+            },
+        )
+        messages.success(request, f"Semester '{sem.name}' created and linked to {sem.academic_year.name}.")
+        return redirect("university:admin_semesters")
+
+    for field_errors in form.errors.values():
+        for error in field_errors:
+            messages.error(request, error)
+    return redirect("university:admin_semesters")
+
+
+@role_required(Role.ADMIN)
 def semester_create(request, year_id):
     """Add a semester under a specific Academic Year."""
     ay = get_object_or_404(AcademicYear, pk=year_id)
     if request.method == "POST":
-        form = SemesterForm(request.POST)
+        data = request.POST.copy()
+        data["academic_year"] = ay.pk
+        form = SemesterForm(data)
         if form.is_valid():
             sem = form.save(commit=False)
             sem.academic_year = ay

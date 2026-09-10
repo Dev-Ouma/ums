@@ -1,0 +1,151 @@
+{% extends "base_dashboard.html" %}
+
+{% block title %}Semester Setup · Management · UMS{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h4><i class="fa-solid fa-clock me-2" style="color:var(--primary)"></i>Semester Setup</h4>
+    <small class="text-muted">System-wide semester records linked to the central Academic Year setup.</small>
+  </div>
+  <a href="{% url 'university:admin_academic_years' %}" class="btn btn-outline-primary rounded-pill">
+    <i class="fa-solid fa-calendar-days me-1"></i>Academic Years
+  </a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card card-ums h-100">
+      <div class="card-body">
+        <div class="text-muted small">Current Academic Year</div>
+        <div class="fw-bold fs-5">{{ current_year.name|default:"Not configured" }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card card-ums h-100">
+      <div class="card-body">
+        <div class="text-muted small">Current Semester</div>
+        <div class="fw-bold fs-5">{{ current_semester.name|default:"Not configured" }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card card-ums h-100">
+      <div class="card-body">
+        <div class="text-muted small">Registration Window</div>
+        <div class="fw-bold fs-5">
+          {% if active_context.is_registration_open %}Open{% else %}Closed{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-8">
+    <div class="card card-ums">
+      <div class="card-header">
+        <form class="row g-2 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">Search</label>
+            <input class="form-control" name="q" value="{{ q }}" placeholder="Semester or academic year">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold">Academic Year</label>
+            <select class="form-select" name="academic_year">
+              <option value="">All years</option>
+              {% for year in academic_years %}
+                <option value="{{ year.pk }}" {% if selected_year == year.pk|stringformat:"s" %}selected{% endif %}>{{ year.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold">Status</label>
+            <select class="form-select" name="status">
+              <option value="">All statuses</option>
+              {% for value,label in statuses %}
+                <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-2 d-grid">
+            <button class="btn btn-outline-primary">Filter</button>
+          </div>
+        </form>
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead>
+            <tr>
+              <th class="ps-3">Semester</th>
+              <th>Academic Year</th>
+              <th>Registration Window</th>
+              <th>Status</th>
+              <th>Linked Records</th>
+              <th class="text-end pe-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sem in semesters %}
+              <tr>
+                <td class="ps-3">
+                  <div class="fw-bold">{{ sem.name }}</div>
+                  <small class="text-muted">{{ sem.get_term_type_display }} {{ sem.semester_number }} · {{ sem.start_date|date:"d M Y" }} - {{ sem.end_date|date:"d M Y" }}</small>
+                </td>
+                <td>
+                  <a href="{% url 'university:academic_year_detail' sem.academic_year.pk %}" class="fw-semibold">{{ sem.academic_year.name }}</a>
+                  {% if sem.academic_year.is_current %}<span class="badge bg-success rounded-pill ms-1">Year Current</span>{% endif %}
+                </td>
+                <td class="small">
+                  {{ sem.registration_start_date|date:"d M Y"|default:"Not set" }} -
+                  {{ sem.registration_end_date|date:"d M Y"|default:"Not set" }}
+                  {% if sem.is_registration_open %}<span class="badge bg-success rounded-pill ms-1">Open</span>{% endif %}
+                </td>
+                <td>
+                  <span class="status {{ sem.status }}">{{ sem.get_status_display }}</span>
+                  {% if sem.is_current %}<span class="badge bg-success rounded-pill ms-1">Current</span>{% endif %}
+                </td>
+                <td class="small text-muted">
+                  {{ sem.registrations_count }} registrations · {{ sem.enrollments_count }} unit records
+                </td>
+                <td class="text-end pe-3">
+                  <a class="btn btn-sm btn-outline-primary rounded-pill" href="{% url 'university:semester_edit' sem.pk %}">Edit</a>
+                  {% if not sem.is_current and sem.status != 'CLOSED' %}
+                    <form method="post" action="{% url 'university:semester_action' sem.pk 'set_current' %}" class="d-inline">
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{% url 'university:admin_semesters' %}">
+                      <button class="btn btn-sm btn-outline-success rounded-pill">Set Current</button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="6" class="text-center text-muted py-5">No semesters found. Create the first semester from the setup form.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card card-ums">
+      <div class="card-header">
+        <i class="fa-solid fa-plus me-2" style="color:var(--primary)"></i>Create Linked Semester
+      </div>
+      <div class="card-body">
+        <form method="post" action="{% url 'university:semester_create_global' %}">
+          {% csrf_token %}
+          {{ form.as_p }}
+          <button class="btn btn-primary w-100 rounded-pill">
+            <i class="fa-solid fa-floppy-disk me-1"></i>Save Semester
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

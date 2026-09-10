@@ -13,7 +13,7 @@ from university.identity_models import UserType
 from university.audit_services import detect_device_type, get_client_ip, log_activity
 from university.models import (
     AuditLog, ClassSchedule, Course, Department, Event,
-    FeeInvoice, FeeStructure, Notice, Program, RecycleBinItem,
+    FeeInvoice, FeeStructure, Notice, Program, RecycleBinItem, School,
     AcademicYear, AcademicTerm,
 )
 
@@ -71,6 +71,8 @@ def move_to_recycle_bin(obj, user=None, request=None, module=None, is_protected=
             module = RecycleBinItem.Module.COURSES
         elif isinstance(obj, Program):
             module = RecycleBinItem.Module.PROGRAMMES
+        elif isinstance(obj, School):
+            module = RecycleBinItem.Module.SCHOOLS
         elif isinstance(obj, Department):
             module = RecycleBinItem.Module.DEPARTMENTS
         elif isinstance(obj, ClassSchedule):
@@ -235,11 +237,23 @@ def restore_from_recycle_bin(item_id, user=None, request=None):
             }
         )
 
+    elif content_type == "School":
+        restored_obj, _ = School.objects.update_or_create(
+            code=data.get("code"),
+            defaults={
+                "name": data.get("name"),
+                "description": data.get("description", ""),
+                "dean_name": data.get("dean_name", ""),
+            }
+        )
+
     elif content_type == "Department":
+        school = School.objects.filter(pk=data.get("school")).first()
         restored_obj, _ = Department.objects.update_or_create(
             code=data.get("code"),
             defaults={
                 "name": data.get("name"),
+                "school": school,
                 "description": data.get("description", ""),
             }
         )
