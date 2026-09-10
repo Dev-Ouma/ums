@@ -92,18 +92,51 @@ class SignUpForm(forms.ModelForm):
         return cleaned
 
     def save(self, commit=True):
-        user = super().save(commit=False)
-        user.role = Role.STUDENT
-        user.set_password(self.cleaned_data["password1"])
-        if commit:
-            user.save()
-            count = StudentProfile.objects.count() + 1
-            StudentProfile.objects.create(
-                user=user,
-                roll_no=f"UMS{timezone.now().year}{count:04d}",
-                program=self.cleaned_data.get("program"),
-                admission_date=timezone.now().date(),
-            )
+        from university.identity_models import AccountStatus, UserType
+        from university.identity_services import create_user_account, provision_student_account
+
+        d = self.cleaned_data
+        if not commit:
+            # Dry-run not supported via identity service; create unsaved instance
+            user = super().save(commit=False)
+            user.role = Role.STUDENT
+            user.set_password(d["password1"])
+            return user
+
+        # Route through the central identity service so every self-registered
+        # student gets a proper UserAccount envelope, audit log entry, and
+        # institutional email — matching the admin-created workflow exactly.
+        created = create_user_account(
+            user_type=UserType.STUDENT,
+            first_name=d["first_name"],
+            last_name=d["last_name"],
+            email=d["email"],
+            username=d["username"],
+            phone="",
+            role=Role.STUDENT,
+            password_mode="MANUAL",
+            password=d["password1"],
+            status=AccountStatus.ACTIVE,
+            must_change_password=False,
+            actor=None,
+            notify=False,
+        )
+        user = created["user"]
+
+        count = StudentProfile.objects.count() + 1
+        sp, _ = StudentProfile.objects.get_or_create(
+            user=user,
+            defaults={
+                "roll_no": f"UMS{timezone.now().year}{count:04d}",
+                "program": d.get("program"),
+                "admission_date": timezone.now().date(),
+            },
+        )
+
+        # Complete the identity envelope (UserAccount status, email, etc.)
+        provision_student_account(sp, actor=None, notify=False)
+        user.refresh_from_db()
+
         return user
 
 

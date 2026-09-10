@@ -796,8 +796,9 @@ def create_user_account(*, user_type, first_name, last_name, email="", username=
         activation_url = build_reset_url(raw_token, request)
 
     if status and status != AccountStatus.PENDING:
-        set_account_status(user, status, actor=actor, request=request,
-                           reason="Status set at account creation", notify=False, force=True)
+        _, _, account = set_account_status(user, status, actor=actor, request=request,
+                                           reason="Status set at account creation", notify=False, force=True)
+    user.refresh_from_db()
 
     log_activity(
         request=request, user=actor, action=AuditLog.Action.CREATE, module=AUDIT_MODULE,
@@ -883,8 +884,9 @@ def provision_student_account(student_profile, actor=None, request=None, notify=
 
     auto_activate = bool(get_setting("auto_activate_student_accounts", True)) if activate is None else activate
     if auto_activate and account.status == AccountStatus.PENDING:
-        set_account_status(user, AccountStatus.ACTIVE, actor=actor, request=request,
-                           reason="Student enrolment completed", notify=False)
+        _, _, account = set_account_status(user, AccountStatus.ACTIVE, actor=actor, request=request,
+                                           reason="Student enrolment completed", notify=False)
+        user.refresh_from_db()
 
     if notify and user.email:
         from university.email_services import notify_account_created

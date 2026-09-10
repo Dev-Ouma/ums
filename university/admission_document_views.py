@@ -377,6 +377,39 @@ def admin_templates_list(request):
     return render(request, "admissions/admin_templates_list.html", context)
 
 
+TEMPLATE_DEFAULTS = {
+    "name": "Standard Undergraduate Admission Letter",
+    "header_title": "OFFICE OF THE REGISTRAR (ACADEMIC AFFAIRS)",
+    "salutation_template": "Dear {{student_name}},",
+    "subject_template": "LETTER OF OFFER: ADMISSION TO {{programme_name}} ({{programme_code}})",
+    "body_template": (
+        "I am pleased to inform you that following your application, the University Admissions Board "
+        "has offered you admission into the {{programme_name}} in the {{faculty_name}} for the {{intake}} "
+        "commencing in {{academic_year}} ({{semester}}).\n\n"
+        "You are required to report to the Main Campus for orientation, document verification, and formal "
+        "registration on {{reporting_date}} at 8:00 AM. Failure to report within two weeks of the scheduled date "
+        "without prior written approval from the Registrar will result in the forfeiture of this offer."
+    ),
+    "terms_and_conditions": (
+        "1. This offer of provisional admission is subject to physical verification of your original KCSE / High School certificates, National ID card / passport, and birth certificate.\n"
+        "2. All registered students are bound by the University Charter, Statutes, Rules and Regulations governing Student Conduct and Discipline.\n"
+        "3. At least 75% of first-semester fees must be paid prior to biometric registration and unit enrolment.\n"
+        "4. The university reserves the right to withdraw this offer at any time should any submitted documents or academic qualifications be found fraudulent or falsified."
+    ),
+    "fee_schedule_instructions": (
+        "Tuition and statutory fees must be deposited directly to the University Bank Account:\n"
+        "• Depository Bank: {{bank_name}}\n"
+        "• Account Number: {{bank_account}} ({{bank_branch}})\n"
+        "• M-Pesa Paybill: {{mpesa_paybill}} (Account: {{application_number}})\n"
+        "• Estimated First Semester Total: {{total_fees}} (Tuition: {{tuition_fee}})\n"
+        "Cheques and cash payments at campus counters are strictly not accepted."
+    ),
+    "signatory_name": "Dr. Margaret Omolo, PhD",
+    "signatory_title": "Registrar, Academic & Student Affairs",
+    "verification_base_url": "https://ums.ac.ke/verify-admission/",
+}
+
+
 @login_required
 def admin_template_editor(request, pk=None):
     if not _ensure_admin(request.user):
@@ -450,15 +483,15 @@ def admin_template_editor(request, pk=None):
                     is_active=is_active,
                     is_default=is_default,
                     version=1,
-                    header_title=header_title or "OFFICE OF THE REGISTRAR (ACADEMIC AFFAIRS)",
-                    salutation_template=salutation or "Dear {{student_name}},",
-                    subject_template=subject or "LETTER OF OFFER: ADMISSION TO {{programme_name}}",
-                    body_template=body,
-                    terms_and_conditions=terms,
-                    fee_schedule_instructions=fee_instructions,
-                    signatory_name=sig_name or "Dr. Margaret Omolo, PhD",
-                    signatory_title=sig_title or "Registrar, Academic & Student Affairs",
-                    verification_base_url=verification_url or "https://ums.ac.ke/verify-admission/",
+                    header_title=header_title or TEMPLATE_DEFAULTS["header_title"],
+                    salutation_template=salutation or TEMPLATE_DEFAULTS["salutation_template"],
+                    subject_template=subject or TEMPLATE_DEFAULTS["subject_template"],
+                    body_template=body or TEMPLATE_DEFAULTS["body_template"],
+                    terms_and_conditions=terms or TEMPLATE_DEFAULTS["terms_and_conditions"],
+                    fee_schedule_instructions=fee_instructions or TEMPLATE_DEFAULTS["fee_schedule_instructions"],
+                    signatory_name=sig_name or TEMPLATE_DEFAULTS["signatory_name"],
+                    signatory_title=sig_title or TEMPLATE_DEFAULTS["signatory_title"],
+                    verification_base_url=verification_url or TEMPLATE_DEFAULTS["verification_base_url"],
                     created_by=request.user,
                 )
                 log_activity(
@@ -478,6 +511,7 @@ def admin_template_editor(request, pk=None):
         "programs": programs,
         "academic_years": academic_years,
         "tokens_catalog": tokens_catalog,
+        "defaults": TEMPLATE_DEFAULTS,
     }
     return render(request, "admissions/admin_template_editor.html", context)
 
