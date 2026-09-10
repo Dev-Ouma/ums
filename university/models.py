@@ -274,6 +274,12 @@ class AcademicTerm(models.Model):
         ordering = ["-start_date"]
         verbose_name = "Academic Semester / Term"
         verbose_name_plural = "Academic Semesters & Terms"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["academic_year", "term_type", "semester_number"],
+                name="unique_semester_number_per_academic_year",
+            )
+        ]
 
     def __str__(self):
         cur = " (Current)" if self.is_current else ""
@@ -282,6 +288,8 @@ class AcademicTerm(models.Model):
         return f"{self.name}{cur}"
 
     def clean(self):
+        if not self.academic_year_id and not self.academic_year:
+            raise ValidationError("Semester must be linked to an Academic Year.")
         if self.start_date and self.end_date and self.start_date >= self.end_date:
             raise ValidationError("Semester start date must be strictly before end date.")
         if self.academic_year:
@@ -1097,6 +1105,15 @@ class Notice(models.Model):
     modules = models.ManyToManyField("SystemModule", blank=True)
     template = models.ForeignKey("MessageTemplate", null=True, blank=True, on_delete=models.SET_NULL)
     restriction = models.ForeignKey("SystemRestriction", null=True, blank=True, on_delete=models.SET_NULL)
+    banner_mode = models.CharField(max_length=12, default="TICKER", choices=[("STATIC", "Static"), ("TICKER", "Ticker / Live News")])
+    animation_enabled = models.BooleanField(default=True)
+    animation_speed = models.PositiveSmallIntegerField(default=28, help_text="Ticker duration in seconds. Higher is slower.")
+    animation_direction = models.CharField(max_length=8, default="LEFT", choices=[("LEFT", "Right to left"), ("RIGHT", "Left to right")])
+    dismissible = models.BooleanField(default=True)
+    persistent = models.BooleanField(default=False)
+    action_url = models.CharField(max_length=255, blank=True, default="")
+    action_label = models.CharField(max_length=80, blank=True, default="")
+    display_order = models.PositiveSmallIntegerField(default=100)
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1109,7 +1126,7 @@ class Notice(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
-        ordering = ["-is_pinned", "-created_at"]
+        ordering = ["display_order", "-is_pinned", "-created_at"]
 
     def __str__(self):
         return self.title
@@ -1351,6 +1368,7 @@ class RecycleBinItem(models.Model):
         FACULTY = "Faculty", "Faculty"
         COURSES = "Courses", "Courses"
         PROGRAMMES = "Programmes", "Programmes"
+        SCHOOLS = "Schools", "Schools & Faculties"
         DEPARTMENTS = "Departments", "Departments"
         TIMETABLE = "Timetable", "Timetable Schedules"
         FEES = "Fees", "Fee Invoices & Structures"
@@ -2325,6 +2343,14 @@ from .backup_models import (  # noqa: E402,F401
     BackupRestoreJob,
     BackupLog,
     BackupSetting,
+)
+from .golive_models import (  # noqa: E402,F401
+    GoLiveCategory,
+    ReadinessStatus,
+    GoLiveReadiness,
+    IssueSeverity,
+    IssueStatus,
+    GoLiveIssue,
 )
 from .identity_models import (  # noqa: E402,F401
     AccountStatus,

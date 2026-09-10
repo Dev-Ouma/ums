@@ -5,7 +5,7 @@ from accounts.models import FacultyProfile, Role, StudentProfile, User
 
 from .models import (
     Assignment, ClassSchedule, Course, Department, Enrollment, Event, Exam,
-    ExamRoom, FeeInvoice, FeeStructure, Notice, Program, StudentRequest,
+    ExamRoom, FeeInvoice, FeeStructure, Notice, Program, School, StudentRequest,
     AcademicYear, AcademicTerm,
 )
 
@@ -256,15 +256,28 @@ class FacultyForm(forms.Form):
 # ==========================================================================
 # Simple ModelForms
 # ==========================================================================
+class SchoolForm(forms.ModelForm):
+    class Meta:
+        model = School
+        fields = ["name", "code", "description", "dean_name"]
+        widgets = {"description": forms.Textarea(attrs={"rows": 3})}
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        _style(self.fields)
+
+
 class DepartmentForm(forms.ModelForm):
     class Meta:
         model = Department
-        fields = ["name", "code", "description", "icon", "color", "image_url"]
+        fields = ["name", "code", "school", "description", "icon", "color", "image_url"]
         widgets = {"description": forms.Textarea(attrs={"rows": 3}),
                    "color": forms.TextInput(attrs={"type": "color"})}
 
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
+        self.fields["school"].queryset = School.objects.order_by("name")
+        self.fields["school"].required = False
         _style(self.fields)
 
 
@@ -473,6 +486,7 @@ class SemesterForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         _style(self.fields)
+        self.fields["academic_year"].required = True
         self.fields["registration_start_date"].required = False
         self.fields["registration_end_date"].required = False
         self.fields["exam_start_date"].required = False
@@ -504,5 +518,18 @@ class SemesterForm(forms.ModelForm):
         if exam_start and exam_end and exam_start > exam_end:
             self.add_error("exam_end_date", "Exam concluding date must be on or after start date.")
 
-        return cleaned
+        if ay and cleaned.get("term_type") and cleaned.get("semester_number"):
+            duplicate = AcademicTerm.objects.filter(
+                academic_year=ay,
+                term_type=cleaned["term_type"],
+                semester_number=cleaned["semester_number"],
+            )
+            if self.instance.pk:
+                duplicate = duplicate.exclude(pk=self.instance.pk)
+            if duplicate.exists():
+                self.add_error(
+                    "semester_number",
+                    "This academic year already has that semester/session number.",
+                )
 
+        return cleaned
