@@ -53,6 +53,7 @@ urlpatterns = [
 
     # Semesters under Academic Years
     path("manage/semester/", calendar_views.admin_semesters, name="admin_semesters"),
+    path("manage/semesters/", calendar_views.admin_semesters, name="admin_semesters_plural"),
     path("manage/semester/new/", calendar_views.semester_create_global, name="semester_create_global"),
     path("manage/academic-years/<int:year_id>/semesters/new/", calendar_views.semester_create, name="semester_create"),
     path("manage/semesters/<int:pk>/edit/", calendar_views.semester_edit, name="semester_edit"),
