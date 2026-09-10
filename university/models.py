@@ -245,7 +245,7 @@ class AcademicTerm(models.Model):
         AcademicYear, on_delete=models.CASCADE, related_name="semesters",
         null=True, blank=True
     )
-    name = models.CharField(max_length=40, unique=True)
+    name = models.CharField(max_length=80)
     term_type = models.CharField(max_length=20, choices=TermType.choices, default=TermType.SEMESTER)
     semester_number = models.PositiveSmallIntegerField(default=1, help_text="e.g. 1, 2, 3")
     start_date = models.DateField()
@@ -278,7 +278,11 @@ class AcademicTerm(models.Model):
             models.UniqueConstraint(
                 fields=["academic_year", "term_type", "semester_number"],
                 name="unique_semester_number_per_academic_year",
-            )
+            ),
+            models.UniqueConstraint(
+                fields=["academic_year", "name"],
+                name="unique_semester_name_per_academic_year",
+            ),
         ]
 
     def __str__(self):

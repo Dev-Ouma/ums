@@ -495,6 +495,7 @@ class SemesterForm(forms.ModelForm):
     def clean(self):
         cleaned = super().clean()
         ay = cleaned.get("academic_year")
+        name = cleaned.get("name")
         start = cleaned.get("start_date")
         end = cleaned.get("end_date")
         reg_start = cleaned.get("registration_start_date")
@@ -518,15 +519,28 @@ class SemesterForm(forms.ModelForm):
         if exam_start and exam_end and exam_start > exam_end:
             self.add_error("exam_end_date", "Exam concluding date must be on or after start date.")
 
+        if ay and name:
+            duplicate_name = AcademicTerm.objects.filter(
+                academic_year=ay,
+                name__iexact=name.strip(),
+            )
+            if self.instance and self.instance.pk:
+                duplicate_name = duplicate_name.exclude(pk=self.instance.pk)
+            if duplicate_name.exists():
+                self.add_error(
+                    "name",
+                    f"A semester with the name '{name.strip()}' already exists in Academic Year {ay.name}.",
+                )
+
         if ay and cleaned.get("term_type") and cleaned.get("semester_number"):
-            duplicate = AcademicTerm.objects.filter(
+            duplicate_num = AcademicTerm.objects.filter(
                 academic_year=ay,
                 term_type=cleaned["term_type"],
                 semester_number=cleaned["semester_number"],
             )
-            if self.instance.pk:
-                duplicate = duplicate.exclude(pk=self.instance.pk)
-            if duplicate.exists():
+            if self.instance and self.instance.pk:
+                duplicate_num = duplicate_num.exclude(pk=self.instance.pk)
+            if duplicate_num.exists():
                 self.add_error(
                     "semester_number",
                     "This academic year already has that semester/session number.",
