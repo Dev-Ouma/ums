@@ -106,8 +106,7 @@ class SignUpForm(forms.ModelForm):
             user.set_password(d["password1"])
             return user
 
-        # Route through the central identity service so self-registered
-        # students get a standard UserAccount envelope, audit log, and institutional email.
+        # Route through central identity service
         created = create_user_account(
             user_type=UserType.STUDENT,
             first_name=d["first_name"],
@@ -140,9 +139,6 @@ class SignUpForm(forms.ModelForm):
         return user
 
 
-# ---------------------------------------------------------------------------
-# Profile settings
-# ---------------------------------------------------------------------------
 class ProfileForm(forms.ModelForm):
     """Account details authenticated users may edit about themselves."""
 
@@ -242,7 +238,6 @@ class UMSPasswordChangeForm(PasswordChangeForm):
             })
 
     def clean_new_password1(self):
-        """Apply the institution's configured password policy."""
         from university.identity_services import validate_password
         password = self.cleaned_data["new_password1"]
         errors = validate_password(password, user=self.user)
@@ -250,10 +245,6 @@ class UMSPasswordChangeForm(PasswordChangeForm):
             raise forms.ValidationError(errors)
         return password
 
-
-# ==============================================================================
-# CENTRAL IDENTITY — SELF-SERVICE CREDENTIAL FORMS
-# ==============================================================================
 
 class PasswordResetRequestForm(forms.Form):
     """Step one of self-service password recovery."""
