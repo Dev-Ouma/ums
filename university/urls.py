@@ -28,6 +28,7 @@ from . import integration_views
 from . import monitoring_views
 from . import job_views
 from . import security_testing_views
+from . import signature_config_views
 
 app_name = "university"
 
@@ -456,6 +457,9 @@ urlpatterns = [
     path("system-admin/users/<int:pk>/", identity_views.user_detail, name="user_detail"),
     path("system-admin/users/<int:pk>/edit/", identity_views.user_edit, name="user_edit"),
     path("system-admin/users/<int:pk>/<str:action>/", identity_views.user_action, name="user_action"),
+    path("system-admin/users/signatures/", signature_config_views.admin_signature_config_dashboard, name="admin_signature_config_dashboard"),
+    path("system-admin/users/signatures/<int:pk>/edit/", signature_config_views.admin_signature_config_edit, name="admin_signature_config_edit"),
+    path("system-admin/users/signatures/<int:user_id>/status/", signature_config_views.admin_user_signature_status_change, name="admin_user_signature_status_change"),
 
     # University Reporting System & Analytics Hub
     path("manage/reports/", reporting_views.admin_reports_dashboard, name="admin_reports_dashboard"),

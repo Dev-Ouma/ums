@@ -19,6 +19,7 @@ from reportlab.platypus import (
     HRFlowable, Image as RLImage, Paragraph, Spacer, Table, TableStyle
 )
 
+from django.core.exceptions import PermissionDenied
 from university.document_design import (
     ReportDocTemplate, document_styles, get_branding
 )
@@ -26,13 +27,23 @@ from university.models import (
     AcademicTerm, AcademicYear, Application, ApplicationAttachment,
     ApplicationCustomField, ApplicationCustomFieldValue,
     AdmissionDocumentTemplate, AuditLog, DocumentDeliveryLog,
-    FeeStructure, IssuedAdmissionDocument
+    DocumentSignatureConfig, FeeStructure, IssuedAdmissionDocument
 )
 from university.audit_services import log_activity
 from university.academic_calendar_services import get_current_academic_year, get_current_semester
 from university.student_numbering_services import generate_student_registration_number
 
 User = get_user_model()
+
+
+class SignatureRequiredError(Exception):
+    """Raised when an active signature is required by institutional policy but missing."""
+    pass
+
+
+class SignatureAuthorizationError(PermissionDenied):
+    """Raised when an unauthorized user attempts to sign an official document."""
+    pass
 
 
 def build_dynamic_fields_catalog():
@@ -180,9 +191,28 @@ def build_admission_document_context(application, document=None, template=None, 
     # Document reference
     doc_ref = document.document_reference if document else f"UMS/ADM/{issue_dt.year}/{application.application_number.split('-')[-1]}"
 
-    # Signatory details
-    sig_name = template.signatory_name if template else "Dr. Margaret Omolo, PhD"
-    sig_title = template.signatory_title if template else "Registrar, Academic & Student Affairs"
+    # Signatory details from document or template
+    if document and document.signatory_name:
+        sig_name = document.signatory_name
+        sig_title = document.signatory_title or (template.signatory_title if template else "Registrar, Academic Affairs")
+        sig_office = document.signatory_office or "Directorate of Academic Affairs"
+        sig_ver = str(document.signature_version or 1)
+    elif document and document.signatory:
+        sig_name = document.signatory.get_full_name() or document.signatory.username
+        sig_title = getattr(document.signatory, "user_signature", None) and document.signatory.user_signature.title or (template.signatory_title if template else "Registrar, Academic Affairs")
+        sig_office = getattr(document.signatory, "user_signature", None) and document.signatory.user_signature.department_or_office or "Directorate of Academic Affairs"
+        sig_ver = str(getattr(document.signatory, "user_signature", None) and document.signatory.user_signature.version or 1)
+    elif template:
+        sig_name = template.signatory_name or "Dr. Margaret Omolo, PhD"
+        sig_title = template.signatory_title or "Registrar, Academic Affairs"
+        sig_office = "Directorate of Academic Affairs"
+        sig_ver = "1"
+    else:
+        sig_name = "Dr. Margaret Omolo, PhD"
+        sig_title = "Registrar, Academic Affairs"
+        sig_office = "Directorate of Academic Affairs"
+        sig_ver = "1"
+
     ver_base = template.verification_base_url if template else "https://ums.ac.ke/verify-admission/"
 
     salutation_title = "Ms." if application.gender == "FEMALE" else ("Mr." if application.gender == "MALE" else "")
@@ -217,16 +247,19 @@ def build_admission_document_context(application, document=None, template=None, 
         "registration_number": reg_no,
         "admission_date": issue_str,
         "reporting_date": reporting_str,
+        "acceptance_deadline": (rep_date + timedelta(days=14)).strftime("%A, %d %B %Y"),
         "document_reference": doc_ref,
         "issue_date": issue_str,
         "version": str(document.version if document else 1),
 
-        # Programme
+        # Programme & Study Details
         "programme_name": prog.name if prog else "Undergraduate Degree Programme",
         "programme_code": prog.code if prog else "UG",
         "award_title": prog.award_title if (prog and hasattr(prog, "award_title") and prog.award_title) else "Bachelor Degree",
         "level": prog.get_level_display() if (prog and hasattr(prog, "get_level_display")) else "Undergraduate",
         "duration_years": str(getattr(prog, "duration_years", 4)),
+        "study_mode": getattr(application, "study_mode", None) or "Full-Time (Regular)",
+        "campus": getattr(application, "campus", None) or "Main Campus",
 
         # Department & Faculty
         "department_name": dept.name if dept else "Academic Department",
@@ -257,9 +290,11 @@ def build_admission_document_context(application, document=None, template=None, 
         "bank_branch": "University Way Branch",
         "mpesa_paybill": "222111",
 
-        # Signatory
+        # Central Signatory
         "signatory_name": sig_name,
         "signatory_title": sig_title,
+        "signatory_office": sig_office,
+        "signature_version": sig_ver,
     }
 
     # Load custom application values
@@ -341,36 +376,45 @@ def get_or_create_default_template(program=None, academic_year=None):
         is_default=True,
         version=1,
         header_title="Office of the Deputy Vice-Chancellor<br/>(Academic Affairs)",
-        salutation_template="Dear {{title_name}}, Admission Number: {{registration_number}}",
-        subject_template="RE: ADMISSION INTO {{programme_name}} - {{academic_year}} ACADEMIC YEAR",
+        salutation_template="Dear <b>{{title_name}}</b>, Admission Number: <b>{{registration_number}}</b>",
+        subject_template="RE: OFFER OF ADMISSION TO <b>{{programme_name}}</b> (CODE: <b>{{programme_code}}</b>) — <b>{{academic_year}}</b> ACADEMIC YEAR",
         body_template=(
-            "Following your application for admission to {{university_name}}, I wish to congratulate you on this achievement. "
-            "You have been admitted on the basis of your qualifications, which are subject to verification by the University. "
-            "When reporting, you will be required to present original and copies of the following:\n\n"
-            "1. KCSE Certificate or Result Slip\n"
-            "2. Birth Certificate\n"
-            "3. National Identity Card or Passport\n"
-            "4. Two coloured passport-size photographs\n"
-            "5. Proof of payment of tuition fees"
+            "Following your application for admission to {{university_name}}, we are pleased to inform you that you have been offered admission to the:\n\n"
+            "<b>{{programme_name}}</b>\n"
+            "<b>Programme Code:</b> {{programme_code}}\n"
+            "<b>Academic Year:</b> {{academic_year}}\n"
+            "<b>Intake:</b> {{intake}}\n"
+            "<b>Faculty / School:</b> {{faculty_name}}\n"
+            "<b>Department:</b> {{department_name}}\n"
+            "<b>Level / Study Mode:</b> {{level}} ({{study_mode}})\n"
+            "<b>Campus:</b> {{campus}}\n"
+            "<b>Admission Reference:</b> {{document_reference}}\n\n"
+            "You have been admitted on the basis of your declared academic qualifications, which are subject to formal verification upon reporting. "
+            "When reporting, you will be required to present the <b>original and copies</b> of the following mandatory documents:\n\n"
+            "1. <b>KCSE Certificate or Official Result Slip</b> (verified against KNEC records)\n"
+            "2. <b>Birth Certificate</b> or national identification document\n"
+            "3. <b>National Identity Card or Passport</b>\n"
+            "4. <b>Two recent coloured passport-size photographs</b> (bearing your name and registration number on the reverse)\n"
+            "5. <b>Official proof of payment of tuition fees</b>"
         ),
         fee_schedule_instructions=(
-            "TUITION FEES\n"
-            "You will pay {{tuition_fee}} as tuition fee in a Semester (Estimated total first-semester university charges: {{total_fees}}). "
-            "For more information, please contact the Finance Office at {{finance_email}} or Tel: {{university_phone}}.\n\n"
-            "FEE PAYMENT\n"
-            "You are required to follow the instructions below to pay the tuition fee:\n"
-            "1. While logged in to the students portal ({{portal_url}}), navigate to the \"STUDENT PAYMENT INSTRUCTIONS\" section at the bottom of the page.\n"
+            "<b>TUITION FEES & PAYMENT SCHEDULE</b>\n"
+            "You will pay <b>{{tuition_fee}}</b> as tuition fee in a Semester (Estimated total first-semester charges: <b>{{total_fees}}</b>). "
+            "For more information, please contact the Finance Directorate at <b>{{finance_email}}</b> or Tel: <b>{{university_phone}}</b>.\n\n"
+            "<b>FEE PAYMENT INSTRUCTIONS</b>\n"
+            "You are required to follow the official instructions below to pay the tuition fee:\n"
+            "1. While logged in to the students portal (<b>{{portal_url}}</b>), navigate to the \"STUDENT PAYMENT INSTRUCTIONS\" section.\n"
             "2. Click on \"Fee Payment\" / \"M-Pesa Payment\" and follow the prompts.\n"
-            "   (M-Pesa Paybill: {{mpesa_paybill}}, Account: {{registration_number}} | Bank: {{bank_name}}, Account: {{bank_account}})\n"
-            "3. Ensure you obtain an official electronic receipt upon payment."
+            "   (<b>M-Pesa Paybill:</b> {{mpesa_paybill}}, <b>Account:</b> {{registration_number}} | <b>Bank:</b> {{bank_name}}, <b>Account:</b> {{bank_account}}, Branch: {{bank_branch}})\n"
+            "3. Ensure you obtain an <b>official electronic receipt</b> upon payment to complete registration clearance."
         ),
         terms_and_conditions=(
-            "COMMENCEMENT DATE\n"
-            "The programme will commence on {{reporting_date}}. You are, therefore, expected to report and complete your registration on this date.\n\n"
-            "OTHER IMPORTANT INFORMATION\n"
-            "i. Admission to the University does not guarantee accommodation in the Halls of Residence. Students not allocated university accommodation will be required to make private arrangements.\n"
-            "ii. This admission offer is subject to your adherence to the University's Rules and Regulations.\n"
-            "iii. In case of any queries, please contact the Admissions Office at {{university_email}} or Tel: {{university_phone}}."
+            "<b>ADMISSION REPORTING DATE & ACCEPTANCE DEADLINE</b>\n"
+            "The programme will commence on <b>{{reporting_date}}</b>. You are, therefore, expected to report and complete your registration on or before <b>{{acceptance_deadline}}</b>.\n\n"
+            "<b>IMPORTANT CONDITIONS OF ADMISSION</b>\n"
+            "i. <b>Accommodation:</b> Admission to the University does not guarantee accommodation in the Halls of Residence. Students not allocated university accommodation will be required to make private arrangements.\n"
+            "ii. <b>Rules & Regulations:</b> This admission offer is subject to your strict adherence to the University's Rules and Regulations.\n"
+            "iii. <b>Inquiries:</b> In case of any queries, please contact the Admissions Office at <b>{{university_email}}</b> or Tel: <b>{{university_phone}}</b>."
         ),
         signatory_name="DR. MARGARET OMOLO, PhD",
         signatory_title="ACADEMIC REGISTRAR",
@@ -596,19 +640,19 @@ def build_admission_letter_pdf_bytes(issued_document):
     story.append(Spacer(1, 5))
 
     # 5. Salutation with Inline Admission Number
-    salutation_template = tmpl.salutation_template if (tmpl and tmpl.salutation_template) else "Dear {{title_name}}, Admission Number: {{registration_number}}"
+    salutation_template = tmpl.salutation_template if (tmpl and tmpl.salutation_template) else "Dear <b>{{title_name}}</b>, Admission Number: <b>{{registration_number}}</b>"
     if "Admission Number" not in salutation_template:
-        salutation_template = f"{salutation_template.rstrip(',')} , Admission Number: {{{{registration_number}}}}"
+        salutation_template = f"{salutation_template.rstrip(',')} , Admission Number: <b>{{{{registration_number}}}}</b>"
     salutation_rendered = render_template_text(salutation_template, context)
-    story.append(Paragraph(f"<b>{salutation_rendered}</b>", salutation_style))
+    story.append(Paragraph(salutation_rendered, salutation_style))
     story.append(Spacer(1, 2))
 
     # 6. Subject Line
-    subject_raw = tmpl.subject_template if (tmpl and tmpl.subject_template) else "RE: ADMISSION INTO {{programme_name}} - {{academic_year}} ACADEMIC YEAR"
+    subject_raw = tmpl.subject_template if (tmpl and tmpl.subject_template) else "RE: OFFER OF ADMISSION TO <b>{{programme_name}}</b> (CODE: <b>{{programme_code}}</b>) — <b>{{academic_year}}</b> ACADEMIC YEAR"
     if not subject_raw.upper().startswith("RE:"):
         subject_raw = f"RE: {subject_raw}"
     subject_rendered = render_template_text(subject_raw, context)
-    story.append(Paragraph(f"<b><u>{subject_rendered.upper()}</u></b>", subject_style))
+    story.append(Paragraph(f"<u>{subject_rendered}</u>", subject_style))
     story.append(Spacer(1, 4))
 
     # 7. Body Paragraphs (Opening & Checklist)
@@ -631,8 +675,8 @@ def build_admission_letter_pdf_bytes(issued_document):
         for block in fee_rendered.split("\n\n"):
             lines = [ln.strip() for ln in block.strip().split("\n") if ln.strip()]
             for i, line in enumerate(lines):
-                if i == 0 and ("TUITION FEES" in line.upper() or "FEE PAYMENT" in line.upper()):
-                    story.append(Paragraph(f"<b>{line}</b>", section_head_style))
+                if i == 0 and ("TUITION FEES" in line.upper() or "FEE PAYMENT" in line.upper() or "SCHEDULE" in line.upper()):
+                    story.append(Paragraph(line, section_head_style))
                 elif re.match(r"^\d+\.\s+", line) or line.startswith("•") or line.startswith("-"):
                     story.append(Paragraph(line, list_item_style))
                 else:
@@ -646,8 +690,8 @@ def build_admission_letter_pdf_bytes(issued_document):
         for block in terms_rendered.split("\n\n"):
             lines = [ln.strip() for ln in block.strip().split("\n") if ln.strip()]
             for i, line in enumerate(lines):
-                if i == 0 and ("COMMENCEMENT" in line.upper() or "IMPORTANT INFORMATION" in line.upper() or "CONDITIONS" in line.upper()):
-                    story.append(Paragraph(f"<b>{line}</b>", section_head_style))
+                if i == 0 and ("COMMENCEMENT" in line.upper() or "IMPORTANT INFORMATION" in line.upper() or "CONDITIONS" in line.upper() or "REPORTING" in line.upper()):
+                    story.append(Paragraph(line, section_head_style))
                 elif re.match(r"^(?:[ivx]+|[a-z]|\d+)\.\s+", line, re.IGNORECASE) or line.startswith("•") or line.startswith("-"):
                     story.append(Paragraph(line, list_item_style))
                 else:
@@ -663,40 +707,117 @@ def build_admission_letter_pdf_bytes(issued_document):
     story.append(Paragraph("Yours faithfully,", closing_style))
     story.append(Spacer(1, 1))
 
-    # Signature Graphic & Name Block
-    sig_img_path = os.path.join(settings.BASE_DIR, "static", "img", "registrar-signature.jpg")
-    if tmpl and tmpl.signatory_signature and getattr(tmpl.signatory_signature, "path", None) and os.path.exists(tmpl.signatory_signature.path):
+    # 11. Official Signatures (Single or Dual Signatories)
+    sig_img_path = None
+    sig_name = issued_document.signatory_name or context.get("signatory_name", "DR. MARGARET OMOLO, PhD")
+    sig_title = issued_document.signatory_title or context.get("signatory_title", "Academic Registrar")
+    sig_office = issued_document.signatory_office or "Directorate of Academic Affairs"
+
+    co_sig_img_path = None
+    co_sig_name = issued_document.co_signatory_name or ""
+    co_sig_title = issued_document.co_signatory_title or ""
+
+    # Priority 1: Historical snapshot (Immutable snapshot of the signature image when issued)
+    if issued_document.signature_snapshot and hasattr(issued_document.signature_snapshot, "path") and os.path.exists(issued_document.signature_snapshot.path):
+        sig_img_path = issued_document.signature_snapshot.path
+    # Priority 2: Primary signatory active User profile signature
+    elif issued_document.signatory:
+        from accounts.models import UserSignature
+        user_sig = UserSignature.objects.filter(user=issued_document.signatory, status=UserSignature.Status.ACTIVE).first()
+        if user_sig and user_sig.signature_image and hasattr(user_sig.signature_image, "path") and os.path.exists(user_sig.signature_image.path):
+            sig_img_path = user_sig.signature_image.path
+            sig_name = issued_document.signatory.get_full_name()
+            if user_sig.title:
+                sig_title = user_sig.title
+            if user_sig.department_or_office:
+                sig_office = user_sig.department_or_office
+    # Priority 3: Fallback to template/static image
+    elif tmpl and tmpl.signatory_signature and getattr(tmpl.signatory_signature, "path", None) and os.path.exists(tmpl.signatory_signature.path):
         sig_img_path = tmpl.signatory_signature.path
-
-    if sig_img_path and os.path.exists(sig_img_path):
-        try:
-            sig_rl = RLImage(sig_img_path, width=95, height=30)
-            sig_rl.hAlign = "LEFT"
-            story.append(sig_rl)
-            story.append(Spacer(1, 1))
-        except Exception:
-            story.append(Spacer(1, 16))
     else:
-        story.append(Spacer(1, 16))
+        static_sig = os.path.join(settings.BASE_DIR, "static", "img", "registrar-signature.jpg")
+        if os.path.exists(static_sig):
+            sig_img_path = static_sig
 
-    sig_name = context.get("signatory_name", "DR. MARGARET OMOLO, PhD").upper()
-    sig_title = context.get("signatory_title", "ACADEMIC REGISTRAR").upper()
+    # Co-signatory resolution (dual signatures)
+    if issued_document.co_signature_snapshot and hasattr(issued_document.co_signature_snapshot, "path") and os.path.exists(issued_document.co_signature_snapshot.path):
+        co_sig_img_path = issued_document.co_signature_snapshot.path
+    elif issued_document.co_signatory:
+        from accounts.models import UserSignature
+        co_sig = UserSignature.objects.filter(user=issued_document.co_signatory, status=UserSignature.Status.ACTIVE).first()
+        if co_sig and co_sig.signature_image and hasattr(co_sig.signature_image, "path") and os.path.exists(co_sig.signature_image.path):
+            co_sig_img_path = co_sig.signature_image.path
+            co_sig_name = issued_document.co_signatory.get_full_name()
+            if co_sig.title:
+                co_sig_title = co_sig.title
 
-    sig_table = Table(
-        [[
-            Paragraph(f"<b>{escape(sig_name)}</b><br/><b>{escape(sig_title)}</b>", ParagraphStyle("SigText", parent=body_style, fontSize=8.6, leading=11.5)),
-            Paragraph(f"Official Registry Verification:<br/><b>{escape(context.get('verification_url', 'https://ums.ac.ke/verify-admission/'))}</b>", ParagraphStyle("VerFoot", parent=body_style, fontSize=7.2, leading=9.5, alignment=2, textColor=muted_gray))
-        ]],
-        colWidths=[270, 241]
-    )
-    sig_table.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-    ]))
-    story.append(sig_table)
+    sig_style = ParagraphStyle("SigText", parent=body_style, fontSize=8.6, leading=11.5)
+    ver_style = ParagraphStyle("VerFoot", parent=body_style, fontSize=7.2, leading=9.5, alignment=2, textColor=muted_gray)
+
+    if co_sig_name or co_sig_img_path:
+        # Dual signatures layout
+        left_cell_content = []
+        if co_sig_img_path and os.path.exists(co_sig_img_path):
+            try:
+                co_rl = RLImage(co_sig_img_path, width=90, height=28)
+                co_rl.hAlign = "LEFT"
+                left_cell_content.append(co_rl)
+                left_cell_content.append(Spacer(1, 1))
+            except Exception:
+                left_cell_content.append(Spacer(1, 14))
+        else:
+            left_cell_content.append(Spacer(1, 14))
+        left_cell_content.append(Paragraph(f"<b>{escape(co_sig_name.upper())}</b><br/>{escape(co_sig_title)}", sig_style))
+
+        right_cell_content = []
+        if sig_img_path and os.path.exists(sig_img_path):
+            try:
+                sig_rl = RLImage(sig_img_path, width=90, height=28)
+                sig_rl.hAlign = "LEFT"
+                right_cell_content.append(sig_rl)
+                right_cell_content.append(Spacer(1, 1))
+            except Exception:
+                right_cell_content.append(Spacer(1, 14))
+        else:
+            right_cell_content.append(Spacer(1, 14))
+        right_cell_content.append(Paragraph(f"<b>{escape(sig_name.upper())}</b><br/>{escape(sig_title)}<br/><font size=7 color='#4B5563'>{escape(sig_office)}</font>", sig_style))
+
+        dual_table = Table([[left_cell_content, right_cell_content]], colWidths=[255, 256])
+        dual_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        story.append(dual_table)
+    else:
+        # Single signature layout
+        sig_flowables = []
+        if sig_img_path and os.path.exists(sig_img_path):
+            try:
+                sig_rl = RLImage(sig_img_path, width=95, height=30)
+                sig_rl.hAlign = "LEFT"
+                sig_flowables.append(sig_rl)
+                sig_flowables.append(Spacer(1, 1))
+            except Exception:
+                sig_flowables.append(Spacer(1, 16))
+        else:
+            sig_flowables.append(Spacer(1, 16))
+
+        sig_flowables.append(Paragraph(f"<b>{escape(sig_name.upper())}</b><br/><b>{escape(sig_title)}</b><br/><font size=7 color='#4B5563'>{escape(sig_office)}</font>", sig_style))
+
+        ver_cell = Paragraph(f"Official Registry Verification:<br/><b>{escape(context.get('verification_url', 'https://ums.ac.ke/verify-admission/'))}</b>", ver_style)
+
+        sig_table = Table([[sig_flowables, ver_cell]], colWidths=[270, 241])
+        sig_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        story.append(sig_table)
 
     doc.build(story)
     pdf_bytes = buffer.getvalue()
@@ -705,11 +826,20 @@ def build_admission_letter_pdf_bytes(issued_document):
 
 
 @transaction.atomic
-def generate_admission_document(application, template=None, user=None, custom_overrides=None, reason="", issue_as_new_version=False):
+def generate_admission_document(
+    application,
+    template=None,
+    user=None,
+    custom_overrides=None,
+    reason="",
+    issue_as_new_version=False,
+    signatory_user=None,
+    co_signatory_user=None,
+):
     """
     Generates or regenerates an official IssuedAdmissionDocument for an Application.
-    Supports versioning (v1, v2), superseding older versions, dynamic context snapshotting,
-    PDF file rendering, and audit logging.
+    Enforces central DocumentSignatureConfig permissions and active signature requirements.
+    Preserves immutable signature snapshots to prevent historical document alteration.
     """
     active_ay = get_current_academic_year()
     active_term = get_current_semester()
@@ -720,6 +850,48 @@ def generate_admission_document(application, template=None, user=None, custom_ov
             academic_year=application.intake.academic_year if application.intake else active_ay
         )
 
+    # 1. Document Signature Policy Validation
+    from accounts.signature_services import get_user_active_signature
+
+    sig_config = DocumentSignatureConfig.objects.filter(
+        document_type=DocumentSignatureConfig.DocumentType.ADMISSION_LETTER,
+        is_active=True
+    ).first()
+
+    # Determine signatory user
+    if signatory_user is None:
+        if user and sig_config and sig_config.is_user_authorized(user):
+            signatory_user = user
+        elif sig_config:
+            allowed_roles = sig_config.get_authorized_roles_list()
+            signatory_user = User.objects.filter(
+                role__in=allowed_roles,
+                user_signature__status="ACTIVE"
+            ).exclude(user_signature__signature_image="").first()
+            if not signatory_user:
+                signatory_user = User.objects.filter(role__in=allowed_roles).first()
+
+    # Verify signatory permissions (Backend RBAC Enforcement)
+    if signatory_user and sig_config:
+        if not sig_config.is_user_authorized(signatory_user):
+            raise SignatureAuthorizationError(
+                f"Selected signatory '{signatory_user.get_full_name() or signatory_user.username}' is not authorized to sign Admission Letters."
+            )
+
+    # Verify active signature availability
+    sig_profile = get_user_active_signature(signatory_user) if signatory_user else None
+    if sig_config and sig_config.is_signature_required:
+        if not sig_profile or not sig_profile.signature_image:
+            signatory_name = signatory_user.get_full_name() if signatory_user else "the selected signatory"
+            raise SignatureRequiredError(
+                f"An active signature has not been configured for {signatory_name}. An official digital signature is required before this document can be issued."
+            )
+
+    # Co-signatory validation if provided
+    co_sig_profile = None
+    if co_signatory_user:
+        co_sig_profile = get_user_active_signature(co_signatory_user)
+
     # Check for existing documents
     existing_docs = IssuedAdmissionDocument.objects.filter(
         application=application,
@@ -729,13 +901,11 @@ def generate_admission_document(application, template=None, user=None, custom_ov
     current_doc = existing_docs.filter(is_current_version=True).first()
 
     if current_doc and not issue_as_new_version:
-        # If already exists and no new version requested, return current doc
         return current_doc
 
     # Calculate version number
     if existing_docs.exists():
         new_version = existing_docs.first().version + 1
-        # Mark all prior documents as SUPERSEDED if they were CURRENT
         existing_docs.filter(status=IssuedAdmissionDocument.Status.CURRENT).update(
             status=IssuedAdmissionDocument.Status.SUPERSEDED,
             is_current_version=False
@@ -743,14 +913,12 @@ def generate_admission_document(application, template=None, user=None, custom_ov
     else:
         new_version = 1
 
-    # Generate document reference: UMS/ADM/2026/0001
     year_prefix = active_ay.name.split("/")[0] if active_ay else timezone.now().year
     app_seq = application.application_number.split("-")[-1]
     doc_ref = f"UMS/ADM/{year_prefix}/{app_seq}"
     if new_version > 1:
         doc_ref = f"{doc_ref}/V{new_version}"
 
-    # Create the IssuedAdmissionDocument record
     doc_record = IssuedAdmissionDocument(
         application=application,
         student=application.student,
@@ -768,9 +936,41 @@ def generate_admission_document(application, template=None, user=None, custom_ov
         change_reason=reason or ("Initial generation" if new_version == 1 else f"Regenerated version {new_version}"),
         is_current_version=True,
         is_visible_to_student=True,
+        signatory=signatory_user,
+        signatory_name=signatory_user.get_full_name() if signatory_user else (template.signatory_name if template else "Dr. Margaret Omolo, PhD"),
+        signatory_title=(sig_profile.title if sig_profile and sig_profile.title else (template.signatory_title if template else "Academic Registrar")),
+        signatory_office=(sig_profile.department_or_office if sig_profile and sig_profile.department_or_office else "Directorate of Academic Affairs"),
+        signature_version=sig_profile.version if sig_profile else 1,
+        co_signatory=co_signatory_user,
+        co_signatory_name=co_signatory_user.get_full_name() if co_signatory_user else "",
+        co_signatory_title=co_sig_profile.title if co_sig_profile else "",
     )
 
-    # Build dynamic context snapshot
+    # Snapshot signature image(s) to guarantee historical immutability
+    if sig_profile and sig_profile.signature_image:
+        try:
+            sig_profile.signature_image.open("rb")
+            snap_data = sig_profile.signature_image.read()
+            doc_record.signature_snapshot.save(
+                f"sig_snap_{doc_ref.replace('/', '_')}_v{new_version}.png",
+                ContentFile(snap_data),
+                save=False
+            )
+        except Exception:
+            pass
+
+    if co_sig_profile and co_sig_profile.signature_image:
+        try:
+            co_sig_profile.signature_image.open("rb")
+            co_snap_data = co_sig_profile.signature_image.read()
+            doc_record.co_signature_snapshot.save(
+                f"co_sig_snap_{doc_ref.replace('/', '_')}_v{new_version}.png",
+                ContentFile(co_snap_data),
+                save=False
+            )
+        except Exception:
+            pass
+
     context = build_admission_document_context(
         application=application,
         document=doc_record,
@@ -805,9 +1005,25 @@ def generate_admission_document(application, template=None, user=None, custom_ov
             "version": new_version,
             "application_number": application.application_number,
             "student_reg_no": context.get("registration_number"),
-            "program": application.program.code if application.program else "",
+            "signatory": signatory_user.username if signatory_user else "None",
+            "signature_version": doc_record.signature_version,
         }
     )
+    if signatory_user:
+        log_activity(
+            user=user,
+            action=AuditLog.Action.DOCUMENT_SIGNED,
+            module=AuditLog.Module.SIGNATURES,
+            entity="IssuedAdmissionDocument",
+            entity_id=doc_record.id,
+            description=f"Admission letter Ref: {doc_ref} signed with {signatory_user.get_full_name()}'s official signature (v{doc_record.signature_version}).",
+            new_state={
+                "document_reference": doc_ref,
+                "signatory_id": signatory_user.id,
+                "signatory_name": doc_record.signatory_name,
+                "signature_version": doc_record.signature_version,
+            }
+        )
 
     return doc_record
 

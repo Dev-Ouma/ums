@@ -21,13 +21,13 @@ from university.document_views import present_pdf
 from university.models import (
     AcademicYear, AdmissionDocumentTemplate, Application, ApplicationAttachment,
     ApplicationCustomField, ApplicationCustomFieldValue, AuditLog,
-    DocumentDeliveryLog, IssuedAdmissionDocument, Program
+    DocumentDeliveryLog, DocumentSignatureConfig, IssuedAdmissionDocument, Program
 )
 from university.admission_document_services import (
     build_admission_document_context, build_admission_letter_pdf_bytes,
     build_dynamic_fields_catalog, generate_admission_document,
     get_or_create_default_template, resend_admission_document,
-    revoke_admission_document
+    revoke_admission_document, SignatureRequiredError, SignatureAuthorizationError
 )
 
 
@@ -150,6 +150,18 @@ def admin_admission_document_detail(request, pk):
     # Available templates for regeneration
     templates = AdmissionDocumentTemplate.objects.filter(is_active=True).order_by("-is_default", "name")
 
+    # Central Document Signature Config and eligible signatories
+    sig_config = DocumentSignatureConfig.objects.filter(
+        document_type=DocumentSignatureConfig.DocumentType.ADMISSION_LETTER,
+        is_active=True
+    ).first()
+    authorized_roles = sig_config.get_authorized_roles_list() if sig_config else ["REGISTRAR", "ADMIN", "STAFF"]
+    signatories = (
+        User.objects.filter(role__in=authorized_roles)
+        .select_related("user_signature")
+        .order_by("role", "first_name", "last_name")
+    )
+
     context = {
         "app": app,
         "active_letter": active_letter,
@@ -158,6 +170,8 @@ def admin_admission_document_detail(request, pk):
         "delivery_logs": delivery_logs,
         "custom_values": custom_values,
         "templates": templates,
+        "sig_config": sig_config,
+        "signatories": signatories,
         "tokens_catalog": build_dynamic_fields_catalog(),
     }
     return render(request, "admissions/admin_document_detail.html", context)
@@ -176,12 +190,17 @@ def admin_regenerate_admission_document(request, pk):
 
     app = get_object_or_404(Application, pk=pk)
     template_id = request.POST.get("template_id")
-    reason = request.POST.get("reason", "").strip() or "Administrative regeneration"
+    signatory_id = request.POST.get("signatory_id")
+    reason = request.POST.get("reason", "").strip() or "Administrative issuance / regeneration"
     rep_date_str = request.POST.get("reporting_date", "").strip()
 
     template = None
     if template_id:
         template = AdmissionDocumentTemplate.objects.filter(pk=template_id, is_active=True).first()
+
+    signatory_user = None
+    if signatory_id:
+        signatory_user = User.objects.filter(pk=signatory_id).first()
 
     custom_overrides = {}
     if rep_date_str:
@@ -192,19 +211,30 @@ def admin_regenerate_admission_document(request, pk):
             app.save(update_fields=["reporting_date"])
             custom_overrides["reporting_date"] = dt.strftime("%A, %d %B %Y")
         except ValueError:
-            messages.error(request, "Enter a valid reporting date before regenerating the admission letter.")
+            messages.error(request, "Enter a valid reporting date before generating the admission letter.")
             return redirect("university:admin_admission_document_detail", pk=app.pk)
 
-    new_doc = generate_admission_document(
-        application=app,
-        template=template,
-        user=request.user,
-        custom_overrides=custom_overrides,
-        reason=reason,
-        issue_as_new_version=True
-    )
+    try:
+        new_doc = generate_admission_document(
+            application=app,
+            template=template,
+            user=request.user,
+            custom_overrides=custom_overrides,
+            reason=reason,
+            issue_as_new_version=True,
+            signatory_user=signatory_user,
+        )
+        messages.success(
+            request,
+            f"Admission Letter successfully finalized as Version {new_doc.version} (Ref: {new_doc.document_reference}) with official signatory snapshot."
+        )
+    except SignatureRequiredError as e:
+        messages.error(request, f"⚠ Signature Required: {e}")
+    except SignatureAuthorizationError as e:
+        messages.error(request, f"⛔ Access Denied: {e}")
+    except Exception as e:
+        messages.error(request, f"Could not generate admission letter: {e}")
 
-    messages.success(request, f"Admission Letter successfully regenerated as Version {new_doc.version} (Ref: {new_doc.document_reference}).")
     return redirect("university:admin_admission_document_detail", pk=app.pk)
 
 

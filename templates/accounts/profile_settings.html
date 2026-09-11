@@ -58,6 +58,9 @@
         <li class="nav-item"><button class="nav-link {% if active_tab == 'avatar' %}active{% endif %}"
             data-bs-toggle="tab" data-bs-target="#tab-avatar" type="button" role="tab">
             <i class="fa-solid fa-image-portrait me-2"></i>Picture</button></li>
+        <li class="nav-item"><button class="nav-link {% if active_tab == 'signature' %}active{% endif %}"
+            data-bs-toggle="tab" data-bs-target="#tab-signature" type="button" role="tab">
+            <i class="fa-solid fa-signature me-2"></i>Signature</button></li>
         <li class="nav-item"><button class="nav-link {% if active_tab == 'password' %}active{% endif %}"
             data-bs-toggle="tab" data-bs-target="#tab-password" type="button" role="tab">
             <i class="fa-solid fa-key me-2"></i>Password</button></li>
@@ -142,6 +145,215 @@
           </form>
         </div>
 
+        <!-- Signature Management -->
+        <div class="tab-pane fade {% if active_tab == 'signature' %}show active{% endif %}" id="tab-signature" role="tabpanel">
+          <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+            <div>
+              <h6 class="fw-bold mb-1"><i class="fa-solid fa-file-signature text-primary me-2"></i>Official Digital Signature</h6>
+              <p class="text-muted small mb-0">Manage your verified signature for officially generated university documents.</p>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              {% if user_signature and user_signature.signature_image %}
+                {% if user_signature.status == 'ACTIVE' %}
+                  <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-2">
+                    <i class="fa-solid fa-circle-check me-1"></i>Active Signature (v{{ user_signature.version }})
+                  </span>
+                {% elif user_signature.status == 'PENDING_VERIFICATION' %}
+                  <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-3 py-2">
+                    <i class="fa-solid fa-hourglass-half me-1"></i>Pending Verification (v{{ user_signature.version }})
+                  </span>
+                {% elif user_signature.status == 'INACTIVE' %}
+                  <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill px-3 py-2">
+                    <i class="fa-solid fa-pause me-1"></i>Inactive (v{{ user_signature.version }})
+                  </span>
+                {% else %}
+                  <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-3 py-2">
+                    <i class="fa-solid fa-ban me-1"></i>{{ user_signature.get_status_display }}
+                  </span>
+                {% endif %}
+              {% else %}
+                <span class="badge bg-light text-muted border rounded-pill px-3 py-2">
+                  <i class="fa-solid fa-circle-question me-1"></i>No Signature Configured
+                </span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Current Signature Display Box -->
+          <div class="card border rounded-3 p-3 mb-4 bg-light-subtle">
+            <div class="row align-items-center g-3">
+              <div class="col-md-6 text-center">
+                <div class="p-3 border rounded-3 bg-white d-flex align-items-center justify-content-center shadow-sm" style="min-height: 140px; background-image: radial-gradient(#cbd5e1 1px, transparent 1px); background-size: 12px 12px;">
+                  {% if user_signature and user_signature.signature_image %}
+                    <img id="signature-preview-img" src="{% url 'accounts:serve_my_signature' %}" alt="Official Signature" style="max-height: 110px; max-width: 100%; object-fit: contain;">
+                  {% else %}
+                    <div id="signature-preview-empty" class="text-muted text-center py-3">
+                      <i class="fa-solid fa-signature fa-2x mb-2 d-block opacity-50"></i>
+                      <span class="small">No signature image uploaded</span>
+                    </div>
+                    <img id="signature-preview-img" src="" alt="Official Signature" style="max-height: 110px; max-width: 100%; object-fit: contain; display: none;">
+                  {% endif %}
+                </div>
+                <div class="mt-2 text-muted small">
+                  {% if user_signature and user_signature.signature_image %}
+                    <span>Current Version: <strong>v{{ user_signature.version }}</strong></span> ·
+                    <span>Uploaded: {{ user_signature.uploaded_at|date:"M j, Y H:i" }}</span>
+                  {% else %}
+                    <span>Upload a transparent PNG for the highest quality document rendering</span>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="small">
+                  <div class="text-muted">Signatory Name</div>
+                  <div class="fw-bold mb-2">{{ user.get_full_name|default:user.username }}</div>
+                  
+                  <div class="text-muted">Official Signatory Title</div>
+                  <div class="fw-semibold mb-2">{{ user_signature.title|default:"—" }}</div>
+                  
+                  <div class="text-muted">Department / Office</div>
+                  <div class="fw-semibold mb-2">{{ user_signature.department_or_office|default:"—" }}</div>
+
+                  <div class="text-muted">Document Authorizations</div>
+                  <div class="mt-1">
+                    {% if user.role == 'REGISTRAR' or user.is_superuser %}
+                      <span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1">Admission Letters</span>
+                      <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle me-1">Transcripts</span>
+                      <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Certificates</span>
+                    {% elif user.role == 'STAFF' or user.role == 'ADMIN' %}
+                      <span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1">Admission Letters</span>
+                      <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Official Notices</span>
+                    {% else %}
+                      <span class="badge bg-light text-muted border">Personal / Standard Staff</span>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Upload / Update Form -->
+          <form method="post" enctype="multipart/form-data" novalidate id="user-signature-form">
+            {% csrf_token %}
+            <input type="hidden" name="form_type" value="signature">
+            
+            {% if signature_form.non_field_errors %}
+              <div class="alert alert-danger rounded-3">{{ signature_form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label small fw-semibold" for="id_signature_file">
+                  {% if user_signature and user_signature.signature_image %}Replace Signature Image{% else %}Upload Official Signature{% endif %}
+                </label>
+                {{ signature_form.signature_file }}
+                {% for error in signature_form.signature_file.errors %}
+                  <div class="text-danger small mt-1"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ error }}</div>
+                {% endfor %}
+                <div class="form-text small">
+                  Supported formats: <strong>PNG, JPG, WebP</strong> · Max 2.5 MB. Preferred: <strong>Transparent PNG</strong> (black or dark ink).
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold" for="{{ signature_form.title.id_for_label }}">Signatory Title</label>
+                {{ signature_form.title }}
+                {% for error in signature_form.title.errors %}
+                  <div class="text-danger small mt-1"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ error }}</div>
+                {% endfor %}
+                <div class="form-text small">Official position displayed below the signature line (e.g., Registrar).</div>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold" for="{{ signature_form.department_or_office.id_for_label }}">Department / Directorate / Office</label>
+                {{ signature_form.department_or_office }}
+                {% for error in signature_form.department_or_office.errors %}
+                  <div class="text-danger small mt-1"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ error }}</div>
+                {% endfor %}
+                <div class="form-text small">e.g. Directorate of Academic Affairs.</div>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold" for="{{ signature_form.status.id_for_label }}">Signature Status</label>
+                {{ signature_form.status }}
+                {% for error in signature_form.status.errors %}
+                  <div class="text-danger small mt-1"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ error }}</div>
+                {% endfor %}
+                <div class="form-text small">Only Active signatures can be applied to newly generated documents.</div>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold" for="{{ signature_form.change_reason.id_for_label }}">Reason for Update / Replacement</label>
+                {{ signature_form.change_reason }}
+                {% for error in signature_form.change_reason.errors %}
+                  <div class="text-danger small mt-1"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ error }}</div>
+                {% endfor %}
+                <div class="form-text small">Recorded in the central audit trail.</div>
+              </div>
+            </div>
+
+            <div class="mt-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
+              <div class="d-flex gap-2">
+                <button class="btn btn-primary rounded-pill px-4" type="submit">
+                  <i class="fa-solid fa-floppy-disk me-2"></i>{% if user_signature and user_signature.signature_image %}Save Signature Changes{% else %}Upload & Save Signature{% endif %}
+                </button>
+                <a class="btn btn-light border rounded-pill px-3" href="{% url 'accounts:profile_settings' %}?tab=signature">Reset</a>
+              </div>
+              
+              {% if user_signature and user_signature.signature_image %}
+                <button class="btn btn-outline-danger rounded-pill px-3" type="button" data-bs-toggle="modal" data-bs-target="#removeSignatureModal">
+                  <i class="fa-solid fa-trash me-2"></i>Remove Signature
+                </button>
+              {% endif %}
+            </div>
+          </form>
+
+          <!-- Signature Version History -->
+          {% if signature_history %}
+            <div class="mt-5 pt-3 border-top">
+              <h6 class="fw-bold mb-3"><i class="fa-solid fa-clock-rotate-left text-muted me-2"></i>Signature Version History</h6>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle small">
+                  <thead>
+                    <tr class="text-muted border-bottom">
+                      <th>Version</th>
+                      <th>Title & Office</th>
+                      <th>Valid Period</th>
+                      <th>Reason / Note</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for h in signature_history %}
+                      <tr>
+                        <td>
+                          <span class="badge bg-light text-dark border">v{{ h.version }}</span>
+                        </td>
+                        <td>
+                          <div class="fw-semibold">{{ h.title|default:"—" }}</div>
+                          <div class="text-muted small">{{ h.department_or_office|default:"" }}</div>
+                        </td>
+                        <td>
+                          {{ h.valid_from|date:"M j, Y" }} – 
+                          {% if h.valid_until %}{{ h.valid_until|date:"M j, Y" }}{% else %}Present{% endif %}
+                        </td>
+                        <td class="text-muted">{{ h.change_reason|default:"Archived version" }}</td>
+                        <td>
+                          {% if h.signature_image %}
+                            <a href="{% url 'accounts:serve_user_signature_history' user.id h.id %}" target="_blank" class="btn btn-outline-secondary btn-sm rounded-pill px-2 py-0">
+                              <i class="fa-solid fa-eye me-1"></i>View
+                            </a>
+                          {% else %}—{% endif %}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+
         <!-- Password -->
         <div class="tab-pane fade {% if active_tab == 'password' %}show active{% endif %}" id="tab-password" role="tabpanel">
           <form method="post" novalidate>
@@ -208,4 +420,60 @@
     </div>
   </div>
 </div>
+
+<!-- Remove Signature Confirmation Modal -->
+<div class="modal fade" id="removeSignatureModal" tabindex="-1" aria-labelledby="removeSignatureModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-danger text-white">
+        <h6 class="modal-title" id="removeSignatureModalLabel"><i class="fa-solid fa-triangle-exclamation me-2"></i>Remove Official Signature</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-4">
+        <p class="mb-2">Are you sure you want to deactivate and remove your official digital signature?</p>
+        <div class="alert alert-warning small mb-0">
+          <i class="fa-solid fa-shield-halved me-1"></i>
+          Your current version will be archived in the signature version history. Any previously issued official documents will remain intact with their issued signature snapshots.
+        </div>
+      </div>
+      <div class="modal-footer bg-light">
+        <button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+        <form method="post" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="form_type" value="signature">
+          <input type="hidden" name="signature_action" value="remove">
+          <button type="submit" class="btn btn-danger rounded-pill px-4">
+            <i class="fa-solid fa-trash me-1"></i>Confirm Removal
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Live signature preview when a new file is chosen
+  const sigFileInput = document.getElementById('id_signature_file');
+  const previewImg = document.getElementById('signature-preview-img');
+  const previewEmpty = document.getElementById('signature-preview-empty');
+
+  if (sigFileInput && previewImg) {
+    sigFileInput.addEventListener('change', function(e) {
+      const file = e.target.files && e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+          previewImg.src = evt.target.result;
+          previewImg.style.display = 'block';
+          if (previewEmpty) {
+            previewEmpty.style.display = 'none';
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+});
+</script>
 {% endblock %}

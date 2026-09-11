@@ -337,3 +337,45 @@ class IdentitySetPasswordForm(forms.Form):
         if first and second and first != second:
             self.add_error("new_password2", "The two passwords do not match.")
         return cleaned
+
+
+class UserSignatureForm(forms.ModelForm):
+    """
+    Form for uploading or updating official user signature image,
+    title, and department/office.
+    """
+    signature_file = forms.FileField(
+        required=False,
+        label="Signature Image",
+        widget=forms.FileInput(attrs={
+            "class": "form-control",
+            "accept": "image/png,image/jpeg,image/webp",
+            "id": "id_signature_file"
+        })
+    )
+    change_reason = forms.CharField(
+        required=False,
+        label="Reason for Update / Replacement",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "e.g. New appointment / refreshed official digital signature"
+        })
+    )
+
+    class Meta:
+        from .models import UserSignature
+        model = UserSignature
+        fields = ["title", "department_or_office", "status"]
+        widgets = {
+            "title": forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. Registrar (Academic Affairs)"}),
+            "department_or_office": forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. Office of the Registrar"}),
+            "status": forms.Select(attrs={"class": "form-select"}),
+        }
+
+    def clean_signature_file(self):
+        file = self.cleaned_data.get("signature_file")
+        if file:
+            from .signature_services import validate_signature_file
+            validate_signature_file(file)
+        return file
+

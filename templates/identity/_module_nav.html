@@ -13,6 +13,7 @@
       <li class="nav-item"><a class="nav-link rounded-pill px-3 py-1 fw-semibold {% if nav == 'usernames' %}active{% endif %}" href="{% url 'university:username_management' %}"><i class="fa-solid fa-signature me-1"></i>Usernames</a></li>
       <li class="nav-item"><a class="nav-link rounded-pill px-3 py-1 fw-semibold {% if nav == 'security' %}active{% endif %}" href="{% url 'university:login_security' %}"><i class="fa-solid fa-shield-halved me-1"></i>Login & Security</a></li>
       <li class="nav-item"><a class="nav-link rounded-pill px-3 py-1 fw-semibold {% if nav == 'bulk' %}active{% endif %}" href="{% url 'university:bulk_operations' %}"><i class="fa-solid fa-layer-group me-1"></i>Bulk Operations</a></li>
+      <li class="nav-item"><a class="nav-link rounded-pill px-3 py-1 fw-semibold {% if nav == 'signatures' %}active{% endif %}" href="{% url 'university:admin_signature_config_dashboard' %}"><i class="fa-solid fa-file-signature me-1"></i>Signatures</a></li>
       <li class="nav-item"><a class="nav-link rounded-pill px-3 py-1 fw-semibold {% if nav == 'settings' %}active{% endif %}" href="{% url 'university:user_settings' %}"><i class="fa-solid fa-sliders me-1"></i>Settings</a></li>
     </ul>
   </div>
