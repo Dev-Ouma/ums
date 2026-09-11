@@ -210,7 +210,11 @@ def pay_application_fee(request, pk):
     application = get_object_or_404(Application, pk=pk)
     access_token = request.GET.get("access") or request.POST.get("access")
     authorized_application = application_from_access_token(access_token)
-    if not authorized_application or authorized_application.pk != application.pk:
+    token_valid = bool(authorized_application and authorized_application.pk == application.pk)
+    is_staff = request.user.is_authenticated and (
+        request.user.is_staff or request.user.is_superuser or getattr(request.user, "role", "") in (Role.ADMIN, "ADMIN")
+    )
+    if not (token_valid or is_staff):
         return HttpResponse("Application access token required.", status=403)
     fee_amount = get_setting("application_fee_default", default=Decimal("1000.00"))
 
@@ -283,8 +287,17 @@ def application_status(request):
 def download_admission_letter(request, pk):
     """Download official PDF admission offer letter for accepted applicants."""
     app = get_object_or_404(Application.objects.select_related("program", "intake", "student"), pk=pk)
+
+    is_staff = request.user.is_authenticated and (
+        request.user.is_staff or request.user.is_superuser or getattr(request.user, "role", "") in (Role.ADMIN, "ADMIN")
+    )
+    is_applicant = (
+        request.user.is_authenticated and hasattr(app, "student") and app.student and getattr(app.student, "user", None) == request.user
+    )
     access_token = request.GET.get("access", "")
-    if not application_from_access_token(access_token) == app:
+    token_valid = bool(access_token and application_from_access_token(access_token) == app)
+
+    if not (is_staff or is_applicant or token_valid):
         return HttpResponse("Application access token required.", status=403)
     if app.status not in [Application.Status.ACCEPTED, Application.Status.ENROLLED]:
         messages.warning(request, "Admission letter is available only for accepted applicants.")
