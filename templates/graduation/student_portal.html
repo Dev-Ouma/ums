@@ -117,15 +117,34 @@
                 <p class="text-muted small mb-0">{{ application.notes }}</p>
               </div>
               <div>
-                {% if application.status == 'CLEARED' or application.status == 'SENATE_APPROVED' %}
-                  <span class="badge bg-success p-2 fs-6 rounded-3"><i class="fa-solid fa-shield-check me-1"></i>{{ application.get_status_display }}</span>
+                {% if application.status == 'CLEARED' %}
+                  <span class="badge bg-info p-2 fs-6 rounded-3"><i class="fa-solid fa-clipboard-check me-1"></i>All 5 Desks Cleared</span>
+                {% elif application.status == 'SENATE_APPROVED' or application.status == 'GRADUATED' %}
+                  <span class="badge bg-success p-2 fs-6 rounded-3"><i class="fa-solid fa-shield-check me-1"></i>Senate Conferred</span>
                 {% elif application.status == 'REJECTED' %}
                   <span class="badge bg-danger p-2 fs-6 rounded-3"><i class="fa-solid fa-ban me-1"></i>Hold / Uncleared</span>
                 {% else %}
-                  <span class="badge bg-primary p-2 fs-6 rounded-3"><i class="fa-solid fa-spinner fa-spin me-1"></i>In Progress</span>
+                  <span class="badge bg-primary p-2 fs-6 rounded-3"><i class="fa-solid fa-spinner fa-spin me-1"></i>Station Clearance In Progress</span>
                 {% endif %}
               </div>
             </div>
+
+            {% if application.status == 'CLEARANCE_IN_PROGRESS' %}
+              <div class="alert alert-info py-2 px-3 rounded-3 small mt-3 mb-0">
+                <i class="fa-solid fa-circle-info me-1"></i>
+                <strong>Clearance Status:</strong> Your dossier is awaiting review from departmental desks. Once all 5 stations sign off, your application automatically advances to the final step: <strong>Senate Degree Conferment</strong>.
+              </div>
+            {% elif application.status == 'CLEARED' %}
+              <div class="alert alert-success py-2 px-3 rounded-3 small mt-3 mb-0">
+                <i class="fa-solid fa-circle-check me-1"></i>
+                <strong>5/5 Stations Cleared:</strong> All departmental sign-offs are complete! Your application is in the queue for the upcoming University Senate meeting for final degree conferment.
+              </div>
+            {% elif application.status == 'SENATE_APPROVED' or application.status == 'GRADUATED' %}
+              <div class="alert alert-success py-2 px-3 rounded-3 small mt-3 mb-0">
+                <i class="fa-solid fa-award me-1"></i>
+                <strong>Degree Conferred:</strong> Full university clearance and Senate degree conferment confirmed. You may download your official Degree and Clearance certificates.
+              </div>
+            {% endif %}
           </div>
         </div>
 

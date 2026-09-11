@@ -221,6 +221,10 @@ def process_department_clearance(clearance_id, status, user=None, remarks="", re
         app.status = GraduationApplication.Status.REJECTED
         app.notes = f"Clearance rejected or held by {dc.get_department_display()}."
         app.save(update_fields=["status", "notes"])
+    elif app.status not in (GraduationApplication.Status.SENATE_APPROVED, GraduationApplication.Status.GRADUATED):
+        app.status = GraduationApplication.Status.CLEARANCE_IN_PROGRESS
+        app.notes = "Clearance in progress. Awaiting departmental sign-offs."
+        app.save(update_fields=["status", "notes"])
 
     # Log to Audit Log
     log_activity(
