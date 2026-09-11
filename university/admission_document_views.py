@@ -191,8 +191,9 @@ def admin_regenerate_admission_document(request, pk):
             app.reporting_date = dt
             app.save(update_fields=["reporting_date"])
             custom_overrides["reporting_date"] = dt.strftime("%A, %d %B %Y")
-        except Exception:
-            pass
+        except ValueError:
+            messages.error(request, "Enter a valid reporting date before regenerating the admission letter.")
+            return redirect("university:admin_admission_document_detail", pk=app.pk)
 
     new_doc = generate_admission_document(
         application=app,
@@ -221,6 +222,9 @@ def admin_resend_admission_document(request, pk):
         return redirect("university:admin_admission_document_detail", pk=app.pk)
 
     delivery_method = request.POST.get("delivery_method", DocumentDeliveryLog.Method.EMAIL)
+    if delivery_method not in DocumentDeliveryLog.Method.values:
+        messages.error(request, "Select a valid document delivery method.")
+        return redirect("university:admin_admission_document_detail", pk=app.pk)
     recipient = request.POST.get("recipient", "").strip() or app.email
     subject = request.POST.get("subject", "").strip() or f"Official Admission Letter - {active_letter.document_reference}"
     message = request.POST.get("message", "").strip() or (
@@ -306,6 +310,8 @@ def admin_verify_attachment(request, attachment_id):
             }
         )
         messages.success(request, f"Document '{attachment.name}' updated to {attachment.get_verification_status_display()}.")
+    else:
+        messages.error(request, "Select a valid document verification status.")
 
     return redirect("university:admin_admission_document_detail", pk=attachment.application.pk)
 
@@ -384,31 +390,33 @@ def admin_templates_list(request):
 
 
 TEMPLATE_DEFAULTS = {
-    "name": "Standard Undergraduate Admission Letter",
+    "name": "Official Undergraduate Admission Offer",
     "header_title": "OFFICE OF THE REGISTRAR (ACADEMIC AFFAIRS)",
     "salutation_template": "Dear {{student_name}},",
-    "subject_template": "LETTER OF OFFER: ADMISSION TO {{programme_name}} ({{programme_code}})",
+    "subject_template": "OFFER OF ADMISSION: {{programme_name}} ({{programme_code}})",
     "body_template": (
-        "I am pleased to inform you that following your application, the University Admissions Board "
-        "has offered you admission into the {{programme_name}} in the {{faculty_name}} for the {{intake}} "
-        "commencing in {{academic_year}} ({{semester}}).\n\n"
-        "You are required to report to the Main Campus for orientation, document verification, and formal "
-        "registration on {{reporting_date}} at 8:00 AM. Failure to report within two weeks of the scheduled date "
-        "without prior written approval from the Registrar will result in the forfeiture of this offer."
+        "Following consideration of your application by the University Admissions Board, I am pleased to offer you "
+        "admission to the <b>{{programme_name}}</b> ({{programme_code}}), offered through {{department_name}}, "
+        "{{faculty_name}}. Your place is reserved for the <b>{{intake}}</b> of the {{academic_year}} academic year "
+        "({{semester}}).\n\n"
+        "Please report for orientation, original-document verification, and Student Registration and Enrollment on "
+        "<b>{{reporting_date}}</b>. Bring this letter together with your original academic certificates and the "
+        "identification documents listed below. Your admission will be confirmed after the required checks are "
+        "completed.\n\n"
+        "We look forward to welcoming you to {{university_name}} and wish you every success in your studies."
     ),
     "terms_and_conditions": (
-        "1. This offer of provisional admission is subject to physical verification of your original KCSE / High School certificates, National ID card / passport, and birth certificate.\n"
-        "2. All registered students are bound by the University Charter, Statutes, Rules and Regulations governing Student Conduct and Discipline.\n"
-        "3. At least 75% of first-semester fees must be paid prior to biometric registration and unit enrolment.\n"
-        "4. The university reserves the right to withdraw this offer at any time should any submitted documents or academic qualifications be found fraudulent or falsified."
+        "1. This offer is conditional upon verification of the original academic certificates, identification document, and birth certificate.\n"
+        "2. Student Registration and Enrollment is completed only after the University's admission and finance checks are satisfied.\n"
+        "3. You are bound by the University Charter, Statutes, Student Handbook, and all applicable academic and conduct regulations.\n"
+        "4. The University may withdraw this offer if information or documents supplied in support of the application are inaccurate, fraudulent, or materially incomplete."
     ),
     "fee_schedule_instructions": (
-        "Tuition and statutory fees must be deposited directly to the University Bank Account:\n"
-        "• Depository Bank: {{bank_name}}\n"
-        "• Account Number: {{bank_account}} ({{bank_branch}})\n"
-        "• M-Pesa Paybill: {{mpesa_paybill}} (Account: {{application_number}})\n"
-        "• Estimated First Semester Total: {{total_fees}} (Tuition: {{tuition_fee}})\n"
-        "Cheques and cash payments at campus counters are strictly not accepted."
+        "Before reporting, confirm the current fee schedule and approved payment instructions with the Finance Office.\n"
+        "Payment reference: {{application_number}}\n"
+        "Estimated first-semester tuition: {{tuition_fee}}\n"
+        "Estimated first-semester total: {{total_fees}}\n"
+        "Use only payment channels published by the University and retain the official receipt."
     ),
     "signatory_name": "Dr. Margaret Omolo, PhD",
     "signatory_title": "Registrar, Academic & Student Affairs",

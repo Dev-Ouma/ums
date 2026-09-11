@@ -2,21 +2,156 @@
 {% block title %}Grade · {{ assignment.title }}{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h4><i class="fa-solid fa-pen-clip me-2" style="color:var(--primary)"></i>Grade Submissions</h4>
-    <small class="text-muted">{{ assignment.title }} · {{ assignment.course.code }} · max {{ assignment.max_marks }}</small></div>
-  <a href="{% url 'university:faculty_courses' %}" class="btn btn-sm btn-outline-primary rounded-pill"><i class="fa-solid fa-arrow-left me-1"></i>Back</a>
+  <div>
+    <h4><i class="fa-solid fa-pen-clip me-2" style="color:var(--primary)"></i>Grade Submissions</h4>
+    <small class="text-muted">{{ assignment.title }} · {{ assignment.course.code }} · Max Marks: <strong>{{ assignment.max_marks }}</strong></small>
+  </div>
+  <div class="d-flex gap-2 align-items-center flex-wrap">
+    <a href="?template=excel" class="btn btn-sm btn-outline-success rounded-pill px-3" title="Download Excel template pre-filled with students">
+      <i class="fa-solid fa-file-excel me-1"></i>Excel Template
+    </a>
+    <a href="?template=csv" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Download CSV template pre-filled with students">
+      <i class="fa-solid fa-file-csv me-1"></i>CSV Template
+    </a>
+    <button type="button" class="btn btn-sm btn-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#bulkAssignmentMarksModal">
+      <i class="fa-solid fa-file-arrow-up me-1"></i>Bulk Upload Marks
+    </button>
+    <a href="{% url 'university:faculty_courses' %}" class="btn btn-sm btn-light border rounded-pill px-3">
+      <i class="fa-solid fa-arrow-left me-1"></i>Back
+    </a>
+  </div>
 </div>
-<form method="post"><div class="card card-ums">
-  {% csrf_token %}
-  <div class="table-responsive"><table class="table align-middle mb-0">
-    <thead><tr><th class="ps-4">Student</th><th>Submission</th><th>Status</th><th style="width:110px">Marks</th><th style="width:220px">Feedback</th></tr></thead>
-    <tbody>{% for s in subs %}
-      <tr><td class="ps-4"><div class="d-flex align-items-center gap-2"><img src="{{ s.student.user.avatar }}" class="avatar-sm">{{ s.student.user.display_name }}</div></td>
-        <td class="small text-muted" style="max-width:260px">{{ s.content|truncatewords:20|default:"—" }}</td>
-        <td><span class="status {{ s.status }}">{{ s.get_status_display }}</span></td>
-        <td><input name="marks_{{ s.id }}" type="number" value="{{ s.marks|default:'' }}" max="{{ assignment.max_marks }}" class="form-control form-control-sm"></td>
-        <td><input name="feedback_{{ s.id }}" value="{{ s.feedback }}" class="form-control form-control-sm" placeholder="Feedback"></td></tr>
-    {% empty %}<tr><td colspan="5" class="text-muted p-3 text-center">No submissions.</td></tr>{% endfor %}</tbody></table></div>
-  <div class="card-body text-end"><button class="btn btn-primary rounded-pill px-4"><i class="fa-solid fa-floppy-disk me-1"></i>Save Grades</button></div>
-</div></form>
+
+<form method="post">
+  <div class="card card-ums mb-4">
+    {% csrf_token %}
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span><i class="fa-solid fa-users me-2 text-primary"></i>Student Submissions ({{ subs|length }})</span>
+      <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Max: {{ assignment.max_marks }} marks</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-4">Student</th>
+            <th>Roll Number</th>
+            <th>Submission</th>
+            <th>Status</th>
+            <th style="width:130px">Marks / {{ assignment.max_marks }}</th>
+            <th style="width:260px">Feedback</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in subs %}
+          <tr>
+            <td class="ps-4">
+              <div class="d-flex align-items-center gap-2">
+                <img src="{{ s.student.user.avatar }}" class="avatar-sm rounded-circle" alt="{{ s.student.user.display_name }}">
+                <span class="fw-semibold">{{ s.student.user.display_name }}</span>
+              </div>
+            </td>
+            <td><span class="badge bg-light text-dark border">{{ s.student.roll_no }}</span></td>
+            <td class="small text-muted" style="max-width:240px">{{ s.content|truncatewords:20|default:"—" }}</td>
+            <td><span class="status {{ s.status }}">{{ s.get_status_display }}</span></td>
+            <td>
+              <input name="marks_{{ s.id }}" type="number" value="{{ s.marks|default:'' }}" max="{{ assignment.max_marks }}" min="0" class="form-control form-control-sm text-end fw-semibold">
+            </td>
+            <td>
+              <input name="feedback_{{ s.id }}" value="{{ s.feedback }}" class="form-control form-control-sm" placeholder="Feedback...">
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-muted p-4 text-center">No student submissions found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-body text-end bg-light border-top">
+      <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">
+        <i class="fa-solid fa-floppy-disk me-1"></i>Save Grades
+      </button>
+    </div>
+  </div>
+</form>
+
+<!-- Modal: Bulk Upload Assignment Marks -->
+<div class="modal fade" id="bulkAssignmentMarksModal" tabindex="-1" aria-labelledby="bulkAssignmentMarksModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <div class="modal-header border-bottom px-4 py-3">
+        <div>
+          <h5 class="modal-title fw-bold mb-0" id="bulkAssignmentMarksModalLabel">
+            <i class="fa-solid fa-file-arrow-up text-primary me-2"></i>Bulk Upload Assignment Marks
+          </h5>
+          <small class="text-muted">{{ assignment.title }} · {{ assignment.course.code }}</small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-4">
+        <!-- Step 1: Download Template -->
+        <div class="mb-4">
+          <label class="fw-bold small text-uppercase text-muted d-block mb-2">Step 1: Download Template</label>
+          <div class="row g-2">
+            <div class="col-sm-6">
+              <a href="?template=excel" class="btn btn-outline-success w-100 py-2 d-flex align-items-center justify-content-between rounded-3">
+                <span class="d-flex align-items-center"><i class="fa-solid fa-file-excel fa-lg me-2 text-success"></i><strong>Download Excel Template</strong></span>
+                <span class="badge bg-success-subtle text-success border border-success-subtle">.xlsx</span>
+              </a>
+            </div>
+            <div class="col-sm-6">
+              <a href="?template=csv" class="btn btn-outline-primary w-100 py-2 d-flex align-items-center justify-content-between rounded-3">
+                <span class="d-flex align-items-center"><i class="fa-solid fa-file-csv fa-lg me-2 text-primary"></i><strong>Download CSV Template</strong></span>
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">.csv</span>
+              </a>
+            </div>
+          </div>
+          <small class="text-muted mt-2 d-block">
+            Pre-populated with all students. Input the marks (0 to {{ assignment.max_marks }}) and optional feedback offline.
+          </small>
+        </div>
+
+        <hr class="opacity-25 my-3">
+
+        <!-- Step 2: Upload File -->
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <label class="fw-bold small text-uppercase text-muted d-block mb-2">Step 2: Upload Completed Spreadsheet</label>
+          <div class="border-2 border-dashed rounded-4 p-4 text-center mb-3" style="background:#f8faff; border-color:#c7d2fe;">
+            <i class="fa-solid fa-cloud-arrow-up fa-2x text-primary mb-2"></i>
+            <h6 class="fw-semibold mb-1">Select marks spreadsheet (.xlsx, .xls, or .csv)</h6>
+            <p class="text-muted small mb-3">Supports Excel and CSV files up to 5 MB</p>
+            <input type="file" name="marks_file" id="assignMarksFileInput" class="d-none" accept=".xlsx,.xls,.csv,text/csv" required onchange="updateAssignMarksFileLabel(this)">
+            <button type="button" class="btn btn-primary rounded-pill px-4" onclick="document.getElementById('assignMarksFileInput').click()">
+              <i class="fa-solid fa-folder-open me-1"></i>Choose Spreadsheet
+            </button>
+            <div id="assignMarksFileName" class="mt-2 text-success fw-semibold small" style="display:none;"></div>
+          </div>
+
+          <div class="d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" id="submitAssignMarksBtn" class="btn btn-primary rounded-pill px-4 fw-semibold" disabled>
+              <i class="fa-solid fa-check me-1"></i>Import Marks
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function updateAssignMarksFileLabel(input) {
+  var submitBtn = document.getElementById('submitAssignMarksBtn');
+  var nameLabel = document.getElementById('assignMarksFileName');
+  if (input.files && input.files[0]) {
+    var file = input.files[0];
+    nameLabel.textContent = 'Selected: ' + file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+    nameLabel.style.display = 'block';
+    submitBtn.disabled = false;
+  } else {
+    nameLabel.style.display = 'none';
+    submitBtn.disabled = true;
+  }
+}
+</script>
 {% endblock %}

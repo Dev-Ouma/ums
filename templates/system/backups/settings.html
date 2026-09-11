@@ -59,6 +59,25 @@
 
           <div class="row g-3 mb-4">
             <div class="col-md-6">
+              <label class="form-label small fw-semibold text-muted text-uppercase">Recovery Point Objective (minutes)</label>
+              <input type="number" name="rpo_minutes" class="form-control rounded-3" value="{{ settings.rpo_minutes }}" min="1" max="10080" required>
+              <div class="form-text small">Maximum acceptable data loss window.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold text-muted text-uppercase">Recovery Time Objective (minutes)</label>
+              <input type="number" name="rto_minutes" class="form-control rounded-3" value="{{ settings.rto_minutes }}" min="1" max="43200" required>
+              <div class="form-text small">Maximum acceptable time to restore service.</div>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label small fw-semibold text-muted text-uppercase">Approved Disaster Recovery Procedure</label>
+            <textarea name="disaster_recovery_procedure" class="form-control rounded-3" rows="5" placeholder="Describe detection, containment, restore, validation, approval, communication, and post-restore monitoring steps.">{{ settings.disaster_recovery_procedure }}</textarea>
+            <div class="form-text small">Keep this procedure operational, owned, and tested with the restore process.</div>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
               <label class="form-label small fw-semibold text-muted text-uppercase">Storage Capacity Warning Threshold (%)</label>
               <input type="number" name="storage_warning_threshold" class="form-control rounded-3" value="{{ settings.storage_warning_threshold_percent }}" min="50" max="99">
               <div class="form-text small">Triggers warning status when disk utilization exceeds this percentage.</div>

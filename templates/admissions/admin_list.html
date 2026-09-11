@@ -7,7 +7,7 @@
 <div class="content-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
   <div>
     <h2 class="fw-bold mb-1"><i class="fa-solid fa-id-card-clip me-2 text-primary"></i>Admissions & Applications</h2>
-    <p class="text-muted mb-0">Review online prospective student applications, manage decisions, and matriculate admitted candidates.</p>
+    <p class="text-muted mb-0">Review online prospective student applications, manage decisions, and register and enroll admitted candidates.</p>
   </div>
   <div class="d-flex gap-2">
     <a href="{% url 'university:admin_intakes' %}" class="btn btn-outline-secondary rounded-pill px-3 py-2">
@@ -47,7 +47,7 @@
   </div>
   <div class="col-6 col-md-2">
     <div class="card border-0 shadow-sm rounded-4 p-3 bg-white">
-      <small class="text-muted fw-semibold">Matriculated</small>
+      <small class="text-muted fw-semibold">Registered and Enrolled</small>
       <div class="fs-3 fw-bold text-primary mt-1">{{ stats.enrolled }}</div>
     </div>
   </div>

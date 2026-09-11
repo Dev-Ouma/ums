@@ -339,6 +339,7 @@ def user_edit(request, pk):
         user.last_name = data.get("last_name", "").strip()
         user.email = data.get("email", "").strip()
         user.phone = data.get("phone", "").strip()
+        privilege_changed = user.role != data.get("role") if data.get("role") in dict(Role.choices) else False
         if data.get("role") in dict(Role.choices):
             user.role = data["role"]
         user.save()
@@ -349,6 +350,8 @@ def user_edit(request, pk):
         account.expiry_date = data.get("expiry_date") or None
         account.notes = data.get("notes", "").strip()
         account.save()
+        if privilege_changed:
+            invalidate_user_sessions(user)
 
         log_activity(
             request=request, user=request.user, action=AuditLog.Action.UPDATE,
@@ -480,6 +483,7 @@ def user_action(request, pk, action):
         StaffRoleAssignment.objects.get_or_create(
             user=user, role=role, department=None,
             defaults={"assigned_by": request.user, "is_active": True})
+        invalidate_user_sessions(user)
         log_activity(request=request, user=request.user, action=AuditLog.Action.UPDATE,
                      module=AuditLog.Module.AUTH, entity="Staff Role", entity_id=user.pk,
                      description=f"Assigned role '{role.name}' to '{user.username}'.")
@@ -662,6 +666,8 @@ def group_edit(request, pk=None):
                 group = UserGroup.objects.create(**values)
                 action = AuditLog.Action.CREATE
             group.roles.set(StaffRole.objects.filter(pk__in=request.POST.getlist("roles")))
+            for membership in group.memberships.select_related("user"):
+                invalidate_user_sessions(membership.user)
             log_activity(request=request, user=request.user, action=action,
                          module=AuditLog.Module.AUTH, entity="User Group", entity_id=group.pk,
                          description=f"Saved user group '{group.name}'.")
@@ -685,6 +691,8 @@ def group_delete(request, pk):
         messages.error(request, "System groups cannot be deleted.")
     else:
         name = group.name
+        for membership in group.memberships.select_related("user"):
+            invalidate_user_sessions(membership.user)
         group.delete()
         log_activity(request=request, user=request.user, action=AuditLog.Action.DELETE,
                      module=AuditLog.Module.AUTH, entity="User Group",

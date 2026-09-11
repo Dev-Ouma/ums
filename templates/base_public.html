@@ -77,7 +77,7 @@
     {% if messages %}
     <div class="container mt-3">
       {% for m in messages %}
-      <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show rounded-3">
+      <div class="alert alert-{% if m.tags == 'error' %}danger{% else %}{{ m.tags|default:'info' }}{% endif %} alert-dismissible fade show rounded-3">
         {{ m }}<button class="btn-close" data-bs-dismiss="alert"></button></div>
       {% endfor %}
     </div>
@@ -94,10 +94,10 @@
           <p class="small">A modern, all-in-one platform to run admissions, academics, attendance,
             exams, fees and campus life — powered by built-in AI insights.</p>
           <div class="d-flex gap-2 fs-5">
-            <a href="#"><i class="fa-brands fa-facebook"></i></a>
-            <a href="#"><i class="fa-brands fa-x-twitter"></i></a>
-            <a href="#"><i class="fa-brands fa-instagram"></i></a>
-            <a href="#"><i class="fa-brands fa-youtube"></i></a>
+            <span class="text-muted" title="Social profile coming soon" aria-label="Facebook profile coming soon"><i class="fa-brands fa-facebook"></i></span>
+            <span class="text-muted" title="Social profile coming soon" aria-label="X profile coming soon"><i class="fa-brands fa-x-twitter"></i></span>
+            <span class="text-muted" title="Social profile coming soon" aria-label="Instagram profile coming soon"><i class="fa-brands fa-instagram"></i></span>
+            <span class="text-muted" title="Social profile coming soon" aria-label="YouTube profile coming soon"><i class="fa-brands fa-youtube"></i></span>
           </div>
         </div>
         <div class="col-lg-2 col-6">
@@ -106,12 +106,13 @@
           <a class="d-block small mb-1" href="{% url 'university:courses_public' %}">Courses</a>
           <a class="d-block small mb-1" href="{% url 'university:about' %}">About</a>
           <a class="d-block small mb-1" href="{% url 'university:contact' %}">Contact</a>
+          <a class="d-block small mb-1" href="{% url 'university:privacy' %}">Privacy &amp; data protection</a>
           <a class="d-block small mb-1" href="{% url 'university:public_status' %}"><i class="fa-solid fa-signal me-1 text-success"></i>System Status</a>
         </div>
         <div class="col-lg-3 col-6">
           <h6 class="text-white">Portals</h6>
           <a class="d-block small mb-1" href="{% url 'accounts:login' %}">Student Login</a>
-          <a class="d-block small mb-1" href="{% url 'accounts:login' %}">Faculty Login</a>
+          <a class="d-block small mb-1" href="{% url 'accounts:login' %}">Teaching Staff Login</a>
           <a class="d-block small mb-1" href="{% url 'accounts:login' %}">Admin Login</a>
         </div>
         <div class="col-lg-3">

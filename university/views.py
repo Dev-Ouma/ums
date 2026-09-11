@@ -79,6 +79,10 @@ def contact(request):
     return render(request, "public/contact.html")
 
 
+def privacy(request):
+    return render(request, "public/privacy.html")
+
+
 def courses_public(request):
     q = request.GET.get("q", "").strip()
     courses = Course.objects.select_related("department", "faculty__user")
@@ -775,7 +779,7 @@ def faculty_import(request):
 
         elif action == "cancel":
             request.session.pop("pending_faculty_import", None)
-            messages.info(request, "Faculty import cancelled.")
+            messages.info(request, "Teaching staff import cancelled.")
             return redirect("university:faculty_import")
 
     if preview_data is None and request.method == "GET":
@@ -804,10 +808,10 @@ def faculty_create(request):
     form = FacultyForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         fp = form.save(actor=request.user)
-        messages.success(request, f"Faculty {fp.user.display_name} added. Sign-in details were "
+        messages.success(request, f"Teaching staff member {fp.user.display_name} added. Sign-in details were "
                                   f"emailed; manage the account from User Management.")
         return redirect("university:faculty_detail", pk=fp.pk)
-    return _render_form(request, form, "Add Faculty", "Create a new faculty account and profile",
+    return _render_form(request, form, "Add Teaching Staff", "Create a new teaching staff account and profile",
                         "fa-user-plus", "university:admin_faculty")
 
 
@@ -817,9 +821,9 @@ def faculty_edit(request, pk):
     form = FacultyForm(request.POST or None, instance=fp)
     if request.method == "POST" and form.is_valid():
         form.save(actor=request.user)
-        messages.success(request, "Faculty updated.")
+        messages.success(request, "Teaching staff updated.")
         return redirect("university:faculty_detail", pk=fp.pk)
-    return _render_form(request, form, "Edit Faculty", fp.user.display_name,
+    return _render_form(request, form, "Edit Teaching Staff", fp.user.display_name,
                         "fa-user-pen", "university:admin_faculty")
 
 
@@ -829,10 +833,10 @@ def faculty_delete(request, pk):
     if request.method == "POST":
         name = fp.user.display_name
         move_to_recycle_bin(fp, user=request.user, request=request)
-        messages.success(request, f"Moved faculty '{name}' to Recycle Bin.")
+        messages.success(request, f"Moved teaching staff '{name}' to Recycle Bin.")
         return redirect("university:admin_faculty")
     return render(request, "dashboard/confirm_delete.html", {
-        "object": fp, "label": "faculty", "back_url": reverse("university:admin_faculty"),
+        "object": fp, "label": "teaching staff", "back_url": reverse("university:admin_faculty"),
     })
 
 
@@ -1307,7 +1311,7 @@ def _get_filtered_courses_queryset(request):
     return courses, q, dept_id, prog_id, status_filter, sort_by, order
 
 
-@login_required
+@role_required(Role.ADMIN)
 def admin_courses(request):
     courses_qs, q, dept_id, prog_id, status_filter, sort_by, order = _get_filtered_courses_queryset(request)
     total_count = courses_qs.count()
@@ -2505,20 +2509,57 @@ def faculty_grade(request, pk):
     else:
         fp = get_object_or_404(FacultyProfile, user=request.user)
         assignment = get_object_or_404(Assignment, pk=pk, course__faculty=fp)
+
+    # Template download
+    fmt = request.GET.get("template", "").lower()
+    if fmt in ("excel", "xlsx"):
+        from . import marks_io
+        content = marks_io.generate_assignment_marks_template(assignment, fmt="excel")
+        response = HttpResponse(
+            content,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = f'attachment; filename="assignment-{pk}-marks-template.xlsx"'
+        return response
+    elif fmt == "csv":
+        from . import marks_io
+        content = marks_io.generate_assignment_marks_template(assignment, fmt="csv")
+        response = HttpResponse(content, content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = f'attachment; filename="assignment-{pk}-marks-template.csv"'
+        return response
+
     subs = Submission.objects.filter(assignment=assignment).select_related("student__user")
     if request.method == "POST":
-        for s in subs:
-            raw = request.POST.get(f"marks_{s.id}", "").strip()
-            if raw:
-                try:
-                    s.marks = min(int(raw), assignment.max_marks)
-                    s.feedback = request.POST.get(f"feedback_{s.id}", "")
-                    s.status = Submission.GRADED
+        upload = request.FILES.get("marks_file") or request.FILES.get("csv_file")
+        if upload:
+            from . import marks_io
+            try:
+                parsed = marks_io.parse_assignment_marks_file(upload, assignment)
+                if not parsed["updated_subs"]:
+                    raise ValidationError("No valid marks found in the uploaded file.")
+                for s in parsed["updated_subs"]:
                     s.save()
-                except ValueError:
-                    pass
-        messages.success(request, "Grades updated.")
-        return redirect("university:faculty_grade", pk=assignment.pk)
+                messages.success(request, f"Successfully uploaded marks for {parsed['valid_count']} student(s).")
+                if parsed["error_count"] > 0:
+                    messages.warning(request, f"{parsed['error_count']} row(s) contained errors and were skipped.")
+                return redirect("university:faculty_grade", pk=assignment.pk)
+            except ValidationError as e:
+                messages.error(request, "; ".join(e.messages) if hasattr(e, "messages") else str(e))
+            except Exception as e:
+                messages.error(request, f"Could not process marks file: {str(e)}")
+        else:
+            for s in subs:
+                raw = request.POST.get(f"marks_{s.id}", "").strip()
+                if raw:
+                    try:
+                        s.marks = min(int(raw), assignment.max_marks)
+                        s.feedback = request.POST.get(f"feedback_{s.id}", "")
+                        s.status = Submission.GRADED
+                        s.save()
+                    except ValueError:
+                        pass
+            messages.success(request, "Grades updated.")
+            return redirect("university:faculty_grade", pk=assignment.pk)
     return render(request, "dashboard/faculty_grade.html",
                   {"assignment": assignment, "subs": subs})
 

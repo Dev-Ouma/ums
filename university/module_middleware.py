@@ -41,10 +41,6 @@ class ModuleAccessMiddleware:
         is_managed, is_active, context = get_request_module_context(request)
 
         if is_managed and not is_active:
-            # Check if superuser requested an explicit diagnostic bypass
-            if request.user.is_authenticated and request.user.is_superuser and request.GET.get("admin_bypass") == "1":
-                return self.get_response(request)
-
             status = context.get("status", "DISABLED")
             status_message = context.get("status_message", "")
             module_name = context.get("module_name", "Module")

@@ -94,8 +94,7 @@ def identity_login_failed(sender, credentials=None, request=None, **kwargs):
 
 @receiver(user_logged_in)
 def identity_login_success(sender, request, user, **kwargs):
-    from university.identity_services import (clear_failed_logins, ensure_account,
-                                              record_login_attempt)
+    from university.identity_services import clear_failed_logins, ensure_account, record_login_attempt
     ensure_account(user)
     clear_failed_logins(user)
     session_key = getattr(getattr(request, "session", None), "session_key", "") or ""

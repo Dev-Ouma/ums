@@ -1,6 +1,6 @@
 import decimal
 import logging
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Optional, Tuple
 
 from django.conf import settings
@@ -26,6 +26,77 @@ from university.audit_services import log_activity
 from university.payment_providers.registry import get_payment_adapter
 
 logger = logging.getLogger(__name__)
+
+
+PAYMENT_AUDIT_FIELDS = {
+    "transactiontype", "transid", "transtime", "transamount", "amount",
+    "businessshortcode", "billrefnumber", "invoicenumber", "currency",
+    "currencycode", "internal_reference", "reference", "provider_reference",
+    "transaction_id", "status", "resultcode", "resultdesc", "response_code",
+}
+
+
+def sanitize_payment_payload(payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Keep only non-personal verification facts in payment audit storage."""
+    if not isinstance(payload, dict):
+        return {}
+    sanitized = {}
+    for key, value in payload.items():
+        normalized = str(key).lower().replace(" ", "_")
+        if normalized in PAYMENT_AUDIT_FIELDS:
+            if isinstance(value, (str, int, float, bool)) or value is None:
+                sanitized[str(key)] = value
+            else:
+                sanitized[str(key)] = str(value)[:200]
+    return sanitized
+
+
+def validate_provider_payload(payment, payload: Optional[Dict[str, Any]], provider_reference: str = "") -> Tuple[bool, str]:
+    """Validate callback facts against the server-created payment intent."""
+    payload = payload or {}
+    amount_values = []
+    currency_values = []
+
+    def walk(value):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                key_lower = str(key).lower()
+                if key_lower in {"amount", "transamount", "transactionamount"}:
+                    amount_values.append(child)
+                if key_lower in {"currency", "currencycode"}:
+                    currency_values.append(child)
+                walk(child)
+        elif isinstance(value, list):
+            for child in value:
+                walk(child)
+
+    walk(payload)
+    for raw_amount in amount_values:
+        try:
+            if Decimal(str(raw_amount)) != payment.amount:
+                return False, "Provider amount does not match the payment intent."
+        except (InvalidOperation, TypeError, ValueError):
+            return False, "Provider amount is invalid."
+
+    for currency in currency_values:
+        if str(currency).upper() != str(payment.currency).upper():
+            return False, "Provider currency does not match the payment intent."
+
+    supplied_reference = payload.get("internal_reference") or payload.get("reference")
+    allowed_references = {payment.internal_reference, payment.reference, payment.provider_reference}
+    allowed_references.discard(None)
+    if supplied_reference and str(supplied_reference) not in {str(ref) for ref in allowed_references}:
+        return False, "Provider reference does not match the payment intent."
+
+    bill_ref = payload.get("BillRefNumber") or payload.get("bill_ref")
+    if bill_ref and payment.student:
+        allowed_bill_refs = {payment.student.roll_no, payment.student.user.username, payment.internal_reference}
+        if str(bill_ref).strip().lower() not in {str(ref).strip().lower() for ref in allowed_bill_refs}:
+            return False, "Provider account reference does not match the student payment."
+
+    if not provider_reference:
+        return False, "Provider transaction reference is required."
+    return True, "Provider callback matches the payment intent."
 
 
 def get_active_fee_accounts_for_student(student) -> List[FeeAccount]:
@@ -169,6 +240,11 @@ def process_payment_confirmation(
     if not payment:
         raise ValueError(f"Payment record '{target}' not found.")
 
+    if raw_payload:
+        valid, reason = validate_provider_payload(payment, raw_payload, provider_reference)
+        if not valid:
+            raise ValueError(reason)
+
     # Idempotency check: if already confirmed, do not double allocate or duplicate receipt
     if payment.status == Payment.Status.SUCCESSFUL:
         receipt = FeeReceipt.objects.filter(payment=payment).first()
@@ -194,7 +270,7 @@ def process_payment_confirmation(
     payment.status = Payment.Status.SUCCESSFUL
     payment.provider_reference = provider_reference or payment.provider_reference or f"PRV-{timezone.now().strftime('%H%M%S')}"
     payment.completed_at = timezone.now()
-    payment.raw_callback_payload = raw_payload or {}
+    payment.raw_callback_payload = sanitize_payment_payload(raw_payload)
     payment.save()
 
     # Allocate payment to student's invoices

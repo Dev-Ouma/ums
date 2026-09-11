@@ -46,6 +46,10 @@ class StudentForm(forms.Form):
     gender = forms.ChoiceField(choices=StudentProfile.GENDER, initial="O")
     address = forms.CharField(max_length=255, required=False)
     guardian_name = forms.CharField(max_length=120, required=False)
+    guardian_relationship = forms.CharField(max_length=60, required=False)
+    guardian_phone = forms.CharField(max_length=30, required=False)
+    guardian_email = forms.EmailField(required=False)
+    guardian_address = forms.CharField(max_length=255, required=False)
 
     def __init__(self, *args, instance=None, **kwargs):
         self.instance = instance
@@ -57,6 +61,10 @@ class StudentForm(forms.Form):
                 "roll_no": instance.roll_no, "program": instance.program_id,
                 "current_semester": instance.current_semester, "gender": instance.gender,
                 "address": instance.address, "guardian_name": instance.guardian_name,
+                "guardian_relationship": instance.guardian_relationship,
+                "guardian_phone": instance.guardian_phone,
+                "guardian_email": instance.guardian_email,
+                "guardian_address": instance.guardian_address,
             })
         super().__init__(*args, **kwargs)
         _style(self.fields)
@@ -138,6 +146,10 @@ class StudentForm(forms.Form):
         sp.gender = d["gender"]
         sp.address = d["address"] or "Campus Hostel Block"
         sp.guardian_name = d["guardian_name"] or "Guardian"
+        sp.guardian_relationship = d["guardian_relationship"]
+        sp.guardian_phone = d["guardian_phone"]
+        sp.guardian_email = d["guardian_email"]
+        sp.guardian_address = d["guardian_address"]
         if not sp.admission_date:
             sp.admission_date = timezone.now().date()
         sp.save()

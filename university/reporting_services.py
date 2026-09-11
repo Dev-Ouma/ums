@@ -93,11 +93,11 @@ REPORT_CATEGORIES = [
     },
     {
         "id": "faculty",
-        "title": "Faculty & Teaching Reports",
+        "title": "Teaching Staff Reports",
         "icon": "fa-chalkboard-user",
         "color": "#0d9488",
         "bg_soft": "rgba(13, 148, 136, 0.08)",
-        "description": "Lecturer teaching workloads, course assignments, and departmental directories."
+        "description": "Teaching staff workloads, course assignments, and departmental directories.",
     },
     {
         "id": "timetable",
@@ -214,6 +214,15 @@ REPORT_REGISTRY = {
         "orientation": "landscape",
         "filters": ["term", "department", "program", "course"]
     },
+    "pass_fail_analysis": {
+        "key": "pass_fail_analysis",
+        "category": "examination",
+        "title": "Examination Pass / Fail & Grade Risk Analysis",
+        "description": "Comprehensive pass/fail analysis with candidate sitting counts, failure rates, and performance breakdown.",
+        "icon": "fa-chart-pie",
+        "orientation": "landscape",
+        "filters": ["term", "department", "program", "course"]
+    },
     "cat_vs_exam_analysis": {
         "key": "cat_vs_exam_analysis",
         "category": "examination",
@@ -253,12 +262,12 @@ REPORT_REGISTRY = {
         "filters": ["term", "department", "program"]
     },
 
-    # --- Faculty Reports ---
+    # --- Faculty / Teaching Staff Reports ---
     "faculty_workload": {
         "key": "faculty_workload",
         "category": "faculty",
-        "title": "Faculty Teaching Workload & Contact Hours",
-        "description": "Audit of teaching assignments, contact hours per week, and student load per academic staff member.",
+        "title": "Teaching Staff Workload & Contact Hours",
+        "description": "Audit of teaching assignments, contact hours per week, and student load per academic teaching staff member.",
         "icon": "fa-briefcase",
         "orientation": "landscape",
         "filters": ["department", "faculty"]
@@ -266,8 +275,8 @@ REPORT_REGISTRY = {
     "faculty_directory": {
         "key": "faculty_directory",
         "category": "faculty",
-        "title": "Faculty & Academic Staff Directory",
-        "description": "Full staff registry categorized by department, academic rank, specialization, and appointment date.",
+        "title": "Teaching Staff Directory",
+        "description": "Full teaching staff registry categorized by department, academic rank, specialization, and appointment date.",
         "icon": "fa-id-badge",
         "orientation": "landscape",
         "filters": ["department"]
@@ -336,6 +345,7 @@ def build_report_data(report_key, params, user=None):
         "academic_performance": _query_academic_performance,
         "grade_distribution": _query_grade_distribution,
         "examination_results_summary": _query_examination_results_summary,
+        "pass_fail_analysis": _query_examination_results_summary,
         "cat_vs_exam_analysis": _query_cat_vs_exam_analysis,
         "missing_marks_audit": _query_missing_marks_audit,
         "registration_summary": _query_registration_summary,
@@ -1004,7 +1014,7 @@ def _query_faculty_workload(params, user):
     ]
 
     return {
-        "title": "Faculty Teaching Workload & Contact Hours",
+        "title": "Teaching Staff Workload & Contact Hours",
         "applied_filters": applied_filters,
         "kpis": kpis,
         "columns": columns,
@@ -1035,12 +1045,12 @@ def _query_faculty_directory(params, user):
         ])
 
     kpis = [
-        {"label": "Total Faculty", "val": f"{qs.count():,}", "icon": "fa-id-badge", "color": "#6C5CE7"},
+        {"label": "Total Teaching Staff", "val": f"{qs.count():,}", "icon": "fa-id-badge", "color": "#6C5CE7"},
         {"label": "Departments", "val": f"{qs.values('department').distinct().count():,}", "icon": "fa-building-columns", "color": "#00b894"},
     ]
 
     return {
-        "title": "Faculty & Academic Staff Directory",
+        "title": "Teaching Staff Directory",
         "applied_filters": applied_filters,
         "kpis": kpis,
         "columns": columns,

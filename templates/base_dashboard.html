@@ -260,8 +260,8 @@
           </a>
           {% endif %}
           {% if 'faculty_ops' in active_modules %}
-          <a class="item sub-item {% if url_name == 'admin_faculty' or url_name == 'faculty_detail' %}active{% endif %}" href="{% url 'university:admin_faculty' %}">
-            <i class="fa-solid fa-chalkboard-user"></i> <span class="item-label">Faculty</span>
+          <a class="item sub-item {% if url_name == 'admin_faculty' or url_name == 'admin_teaching_staff' or url_name == 'faculty_detail' %}active{% endif %}" href="{% url 'university:admin_faculty' %}">
+            <i class="fa-solid fa-chalkboard-user"></i> <span class="item-label">Teaching Staff</span>
           </a>
           {% endif %}
           {% if 'curriculum' in active_modules %}
@@ -353,15 +353,15 @@
 
       <!-- System Administration Collapsible -->
       <div class="nav-group">
-        <div class="item item-toggle {% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or url_name == 'golive_dashboard' or request.resolver_match.namespace == 'control' %}active{% endif %}"
+        <div class="item item-toggle {% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or url_name == 'golive_dashboard' or url_name == 'security_compliance_dashboard' or request.resolver_match.namespace == 'control' %}active{% endif %}"
              data-bs-toggle="collapse" data-bs-target="#adminSystemSubmenu" role="button"
-             aria-expanded="{% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or url_name == 'golive_dashboard' or request.resolver_match.namespace == 'control' %}true{% else %}false{% endif %}"
+             aria-expanded="{% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or url_name == 'golive_dashboard' or url_name == 'security_compliance_dashboard' or request.resolver_match.namespace == 'control' %}true{% else %}false{% endif %}"
              aria-controls="adminSystemSubmenu">
           <i class="fa-solid fa-shield-halved"></i>
           <span class="item-label">System Admin</span>
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
-        <div class="collapse submenu {% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'staff_permissions_dashboard' or url_name == 'staff_user_access_detail' or url_name == 'role_create' or url_name == 'role_edit' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or url_name == 'golive_dashboard' or request.resolver_match.namespace == 'control' %}show{% endif %}" id="adminSystemSubmenu">
+        <div class="collapse submenu {% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'staff_permissions_dashboard' or url_name == 'staff_user_access_detail' or url_name == 'role_create' or url_name == 'role_edit' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or url_name == 'golive_dashboard' or url_name == 'security_compliance_dashboard' or request.resolver_match.namespace == 'control' %}show{% endif %}" id="adminSystemSubmenu">
           <a class="item sub-item {% if url_name == 'admin_modules' %}active{% endif %}" href="{% url 'university:admin_modules' %}">
             <i class="fa-solid fa-cubes-stacked"></i> <span class="item-label">Module Management</span>
           </a>
@@ -370,6 +370,18 @@
           </a>
           <a class="item sub-item {% if url_name == 'golive_dashboard' %}active{% endif %}" href="{% url 'university:golive_dashboard' %}">
             <i class="fa-solid fa-rocket"></i> <span class="item-label">Go-Live Command Center</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'security_compliance_dashboard' %}active{% endif %}" href="{% url 'university:security_compliance_dashboard' %}">
+            <i class="fa-solid fa-shield-halved"></i> <span class="item-label">Security &amp; Compliance</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'monitoring_dashboard' %}active{% endif %}" href="{% url 'university:monitoring_dashboard' %}">
+            <i class="fa-solid fa-chart-line"></i> <span class="item-label">Logging &amp; Monitoring</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'job_dashboard' %}active{% endif %}" href="{% url 'university:job_dashboard' %}">
+            <i class="fa-solid fa-gears"></i> <span class="item-label">Scheduled Jobs &amp; Queues</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'security_testing_dashboard' %}active{% endif %}" href="{% url 'university:security_testing_dashboard' %}">
+            <i class="fa-solid fa-flask"></i> <span class="item-label">Security Testing</span>
           </a>
           {% if can_control_maintenance %}
           <a class="item sub-item {% if request.resolver_match.namespace == 'control' and request.resolver_match.url_name in 'dashboard,status,health' and not request.GET.section == 'lockdown' %}active{% endif %}" href="{% url 'control:dashboard' %}">
@@ -401,13 +413,33 @@
         </div>
       </div>
 
+      <!-- Integration placeholders -->
+      <div class="nav-group">
+        <div class="item item-toggle" data-bs-toggle="collapse" data-bs-target="#adminIntegrationsSubmenu" role="button" aria-expanded="false" aria-controls="adminIntegrationsSubmenu">
+          <i class="fa-solid fa-plug-circle-bolt"></i>
+          <span class="item-label">Integrations</span>
+          <i class="fa-solid fa-chevron-right chevron item-label"></i>
+        </div>
+        <div class="collapse submenu" id="adminIntegrationsSubmenu">
+          <a class="item sub-item" href="{% url 'university:integration_feature' 'lms' %}"><i class="fa-solid fa-graduation-cap"></i> <span class="item-label">LMS Integration <small class="text-muted ms-1">Coming soon</small></span></a>
+          <a class="item sub-item" href="{% url 'university:integration_feature' 'hr-smhr' %}"><i class="fa-solid fa-people-group"></i> <span class="item-label">HR / SMHR <small class="text-muted ms-1">Coming soon</small></span></a>
+          <a class="item sub-item" href="{% url 'university:integration_feature' 'finance-procurement' %}"><i class="fa-solid fa-coins"></i> <span class="item-label">Finance &amp; Procurement <small class="text-muted ms-1">Coming soon</small></span></a>
+          <a class="item sub-item" href="{% url 'university:integration_feature' 'library' %}"><i class="fa-solid fa-book-open-reader"></i> <span class="item-label">Library Integration <small class="text-muted ms-1">Coming soon</small></span></a>
+          <a class="item sub-item" href="{% url 'university:integration_feature' 'meetings' %}"><i class="fa-solid fa-video"></i> <span class="item-label">Zoom / Teams / Blackboard <small class="text-muted ms-1">Coming soon</small></span></a>
+          <a class="item sub-item" href="{% url 'university:integration_feature' 'plugin-security' %}"><i class="fa-solid fa-shield-halved"></i> <span class="item-label">Plugin / Integration Security <small class="text-muted ms-1">Coming soon</small></span></a>
+          <a class="item sub-item" href="{% url 'university:integration_feature' 'health' %}"><i class="fa-solid fa-heart-pulse"></i> <span class="item-label">Integration Health <small class="text-muted ms-1">Coming soon</small></span></a>
+          <a class="item sub-item" href="{% url 'university:integration_feature' 'sync-recovery' %}"><i class="fa-solid fa-arrows-rotate"></i> <span class="item-label">Sync &amp; Failure Recovery <small class="text-muted ms-1">Coming soon</small></span></a>
+          <a class="item sub-item" href="{% url 'university:integration_feature' 'mapping' %}"><i class="fa-solid fa-diagram-project"></i> <span class="item-label">Integration Mapping <small class="text-muted ms-1">Coming soon</small></span></a>
+        </div>
+      </div>
+
       {% if 'cms' in active_modules %}
       <div class="menu-label">Website</div>
       <a class="item {% if request.resolver_match.namespace == 'cms' %}active{% endif %}" href="{% url 'cms:dashboard' %}"><i class="fa-solid fa-pen-ruler"></i> <span class="item-label">Site CMS</span></a>
       {% endif %}
 
     {% elif user.is_faculty %}
-      <div class="menu-label">Teaching &amp; Faculty</div>
+      <div class="menu-label">Teaching Staff &amp; Academics</div>
       <div class="nav-group">
         <div class="item item-toggle {% if url_name == 'faculty_courses' or url_name == 'admin_exam_nominal_rolls' or url_name == 'faculty_assignments' or url_name == 'faculty_timetable' or url_name == 'admin_courses' or url_name == 'student_library_portal' or url_name == 'faculty_attachment_dashboard' or url_name == 'faculty_evaluation_dashboard' or url_name == 'faculty_reports' or request.resolver_match.namespace == 'examinations' %}active{% endif %}"
              data-bs-toggle="collapse" data-bs-target="#facultyTeachingSubmenu" role="button"
@@ -632,7 +664,6 @@
         <i class="fa-solid fa-magnifying-glass"></i>
         <span class="search-shortcut-badge cursor-pointer" title="Quick spotlight search"><kbd>⌘K</kbd></span>
       </div>
-      <span class="brand-mid brand-gradient d-none d-lg-inline">University Management System</span>
       <div class="ms-auto d-flex align-items-center gap-2">
         <a class="icon-btn" href="{% url 'university:notices' %}"><i class="fa-solid fa-bell"></i>
           {% if notice_count %}<span class="dot">{{ notice_count }}</span>{% endif %}</a>
@@ -644,7 +675,7 @@
     {% if messages %}
     <div class="content pb-0">
       {% for m in messages %}
-        <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show rounded-3">
+        <div class="alert alert-{% if m.tags == 'error' %}danger{% else %}{{ m.tags|default:'info' }}{% endif %} alert-dismissible fade show rounded-3">
           {{ m }}<button class="btn-close" data-bs-dismiss="alert"></button></div>
       {% endfor %}
     </div>
@@ -672,8 +703,7 @@
       <!-- Dynamically rendered by UmsCommandPalette -->
     </div>
     <div class="cmd-palette-footer">
-      <span>University Management System</span>
-      <div class="cmd-shortcut-hints">
+      <div class="cmd-shortcut-hints ms-auto">
         <span><kbd>↑</kbd> <kbd>↓</kbd> Navigate</span>
         <span><kbd>↵</kbd> Select</span>
         <span><kbd>ESC</kbd> Close</span>

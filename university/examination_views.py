@@ -19,6 +19,7 @@ from .models import AcademicTerm, Course, Exam, ExamAppeal, ExamRoom, Result, Do
 from .document_access_services import check_document_access
 from .examination_forms import ExaminationForm, RoomForm, TermForm
 from . import examination_services as workflow
+from . import marks_io
 
 
 def error_message(request, exc):
@@ -202,18 +203,28 @@ def marks(request, pk):
     exam = staff_exam(request, pk)
     workflow.require_editor(request.user, exam)
     rows = list(exam.results.select_related('student__user', 'exam').order_by('seat_number', 'student__roll_no'))
-    if request.GET.get('format') == 'csv':
+
+    fmt = request.GET.get('format', '').lower()
+    if fmt in ('excel', 'xlsx'):
+        content = marks_io.generate_exam_marks_template(exam, fmt='excel')
+        response = HttpResponse(
+            content,
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="exam-{pk}-marks-template.xlsx"'
+        return response
+    elif fmt == 'csv':
         if request.GET.get('template') == '1':
-            return csv_response(
-                f'exam-{pk}-marks-template.csv',
-                ['roll_no', 'attendance', 'cat_marks', 'exam_marks', 'remarks'],
-                ([r.student.roll_no, r.attendance, r.cat_marks if r.cat_marks is not None else '', r.exam_marks if r.exam_marks is not None else '', r.remarks] for r in rows)
-            )
+            content = marks_io.generate_exam_marks_template(exam, fmt='csv')
+            response = HttpResponse(content, content_type='text/csv; charset=utf-8')
+            response['Content-Disposition'] = f'attachment; filename="exam-{pk}-marks-template.csv"'
+            return response
         return csv_response(
             f'exam-{pk}-marks.csv',
             ['roll_no', 'student_name', 'attendance', 'cat_marks', 'exam_marks', 'total_marks', 'grade', 'remarks'],
             ([r.student.roll_no, r.student.user.display_name, r.attendance, r.cat_marks if r.cat_marks is not None else '', r.exam_marks if r.exam_marks is not None else '', r.marks_obtained if r.marks_obtained is not None else '', r.grade, r.remarks] for r in rows)
         )
+
     errors = []
     if request.method == 'POST':
         entries = {}
@@ -225,24 +236,21 @@ def marks(request, pk):
                 examiner_data['external_examiner_name'] = request.POST.get('external_examiner_name', '')
                 examiner_data['examiner_remarks'] = request.POST.get('examiner_remarks', '')
 
-            if 'csv_file' in request.FILES:
-                upload = request.FILES['csv_file']
-                if upload.size > 1024 * 1024:
-                    raise ValidationError('CSV upload must be no larger than 1 MB.')
-                reader = csv.DictReader(io.StringIO(upload.read().decode('utf-8-sig')))
-                valid_headers = [
-                    ['roll_no', 'attendance', 'cat_marks', 'exam_marks', 'remarks'],
-                    ['roll_no', 'attendance', 'marks', 'remarks'],
-                    ['roll_no', 'student_name', 'attendance', 'cat_marks', 'exam_marks', 'total_marks', 'grade', 'remarks'],
-                ]
-                if reader.fieldnames not in valid_headers:
-                    raise ValidationError('Use the provided CSV template without modifying its required column headers.')
-                by_roll = {r.student.roll_no: str(r.pk) for r in rows}
-                for record in reader:
-                    roll = record.get('roll_no', '').strip()
-                    if roll not in by_roll or by_roll[roll] in entries or None in record:
-                        raise ValidationError('CSV contains duplicate, unknown or malformed candidates.')
-                    entries[by_roll[roll]] = record
+            upload = request.FILES.get('marks_file') or request.FILES.get('csv_file')
+            if upload:
+                parsed = marks_io.parse_exam_marks_file(upload, exam)
+                if not parsed['entries']:
+                    all_errs = []
+                    for item in parsed['items']:
+                        all_errs.extend(item['errors'])
+                    raise ValidationError(all_errs or ['No valid marks records found in the uploaded file.'])
+                entries = parsed['entries']
+                workflow.save_marks(request.user, pk, entries, request.POST.get('revision'), examiner_data=examiner_data)
+                msg = f"Successfully uploaded marks for {parsed['valid_count']} candidate(s). Total marks and CUE grades updated."
+                if parsed['error_count'] > 0:
+                    messages.warning(request, f"{parsed['error_count']} row(s) had errors and were skipped.")
+                messages.success(request, msg)
+                return redirect('examinations:marks', pk=pk)
             else:
                 entries = {
                     str(r.pk): {
@@ -254,11 +262,11 @@ def marks(request, pk):
                     }
                     for r in rows
                 }
-            workflow.save_marks(request.user, pk, entries, request.POST.get('revision'), examiner_data=examiner_data)
-            messages.success(request, 'Marks saved successfully. Total marks and CUE grades updated.')
-            return redirect('examinations:marks', pk=pk)
+                workflow.save_marks(request.user, pk, entries, request.POST.get('revision'), examiner_data=examiner_data)
+                messages.success(request, 'Marks saved successfully. Total marks and CUE grades updated.')
+                return redirect('examinations:marks', pk=pk)
         except (UnicodeDecodeError, csv.Error):
-            errors = ['The file must be a valid UTF-8 CSV.']
+            errors = ['The file must be a valid UTF-8 CSV or Excel spreadsheet.']
         except ValidationError as exc:
             errors = exc.messages
         for row in rows:

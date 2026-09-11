@@ -1,0 +1,226 @@
+{% extends 'base_dashboard.html' %}
+{% load humanize %}
+
+{% block title %}Security &amp; Compliance &bull; System Administration · UMS{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-head d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+    <div>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <h4 class="mb-0 fw-bold text-dark">
+          <i class="fa-solid fa-shield-halved text-primary me-2"></i>Security &amp; Compliance
+        </h4>
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1 font-monospace" style="font-size:0.75rem;">
+          End-to-End Security Cockpit
+        </span>
+      </div>
+      <small class="text-muted">System Admin &bull; Governance, infrastructure, application, payments, privacy, monitoring, backup, and incident readiness.</small>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{% url 'university:golive_dashboard' %}" class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold">
+        <i class="fa-solid fa-rocket me-1"></i> Go-Live Gate
+      </a>
+      <a href="{% url 'university:audit_dashboard' %}" class="btn btn-sm btn-outline-secondary rounded-pill px-3 fw-semibold">
+        <i class="fa-solid fa-list-check me-1"></i> Audit Trails
+      </a>
+    </div>
+  </div>
+
+  {% if summary.is_approved %}
+    <div class="alert alert-success border-0 shadow-sm rounded-4 p-4 d-flex align-items-start gap-3">
+      <i class="fa-solid fa-circle-check fs-3"></i>
+      <div>
+        <div class="h5 fw-bold mb-1">GO-LIVE: APPROVED</div>
+        <div class="small">Every security domain is passed, signed off, and free of open Critical/High issues.</div>
+      </div>
+    </div>
+  {% else %}
+    <div class="alert alert-danger border-0 shadow-sm rounded-4 p-4">
+      <div class="d-flex align-items-start gap-3">
+        <i class="fa-solid fa-triangle-exclamation fs-3"></i>
+        <div>
+          <div class="h5 fw-bold mb-1">GO-LIVE: NOT APPROVED</div>
+          <div class="small">Security approval is blocked until the outstanding domains and evidence gaps are resolved.</div>
+        </div>
+      </div>
+      <ul class="small mb-0 mt-3 ps-4">
+        {% for reason in summary.not_ready_reasons %}
+          <li>{{ reason }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3 col-xl-2">
+      <div class="card border-0 shadow-sm rounded-4 p-3 h-100">
+        <div class="small text-muted fw-semibold">Domains</div>
+        <div class="h3 fw-bold mb-0 text-dark">{{ summary.total_domains }}</div>
+        <small class="text-muted">{{ summary.total_checkpoints }} checkpoints</small>
+      </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl-2">
+      <div class="card border-0 shadow-sm rounded-4 p-3 h-100 border-start border-3 border-success">
+        <div class="small text-muted fw-semibold">Pass</div>
+        <div class="h3 fw-bold mb-0 text-success">{{ summary.status_counts.PASS }}</div>
+        <small class="text-muted">signed-off target</small>
+      </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl-2">
+      <div class="card border-0 shadow-sm rounded-4 p-3 h-100 border-start border-3 border-warning">
+        <div class="small text-muted fw-semibold">Warnings</div>
+        <div class="h3 fw-bold mb-0 text-warning">{{ summary.status_counts.WARN }}</div>
+        <small class="text-muted">needs attention</small>
+      </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl-2">
+      <div class="card border-0 shadow-sm rounded-4 p-3 h-100 border-start border-3 border-danger">
+        <div class="small text-muted fw-semibold">Fail</div>
+        <div class="h3 fw-bold mb-0 text-danger">{{ summary.status_counts.FAIL }}</div>
+        <small class="text-muted">security blockers</small>
+      </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl-2">
+      <div class="card border-0 shadow-sm rounded-4 p-3 h-100 border-start border-3 border-info">
+        <div class="small text-muted fw-semibold">Open Issues</div>
+        <div class="h3 fw-bold mb-0 text-info">{{ summary.open_issues }}</div>
+        <small class="text-muted">{{ summary.blocking_issues }} critical/high</small>
+      </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl-2">
+      <div class="card border-0 shadow-sm rounded-4 p-3 h-100 border-start border-3 border-dark">
+        <div class="small text-muted fw-semibold">Security Logs</div>
+        <div class="h3 fw-bold mb-0 text-dark">{{ summary.auth_audit_count }}</div>
+        <small class="text-muted">auth events</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-xl-8">
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header bg-white border-0 pt-3 px-4">
+          <h6 class="fw-bold text-dark mb-0"><i class="fa-solid fa-layer-group text-primary me-2"></i>Security Domains</h6>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th class="ps-4">Area</th>
+                  <th>Status</th>
+                  <th>Owner</th>
+                  <th>Issues</th>
+                  <th>Evidence</th>
+                  <th class="text-end pe-4">Open</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in summary.domains %}
+                <tr>
+                  <td class="ps-4" style="min-width:280px;">
+                    <div class="d-flex gap-3 align-items-start">
+                      <span class="rounded-3 bg-primary-subtle text-primary d-inline-flex align-items-center justify-content-center" style="width:38px;height:38px;">
+                        <i class="fa-solid {{ row.domain.icon }}"></i>
+                      </span>
+                      <div>
+                        <div class="fw-bold text-dark">{{ row.domain.title }}</div>
+                        <div class="small text-muted">{{ row.domain.owner }}</div>
+                        <ul class="small text-muted mb-0 mt-2 ps-3">
+                          {% for checkpoint in row.domain.checkpoints %}
+                            <li>{{ checkpoint }}</li>
+                          {% endfor %}
+                        </ul>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    {% if row.status == 'PASS' %}
+                      <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1">Pass</span>
+                    {% elif row.status == 'FAIL' %}
+                      <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2 py-1">Fail</span>
+                    {% elif row.status == 'WARN' %}
+                      <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-2 py-1">Warning</span>
+                    {% elif row.status == 'IN_PROGRESS' %}
+                      <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill px-2 py-1">In Progress</span>
+                    {% else %}
+                      <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill px-2 py-1">Not Tested</span>
+                    {% endif %}
+                  </td>
+                  <td class="small">{{ row.readiness.owner.display_name|default:row.domain.owner }}</td>
+                  <td class="small">
+                    <span class="{% if row.critical_issues or row.high_issues %}text-danger fw-semibold{% else %}text-muted{% endif %}">
+                      {{ row.open_issues }} open
+                    </span>
+                  </td>
+                  <td class="small">
+                    {% if row.is_signed_off %}
+                      <span class="text-success fw-semibold">Signed off</span>
+                    {% elif row.readiness.evidence_url %}
+                      <span class="text-primary">Evidence linked</span>
+                    {% else %}
+                      <span class="text-muted">Pending</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end pe-4">
+                    {% for label, route in row.domain.links %}
+                      <a class="btn btn-sm btn-light border rounded-pill px-2 mb-1" href="{% url route %}">{{ label }}</a>
+                    {% empty %}
+                      <a class="btn btn-sm btn-light border rounded-pill px-2" href="{% url 'university:golive_dashboard' %}">Track</a>
+                    {% endfor %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header bg-white border-0 pt-3 px-4">
+          <h6 class="fw-bold text-dark mb-0"><i class="fa-solid fa-sliders text-primary me-2"></i>Runtime Configuration Checks</h6>
+        </div>
+        <div class="card-body">
+          {% for check in summary.runtime_checks %}
+            <div class="d-flex justify-content-between gap-3 py-2 border-bottom">
+              <div>
+                <div class="fw-semibold small text-dark">{{ check.label }}</div>
+                <div class="small text-muted">{{ check.detail }}</div>
+              </div>
+              <span class="badge align-self-start {% if check.status == 'PASS' %}bg-success-subtle text-success{% elif check.status == 'FAIL' %}bg-danger-subtle text-danger{% else %}bg-warning-subtle text-warning{% endif %} rounded-pill">
+                {{ check.status }}
+              </span>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-header bg-white border-0 pt-3 px-4">
+          <h6 class="fw-bold text-dark mb-0"><i class="fa-solid fa-clock-rotate-left text-primary me-2"></i>Recent Security Activity</h6>
+        </div>
+        <div class="card-body">
+          {% for log in summary.recent_security_logs %}
+            <div class="d-flex gap-3 py-2 border-bottom">
+              <span class="rounded-circle bg-light d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;">
+                <i class="fa-solid fa-shield-halved text-muted"></i>
+              </span>
+              <div>
+                <div class="small fw-semibold text-dark">{{ log.get_action_display }}</div>
+                <div class="small text-muted">{{ log.description|truncatechars:92 }}</div>
+                <div class="text-muted" style="font-size:0.72rem;">{{ log.timestamp|naturaltime }}</div>
+              </div>
+            </div>
+          {% empty %}
+            <p class="small text-muted mb-0">Security audit activity will appear here as the system records authentication, configuration, and backup events.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

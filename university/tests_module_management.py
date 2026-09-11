@@ -152,6 +152,21 @@ class ModuleManagementTestCase(TestCase):
         self.assertEqual(data["error"], "module_inactive")
         self.assertEqual(data["status"], "DISABLED")
 
+    def test_disabled_module_cannot_be_bypassed_by_query_parameter(self):
+        set_module_status(
+            "finance",
+            ModuleStatus.DISABLED,
+            status_message="Finance is temporarily unavailable.",
+            user=self.admin_user,
+            bypass_dependencies=True,
+        )
+        self.client.force_login(self.admin_user)
+
+        response = self.client.get(f"{reverse('university:student_fees')}?admin_bypass=1")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "Finance is temporarily unavailable", status_code=403)
+
     def test_maintenance_mode_and_coming_soon(self):
         """Modules can be placed in Maintenance or Coming Soon with custom ETA notices."""
         # Set examinations to maintenance

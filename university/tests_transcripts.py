@@ -112,6 +112,7 @@ class TranscriptTests(ExaminationTestBase):
         download=self.client.get(url+'&download=1')
         self.assertEqual(inline.content,download.content)
         self.assertEqual(inline['X-Frame-Options'],'SAMEORIGIN')
+        self.assertIn("frame-ancestors 'self'", inline['Content-Security-Policy'])
         self.assertTrue(inline['Content-Disposition'].startswith('inline'))
         self.assertTrue(download['Content-Disposition'].startswith('attachment'))
         self.assertTrue(inline.content.startswith(b'%PDF-'))

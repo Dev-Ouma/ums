@@ -9,11 +9,11 @@
           <div class="col-md-6 d-none d-md-flex flex-column justify-content-center text-white p-5"
                style="background:var(--gradient)">
             <h2 class="fw-bold">Welcome back 👋</h2>
-            <p class="opacity-75">Sign in to your role-based portal — Admin, Faculty or Student.
+            <p class="opacity-75">Sign in to your role-based portal — Admin, Teaching Staff or Student.
               Every portal has its own theme, tools and AI insights.</p>
             <div class="d-flex gap-3 mt-3">
               <div><i class="fa-solid fa-user-shield fa-2x"></i><div class="small mt-1">Admin</div></div>
-              <div><i class="fa-solid fa-chalkboard-user fa-2x"></i><div class="small mt-1">Faculty</div></div>
+              <div><i class="fa-solid fa-chalkboard-user fa-2x"></i><div class="small mt-1">Teaching Staff</div></div>
               <div><i class="fa-solid fa-user-graduate fa-2x"></i><div class="small mt-1">Student</div></div>
             </div>
           </div>
@@ -29,9 +29,6 @@
             {% endif %}
             <form method="post" id="loginForm">
               {% csrf_token %}
-              {% if request.GET.next %}
-                <input type="hidden" name="next" value="{{ request.GET.next }}">
-              {% endif %}
               <div class="mb-3">{{ form.username }}</div>
               <div class="mb-3 position-relative">
                 {{ form.password }}

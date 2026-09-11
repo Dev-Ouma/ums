@@ -44,7 +44,7 @@
             <input class="form-check-input" type="checkbox" name="auto_create_student_accounts" id="acsa"
                    {% if values.auto_create_student_accounts %}checked{% endif %}>
             <label class="form-check-label small" for="acsa">Create a student account automatically on admission
-              <span class="d-block text-muted">Runs when an applicant is matriculated.</span></label>
+              <span class="d-block text-muted">Runs when an applicant is registered and enrolled.</span></label>
           </div>
         </div>
         <div class="col-md-6">
@@ -136,7 +136,7 @@
       <div class="row g-3 mb-4">
         <div class="col-md-3">
           <label class="form-label small fw-semibold">Minimum length</label>
-          <input type="number" name="password_min_length" class="form-control form-control-sm" min="6" max="64"
+          <input type="number" name="password_min_length" class="form-control form-control-sm" min="8" max="64"
                  value="{{ values.password_min_length }}"></div>
         <div class="col-md-3">
           <label class="form-label small fw-semibold">Maximum length</label>

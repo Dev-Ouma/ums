@@ -1,14 +1,14 @@
 {% extends 'base_dashboard.html' %}
 {% load static %}
-{% block title %}Bulk Import Faculty · UMS{% endblock %}
+{% block title %}Bulk Import Teaching Staff · UMS{% endblock %}
 {% block content %}
 <div class="page-head">
   <div>
-    <h4><i class="fa-solid fa-file-import me-2 text-primary"></i>Bulk Import Faculty</h4>
-    <p class="text-muted small mb-0">Upload faculty records via CSV or Excel spreadsheet with automatic validation and preview.</p>
+    <h4><i class="fa-solid fa-file-import me-2 text-primary"></i>Bulk Import Teaching Staff</h4>
+    <p class="text-muted small mb-0">Upload teaching staff records via CSV or Excel spreadsheet with automatic validation and preview.</p>
   </div>
   <a href="{% url 'university:admin_faculty' %}" class="btn btn-light border rounded-pill px-3">
-    <i class="fa-solid fa-arrow-left me-1"></i> Back to Faculty
+    <i class="fa-solid fa-arrow-left me-1"></i> Back to Teaching Staff
   </a>
 </div>
 
@@ -17,9 +17,9 @@
 <div class="row g-4">
   <div class="col-lg-7">
     <div class="card card-ums p-4">
-      <h5 class="fw-bold mb-3"><i class="fa-solid fa-cloud-arrow-up text-primary me-2"></i>Upload Faculty Spreadsheet</h5>
+      <h5 class="fw-bold mb-3"><i class="fa-solid fa-cloud-arrow-up text-primary me-2"></i>Upload Teaching Staff Spreadsheet</h5>
       <p class="text-muted small mb-4">
-        Select a <strong>CSV</strong> or <strong>Excel (.xlsx / .xls)</strong> file containing faculty records.
+        Select a <strong>CSV</strong> or <strong>Excel (.xlsx / .xls)</strong> file containing teaching staff records.
         The system will inspect, parse, and validate each row, detecting any duplicates and verifying departments or courses before importing.
       </p>
 
@@ -29,7 +29,7 @@
 
         <div class="upload-box border-2 border-dashed rounded-4 p-5 text-center mb-4" style="background:#fafaff; border-color:#d5d0f8;">
           <i class="fa-solid fa-file-excel fa-3x text-primary mb-3"></i>
-          <h6 class="fw-bold mb-1">Choose your faculty import file</h6>
+          <h6 class="fw-bold mb-1">Choose your teaching staff import file</h6>
           <p class="text-muted small mb-3">Supports .csv, .xlsx, and .xls spreadsheets</p>
           <input type="file" name="file" id="facultyFileInput" class="form-control d-none" accept=".csv, .xlsx, .xls" required onchange="updateFacultyFileLabel(this)">
           <button type="button" class="btn btn-primary rounded-pill px-4 fw-semibold" onclick="document.getElementById('facultyFileInput').click()">
@@ -52,7 +52,7 @@
     <div class="card card-ums p-4">
       <h5 class="fw-bold mb-2"><i class="fa-solid fa-download text-primary me-2"></i>Download Sample Template</h5>
       <p class="text-muted small mb-3">
-        Download a pre-formatted faculty import template prefilled with column headers (Row 1) and realistic sample faculty data (Row 2).
+        Download a pre-formatted teaching staff import template prefilled with column headers (Row 1) and realistic sample teaching staff data (Row 2).
       </p>
 
       <div class="d-grid gap-2 mb-4">
@@ -97,8 +97,8 @@
 <div class="card card-ums mb-4 p-4">
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
     <div>
-      <h5 class="fw-bold mb-1"><i class="fa-solid fa-list-check text-primary me-2"></i>Faculty Import Validation Preview</h5>
-      <p class="text-muted small mb-0">Review verified faculty rows, detected duplicates, and formatting errors before final submission.</p>
+      <h5 class="fw-bold mb-1"><i class="fa-solid fa-list-check text-primary me-2"></i>Teaching Staff Import Validation Preview</h5>
+      <p class="text-muted small mb-0">Review verified teaching staff rows, detected duplicates, and formatting errors before final submission.</p>
     </div>
 
     <!-- Summary Stat Badges -->
@@ -128,10 +128,10 @@
     <div class="small text-muted">
       {% if preview_data.valid_count > 0 %}
         <i class="fa-solid fa-circle-check text-success me-1"></i>
-        <strong>{{ preview_data.valid_count }}</strong> faculty record{{ preview_data.valid_count|pluralize }} ready to import into the database.
+        <strong>{{ preview_data.valid_count }}</strong> teaching staff record{{ preview_data.valid_count|pluralize }} ready to import into the database.
       {% else %}
         <i class="fa-solid fa-triangle-exclamation text-danger me-1"></i>
-        No valid faculty records available for import. Please correct the spreadsheet and re-upload.
+        No valid teaching staff records available for import. Please correct the spreadsheet and re-upload.
       {% endif %}
     </div>
 
@@ -143,7 +143,7 @@
       </button>
       {% if preview_data.valid_count > 0 %}
       <button type="submit" name="action" value="confirm" class="btn btn-primary rounded-pill px-4 fw-semibold">
-        <i class="fa-solid fa-check me-1"></i> Confirm & Import {{ preview_data.valid_count }} Valid Faculty
+        <i class="fa-solid fa-check me-1"></i> Confirm & Import {{ preview_data.valid_count }} Valid Teaching Staff
       </button>
       {% endif %}
     </form>
@@ -157,7 +157,7 @@
           <th style="width:50px;" class="ps-3">Row</th>
           <th style="width:110px;">Status</th>
           <th>Emp ID</th>
-          <th>Faculty Name</th>
+          <th>Teaching Staff Name</th>
           <th>Designation</th>
           <th>Department</th>
           <th>Specialization</th>
@@ -181,7 +181,7 @@
           </td>
           <td class="fw-bold">{{ item.employee_id|default:"—" }}</td>
           <td class="fw-semibold">{{ item.full_name|default:"—" }}</td>
-          <td><span class="badge bg-light text-dark border">{{ item.designation|default:"Faculty" }}</span></td>
+          <td><span class="badge bg-light text-dark border">{{ item.designation|default:"Teaching Staff" }}</span></td>
           <td>
             {% if item.department_code %}
               <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ item.department_code }}</span>

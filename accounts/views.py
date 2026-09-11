@@ -5,10 +5,14 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.shortcuts import redirect, render
 from django.utils import timezone
+from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_POST
+from django.urls import reverse
+from django.utils.decorators import method_decorator
 
 from .forms import (AvatarForm, FacultyDetailsForm, LoginForm, ProfileForm,
                     SignUpForm, StudentDetailsForm, UMSPasswordChangeForm)
+from university.security_decorators import rate_limit
 
 
 class UMSLoginView(LoginView):
@@ -16,25 +20,45 @@ class UMSLoginView(LoginView):
     authentication_form = LoginForm
     redirect_authenticated_user = True
 
+    @method_decorator(rate_limit("login", limit=5, window_seconds=60))
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_invalid(self, form):
+        """Apply a bounded progressive response delay after repeated failures."""
+        from .models import User
+        from university.identity_services import login_delay_seconds
+
+        username = (form.data.get("username") or "").strip()
+        user = User.objects.filter(username__iexact=username).first()
+        delay = login_delay_seconds(user)
+        if delay and getattr(settings, "SECURITY_RATE_LIMIT_ENABLED", not settings.DEBUG):
+            response = HttpResponse(
+                "Invalid username or password. Please try again later.",
+                status=429, content_type="text/plain; charset=utf-8")
+            response["Retry-After"] = str(delay)
+            return response
+        return super().form_invalid(form)
+
     def get_success_url(self):
         if self.request.session.pop('_control_recovery_login', False):
-            from django.urls import reverse
             return reverse('control:dashboard')
-        return super().get_success_url()
+        return reverse('university:dashboard')
 
     def form_valid(self, form):
         from university.control_services import evaluate, ControlBlocked, permitted
         from university.control_middleware import blocked_response
-        from django.utils import timezone
         user = form.get_user()
-        recovery = any(permitted(user, p) for p in ['maintenance.deactivate', 'lockdown.deactivate'])
-        if not recovery:
-            try:
-                evaluate(user, login=True)
-            except ControlBlocked as error:
+        can_recover = any(permitted(user, p) for p in ['maintenance.deactivate', 'lockdown.deactivate'])
+        is_blocked = False
+        try:
+            evaluate(user, login=True)
+        except ControlBlocked as error:
+            if not can_recover:
                 return blocked_response(self.request, error)
+            is_blocked = True
         self.request.session['_control_login_at'] = timezone.now().timestamp()
-        if recovery:
+        if is_blocked and can_recover:
             self.request.session['_control_recovery_login'] = True
         messages.success(self.request, f"Welcome back, {form.get_user().display_name}!")
         response = super().form_valid(form)
@@ -45,6 +69,11 @@ class UMSLoginView(LoginView):
             self.request.session.set_expiry(settings.SESSION_COOKIE_AGE)
         else:
             self.request.session.set_expiry(0)
+        # Persist before enforcing the concurrent-device policy because the
+        # user_logged_in signal runs before SessionMiddleware saves the row.
+        self.request.session.save()
+        from university.identity_services import enforce_concurrent_session_policy
+        enforce_concurrent_session_policy(user, keep_session_key=self.request.session.session_key)
         return response
 
 
@@ -60,7 +89,11 @@ def logout_view(request):
     """
     logout(request)
     messages.info(request, "You have been signed out.")
-    return redirect("university:home")
+    response = redirect("university:home")
+    response["Clear-Site-Data"] = '"cache", "storage"'
+    response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response["Pragma"] = "no-cache"
+    return response
 
 
 def signup(request):
@@ -88,6 +121,25 @@ def profile(request):
         for s in active_sessions_for(request.user)
     ]
     return render(request, "accounts/profile.html", {"sessions": sessions})
+
+
+@login_required
+def personal_data_export(request):
+    """Download a subject-scoped data export without credential material."""
+    from university.audit_services import log_activity
+    from university.models import AuditLog
+    from university.privacy_services import build_personal_data_export
+
+    payload = build_personal_data_export(request.user)
+    log_activity(
+        request=request, user=request.user, action=AuditLog.Action.EXPORT,
+        module=AuditLog.Module.AUTH, entity="PersonalData", entity_id=request.user.pk,
+        description="User downloaded a personal data export.",
+    )
+    response = JsonResponse(payload, json_dumps_params={"ensure_ascii": True})
+    response["Content-Disposition"] = 'attachment; filename="ums-personal-data.json"'
+    response["Cache-Control"] = "no-store"
+    return response
 
 
 @require_POST
@@ -196,6 +248,7 @@ def profile_settings(request):
 # SELF-SERVICE CREDENTIAL RECOVERY
 # ==============================================================================
 
+@rate_limit("password-reset", limit=3, window_seconds=60 * 60)
 def password_reset_request(request):
     """
     Start a self-service reset.
@@ -235,6 +288,7 @@ def password_reset_done(request):
     return render(request, "accounts/password_reset_done.html")
 
 
+@rate_limit("password-reset-confirm", limit=10, window_seconds=15 * 60)
 def password_reset_confirm(request, token):
     """
     Finish a reset or a first-time activation.

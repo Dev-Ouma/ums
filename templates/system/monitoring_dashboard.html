@@ -1,0 +1,47 @@
+{% extends 'base_dashboard.html' %}
+
+{% block title %}Monitoring &amp; Logging · UMS{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-head d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+    <div>
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <i class="fa-solid fa-chart-line text-primary"></i>
+        <span class="text-muted small">Security &amp; Compliance</span>
+      </div>
+      <h4 class="mb-0 fw-bold text-dark">Logging &amp; Monitoring</h4>
+      <p class="text-muted small mb-0 mt-1">Central operational signals and security events · {{ snapshot.window }}</p>
+    </div>
+    <a href="{% url 'university:audit_dashboard' %}" class="btn btn-outline-secondary rounded-pill">
+      <i class="fa-solid fa-list-check me-2"></i>Open audit trails
+    </a>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3"><div class="card border-0 shadow-sm rounded-4 p-3"><div class="small text-muted">Monitored areas</div><div class="h3 mb-0">{{ snapshot.rows|length }}</div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card border-0 shadow-sm rounded-4 p-3"><div class="small text-muted">Events detected</div><div class="h3 mb-0">{{ snapshot.total_events }}</div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card border-0 shadow-sm rounded-4 p-3"><div class="small text-muted">Latest audit event</div><div class="small fw-semibold">{% if snapshot.last_audit_event %}{{ snapshot.last_audit_event.timestamp|date:'d M Y H:i' }}{% else %}No events recorded{% endif %}</div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card border-0 shadow-sm rounded-4 p-3"><div class="small text-muted">Latest backup event</div><div class="small fw-semibold">{% if snapshot.last_backup_event %}{{ snapshot.last_backup_event.timestamp|date:'d M Y H:i' }}{% else %}No events recorded{% endif %}</div></div></div>
+  </div>
+
+  <section class="card border-0 shadow-sm rounded-4">
+    <div class="card-header bg-white border-0 px-4 pt-4"><h6 class="fw-bold mb-1"><i class="fa-solid fa-satellite-dish text-primary me-2"></i>Monitoring coverage</h6><p class="small text-muted mb-0">Counts are aggregated from protected audit and backup operational logs. Secrets and unnecessary personal data are excluded from the display.</p></div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead class="table-light"><tr><th class="ps-4">Area</th><th>Status</th><th>Events</th><th>Source</th><th class="text-end pe-4">Action</th></tr></thead>
+        <tbody>
+          {% for row in snapshot.rows %}
+          <tr>
+            <td class="ps-4"><i class="fa-solid {{ row.icon }} text-primary me-2"></i><span class="fw-semibold">{{ row.label }}</span></td>
+            <td><span class="badge rounded-pill {% if row.state == 'healthy' %}bg-success-subtle text-success-emphasis{% elif row.state == 'warning' %}bg-warning-subtle text-warning-emphasis{% else %}bg-info-subtle text-info-emphasis{% endif %}">{{ row.state|title }}</span></td>
+            <td>{{ row.count }}</td><td class="text-muted small">{{ row.source|title }} log</td>
+            <td class="text-end pe-4"><a href="{% url 'university:audit_dashboard' %}?q={{ row.label|urlencode }}" class="btn btn-sm btn-outline-secondary rounded-pill">View events</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

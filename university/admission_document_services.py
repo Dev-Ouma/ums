@@ -137,7 +137,7 @@ def build_admission_document_context(application, document=None, template=None, 
     elif active_ay:
         ay_str = active_ay.name
     else:
-        ay_str = "2026/2027"
+        ay_str = "Academic year to be confirmed"
 
     # Semester resolution
     if document and document.semester:
@@ -147,8 +147,8 @@ def build_admission_document_context(application, document=None, template=None, 
         sem_str = active_term.name
         sem_no = str(getattr(active_term, "semester_number", 1))
     else:
-        sem_str = "Semester 1"
-        sem_no = "1"
+        sem_str = "Semester to be confirmed"
+        sem_no = ""
 
     # Programme resolution
     prog = application.program
@@ -199,11 +199,11 @@ def build_admission_document_context(application, document=None, template=None, 
 
         # Application
         "application_number": application.application_number,
-        "intake": application.intake.name if application.intake else "September 2026 Academic Intake",
-        "secondary_school": application.secondary_school or "Secondary School",
+        "intake": application.intake.name if application.intake else "Intake to be confirmed",
+        "secondary_school": application.secondary_school or "Not provided",
         "kcse_index_number": application.kcse_index_number or "N/A",
-        "kcse_mean_grade": application.kcse_mean_grade or "C+",
-        "kcse_year": str(application.kcse_year or timezone.now().year - 1),
+        "kcse_mean_grade": application.kcse_mean_grade or "Not provided",
+        "kcse_year": str(application.kcse_year) if application.kcse_year else "Not provided",
         "application_date": app_date_str,
 
         # Admission
@@ -244,10 +244,10 @@ def build_admission_document_context(application, document=None, template=None, 
         # Finance
         "tuition_fee": f"KES {tuition_val:,.2f}",
         "total_fees": f"KES {total_fee_val:,.2f}",
-        "bank_name": "Absa Bank Kenya PLC",
-        "bank_account": "045-1234567",
-        "bank_branch": "Westlands Branch",
-        "mpesa_paybill": "522522",
+        "bank_name": "Confirm with the Finance Office",
+        "bank_account": "Published institutional account",
+        "bank_branch": "See current fee notice",
+        "mpesa_paybill": "Published institutional paybill",
 
         # Signatory
         "signatory_name": sig_name,
@@ -380,7 +380,8 @@ def build_admission_letter_pdf_bytes(issued_document):
     )
 
     styles = document_styles()
-    primary_color = colors.HexColor("#1e3a8a")  # University Deep Navy
+    primary_color = colors.HexColor("#25356B")
+    accent_color = colors.HexColor("#D6A84F")
     dark_gray = colors.HexColor("#1f2937")
     muted_gray = colors.HexColor("#4b5563")
 
@@ -432,7 +433,7 @@ def build_admission_letter_pdf_bytes(issued_document):
     context = issued_document.rendered_context or {}
     tmpl = issued_document.template
 
-    # 1. Header & Logo
+    # 1. Header & Logo: a restrained registry letterhead with a clear offer marker.
     logo_path = get_branding()["logo_path"]
     if logo_path and os.path.exists(logo_path):
         try:
@@ -453,7 +454,8 @@ def build_admission_letter_pdf_bytes(issued_document):
         subtitle_style
     ))
     story.append(Spacer(1, 6))
-    story.append(HRFlowable(width="100%", thickness=1.5, color=primary_color, spaceAfter=12))
+    story.append(HRFlowable(width="100%", thickness=2.2, color=accent_color, spaceAfter=5))
+    story.append(HRFlowable(width="100%", thickness=0.7, color=primary_color, spaceAfter=12))
 
     # 2. Reference, Reg No, Date Table
     ref_table_data = [
@@ -485,7 +487,16 @@ def build_admission_letter_pdf_bytes(issued_document):
         f"Email: {escape(context.get('email', ''))} | Tel: {escape(context.get('phone', ''))}<br/>"
         f"{escape(context.get('address', ''))}"
     )
-    story.append(Paragraph(bio_text, body_style))
+    bio_table = Table([[Paragraph("<b>APPLICANT</b><br/>" + bio_text, body_style)]], colWidths=[515])
+    bio_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F6F8FC")),
+        ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#D7DEEB")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+    ]))
+    story.append(bio_table)
     story.append(Spacer(1, 10))
 
     # 4. Salutation & Subject Line
@@ -517,8 +528,8 @@ def build_admission_letter_pdf_bytes(issued_document):
     fee_box_data = [
         [Paragraph("<b>Estimated Year 1 Semester 1 Fee Schedule</b>", body_bold), ""],
         [Paragraph("Tuition Fee:", body_style), Paragraph(context.get("tuition_fee", "KES 45,000.00"), body_style)],
-        [Paragraph("Statutory, ICT, Library & Examination Fees:", body_style),
-         Paragraph(f"KES {Decimal('10500.00'):,.2f}", body_style)],
+        [Paragraph("Other approved university charges:", body_style),
+         Paragraph("Confirm current schedule", body_style)],
         [Paragraph("<b>Total First Semester Fees:</b>", body_bold),
          Paragraph(f"<b>{context.get('total_fees', 'KES 55,500.00')}</b>", body_bold)],
     ]
@@ -536,7 +547,20 @@ def build_admission_letter_pdf_bytes(issued_document):
     story.append(fee_table)
     story.append(Spacer(1, 8))
 
-    # 7. Terms & Conditions
+    # 7. Institution-controlled payment guidance. Keep this separate from the
+    # estimate table so finance instructions can change without redesigning
+    # the official letter layout.
+    fee_instructions_raw = getattr(tmpl, "fee_schedule_instructions", "") if tmpl else ""
+    if fee_instructions_raw:
+        fee_instructions = render_template_text(fee_instructions_raw, context)
+        story.append(Paragraph("<b>Payment &amp; Finance Guidance</b>", body_bold))
+        for paragraph in fee_instructions.split("\n\n"):
+            clean_p = paragraph.strip().replace("\n", "<br/>")
+            if clean_p:
+                story.append(Paragraph(clean_p, ParagraphStyle("FinanceGuidance", parent=body_style, fontSize=8.5, leading=12)))
+        story.append(Spacer(1, 6))
+
+    # 8. Terms & Conditions
     terms_raw = tmpl.terms_and_conditions if tmpl else ""
     if terms_raw:
         terms_rendered = render_template_text(terms_raw, context)
@@ -547,19 +571,30 @@ def build_admission_letter_pdf_bytes(issued_document):
                 story.append(Paragraph(line_s, ParagraphStyle("Terms", parent=body_style, fontSize=8.5, leading=12)))
         story.append(Spacer(1, 6))
 
-    # 8. Signatory & Official Verification Block
+    # 9. Signatory & Official Verification Block
     sig_name = context.get("signatory_name", "Dr. Margaret Omolo, PhD")
     sig_title = context.get("signatory_title", "Registrar, Academic & Student Affairs")
     ver_url = context.get("verification_url", "https://ums.ac.ke/verify-admission/")
 
+    signature_cell = Paragraph("Yours sincerely,<br/><br/><br/>" + f"<b>{escape(sig_name)}</b><br/>{escape(sig_title)}", body_style)
+    if tmpl and tmpl.signatory_signature and getattr(tmpl.signatory_signature, "path", None):
+        try:
+            signature_cell = [RLImage(tmpl.signatory_signature.path, width=110, height=34), Paragraph(f"<b>{escape(sig_name)}</b><br/>{escape(sig_title)}", body_style)]
+        except (OSError, ValueError):
+            pass
+    seal_cell = Paragraph("OFFICIAL UNIVERSITY SEAL", ParagraphStyle("Seal", parent=body_style, alignment=1, textColor=colors.HexColor("#9ca3af")))
+    if tmpl and tmpl.official_seal and getattr(tmpl.official_seal, "path", None):
+        try:
+            seal_cell = RLImage(tmpl.official_seal.path, width=74, height=74)
+        except (OSError, ValueError):
+            pass
     sign_data = [
         [
-            Paragraph("Yours sincerely,", body_style),
-            Paragraph("<b>OFFICIAL UNIVERSITY SEAL</b>", ParagraphStyle("Seal", parent=body_style, alignment=1, textColor=colors.HexColor("#9ca3af")))
+            signature_cell,
+            seal_cell
         ],
-        [Spacer(1, 16), ""],
         [
-            Paragraph(f"<b>{escape(sig_name)}</b><br/>{escape(sig_title)}<br/>{escape(context.get('university_name', 'University Management System'))}", body_style),
+            Paragraph(f"<b>{escape(context.get('university_name', 'University Management System'))}</b>", body_style),
             Paragraph(f"Verify authenticity online:<br/><b>{escape(ver_url)}</b>", ParagraphStyle("VerBlock", parent=body_style, fontSize=8, leading=11, alignment=1, textColor=muted_gray))
         ]
     ]
@@ -696,9 +731,9 @@ def resend_admission_document(document, delivery_method, recipient, subject, mes
 
     ip = None
     if request:
-        ip = request.META.get("HTTP_X_FORWARDED_FOR", request.META.get("REMOTE_ADDR", ""))
-        if ip and "," in ip:
-            ip = ip.split(",")[0].strip()
+        # Forwarded headers are untrusted until a trusted proxy boundary is
+        # explicitly configured; do not let callers spoof delivery metadata.
+        ip = request.META.get("REMOTE_ADDR", "")
 
     status = DocumentDeliveryLog.Status.SENT
     failure_msg = ""

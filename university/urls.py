@@ -23,6 +23,11 @@ from . import fee_account_views
 from . import backup_views
 from . import identity_views
 from . import golive_views
+from . import security_compliance_views
+from . import integration_views
+from . import monitoring_views
+from . import job_views
+from . import security_testing_views
 
 app_name = "university"
 
@@ -31,6 +36,11 @@ urlpatterns = [
     path("", views.home, name="home"),
     path("about/", views.about, name="about"),
     path("contact/", views.contact, name="contact"),
+    path("privacy/", views.privacy, name="privacy"),
+    path("system-admin/integrations/<slug:integration>/", integration_views.integration_feature, name="integration_feature"),
+    path("system-admin/monitoring/", monitoring_views.monitoring_dashboard, name="monitoring_dashboard"),
+    path("system-admin/jobs/", job_views.job_dashboard, name="job_dashboard"),
+    path("system-admin/security-testing/", security_testing_views.security_testing_dashboard, name="security_testing_dashboard"),
     path("status/", views.public_status, name="public_status"),
     path("catalog/", views.courses_public, name="courses_public"),
     path("verify/document/", verification_views.public_verify_document, name="verify_document_query"),
@@ -76,8 +86,9 @@ urlpatterns = [
     path("manage/students/<int:pk>/edit/", views.student_edit, name="student_edit"),
     path("manage/students/<int:pk>/delete/", views.student_delete, name="student_delete"),
 
-    # Admin — faculty
+    # Admin — faculty / teaching staff
     path("manage/faculty/", views.admin_faculty, name="admin_faculty"),
+    path("manage/teaching-staff/", views.admin_faculty, name="admin_teaching_staff"),
     path("manage/faculty/new/", views.faculty_create, name="faculty_create"),
     path("manage/faculty/export/<str:fmt>/", views.faculty_export, name="faculty_export"),
     path("manage/faculty/preview/", views.faculty_preview, name="faculty_preview"),
@@ -142,6 +153,7 @@ urlpatterns = [
 
     # Fee Accounts & Payment Gateway Administration
     path("finance/fee-accounts/", fee_account_views.fee_accounts_dashboard, name="fee_accounts_dashboard"),
+    path("finance/fee-accounts/certification/", fee_account_views.payment_go_live_certification, name="payment_go_live_certification"),
     path("finance/fee-accounts/new/", fee_account_views.fee_account_create, name="fee_account_create"),
     path("finance/fee-accounts/<int:pk>/", fee_account_views.fee_account_detail, name="fee_account_detail"),
     path("finance/fee-accounts/<int:pk>/edit/", fee_account_views.fee_account_edit, name="fee_account_edit"),
@@ -217,8 +229,8 @@ urlpatterns = [
     path("me/fees/pay/initiate/", fee_payment_views.student_initiate_payment, name="student_initiate_payment"),
     path("me/fees/pay/<str:reference>/status/", fee_payment_views.student_payment_status, name="student_payment_status"),
     path("me/fees/pay/<str:reference>/poll/", fee_payment_views.student_payment_poll, name="student_payment_poll"),
-    path("me/fees/receipt/<str:receipt_number>/", fee_payment_views.student_receipt_view, name="student_receipt_view"),
-    path("me/fees/receipt/<str:receipt_number>/pdf/", fee_payment_views.student_receipt_pdf, name="student_receipt_pdf"),
+    path("me/fees/receipt/<str:receipt_no>/", fee_payment_views.student_receipt_view, name="student_receipt_view"),
+    path("me/fees/receipt/<str:receipt_no>/pdf/", fee_payment_views.student_receipt_pdf, name="student_receipt_pdf"),
     path("me/fees/statement/", views.student_fee_statement, name="student_fee_statement"),
     path("me/fees/statement/pdf/", views.student_fee_statement_pdf, name="student_fee_statement_pdf"),
 
@@ -343,6 +355,7 @@ urlpatterns = [
     path("system-admin/go-live/issues/create/", golive_views.golive_issue_create, name="golive_issue_create"),
     path("system-admin/go-live/issues/<int:pk>/update/", golive_views.golive_issue_update, name="golive_issue_update"),
     path("system-admin/go-live/issues/<int:pk>/delete/", golive_views.golive_issue_delete, name="golive_issue_delete"),
+    path("system-admin/security-compliance/", security_compliance_views.security_compliance_dashboard, name="security_compliance_dashboard"),
 
     # System Administration — Admin Setups
     path("manage/setups/", setups_views.admin_setups_dashboard, name="admin_setups_dashboard"),

@@ -126,6 +126,24 @@
     </div>
   </div>
 
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-4">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h6 class="fw-bold mb-0"><i class="fa-solid fa-life-ring text-primary me-2"></i>Disaster Recovery Certification <span class="badge rounded-pill {% if readiness.certification_status == 'READY' %}bg-success-subtle text-success-emphasis{% else %}bg-warning-subtle text-warning-emphasis{% endif %} ms-2">{{ readiness.certification_status|title }}</span></h6>
+        <a href="{% url 'university:backup_settings' %}" class="btn btn-sm btn-outline-secondary rounded-pill"><i class="fa-solid fa-sliders me-1"></i>Policies</a>
+      </div>
+      <div class="row g-3 small">
+        <div class="col-md-3"><span class="text-muted d-block">RPO</span><strong>{{ readiness.rpo_minutes }} minutes</strong></div>
+        <div class="col-md-3"><span class="text-muted d-block">RTO</span><strong>{{ readiness.rto_minutes }} minutes</strong></div>
+        <div class="col-md-3"><span class="text-muted d-block">Restore test</span><strong>{% if readiness.restore_test %}Passed {{ readiness.restore_test.completed_at|date:'d M Y' }}{% else %}Not tested{% endif %}</strong></div>
+        <div class="col-md-3"><span class="text-muted d-block">Procedure</span><strong>{% if readiness.recovery_procedure_configured %}Documented{% else %}Needs documentation{% endif %}</strong></div>
+      </div>
+      {% if readiness.certification_reasons %}
+      <div class="alert alert-warning border-0 rounded-3 mt-3 mb-0 small"><i class="fa-solid fa-triangle-exclamation me-2"></i><ul class="mb-0 ps-3">{% for reason in readiness.certification_reasons %}<li>{{ reason }}</li>{% endfor %}</ul></div>
+      {% endif %}
+    </div>
+  </div>
+
   <!-- Subsections Quick Links -->
   <div class="d-flex gap-2 mb-4 overflow-x-auto pb-2">
     <a href="{% url 'university:backup_history' %}" class="btn btn-light rounded-pill px-3 py-2 small fw-semibold border shadow-sm">

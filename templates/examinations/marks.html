@@ -104,6 +104,11 @@
     </div>
   </div>
   <div class="exam-actions no-print">
+    {% if editable %}
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#bulkMarksModal">
+      <i class="fa-solid fa-file-arrow-up me-1"></i>Bulk Upload Marks
+    </button>
+    {% endif %}
     {% if admin or editable %}
     <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#examinerModal">
       <i class="fa-solid fa-user-gear me-1"></i>Examiners
@@ -250,16 +255,20 @@
 
 {% if editable %}
 <div class="exam-card no-print">
-  <h6 class="mb-2">Bulk Entry by Spreadsheet</h6>
-  <p class="exam-muted mb-3">Download the template with registered candidates, enter CAT and Exam marks offline, and upload. The system automatically computes Total Marks and Kenyan CUE grades upon import.</p>
-  <div class="d-flex gap-3 flex-wrap align-items-end">
-    <a class="btn btn-outline-primary" href="?format=csv&template=1"><i class="fa-solid fa-download me-2"></i>Download CSV template</a>
-    <a class="btn btn-outline-secondary" href="?format=csv"><i class="fa-solid fa-file-csv me-2"></i>Export current sheet</a>
-    <form method="post" enctype="multipart/form-data" class="d-flex gap-2 flex-wrap align-items-end">{% csrf_token %}
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+    <h6 class="mb-0 fw-bold"><i class="fa-solid fa-file-excel text-success me-2"></i>Bulk Entry by Spreadsheet</h6>
+    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Excel &amp; CSV Supported</span>
+  </div>
+  <p class="exam-muted mb-3">Download the pre-filled candidate roster, input CAT and Exam marks in Excel or CSV, and upload. Total marks and Kenyan CUE grades (A–F) are computed automatically.</p>
+  <div class="d-flex gap-2 flex-wrap align-items-end">
+    <a class="btn btn-outline-success" href="?format=excel&template=1"><i class="fa-solid fa-file-excel me-1"></i>Excel Template (.xlsx)</a>
+    <a class="btn btn-outline-primary" href="?format=csv&template=1"><i class="fa-solid fa-file-csv me-1"></i>CSV Template (.csv)</a>
+    <a class="btn btn-outline-secondary" href="?format=csv"><i class="fa-solid fa-download me-1"></i>Export Sheet</a>
+    <form method="post" enctype="multipart/form-data" class="d-flex gap-2 flex-wrap align-items-end ms-auto">{% csrf_token %}
       <input type="hidden" name="revision" value="{{ exam.revision }}">
-      <div><label class="form-label small mb-1" for="csv-file">Import CSV (CAT &amp; Exam columns, up to 1&nbsp;MB)</label>
-        <input id="csv-file" type="file" name="csv_file" accept=".csv,text/csv" class="form-control form-control-sm" required></div>
-      <button class="btn btn-primary">Validate &amp; import</button>
+      <div><label class="form-label small mb-1" for="csv-file">Upload Marks (.xlsx, .xls, .csv, up to 5&nbsp;MB)</label>
+        <input id="csv-file" type="file" name="marks_file" accept=".xlsx,.xls,.csv,text/csv" class="form-control form-control-sm" required></div>
+      <button class="btn btn-primary"><i class="fa-solid fa-upload me-1"></i>Import Marks</button>
     </form>
   </div>
 </div>
@@ -382,6 +391,102 @@
     </div>
   </div>
 </div>
+
+{% if editable %}
+<!-- Bulk Marks Upload Modal -->
+<div class="modal fade" id="bulkMarksModal" tabindex="-1" aria-labelledby="bulkMarksModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <div class="modal-header border-bottom px-4 py-3">
+        <div>
+          <h5 class="modal-title fw-bold mb-0" id="bulkMarksModalTitle">
+            <i class="fa-solid fa-file-arrow-up text-primary me-2"></i>Bulk Upload Marks
+          </h5>
+          <small class="text-muted">{{ exam.course.code }} · {{ exam.name }} · {{ total }} Candidate(s)</small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-4">
+        <!-- Step 1: Download Template -->
+        <div class="mb-4">
+          <label class="fw-bold small text-uppercase text-muted d-block mb-2">Step 1: Download Pre-filled Template</label>
+          <div class="row g-2">
+            <div class="col-sm-6">
+              <a href="?format=excel&template=1" class="btn btn-outline-success w-100 py-2 d-flex align-items-center justify-content-between rounded-3">
+                <span class="d-flex align-items-center"><i class="fa-solid fa-file-excel fa-lg me-2 text-success"></i><strong>Download Excel Template</strong></span>
+                <span class="badge bg-success-subtle text-success border border-success-subtle">.xlsx</span>
+              </a>
+            </div>
+            <div class="col-sm-6">
+              <a href="?format=csv&template=1" class="btn btn-outline-primary w-100 py-2 d-flex align-items-center justify-content-between rounded-3">
+                <span class="d-flex align-items-center"><i class="fa-solid fa-file-csv fa-lg me-2 text-primary"></i><strong>Download CSV Template</strong></span>
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">.csv</span>
+              </a>
+            </div>
+          </div>
+          <small class="text-muted mt-2 d-block">
+            Templates are pre-filled with all registered candidates for this sitting. You only need to enter Attendance (PRESENT/ABSENT), CAT Marks, and Exam Marks.
+          </small>
+        </div>
+
+        <hr class="opacity-25 my-3">
+
+        <!-- Step 2: Upload File -->
+        <form method="post" enctype="multipart/form-data" id="bulkMarksUploadForm">
+          {% csrf_token %}
+          <input type="hidden" name="revision" value="{{ exam.revision }}">
+          <label class="fw-bold small text-uppercase text-muted d-block mb-2">Step 2: Upload Completed Spreadsheet</label>
+
+          <div class="border-2 border-dashed rounded-4 p-4 text-center mb-3" style="background:#f8faff; border-color:#c7d2fe;">
+            <i class="fa-solid fa-cloud-arrow-up fa-2x text-primary mb-2"></i>
+            <h6 class="fw-semibold mb-1">Choose your marks file (.xlsx, .xls, or .csv)</h6>
+            <p class="text-muted small mb-3">Supports Excel spreadsheets and UTF-8 CSV up to 5 MB</p>
+            <input type="file" name="marks_file" id="modalMarksFileInput" class="d-none" accept=".xlsx, .xls, .csv, text/csv" required onchange="updateModalMarksFileLabel(this)">
+            <button type="button" class="btn btn-primary rounded-pill px-4" onclick="document.getElementById('modalMarksFileInput').click()">
+              <i class="fa-solid fa-folder-open me-1"></i>Select File
+            </button>
+            <div id="modalMarksFileName" class="mt-2 text-success fw-semibold small" style="display:none;"></div>
+          </div>
+
+          <div class="bg-light rounded-3 p-3 small text-muted mb-3">
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <i class="fa-solid fa-circle-info text-primary"></i>
+              <strong class="text-dark">Mark Component Limits:</strong>
+            </div>
+            <div>• CAT Marks: 0 to <strong>{{ exam.cat_max_marks|floatformat:0 }}</strong></div>
+            <div>• Final Exam Marks: 0 to <strong>{{ exam.exam_max_marks|floatformat:0 }}</strong></div>
+            <div>• Total Marks: max <strong>{{ exam.max_marks }}</strong> | Pass Mark: <strong>{{ exam.pass_mark|floatformat:0 }}%</strong></div>
+            <div>• Total marks and CUE Letter Grades (A, B, C, D, F) are calculated automatically upon upload.</div>
+          </div>
+
+          <div class="d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" id="modalMarksSubmitBtn" class="btn btn-primary rounded-pill px-4 fw-semibold" disabled>
+              <i class="fa-solid fa-check me-1"></i>Upload &amp; Save Marks
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function updateModalMarksFileLabel(input) {
+  var submitBtn = document.getElementById('modalMarksSubmitBtn');
+  var nameLabel = document.getElementById('modalMarksFileName');
+  if (input.files && input.files[0]) {
+    var file = input.files[0];
+    nameLabel.textContent = 'Selected: ' + file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+    nameLabel.style.display = 'block';
+    submitBtn.disabled = false;
+  } else {
+    nameLabel.style.display = 'none';
+    submitBtn.disabled = true;
+  }
+}
+</script>
+{% endif %}
 
 <script>
 (function () {

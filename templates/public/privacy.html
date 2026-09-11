@@ -1,0 +1,66 @@
+{% extends 'base_public.html' %}
+{% block title %}Privacy &amp; Data Protection · UMS{% endblock %}
+{% block content %}
+<section class="container py-5" style="max-width: 980px">
+  <div class="mb-5">
+    <span class="text-uppercase small fw-bold text-primary">Data protection</span>
+    <h1 class="display-6 fw-bold mt-2">Privacy &amp; Data Protection</h1>
+    <p class="lead text-muted mb-0">This notice explains how the University Management System handles information used to deliver university services.</p>
+  </div>
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <article class="mb-4">
+        <h5 class="fw-bold">Who is responsible?</h5>
+        <p>The university is the data controller for the personal information it determines the purposes and means of processing. The Data Protection Officer or Privacy Officer is the contact for data-rights questions. Replace the placeholder contact details below with the institution's approved details before public launch.</p>
+        <p class="mb-0"><strong>Privacy contact:</strong> {{ site.contact_email|default:'designated-privacy-officer@example.com' }}</p>
+      </article>
+      <article class="mb-4">
+        <h5 class="fw-bold">Information and purposes</h5>
+        <p>UMS may process identity and contact details, admissions information, academic records, finance and payment references, documents, accessibility or welfare information where required, and security and audit data.</p>
+        <p>Purposes include account administration, admissions, registration, teaching and assessment, fees and reconciliation, document services, communications, system security, fraud prevention, service availability, reporting, and legal or institutional record keeping.</p>
+      </article>
+      <article class="mb-4">
+        <h5 class="fw-bold">Lawful basis and data minimisation</h5>
+        <p>The university must record a lawful basis for each processing activity in its data inventory. Depending on the activity this may be performance of a contract, compliance with a legal obligation, public task or official authority, legitimate interests subject to a balancing assessment, or specific informed consent. Consent is not used as a substitute where another basis is required.</p>
+        <p>Only fields necessary for an identified purpose should be collected. Information must not be reused for incompatible purposes, and inaccurate information should be corrected without undue delay.</p>
+      </article>
+      <article class="mb-4">
+        <h5 class="fw-bold">Your rights and requests</h5>
+        <p>Subject to applicable law and institutional retention duties, you may request access, correction, a portable copy, restriction or objection, and deletion. Requests are identity-checked, logged, assigned to the Privacy Officer, answered within the applicable timeframe, and recorded with any lawful reason for refusing or limiting a request.</p>
+        <p>Signed-in users can download an initial personal-data export from <a href="{% url 'accounts:profile' %}">My Profile</a>. Profile corrections can be submitted through <a href="{% url 'accounts:profile_settings' %}">Profile Settings</a>. Academic, financial, examination and legally required records may need to be retained or corrected through a controlled institutional process rather than deleted.</p>
+      </article>
+      <article class="mb-4">
+        <h5 class="fw-bold">Retention, deletion and archives</h5>
+        <p>Retention periods are set by the university's approved schedule for student, academic, financial, payment, document, audit, security-log, notification and backup data. At the end of a period, data is securely deleted, anonymised or archived with access restricted and the action recorded. Backups follow a separate protected rolling-retention schedule and are not an alternative source for ordinary user access.</p>
+      </article>
+      <article class="mb-4">
+        <h5 class="fw-bold">Security and sharing</h5>
+        <p>Access is role-based and least-privilege. UMS uses HTTPS in production, protected authentication cookies, server-side authorization, audit trails, backups and monitoring. Passwords, session identifiers, reset tokens and provider secrets are not included in personal exports or sent by email.</p>
+        <p>UMS may share the minimum necessary information with approved processors such as payment, email/SMS, learning, HR, finance, library, meeting, hosting and monitoring providers. Each processor must be recorded, contractually bound to protect the data, limited to documented instructions, and reviewed for sub-processors and international transfers.</p>
+      </article>
+      <article class="mb-4">
+        <h5 class="fw-bold">Incidents and international transfers</h5>
+        <p>Suspected loss, unauthorised access or disclosure is handled through the university incident-response process: detect, contain, preserve evidence, assess impact, notify the Privacy Officer, and make legally required notifications. Transfers outside Kenya or the EEA require a documented adequacy, safeguard or consent assessment as applicable.</p>
+      </article>
+      <article>
+        <h5 class="fw-bold">Applicable law</h5>
+        <p>This notice is a starting point, not a substitute for the university's approved privacy governance. The institution should confirm its obligations under Kenya's Data Protection Act, 2019 and regulations, and assess whether GDPR applies based on its establishment, users and processing activities.</p>
+      </article>
+    </div>
+    <aside class="col-lg-4">
+      <div class="border-start border-3 border-primary ps-4">
+        <h6 class="fw-bold">Operational controls</h6>
+        <ul class="small text-muted ps-3">
+          <li>Data inventory and lawful-basis register</li>
+          <li>Retention and deletion schedule</li>
+          <li>Processor and transfer register</li>
+          <li>Rights-request and breach procedures</li>
+          <li>Access reviews and audit trails</li>
+          <li>Encrypted backups and restore tests</li>
+        </ul>
+        <a class="small" href="{% url 'university:security_compliance_dashboard' %}">Security &amp; Compliance readiness</a>
+      </div>
+    </aside>
+  </div>
+</section>
+{% endblock %}

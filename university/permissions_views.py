@@ -28,6 +28,7 @@ from university.permissions_services import (
     has_user_permission,
 )
 from university.audit_services import log_activity
+from university.identity_services import invalidate_user_sessions
 
 
 def _admin_required(view_func):
@@ -280,6 +281,7 @@ def staff_role_assignment_action(request, user_id):
         assignment = get_object_or_404(StaffRoleAssignment, id=assignment_id, user=staff_user)
         role_name = assignment.role.name
         assignment.delete()
+        invalidate_user_sessions(staff_user)
         log_activity(
             request=request,
             user=request.user,

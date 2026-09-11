@@ -182,8 +182,9 @@ class FeeAccountAdminTests(FeeAccountIntegrationTestBase):
         self.assertEqual(till_acc.name, "Library Till Account")
         self.assertTrue(till_acc.is_default)
         self.assertEqual(till_acc.status, FeeAccount.Status.ACTIVE)
-        # Secret should not be visible in raw string
-        self.assertIn("SuperSecretPasskey", till_acc.encrypted_credentials)
+        # Provider secrets are never persisted in plaintext; only the external
+        # secret-manager marker is stored.
+        self.assertEqual(till_acc.encrypted_credentials, "__MANAGED_EXTERNALLY__")
 
     def test_toggle_fee_account_status(self):
         url = reverse("university:fee_account_toggle_status", kwargs={"pk": self.paybill.pk})
@@ -586,4 +587,3 @@ class AdminFinanceOperationsTests(FeeAccountIntegrationTestBase):
         self.assertTrue(sms_res["success"])
         self.assertIn("REC-2026-000999", sms_res["message"])
         self.assertIn("KES 5,000.00", sms_res["message"])
-

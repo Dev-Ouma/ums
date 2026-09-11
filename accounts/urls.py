@@ -9,6 +9,7 @@ urlpatterns = [
     path("logout/", views.logout_view, name="logout"),
     path("signup/", views.signup, name="signup"),
     path("profile/", views.profile, name="profile"),
+    path("data/export/", views.personal_data_export, name="personal_data_export"),
     path("profile/settings/", views.profile_settings, name="profile_settings"),
     path("profile/sessions/revoke-others/", views.revoke_other_sessions,
          name="revoke_other_sessions"),

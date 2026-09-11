@@ -1,9 +1,9 @@
 {% extends 'base_dashboard.html' %}
-{% block title %}Faculty · UMS{% endblock %}
+{% block title %}Teaching Staff · UMS{% endblock %}
 {% block content %}
 <div class="page-head">
   <div>
-    <h4><i class="fa-solid fa-chalkboard-user me-2 text-primary"></i>Faculty</h4>
+    <h4><i class="fa-solid fa-chalkboard-user me-2 text-primary"></i>Teaching Staff</h4>
     <p class="text-muted small mb-0">Manage teaching staff, academic designations, and course assignments.</p>
   </div>
   <div class="d-flex gap-2 flex-wrap align-items-center">
@@ -33,17 +33,17 @@
         <li><span class="dropdown-header small text-muted text-uppercase fw-semibold">Export All Records</span></li>
         <li>
           <a class="dropdown-item py-2 d-flex align-items-center gap-2" href="{% url 'university:faculty_export' 'pdf' %}?scope=all">
-            <i class="fa-solid fa-file-pdf text-danger fa-fw"></i> All Faculty PDF (.pdf)
+            <i class="fa-solid fa-file-pdf text-danger fa-fw"></i> All Teaching Staff PDF (.pdf)
           </a>
         </li>
         <li>
           <a class="dropdown-item py-2 d-flex align-items-center gap-2" href="{% url 'university:faculty_export' 'excel' %}?scope=all">
-            <i class="fa-solid fa-file-excel text-success fa-fw"></i> All Faculty Excel (.xlsx)
+            <i class="fa-solid fa-file-excel text-success fa-fw"></i> All Teaching Staff Excel (.xlsx)
           </a>
         </li>
         <li>
           <a class="dropdown-item py-2 d-flex align-items-center gap-2" href="{% url 'university:faculty_export' 'csv' %}?scope=all">
-            <i class="fa-solid fa-file-csv text-info fa-fw"></i> All Faculty CSV (.csv)
+            <i class="fa-solid fa-file-csv text-info fa-fw"></i> All Teaching Staff CSV (.csv)
           </a>
         </li>
       </ul>
@@ -59,9 +59,9 @@
       <i class="fa-solid fa-file-import"></i> Bulk Import
     </a>
 
-    <!-- Add Faculty -->
+    <!-- Add Teaching Staff -->
     <a href="{% url 'university:faculty_create' %}" class="btn btn-primary rounded-pill px-3 d-inline-flex align-items-center gap-1">
-      <i class="fa-solid fa-user-plus"></i> Add Faculty
+      <i class="fa-solid fa-user-plus"></i> Add Teaching Staff
     </a>
   </div>
 </div>
@@ -80,7 +80,7 @@
     <!-- Search Input -->
     <div class="col-12 col-md-7 col-lg-8">
       <div class="input-group">
-        <input name="q" value="{{ q }}" class="form-control form-control-sm rounded-start-pill" placeholder="Search faculty by name, employee ID, department, specialization...">
+        <input name="q" value="{{ q }}" class="form-control form-control-sm rounded-start-pill" placeholder="Search teaching staff by name, employee ID, department, specialization...">
         <button class="btn btn-light border border-start-0 rounded-end-pill px-3" type="submit" title="Search"><i class="fa-solid fa-magnifying-glass text-muted"></i></button>
       </div>
     </div>
@@ -116,7 +116,7 @@
   </form>
 </div>
 
-<!-- Faculty Cards Grid -->
+<!-- Teaching Staff Cards Grid -->
 <div class="row g-4 mb-4">
   {% for f in faculty %}
   <div class="col-md-6 col-lg-4">
@@ -153,8 +153,8 @@
   <div class="col-12">
     <div class="card card-ums text-center text-muted py-5 px-4">
       <i class="fa-solid fa-chalkboard-user fa-3x mb-3 text-muted opacity-50"></i>
-      <h6 class="fw-bold text-dark">No faculty records found</h6>
-      <p class="small text-muted mb-3">Try clearing search filters or add a new faculty member.</p>
+      <h6 class="fw-bold text-dark">No teaching staff records found</h6>
+      <p class="small text-muted mb-3">Try clearing search filters or add a new teaching staff member.</p>
       {% if q or selected_department %}
         <div>
           <a href="{% url 'university:admin_faculty' %}" class="btn btn-sm btn-light border rounded-pill px-4">Clear All Filters</a>
@@ -182,18 +182,18 @@
       </div>
       <span class="text-muted small">
         {% if paginator.count == 0 %}
-          Showing 0 faculty
+          Showing 0 teaching staff
         {% elif page_obj.start_index == page_obj.end_index %}
-          Showing {{ page_obj.start_index }} of {{ paginator.count }} faculty member{{ paginator.count|pluralize }}
+          Showing {{ page_obj.start_index }} of {{ paginator.count }} teaching staff member{{ paginator.count|pluralize }}
         {% else %}
-          Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ paginator.count }} faculty members
+          Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ paginator.count }} teaching staff members
         {% endif %}
       </span>
     </div>
 
     <!-- Right: Pagination controls -->
     {% if page_obj.has_other_pages %}
-    <nav aria-label="Faculty pagination">
+    <nav aria-label="Teaching staff pagination">
       <ul class="pagination pagination-sm mb-0 align-items-center gap-1">
         {% if page_obj.has_previous %}
           <li class="page-item">

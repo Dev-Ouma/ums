@@ -1,0 +1,36 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Payment Go-Live Certification · UMS{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h4><i class="fa-solid fa-shield-halved me-2 text-primary"></i>Payment Go-Live Certification</h4>
+    <p class="text-muted small mb-0">Provider configuration, callback verification, settlement integrity and recovery evidence.</p>
+  </div>
+  <a class="btn btn-light border rounded-pill px-3" href="{% url 'university:fee_accounts_dashboard' %}"><i class="fa-solid fa-arrow-left me-2"></i>Fee accounts</a>
+</div>
+
+<div class="alert {% if certification.is_ready %}alert-success{% else %}alert-warning{% endif %} rounded-3">
+  <strong>{% if certification.is_ready %}Certification ready for authorized review{% else %}Certification incomplete{% endif %}</strong>
+  <span class="ms-2 small">Live provider verification and finance approval remain mandatory.</span>
+</div>
+
+<div class="card card-ums p-4 mb-4">
+  <h6 class="fw-bold mb-3"><i class="fa-solid fa-building-columns me-2 text-primary"></i>Configured payment channels</h6>
+  <div class="table-responsive"><table class="table align-middle mb-0">
+    <thead><tr class="small text-uppercase text-muted"><th>Channel</th><th>Provider</th><th>Environment</th><th>Credentials</th><th>Connection test</th><th>Status</th></tr></thead>
+    <tbody>{% for account in certification.accounts %}<tr>
+      <td><strong>{{ account.name }}</strong><div class="small text-muted">{{ account.type }}</div></td>
+      <td>{{ account.provider }}</td><td>{{ account.environment }}</td><td>{{ account.credentials }}</td><td>{{ account.connection }}</td>
+      <td><span class="badge {% if account.status == 'PASS' %}bg-success-subtle text-success{% elif account.status == 'FAIL' %}bg-danger-subtle text-danger{% else %}bg-warning-subtle text-warning-emphasis{% endif %}">{{ account.status }}</span></td>
+    </tr>{% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No payment channels configured.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+
+<div class="card card-ums p-4">
+  <h6 class="fw-bold mb-3"><i class="fa-solid fa-route me-2 text-primary"></i>Payment flow certification</h6>
+  <div class="table-responsive"><table class="table align-middle mb-0">
+    <thead><tr class="small text-uppercase text-muted"><th>Control</th><th>Status</th><th>Evidence / required action</th></tr></thead>
+    <tbody>{% for control, status, detail in certification.flow %}<tr><td class="fw-semibold">{{ control }}</td><td><span class="badge {% if status == 'PASS' %}bg-success-subtle text-success{% elif status == 'FAIL' %}bg-danger-subtle text-danger{% else %}bg-warning-subtle text-warning-emphasis{% endif %}">{{ status }}</span></td><td class="small text-muted">{{ detail }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endblock %}

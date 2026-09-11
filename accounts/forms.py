@@ -27,6 +27,10 @@ BLOCKED_ACCOUNT_MESSAGES = {
 
 
 class LoginForm(AuthenticationForm):
+    error_messages = {
+        **AuthenticationForm.error_messages,
+        "invalid_login": "Invalid username or password.",
+    }
     username = forms.CharField(widget=forms.TextInput(
         attrs={"class": INPUT, "placeholder": "Username", "autofocus": True,
                "autocomplete": "username"}))
@@ -210,12 +214,19 @@ class StudentDetailsForm(forms.ModelForm):
 
     class Meta:
         model = StudentProfile
-        fields = ["gender", "date_of_birth", "address", "guardian_name"]
+        fields = [
+            "gender", "date_of_birth", "address", "guardian_name",
+            "guardian_relationship", "guardian_phone", "guardian_email", "guardian_address",
+        ]
         widgets = {
             "gender": forms.Select(attrs={"class": SELECT}),
             "date_of_birth": forms.DateInput(attrs={"class": FIELD, "type": "date"}),
             "address": forms.TextInput(attrs={"class": FIELD, "placeholder": "Postal or residential address"}),
             "guardian_name": forms.TextInput(attrs={"class": FIELD, "placeholder": "Guardian / next of kin"}),
+            "guardian_relationship": forms.TextInput(attrs={"class": FIELD, "placeholder": "Parent, guardian, sponsor, etc."}),
+            "guardian_phone": forms.TextInput(attrs={"class": FIELD, "placeholder": "+254 700 000 000"}),
+            "guardian_email": forms.EmailInput(attrs={"class": FIELD, "placeholder": "guardian@example.com"}),
+            "guardian_address": forms.TextInput(attrs={"class": FIELD, "placeholder": "Guardian postal or residential address"}),
         }
 
     def clean_date_of_birth(self):

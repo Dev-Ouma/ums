@@ -474,6 +474,22 @@ def active_sessions_for(user):
     return sorted(sessions, key=lambda s: s.expire_date, reverse=True)
 
 
+def enforce_concurrent_session_policy(user, keep_session_key=None):
+    """Keep the configured number of live sessions and return sessions removed."""
+    from django.conf import settings
+    limit = int(getattr(settings, "MAX_CONCURRENT_SESSIONS", 5) or 0)
+    if limit <= 0:
+        return 0
+    sessions = active_sessions_for(user)
+    retained = [session for session in sessions if session.session_key == keep_session_key]
+    retained += [session for session in sessions if session.session_key != keep_session_key]
+    killed = 0
+    for session in retained[limit:]:
+        session.delete()
+        killed += 1
+    return killed
+
+
 # ==============================================================================
 # 6. ACCOUNT STATUS & LOCKOUT
 # ==============================================================================
@@ -674,12 +690,14 @@ def assign_group(user, group, actor=None, request=None):
             StaffRoleAssignment.objects.get_or_create(
                 user=user, role=role, department=None,
                 defaults={"assigned_by": actor, "is_active": True})
+        invalidate_user_sessions(user)
     return membership, created
 
 
 def remove_group(user, group, actor=None, request=None):
     deleted, _ = UserGroupMembership.objects.filter(user=user, group=group).delete()
     if deleted:
+        invalidate_user_sessions(user)
         log_activity(
             request=request, user=actor, action=AuditLog.Action.UPDATE, module=AUDIT_MODULE,
             entity="User Group Membership", entity_id=user.pk,
