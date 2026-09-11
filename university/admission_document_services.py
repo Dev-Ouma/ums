@@ -185,11 +185,17 @@ def build_admission_document_context(application, document=None, template=None, 
     sig_title = template.signatory_title if template else "Registrar, Academic & Student Affairs"
     ver_base = template.verification_base_url if template else "https://ums.ac.ke/verify-admission/"
 
+    salutation_title = "Ms." if application.gender == "FEMALE" else ("Mr." if application.gender == "MALE" else "")
+    student_title_name = f"{salutation_title} {application.last_name.upper()}".strip() if salutation_title else application.full_name.upper()
+
     context = {
         # Student
         "student_name": application.full_name,
         "first_name": application.first_name,
         "last_name": application.last_name,
+        "title": salutation_title,
+        "title_name": student_title_name,
+        "applicant_title_name": f"{salutation_title} {application.full_name}".strip() if salutation_title else application.full_name,
         "email": application.email,
         "phone": application.phone,
         "national_id": application.national_id,
@@ -235,19 +241,21 @@ def build_admission_document_context(application, document=None, template=None, 
 
         # Institution
         "university_name": branding.get("site_name", "University Management System"),
-        "university_address": branding.get("address", "P.O. Box 90100 - 00100, Nairobi, Kenya"),
+        "university_address": branding.get("address", "P.O. Box 90100 - 00100, GPO, Nairobi, Kenya"),
         "university_email": branding.get("admissions_email", "admissions@ums.ac.ke"),
         "university_phone": branding.get("phone", "+254 (0) 20 123 4567"),
+        "admissions_desk_phone": "+254 (0) 20 123 4567 / +254 700 000 000",
         "portal_url": branding.get("portal_url", "https://portal.ums.ac.ke"),
         "verification_url": f"{ver_base.rstrip('/')}/{doc_ref.replace('/', '-')}",
 
         # Finance
         "tuition_fee": f"KES {tuition_val:,.2f}",
         "total_fees": f"KES {total_fee_val:,.2f}",
-        "bank_name": "Confirm with the Finance Office",
-        "bank_account": "Published institutional account",
-        "bank_branch": "See current fee notice",
-        "mpesa_paybill": "Published institutional paybill",
+        "finance_email": "finance@ums.ac.ke",
+        "bank_name": "Absa Bank Kenya PLC",
+        "bank_account": "03-094-8002145",
+        "bank_branch": "University Way Branch",
+        "mpesa_paybill": "222111",
 
         # Signatory
         "signatory_name": sig_name,
@@ -327,38 +335,45 @@ def get_or_create_default_template(program=None, academic_year=None):
 
     # 6. Bootstrap standard default template
     tmpl = AdmissionDocumentTemplate.objects.create(
-        name="Standard University Admission Letter",
+        name="Official Undergraduate Admission Offer",
         document_type=AdmissionDocumentTemplate.DocumentType.ADMISSION_LETTER,
         is_active=True,
         is_default=True,
         version=1,
-        header_title="OFFICE OF THE REGISTRAR (ACADEMIC AFFAIRS)",
-        salutation_template="Dear {{student_name}},",
-        subject_template="LETTER OF OFFER: ADMISSION TO {{programme_name}} ({{programme_code}})",
+        header_title="Office of the Deputy Vice-Chancellor<br/>(Academic Affairs)",
+        salutation_template="Dear {{title_name}}, Admission Number: {{registration_number}}",
+        subject_template="RE: ADMISSION INTO {{programme_name}} - {{academic_year}} ACADEMIC YEAR",
         body_template=(
-            "I am pleased to inform you that following your application, the University Admissions Board has offered you "
-            "admission into the <b>{{programme_name}}</b> in the <b>{{faculty_name}}</b> for the <b>{{intake}}</b> "
-            "commencing in <b>{{academic_year}} ({{semester}})</b>.\n\n"
-            "You are required to report to the Main Campus for orientation, document verification, and formal registration on "
-            "<b>{{reporting_date}}</b> at 8:00 AM. Failure to report within two weeks of the scheduled date without prior "
-            "written approval from the Registrar will result in the forfeiture of this offer."
-        ),
-        terms_and_conditions=(
-            "1. This offer of provisional admission is subject to physical verification of your original KCSE / High School certificates, National ID card / passport, and birth certificate.\n"
-            "2. All registered students are bound by the University Charter, Statutes, Rules and Regulations governing Student Conduct and Discipline.\n"
-            "3. At least 75% of first-semester fees must be paid prior to biometric registration and unit enrolment.\n"
-            "4. The university reserves the right to withdraw this offer at any time should any submitted documents or academic qualifications be found fraudulent or falsified."
+            "Following your application for admission to {{university_name}}, I wish to congratulate you on this achievement. "
+            "You have been admitted on the basis of your qualifications, which are subject to verification by the University. "
+            "When reporting, you will be required to present original and copies of the following:\n\n"
+            "1. KCSE Certificate or Result Slip\n"
+            "2. Birth Certificate\n"
+            "3. National Identity Card or Passport\n"
+            "4. Two coloured passport-size photographs\n"
+            "5. Proof of payment of tuition fees"
         ),
         fee_schedule_instructions=(
-            "Tuition and statutory fees must be deposited directly to the University Bank Account:\n"
-            "• Depository Bank: {{bank_name}}\n"
-            "• Account Number: {{bank_account}} ({{bank_branch}})\n"
-            "• M-Pesa Paybill: {{mpesa_paybill}} (Account: {{application_number}})\n"
-            "• Estimated First Semester Total: {{total_fees}} (Tuition: {{tuition_fee}})\n"
-            "Cheques and cash payments at campus counters are strictly not accepted."
+            "TUITION FEES\n"
+            "You will pay {{tuition_fee}} as tuition fee in a Semester (Estimated total first-semester university charges: {{total_fees}}). "
+            "For more information, please contact the Finance Office at {{finance_email}} or Tel: {{university_phone}}.\n\n"
+            "FEE PAYMENT\n"
+            "You are required to follow the instructions below to pay the tuition fee:\n"
+            "1. While logged in to the students portal ({{portal_url}}), navigate to the \"STUDENT PAYMENT INSTRUCTIONS\" section at the bottom of the page.\n"
+            "2. Click on \"Fee Payment\" / \"M-Pesa Payment\" and follow the prompts.\n"
+            "   (M-Pesa Paybill: {{mpesa_paybill}}, Account: {{registration_number}} | Bank: {{bank_name}}, Account: {{bank_account}})\n"
+            "3. Ensure you obtain an official electronic receipt upon payment."
         ),
-        signatory_name="Dr. Margaret Omolo, PhD",
-        signatory_title="Registrar, Academic & Student Affairs",
+        terms_and_conditions=(
+            "COMMENCEMENT DATE\n"
+            "The programme will commence on {{reporting_date}}. You are, therefore, expected to report and complete your registration on this date.\n\n"
+            "OTHER IMPORTANT INFORMATION\n"
+            "i. Admission to the University does not guarantee accommodation in the Halls of Residence. Students not allocated university accommodation will be required to make private arrangements.\n"
+            "ii. This admission offer is subject to your adherence to the University's Rules and Regulations.\n"
+            "iii. In case of any queries, please contact the Admissions Office at {{university_email}} or Tel: {{university_phone}}."
+        ),
+        signatory_name="DR. MARGARET OMOLO, PhD",
+        signatory_title="ACADEMIC REGISTRAR",
         verification_base_url="https://ums.ac.ke/verify-admission/",
     )
     return tmpl
@@ -367,245 +382,321 @@ def get_or_create_default_template(program=None, academic_year=None):
 def build_admission_letter_pdf_bytes(issued_document):
     """
     Renders the official university admission letter as a PDF byte stream
-    using ReportLab and ReportDocTemplate.
+    using ReportLab and ReportDocTemplate, following authentic Kenyan university
+    stationery standards (inspired by premier national universities like UoN).
     """
     buffer = io.BytesIO()
     doc = ReportDocTemplate(
         buffer,
         pagesize=A4,
-        leftMargin=40,
-        rightMargin=40,
-        topMargin=36,
-        bottomMargin=36,
+        leftMargin=42,
+        rightMargin=42,
+        topMargin=26,
+        bottomMargin=26,
     )
 
     styles = document_styles()
-    primary_color = colors.HexColor("#25356B")
-    accent_color = colors.HexColor("#D6A84F")
-    dark_gray = colors.HexColor("#1f2937")
-    muted_gray = colors.HexColor("#4b5563")
+    primary_color = colors.HexColor("#1A2B4C")
+    dark_gray = colors.HexColor("#1F2937")
+    muted_gray = colors.HexColor("#4B5563")
 
     title_style = ParagraphStyle(
-        "LetterTitle",
+        "LetterInstTitle",
         parent=styles["Normal"],
         fontName="Quicksand-Bold",
-        fontSize=16,
-        leading=20,
+        fontSize=14.5,
+        leading=17,
         textColor=primary_color,
         alignment=1,  # Centered
+        spaceAfter=1.5,
     )
-    subtitle_style = ParagraphStyle(
-        "LetterSubtitle",
-        parent=styles["Normal"],
-        fontName="Quicksand",
-        fontSize=9,
-        leading=13,
-        textColor=muted_gray,
-        alignment=1,
-    )
-    heading_style = ParagraphStyle(
-        "HeadingStyle",
+    office_style = ParagraphStyle(
+        "LetterOfficeTitle",
         parent=styles["Normal"],
         fontName="Quicksand-Bold",
-        fontSize=12,
-        leading=16,
+        fontSize=10,
+        leading=13,
         textColor=primary_color,
-        alignment=1,
+        alignment=1,  # Centered
+        spaceAfter=1.5,
+    )
+    confidential_style = ParagraphStyle(
+        "LetterConfidential",
+        parent=styles["Normal"],
+        fontName="Quicksand-Bold",
+        fontSize=9,
+        leading=11,
+        textColor=colors.HexColor("#374151"),
+        alignment=1,  # Centered
+        spaceAfter=3,
+    )
+    contact_left = ParagraphStyle(
+        "HeaderContactLeft",
+        parent=styles["Normal"],
+        fontName="Quicksand",
+        fontSize=7.8,
+        leading=10.5,
+        textColor=muted_gray,
+        alignment=0,
+    )
+    contact_right = ParagraphStyle(
+        "HeaderContactRight",
+        parent=styles["Normal"],
+        fontName="Quicksand",
+        fontSize=7.8,
+        leading=10.5,
+        textColor=muted_gray,
+        alignment=2,
+    )
+    ref_left = ParagraphStyle(
+        "RefLeft",
+        parent=styles["Normal"],
+        fontName="Quicksand",
+        fontSize=8.8,
+        leading=12,
+        textColor=dark_gray,
+        alignment=0,
+    )
+    ref_right = ParagraphStyle(
+        "RefRight",
+        parent=styles["Normal"],
+        fontName="Quicksand",
+        fontSize=8.8,
+        leading=12,
+        textColor=dark_gray,
+        alignment=2,
+    )
+    salutation_style = ParagraphStyle(
+        "LetterSalutation",
+        parent=styles["Normal"],
+        fontName="Quicksand-Bold",
+        fontSize=9.2,
+        leading=12.5,
+        textColor=dark_gray,
+        spaceAfter=4,
+    )
+    subject_style = ParagraphStyle(
+        "LetterSubject",
+        parent=styles["Normal"],
+        fontName="Quicksand-Bold",
+        fontSize=9.5,
+        leading=12.5,
+        textColor=primary_color,
+        spaceAfter=5,
+    )
+    section_head_style = ParagraphStyle(
+        "SectionHead",
+        parent=styles["Normal"],
+        fontName="Quicksand-Bold",
+        fontSize=9,
+        leading=12,
+        textColor=primary_color,
+        spaceBefore=4.5,
+        spaceAfter=1.5,
+        keepWithNext=True,
     )
     body_style = ParagraphStyle(
         "LetterBody",
         parent=styles["Normal"],
         fontName="Quicksand",
-        fontSize=9.5,
-        leading=14,
+        fontSize=8.6,
+        leading=11.8,
         textColor=dark_gray,
+        spaceAfter=2,
     )
-    body_bold = ParagraphStyle(
-        "LetterBodyBold",
+    list_item_style = ParagraphStyle(
+        "LetterListItem",
         parent=styles["Normal"],
-        fontName="Quicksand-Bold",
-        fontSize=9.5,
-        leading=14,
+        fontName="Quicksand",
+        fontSize=8.6,
+        leading=11.5,
         textColor=dark_gray,
+        leftIndent=16,
+        spaceAfter=1.5,
+    )
+    closing_style = ParagraphStyle(
+        "LetterClosing",
+        parent=styles["Normal"],
+        fontName="Quicksand",
+        fontSize=8.6,
+        leading=11.8,
+        textColor=dark_gray,
+        spaceBefore=4,
+        spaceAfter=2,
+        keepWithNext=True,
     )
 
     story = []
     context = issued_document.rendered_context or {}
     tmpl = issued_document.template
 
-    # 1. Header & Logo: a restrained registry letterhead with a clear offer marker.
-    logo_path = get_branding()["logo_path"]
-    if logo_path and os.path.exists(logo_path):
+    # 1. Official Crest
+    crest_path = os.path.join(settings.BASE_DIR, "static", "img", "ums-crest.jpg")
+    if not os.path.exists(crest_path):
+        crest_path = get_branding()["logo_path"]
+    if crest_path and os.path.exists(crest_path):
         try:
-            img = RLImage(logo_path, width=46, height=46)
+            img = RLImage(crest_path, width=42, height=42)
             img.hAlign = "CENTER"
             story.append(img)
-            story.append(Spacer(1, 4))
+            story.append(Spacer(1, 2))
         except Exception:
             pass
 
-    header_title = tmpl.header_title if tmpl else "OFFICE OF THE REGISTRAR (ACADEMIC AFFAIRS)"
-    story.append(Paragraph(escape(context.get("university_name", "UNIVERSITY MANAGEMENT SYSTEM").upper()), title_style))
-    story.append(Paragraph(escape(header_title), subtitle_style))
-    story.append(Paragraph(
-        f"{escape(context.get('university_address', 'P.O. Box 90100 - 00100, Nairobi, Kenya'))} · "
-        f"{escape(context.get('university_email', 'admissions@ums.ac.ke'))} · "
-        f"{escape(context.get('university_phone', '+254 20 123 4567'))}",
-        subtitle_style
-    ))
-    story.append(Spacer(1, 6))
-    story.append(HRFlowable(width="100%", thickness=2.2, color=accent_color, spaceAfter=5))
-    story.append(HRFlowable(width="100%", thickness=0.7, color=primary_color, spaceAfter=12))
+    # 2. Institution Name & Office
+    univ_name = context.get("university_name", "UNIVERSITY MANAGEMENT SYSTEM").upper()
+    story.append(Paragraph(escape(univ_name), title_style))
 
-    # 2. Reference, Reg No, Date Table
-    ref_table_data = [
-        [
-            Paragraph(f"<b>Ref No:</b> {escape(issued_document.document_reference)}", body_style),
-            Paragraph(f"<b>Date:</b> {escape(context.get('issue_date', ''))}", ParagraphStyle("RightDate", parent=body_style, alignment=2))
-        ],
-        [
-            Paragraph(f"<b>Student Reg No:</b> <b>{escape(context.get('registration_number', ''))}</b>", body_style),
-            Paragraph(f"<b>Version:</b> v{issued_document.version} &nbsp;|&nbsp; <b>Status:</b> PROVISIONAL ADMISSION",
-                      ParagraphStyle("RightStatus", parent=body_bold, alignment=2, textColor=colors.HexColor("#047857")))
-        ],
-    ]
-    ref_table = Table(ref_table_data, colWidths=[310, 205])
-    ref_table.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-        ("TOPPADDING", (0, 0), (-1, -1), 2),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-    ]))
-    story.append(ref_table)
-    story.append(Spacer(1, 10))
+    hdr_title = tmpl.header_title if (tmpl and tmpl.header_title) else "Office of the Deputy Vice-Chancellor<br/>(Academic Affairs)"
+    story.append(Paragraph(hdr_title.replace("\n", "<br/>"), office_style))
+    story.append(Paragraph("<b>CONFIDENTIAL</b>", confidential_style))
 
-    # 3. Applicant Bio Block
-    bio_text = (
-        f"<b>{escape(context.get('student_name', ''))}</b><br/>"
-        f"National ID / Passport: {escape(context.get('national_id', ''))}<br/>"
-        f"Email: {escape(context.get('email', ''))} | Tel: {escape(context.get('phone', ''))}<br/>"
-        f"{escape(context.get('address', ''))}"
+    # 3. Two-Column Institutional Contact Header (Classic Kenyan University Letterhead)
+    header_left_html = (
+        '<b>Telegram:</b> "VARSITY" NAIROBI<br/>'
+        f'<b>Telephone:</b> {escape(context.get("university_phone", "+254-020-1234567"))}<br/>'
+        f'<b>Admissions Desk:</b> {escape(context.get("admissions_desk_phone", "+254 700 000 000"))}'
     )
-    bio_table = Table([[Paragraph("<b>APPLICANT</b><br/>" + bio_text, body_style)]], colWidths=[515])
-    bio_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F6F8FC")),
-        ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#D7DEEB")),
-        ("LEFTPADDING", (0, 0), (-1, -1), 10),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-        ("TOPPADDING", (0, 0), (-1, -1), 8),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-    ]))
-    story.append(bio_table)
-    story.append(Spacer(1, 10))
-
-    # 4. Salutation & Subject Line
-    salutation = render_template_text(tmpl.salutation_template if tmpl else "Dear {{student_name}},", context)
-    story.append(Paragraph(f"<b>{salutation}</b>", body_style))
-    story.append(Spacer(1, 6))
-
-    subject = render_template_text(tmpl.subject_template if tmpl else "LETTER OF OFFER: ADMISSION TO {{programme_name}}", context)
-    story.append(Paragraph(f"<u>{subject.upper()}</u>", heading_style))
-    story.append(Spacer(1, 8))
-
-    # 5. Body Content
-    body_raw = tmpl.body_template if tmpl else (
-        "I am pleased to inform you that following your application, the University Admissions Board has offered you "
-        "admission into the <b>{{programme_name}}</b> in the <b>{{faculty_name}}</b> for the <b>{{intake}}</b> "
-        "commencing in <b>{{academic_year}} ({{semester}})</b>.\n\n"
-        "You are required to report to the Main Campus for orientation, document verification, and formal registration on "
-        "<b>{{reporting_date}}</b> at 8:00 AM. Failure to report within two weeks of the scheduled date without prior "
-        "written approval from the Registrar will result in the forfeiture of this offer."
+    header_right_html = (
+        f'{escape(context.get("university_address", "P.O. Box 90100 - 00100, GPO, Nairobi, Kenya"))}<br/>'
+        f'<b>Email:</b> {escape(context.get("university_email", "admissions@ums.ac.ke"))}<br/>'
+        '<b>Website:</b> www.ums.ac.ke'
     )
-    body_rendered = render_template_text(body_raw, context)
-    for paragraph in body_rendered.split("\n\n"):
-        clean_p = paragraph.strip().replace("\n", "<br/>")
-        if clean_p:
-            story.append(Paragraph(clean_p, body_style))
-            story.append(Spacer(1, 6))
-
-    # 6. Fee Quotation Box
-    fee_box_data = [
-        [Paragraph("<b>Estimated Year 1 Semester 1 Fee Schedule</b>", body_bold), ""],
-        [Paragraph("Tuition Fee:", body_style), Paragraph(context.get("tuition_fee", "KES 45,000.00"), body_style)],
-        [Paragraph("Other approved university charges:", body_style),
-         Paragraph("Confirm current schedule", body_style)],
-        [Paragraph("<b>Total First Semester Fees:</b>", body_bold),
-         Paragraph(f"<b>{context.get('total_fees', 'KES 55,500.00')}</b>", body_bold)],
-    ]
-    fee_table = Table(fee_box_data, colWidths=[380, 135])
-    fee_table.setStyle(TableStyle([
-        ("SPAN", (0, 0), (1, 0)),
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
-        ("BACKGROUND", (0, 3), (-1, 3), colors.HexColor("#e2e8f0")),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-    ]))
-    story.append(fee_table)
-    story.append(Spacer(1, 8))
-
-    # 7. Institution-controlled payment guidance. Keep this separate from the
-    # estimate table so finance instructions can change without redesigning
-    # the official letter layout.
-    fee_instructions_raw = getattr(tmpl, "fee_schedule_instructions", "") if tmpl else ""
-    if fee_instructions_raw:
-        fee_instructions = render_template_text(fee_instructions_raw, context)
-        story.append(Paragraph("<b>Payment &amp; Finance Guidance</b>", body_bold))
-        for paragraph in fee_instructions.split("\n\n"):
-            clean_p = paragraph.strip().replace("\n", "<br/>")
-            if clean_p:
-                story.append(Paragraph(clean_p, ParagraphStyle("FinanceGuidance", parent=body_style, fontSize=8.5, leading=12)))
-        story.append(Spacer(1, 6))
-
-    # 8. Terms & Conditions
-    terms_raw = tmpl.terms_and_conditions if tmpl else ""
-    if terms_raw:
-        terms_rendered = render_template_text(terms_raw, context)
-        story.append(Paragraph("<b>Important Conditions & Guidelines:</b>", body_bold))
-        for line in terms_rendered.split("\n"):
-            line_s = line.strip()
-            if line_s:
-                story.append(Paragraph(line_s, ParagraphStyle("Terms", parent=body_style, fontSize=8.5, leading=12)))
-        story.append(Spacer(1, 6))
-
-    # 9. Signatory & Official Verification Block
-    sig_name = context.get("signatory_name", "Dr. Margaret Omolo, PhD")
-    sig_title = context.get("signatory_title", "Registrar, Academic & Student Affairs")
-    ver_url = context.get("verification_url", "https://ums.ac.ke/verify-admission/")
-
-    signature_cell = Paragraph("Yours sincerely,<br/><br/><br/>" + f"<b>{escape(sig_name)}</b><br/>{escape(sig_title)}", body_style)
-    if tmpl and tmpl.signatory_signature and getattr(tmpl.signatory_signature, "path", None):
-        try:
-            signature_cell = [RLImage(tmpl.signatory_signature.path, width=110, height=34), Paragraph(f"<b>{escape(sig_name)}</b><br/>{escape(sig_title)}", body_style)]
-        except (OSError, ValueError):
-            pass
-    seal_cell = Paragraph("OFFICIAL UNIVERSITY SEAL", ParagraphStyle("Seal", parent=body_style, alignment=1, textColor=colors.HexColor("#9ca3af")))
-    if tmpl and tmpl.official_seal and getattr(tmpl.official_seal, "path", None):
-        try:
-            seal_cell = RLImage(tmpl.official_seal.path, width=74, height=74)
-        except (OSError, ValueError):
-            pass
-    sign_data = [
-        [
-            signature_cell,
-            seal_cell
-        ],
-        [
-            Paragraph(f"<b>{escape(context.get('university_name', 'University Management System'))}</b>", body_style),
-            Paragraph(f"Verify authenticity online:<br/><b>{escape(ver_url)}</b>", ParagraphStyle("VerBlock", parent=body_style, fontSize=8, leading=11, alignment=1, textColor=muted_gray))
-        ]
-    ]
-    sign_table = Table(sign_data, colWidths=[310, 205])
-    sign_table.setStyle(TableStyle([
+    contact_table = Table(
+        [[Paragraph(header_left_html, contact_left), Paragraph(header_right_html, contact_right)]],
+        colWidths=[255, 256]
+    )
+    contact_table.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
     ]))
-    story.append(sign_table)
+    story.append(contact_table)
+    story.append(Spacer(1, 2))
+    story.append(HRFlowable(width="100%", thickness=0.75, color=colors.HexColor("#1A2B4C"), spaceAfter=5))
+
+    # 4. Reference & Date
+    ref_table_data = [
+        [
+            Paragraph(f"<b>Our Ref:</b> {escape(issued_document.document_reference)}", ref_left),
+            Paragraph(f"<b>Date:</b> {escape(context.get('issue_date', ''))}", ref_right),
+        ]
+    ]
+    ref_table = Table(ref_table_data, colWidths=[260, 251])
+    ref_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    story.append(ref_table)
+    story.append(Spacer(1, 5))
+
+    # 5. Salutation with Inline Admission Number
+    salutation_template = tmpl.salutation_template if (tmpl and tmpl.salutation_template) else "Dear {{title_name}}, Admission Number: {{registration_number}}"
+    if "Admission Number" not in salutation_template:
+        salutation_template = f"{salutation_template.rstrip(',')} , Admission Number: {{{{registration_number}}}}"
+    salutation_rendered = render_template_text(salutation_template, context)
+    story.append(Paragraph(f"<b>{salutation_rendered}</b>", salutation_style))
+    story.append(Spacer(1, 2))
+
+    # 6. Subject Line
+    subject_raw = tmpl.subject_template if (tmpl and tmpl.subject_template) else "RE: ADMISSION INTO {{programme_name}} - {{academic_year}} ACADEMIC YEAR"
+    if not subject_raw.upper().startswith("RE:"):
+        subject_raw = f"RE: {subject_raw}"
+    subject_rendered = render_template_text(subject_raw, context)
+    story.append(Paragraph(f"<b><u>{subject_rendered.upper()}</u></b>", subject_style))
+    story.append(Spacer(1, 4))
+
+    # 7. Body Paragraphs (Opening & Checklist)
+    body_raw = tmpl.body_template if (tmpl and tmpl.body_template) else ""
+    if body_raw:
+        body_rendered = render_template_text(body_raw, context)
+        for block in body_rendered.split("\n\n"):
+            lines = [ln.strip() for ln in block.strip().split("\n") if ln.strip()]
+            for line in lines:
+                if re.match(r"^\d+\.\s+", line):
+                    story.append(Paragraph(line, list_item_style))
+                else:
+                    story.append(Paragraph(line, body_style))
+            story.append(Spacer(1, 2))
+
+    # 8. Tuition Fees & Fee Payment
+    fee_raw = tmpl.fee_schedule_instructions if (tmpl and tmpl.fee_schedule_instructions) else ""
+    if fee_raw:
+        fee_rendered = render_template_text(fee_raw, context)
+        for block in fee_rendered.split("\n\n"):
+            lines = [ln.strip() for ln in block.strip().split("\n") if ln.strip()]
+            for i, line in enumerate(lines):
+                if i == 0 and ("TUITION FEES" in line.upper() or "FEE PAYMENT" in line.upper()):
+                    story.append(Paragraph(f"<b>{line}</b>", section_head_style))
+                elif re.match(r"^\d+\.\s+", line) or line.startswith("•") or line.startswith("-"):
+                    story.append(Paragraph(line, list_item_style))
+                else:
+                    story.append(Paragraph(line, body_style))
+            story.append(Spacer(1, 2))
+
+    # 9. Commencement Date & Other Important Information
+    terms_raw = tmpl.terms_and_conditions if (tmpl and tmpl.terms_and_conditions) else ""
+    if terms_raw:
+        terms_rendered = render_template_text(terms_raw, context)
+        for block in terms_rendered.split("\n\n"):
+            lines = [ln.strip() for ln in block.strip().split("\n") if ln.strip()]
+            for i, line in enumerate(lines):
+                if i == 0 and ("COMMENCEMENT" in line.upper() or "IMPORTANT INFORMATION" in line.upper() or "CONDITIONS" in line.upper()):
+                    story.append(Paragraph(f"<b>{line}</b>", section_head_style))
+                elif re.match(r"^(?:[ivx]+|[a-z]|\d+)\.\s+", line, re.IGNORECASE) or line.startswith("•") or line.startswith("-"):
+                    story.append(Paragraph(line, list_item_style))
+                else:
+                    story.append(Paragraph(line, body_style))
+            story.append(Spacer(1, 2))
+
+    # 10. Closing & Sign-off Block
+    story.append(Paragraph(
+        f"We look forward to welcoming you to {escape(context.get('university_name', 'University Management System'))} and supporting you on your academic journey.",
+        closing_style
+    ))
+    story.append(Spacer(1, 2))
+    story.append(Paragraph("Yours faithfully,", closing_style))
+    story.append(Spacer(1, 1))
+
+    # Signature Graphic & Name Block
+    sig_img_path = os.path.join(settings.BASE_DIR, "static", "img", "registrar-signature.jpg")
+    if tmpl and tmpl.signatory_signature and getattr(tmpl.signatory_signature, "path", None) and os.path.exists(tmpl.signatory_signature.path):
+        sig_img_path = tmpl.signatory_signature.path
+
+    if sig_img_path and os.path.exists(sig_img_path):
+        try:
+            sig_rl = RLImage(sig_img_path, width=95, height=30)
+            sig_rl.hAlign = "LEFT"
+            story.append(sig_rl)
+            story.append(Spacer(1, 1))
+        except Exception:
+            story.append(Spacer(1, 16))
+    else:
+        story.append(Spacer(1, 16))
+
+    sig_name = context.get("signatory_name", "DR. MARGARET OMOLO, PhD").upper()
+    sig_title = context.get("signatory_title", "ACADEMIC REGISTRAR").upper()
+
+    sig_table = Table(
+        [[
+            Paragraph(f"<b>{escape(sig_name)}</b><br/><b>{escape(sig_title)}</b>", ParagraphStyle("SigText", parent=body_style, fontSize=8.6, leading=11.5)),
+            Paragraph(f"Official Registry Verification:<br/><b>{escape(context.get('verification_url', 'https://ums.ac.ke/verify-admission/'))}</b>", ParagraphStyle("VerFoot", parent=body_style, fontSize=7.2, leading=9.5, alignment=2, textColor=muted_gray))
+        ]],
+        colWidths=[270, 241]
+    )
+    sig_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    story.append(sig_table)
 
     doc.build(story)
     pdf_bytes = buffer.getvalue()
