@@ -1,13 +1,15 @@
 {% extends 'base_public.html' %}
+{% load static %}
 {% block title %}Login · UMS{% endblock %}
 {% block content %}
 <div class="container py-5">
   <div class="row justify-content-center">
     <div class="col-lg-10">
-      <div class="card card-ums overflow-hidden">
+      <div class="card card-ums overflow-hidden shadow-lg border-0">
         <div class="row g-0">
           <div class="col-md-6 d-none d-md-flex flex-column justify-content-center text-white p-5"
                style="background:var(--gradient)">
+            <img src="{% static 'images/logo.png' %}" alt="UMS Logo" class="mb-4 shadow-sm" style="width:68px;height:68px;object-fit:contain;border-radius:16px;background:#fff;padding:6px;">
             <h2 class="fw-bold">Welcome back 👋</h2>
             <p class="opacity-75">Sign in to your role-based portal — Admin, Teaching Staff or Student.
               Every portal has its own theme, tools and AI insights.</p>
@@ -18,8 +20,13 @@
             </div>
           </div>
           <div class="col-md-6 p-4 p-md-5">
-            <h4 class="fw-bold mb-1">Sign in</h4>
-            <p class="text-muted small">Enter your credentials to continue.</p>
+            <div class="d-flex align-items-center gap-2 mb-3">
+              <img src="{% static 'images/logo.png' %}" alt="UMS Logo" style="width:40px;height:40px;object-fit:contain;border-radius:10px;background:#f8fafc;padding:3px;border:1px solid #e2e8f0;">
+              <div>
+                <h5 class="fw-bold mb-0 text-dark">University Portal</h5>
+                <small class="text-muted">Enter credentials to continue</small>
+              </div>
+            </div>
             {% if form.non_field_errors %}
               {% for error in form.non_field_errors %}
                 <div class="alert alert-danger py-2 small mb-2">{{ error }}</div>
