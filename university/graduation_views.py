@@ -78,11 +78,35 @@ def student_apply_clearance(request):
 @login_required
 def student_degree_certificate_pdf(request):
     """Download official Degree Certificate PDF."""
-    try:
-        sp = request.user.student_profile
-        app = GraduationApplication.objects.get(student=sp)
-    except Exception:
+    app = None
+    app_id = request.GET.get("app_id") or request.GET.get("id")
+    student_id = request.GET.get("student_id")
+    roll_no = request.GET.get("roll_no")
+
+    is_staff = request.user.is_staff or request.user.is_superuser or getattr(request.user, "role", "") in (Role.ADMIN, "ADMIN")
+
+    if is_staff and (app_id or student_id or roll_no):
+        if app_id:
+            app = GraduationApplication.objects.filter(pk=app_id).select_related("student__user", "student__program", "ceremony").first()
+        elif student_id:
+            app = GraduationApplication.objects.filter(student_id=student_id).select_related("student__user", "student__program", "ceremony").first()
+        elif roll_no:
+            app = GraduationApplication.objects.filter(student__roll_no__iexact=roll_no).select_related("student__user", "student__program", "ceremony").first()
+
+    if not app:
+        try:
+            sp = request.user.student_profile
+            app = GraduationApplication.objects.filter(student=sp).select_related("student__user", "student__program", "ceremony").first()
+        except Exception:
+            if is_staff:
+                app = GraduationApplication.objects.select_related("student__user", "student__program", "ceremony").filter(
+                    status__in=[GraduationApplication.Status.CLEARED, GraduationApplication.Status.SENATE_APPROVED, GraduationApplication.Status.GRADUATED]
+                ).order_by("-id").first() or GraduationApplication.objects.select_related("student__user", "student__program", "ceremony").order_by("-id").first()
+
+    if not app:
         raise Http404("Graduation application not found.")
+
+    sp = app.student
 
     if app.status not in [GraduationApplication.Status.CLEARED, GraduationApplication.Status.SENATE_APPROVED, GraduationApplication.Status.GRADUATED]:
         messages.warning(request, "Degree certificate will become available once full clearance and Senate approval are completed.")
@@ -98,12 +122,35 @@ def student_degree_certificate_pdf(request):
 @login_required
 def student_clearance_certificate_pdf(request):
     """Download official Certificate of University Clearance PDF."""
-    try:
-        sp = request.user.student_profile
-        app = GraduationApplication.objects.get(student=sp)
-    except Exception:
+    app = None
+    app_id = request.GET.get("app_id") or request.GET.get("id")
+    student_id = request.GET.get("student_id")
+    roll_no = request.GET.get("roll_no")
+
+    is_staff = request.user.is_staff or request.user.is_superuser or getattr(request.user, "role", "") in (Role.ADMIN, "ADMIN")
+
+    if is_staff and (app_id or student_id or roll_no):
+        if app_id:
+            app = GraduationApplication.objects.filter(pk=app_id).select_related("student__user", "student__program", "ceremony").first()
+        elif student_id:
+            app = GraduationApplication.objects.filter(student_id=student_id).select_related("student__user", "student__program", "ceremony").first()
+        elif roll_no:
+            app = GraduationApplication.objects.filter(student__roll_no__iexact=roll_no).select_related("student__user", "student__program", "ceremony").first()
+
+    if not app:
+        try:
+            sp = request.user.student_profile
+            app = GraduationApplication.objects.filter(student=sp).select_related("student__user", "student__program", "ceremony").first()
+        except Exception:
+            if is_staff:
+                app = GraduationApplication.objects.select_related("student__user", "student__program", "ceremony").filter(
+                    status__in=[GraduationApplication.Status.CLEARED, GraduationApplication.Status.SENATE_APPROVED, GraduationApplication.Status.GRADUATED]
+                ).order_by("-id").first() or GraduationApplication.objects.select_related("student__user", "student__program", "ceremony").order_by("-id").first()
+
+    if not app:
         raise Http404("Clearance record not found.")
 
+    sp = app.student
     pdf_bytes = generate_clearance_certificate_pdf(app)
     response = HttpResponse(pdf_bytes, content_type="application/pdf")
     clean_roll = sp.roll_no.replace("/", "_")

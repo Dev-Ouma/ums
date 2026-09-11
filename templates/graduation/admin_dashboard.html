@@ -225,8 +225,11 @@
                     </form>
                   {% endif %}
                   {% if app.status in 'CLEARED SENATE_APPROVED GRADUATED' %}
-                    <a href="{% url 'university:student_degree_certificate_pdf' %}?preview=1" class="btn btn-sm btn-outline-secondary" title="View Official Degree Certificate" target="_blank">
+                    <a href="{% url 'university:student_degree_certificate_pdf' %}?app_id={{ app.pk }}&preview=1" class="btn btn-sm btn-outline-secondary" title="View Official Degree Certificate" target="_blank">
                       <i class="fa-solid fa-award"></i>
+                    </a>
+                    <a href="{% url 'university:student_clearance_certificate_pdf' %}?app_id={{ app.pk }}&preview=1" class="btn btn-sm btn-outline-primary" title="View Official Clearance Certificate" target="_blank">
+                      <i class="fa-solid fa-file-shield"></i>
                     </a>
                   {% endif %}
                 </div>
@@ -322,6 +325,21 @@
                                 <i class="fa-solid fa-stamp me-1"></i> Senate Approve
                               </button>
                             </form>
+                          </div>
+                        {% elif app.status in 'SENATE_APPROVED GRADUATED' %}
+                          <div class="alert alert-success mt-3 mb-0 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2 p-3 rounded-3">
+                            <div>
+                              <i class="fa-solid fa-award text-success me-1"></i>
+                              <strong>Senate Degree Conferred!</strong> Official certificates are ready.
+                            </div>
+                            <div class="d-flex gap-2">
+                              <a href="{% url 'university:student_clearance_certificate_pdf' %}?app_id={{ app.pk }}&preview=1" class="btn btn-sm btn-outline-primary" target="_blank">
+                                <i class="fa-solid fa-file-shield me-1"></i> Clearance Certificate
+                              </a>
+                              <a href="{% url 'university:student_degree_certificate_pdf' %}?app_id={{ app.pk }}&preview=1" class="btn btn-sm btn-success" target="_blank">
+                                <i class="fa-solid fa-award me-1"></i> Degree Certificate
+                              </a>
+                            </div>
                           </div>
                         {% endif %}
                       </div>
