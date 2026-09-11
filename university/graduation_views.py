@@ -120,7 +120,9 @@ def student_clearance_certificate_pdf(request):
 def admin_graduation_dashboard(request):
     """Administrative Graduation & Degree Conferment Hub."""
     ceremonies = GraduationCeremony.objects.all().order_by("-ceremony_date")
-    applications = GraduationApplication.objects.select_related("student__user", "student__program", "ceremony").all()
+    applications = GraduationApplication.objects.select_related(
+        "student__user", "student__program", "ceremony"
+    ).prefetch_related("clearances__cleared_by").all()
 
     # Metrics
     total_apps = applications.count()
@@ -207,6 +209,9 @@ def admin_clearance_action(request, pk):
     dc = process_department_clearance(pk, status_target, user=request.user, remarks=remarks, request=request)
 
     messages.success(request, f"Updated {dc.get_department_display()} clearance for {dc.application.student.roll_no} to {dc.status}.")
+    next_url = request.POST.get("next")
+    if next_url:
+        return redirect(next_url)
     return redirect("university:admin_clearance_queue", department=dc.department.lower())
 
 

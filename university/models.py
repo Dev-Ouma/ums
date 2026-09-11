@@ -1603,7 +1603,7 @@ class DepartmentClearance(models.Model):
 
     class Meta:
         unique_together = ("application", "department")
-        ordering = ["department"]
+        ordering = ["id"]
 
     def __str__(self):
         return f"{self.get_department_display()}: {self.application.student.roll_no} -> {self.status}"
