@@ -27,289 +27,167 @@
 </div>
 
 <div class="row g-4">
-  <!-- Left: Applicant Details & Credentials -->
+  <!-- Left: Applicant Details & Credentials (Compact Unified Master Card) -->
   <div class="col-lg-8">
-    
-    <!-- Status Overview Alert -->
-    <div class="card border-0 shadow-sm rounded-4 mb-4">
-      <div class="card-body p-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
-        <div>
-          <span class="text-muted small">Current Application Decision:</span>
-          <div class="mt-1">
-            {% if app.status == "SUBMITTED" %}
-              <span class="badge bg-secondary fs-6 px-3 py-2 rounded-pill"><i class="fa-solid fa-clock me-1"></i> Submitted</span>
-            {% elif app.status == "UNDER_REVIEW" %}
-              <span class="badge bg-warning text-dark fs-6 px-3 py-2 rounded-pill"><i class="fa-solid fa-spinner fa-spin me-1"></i> Under Review</span>
-            {% elif app.status == "ACCEPTED" %}
-              <span class="badge bg-success fs-6 px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> Offer Admitted (Awaiting Student Registration and Enrollment)</span>
-            {% elif app.status == "ENROLLED" %}
-              <span class="badge bg-primary fs-6 px-3 py-2 rounded-pill"><i class="fa-solid fa-check-double me-1"></i> Enrolled / Active Student</span>
-            {% elif app.status == "REJECTED" %}
-              <span class="badge bg-danger fs-6 px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-xmark me-1"></i> Rejected</span>
-            {% endif %}
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+      
+      <!-- Compact Top Header: Identity & Status Overview -->
+      <div class="card-header bg-white border-bottom border-light-subtle p-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-3">
+          <div class="avatar-circle bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center fw-bold fs-5" style="width: 44px; height: 44px;">
+            {{ app.first_name|slice:":1" }}{{ app.last_name|slice:":1" }}
           </div>
-        </div>
-        <div class="text-end">
-          {% if app.admitted_reg_no %}
-            <span class="text-muted small">Assigned Student Reg No:</span>
-            <div class="fs-5 fw-bold text-dark font-monospace mb-2">{{ app.admitted_reg_no }}</div>
-          {% endif %}
           <div>
-            <span class="text-muted small">Application Fee:</span>
-            {% if app.fee_paid %}
-              <span class="badge bg-success rounded-pill ms-1"><i class="fa-solid fa-circle-check me-1"></i>Paid</span>
-            {% else %}
-              <span class="badge bg-danger rounded-pill ms-1"><i class="fa-solid fa-circle-xmark me-1"></i>Unpaid</span>
-            {% endif %}
+            <h5 class="fw-bold mb-0 text-dark">{{ app.full_name }}</h5>
+            <div class="small text-muted">
+              Ref: <strong class="text-primary font-monospace">{{ app.application_number }}</strong>
+              · Submitted {{ app.created_at|date:"d M Y, H:i" }}
+            </div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- 1. Academic Placement & Intake -->
-    <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden">
-      <div class="card-header bg-white border-bottom border-light-subtle py-3 px-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-2">
-          <div class="icon-shape bg-primary-subtle text-primary rounded-3 p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
-            <i class="fa-solid fa-graduation-cap"></i>
-          </div>
-          <h6 class="fw-bold mb-0 text-dark">Academic Programme &amp; Placement</h6>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          {% if app.admitted_reg_no %}
+            <span class="badge bg-light text-dark border font-monospace px-2.5 py-1.5" title="Student Registration Number">
+              <i class="fa-solid fa-id-badge text-primary me-1"></i>{{ app.admitted_reg_no }}
+            </span>
+          {% endif %}
+          {% if app.status == "SUBMITTED" %}
+            <span class="badge bg-secondary-subtle text-secondary border px-2.5 py-1.5 rounded-pill"><i class="fa-solid fa-clock me-1"></i>Submitted</span>
+          {% elif app.status == "UNDER_REVIEW" %}
+            <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2.5 py-1.5 rounded-pill"><i class="fa-solid fa-spinner fa-spin me-1"></i>Under Review</span>
+          {% elif app.status == "ACCEPTED" %}
+            <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1.5 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i>Admitted / Accepted</span>
+          {% elif app.status == "ENROLLED" %}
+            <span class="badge bg-primary px-2.5 py-1.5 rounded-pill"><i class="fa-solid fa-check-double me-1"></i>Enrolled Student</span>
+          {% elif app.status == "REJECTED" %}
+            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2.5 py-1.5 rounded-pill"><i class="fa-solid fa-ban me-1"></i>Rejected</span>
+          {% endif %}
+          {% if app.fee_paid %}
+            <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1.5 rounded-pill"><i class="fa-solid fa-check me-1"></i>Fee Paid</span>
+          {% else %}
+            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2.5 py-1.5 rounded-pill"><i class="fa-solid fa-xmark me-1"></i>Fee Unpaid</span>
+          {% endif %}
         </div>
-        <span class="badge bg-light text-secondary border rounded-pill px-3 py-1 font-monospace small">
-          Intake: {{ app.intake.academic_year.name|default:"2025/2026" }}
-        </span>
       </div>
+
       <div class="card-body p-4">
-        <div class="row g-3">
-          <div class="col-md-7">
-            <div class="p-3 bg-light rounded-3 border border-light-subtle h-100 d-flex flex-column justify-content-between">
-              <div>
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1.5" style="letter-spacing: 0.5px;">Target Degree Programme</span>
-                <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
-                  <span class="badge bg-primary px-2.5 py-1.5 fs-6 rounded-pill font-monospace">{{ app.program.code }}</span>
-                  <span class="fs-5 fw-bold text-dark">{{ app.program.name }}</span>
-                </div>
+        <!-- 1. Academic Placement & Intake -->
+        <div class="mb-3 pb-3 border-bottom border-light-subtle">
+          <div class="text-muted small text-uppercase fw-bold mb-2" style="font-size: 0.72rem; letter-spacing: 0.5px;">
+            <i class="fa-solid fa-graduation-cap text-primary me-1"></i>Academic Placement
+          </div>
+          <div class="row g-2 align-items-center">
+            <div class="col-md-7">
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="badge bg-primary font-monospace px-2 py-1 rounded">{{ app.program.code }}</span>
+                <span class="fw-bold text-dark fs-6">{{ app.program.name }}</span>
               </div>
               {% if app.program.department %}
-                <div class="text-muted small mt-2 pt-2 border-top border-light-subtle">
-                  <i class="fa-solid fa-building-columns me-1 text-secondary"></i> Department of {{ app.program.department.name }}
-                </div>
+                <small class="text-muted d-block mt-1"><i class="fa-solid fa-building-columns me-1"></i>Department of {{ app.program.department.name }}</small>
               {% endif %}
             </div>
+            <div class="col-md-5 text-md-end">
+              <div class="small fw-semibold text-dark">
+                <i class="fa-solid fa-calendar-check text-success me-1"></i>{{ app.intake.name|default:"Regular Intake" }}
+                <span class="text-muted">({{ app.intake.academic_year.name|default:"2025/2026" }})</span>
+              </div>
+              <small class="text-muted">Orientation: <strong class="text-dark">{{ app.reporting_date|date:"d M Y"|default:"To Be Scheduled" }}</strong></small>
+            </div>
           </div>
-          <div class="col-md-5">
-            <div class="p-3 bg-light rounded-3 border border-light-subtle h-100 d-flex flex-column justify-content-between">
-              <div>
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1.5" style="letter-spacing: 0.5px;">Academic Intake Cycle</span>
-                <div class="fs-5 fw-bold text-dark mb-1">
-                  <i class="fa-solid fa-calendar-check text-success me-1"></i> {{ app.intake.name|default:"Regular Intake" }}
+        </div>
+
+        <!-- 2. Personal Demographics & Contact Coordinates -->
+        <div class="mb-3 pb-3 border-bottom border-light-subtle">
+          <div class="text-muted small text-uppercase fw-bold mb-2" style="font-size: 0.72rem; letter-spacing: 0.5px;">
+            <i class="fa-solid fa-id-card text-info me-1"></i>Personal &amp; Contact Coordinates
+          </div>
+          <div class="row g-3">
+            <div class="col-6 col-md-3">
+              <span class="text-muted small d-block">National ID / Passport</span>
+              <span class="fw-bold text-dark font-monospace">{{ app.national_id|default:"—" }}</span>
+            </div>
+            <div class="col-6 col-md-3">
+              <span class="text-muted small d-block">Date of Birth</span>
+              <span class="fw-bold text-dark">{{ app.date_of_birth|date:"d M Y"|default:"—" }}</span>
+            </div>
+            <div class="col-6 col-md-2">
+              <span class="text-muted small d-block">Gender</span>
+              <span class="badge {% if app.gender == 'MALE' %}bg-primary-subtle text-primary border border-primary-subtle{% elif app.gender == 'FEMALE' %}bg-danger-subtle text-danger border border-danger-subtle{% else %}bg-secondary-subtle text-secondary border{% endif %} rounded-pill px-2.5 py-0.5">
+                {% if app.gender == 'MALE' %}<i class="fa-solid fa-mars me-1"></i>{% elif app.gender == 'FEMALE' %}<i class="fa-solid fa-venus me-1"></i>{% endif %}{{ app.gender|title }}
+              </span>
+            </div>
+            <div class="col-6 col-md-4">
+              <span class="text-muted small d-block">Mobile Contact</span>
+              <a href="tel:{{ app.phone }}" class="fw-bold text-dark text-decoration-none font-monospace">
+                <i class="fa-solid fa-phone text-success me-1 small"></i>{{ app.phone }}
+              </a>
+            </div>
+            <div class="col-12 col-md-6">
+              <span class="text-muted small d-block">Email Address</span>
+              <a href="mailto:{{ app.email }}" class="fw-semibold text-dark text-decoration-none text-break">
+                <i class="fa-solid fa-envelope text-primary me-1 small"></i>{{ app.email }}
+              </a>
+            </div>
+            <div class="col-12 col-md-6">
+              <span class="text-muted small d-block">Physical / Postal Address</span>
+              <span class="fw-semibold text-dark">
+                <i class="fa-solid fa-location-dot text-warning me-1 small"></i>{{ app.address|default:"Not specified" }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Secondary School Academic Qualifications -->
+        <div class="{% if app.fee_payments.exists %}mb-3 pb-3 border-bottom border-light-subtle{% endif %}">
+          <div class="text-muted small text-uppercase fw-bold mb-2" style="font-size: 0.72rem; letter-spacing: 0.5px;">
+            <i class="fa-solid fa-award text-warning me-1"></i>Secondary School Credentials
+          </div>
+          <div class="row g-3 align-items-center">
+            <div class="col-12 col-md-5">
+              <span class="text-muted small d-block">Secondary School</span>
+              <span class="fw-bold text-dark">{{ app.secondary_school|default:"—" }}</span>
+            </div>
+            <div class="col-6 col-md-3">
+              <span class="text-muted small d-block">KCSE Index Number</span>
+              <span class="fw-bold text-dark font-monospace">{{ app.kcse_index_number|default:"—" }}</span>
+            </div>
+            <div class="col-3 col-md-2 text-center">
+              <span class="text-muted small d-block">Mean Grade</span>
+              <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1 fw-bold fs-6">
+                {{ app.kcse_mean_grade }}
+              </span>
+            </div>
+            <div class="col-3 col-md-2 text-end">
+              <span class="text-muted small d-block">Exam Year</span>
+              <span class="fw-bold text-dark">{{ app.kcse_year }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Fee Payment Summary (Compact Row) -->
+        {% if app.fee_payments.exists %}
+          <div class="pt-1">
+            <div class="text-muted small text-uppercase fw-bold mb-2" style="font-size: 0.72rem; letter-spacing: 0.5px;">
+              <i class="fa-solid fa-receipt text-success me-1"></i>Application Fee Payment
+            </div>
+            {% for pay in app.fee_payments.all %}
+              <div class="d-flex justify-content-between align-items-center p-2 px-3 bg-light rounded-3 border border-light-subtle small {% if not forloop.last %}mb-2{% endif %}">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge bg-white text-dark border font-monospace">{{ pay.method }}</span>
+                  <span class="fw-bold font-monospace">{{ pay.reference }}</span>
+                  <span class="text-muted">· Paid {{ pay.confirmed_at|date:"d M Y"|default:pay.paid_at|date:"d M Y" }}</span>
+                </div>
+                <div class="fw-bold text-success">
+                  KES {{ pay.amount|floatformat:2|intcomma }} <i class="fa-solid fa-circle-check ms-1"></i>
                 </div>
               </div>
-              <div class="text-muted small mt-2 pt-2 border-top border-light-subtle">
-                <i class="fa-solid fa-clock me-1 text-primary"></i> Orientation: <strong class="text-dark">{{ app.reporting_date|date:"d M Y"|default:"To Be Scheduled" }}</strong>
-              </div>
-            </div>
+            {% endfor %}
           </div>
-        </div>
+        {% endif %}
+
       </div>
     </div>
-
-    <!-- 2. Personal Demographics & Identification -->
-    <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden">
-      <div class="card-header bg-white border-bottom border-light-subtle py-3 px-4">
-        <div class="d-flex align-items-center gap-2">
-          <div class="icon-shape bg-info-subtle text-info rounded-3 p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
-            <i class="fa-solid fa-id-badge"></i>
-          </div>
-          <h6 class="fw-bold mb-0 text-dark">Personal Profile &amp; Demographics</h6>
-        </div>
-      </div>
-      <div class="card-body p-4">
-        <div class="row g-3">
-          <!-- Full Legal Name -->
-          <div class="col-12 col-md-4">
-            <div class="p-3 bg-light rounded-3 border border-light-subtle h-100">
-              <span class="text-muted small text-uppercase fw-semibold d-block mb-1.5" style="letter-spacing: 0.5px;">
-                <i class="fa-solid fa-user me-1 text-muted"></i>Full Legal Name
-              </span>
-              <div class="fw-bold text-dark fs-6 mb-1">{{ app.full_name }}</div>
-              <small class="text-muted font-monospace">Ref: {{ app.application_number }}</small>
-            </div>
-          </div>
-          <!-- National ID / Passport -->
-          <div class="col-12 col-md-4">
-            <div class="p-3 bg-light rounded-3 border border-light-subtle h-100">
-              <span class="text-muted small text-uppercase fw-semibold d-block mb-1.5" style="letter-spacing: 0.5px;">
-                <i class="fa-solid fa-id-card me-1 text-muted"></i>National ID / Passport
-              </span>
-              <div class="fw-bold text-dark fs-6 font-monospace mb-1">{{ app.national_id|default:"—" }}</div>
-              <small class="text-success fw-medium"><i class="fa-solid fa-circle-check me-1"></i>Primary Identity Document</small>
-            </div>
-          </div>
-          <!-- Date of Birth & Gender -->
-          <div class="col-12 col-md-4">
-            <div class="p-3 bg-light rounded-3 border border-light-subtle h-100">
-              <span class="text-muted small text-uppercase fw-semibold d-block mb-1.5" style="letter-spacing: 0.5px;">
-                <i class="fa-solid fa-cake-candles me-1 text-muted"></i>Birth &amp; Gender
-              </span>
-              <div class="d-flex align-items-center gap-2 mb-1">
-                <span class="fw-bold text-dark fs-6">{{ app.date_of_birth|date:"d M Y" }}</span>
-                <span class="badge {% if app.gender == 'MALE' %}bg-primary-subtle text-primary border border-primary-subtle{% elif app.gender == 'FEMALE' %}bg-danger-subtle text-danger border border-danger-subtle{% else %}bg-secondary-subtle text-secondary border{% endif %} rounded-pill px-2.5 py-0.5">
-                  {% if app.gender == 'MALE' %}<i class="fa-solid fa-mars me-1"></i>{% elif app.gender == 'FEMALE' %}<i class="fa-solid fa-venus me-1"></i>{% endif %}{{ app.gender|title }}
-                </span>
-              </div>
-              <small class="text-muted">Verified Demographics</small>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 3. Contact Coordinates & Residential Address -->
-    <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden">
-      <div class="card-header bg-white border-bottom border-light-subtle py-3 px-4">
-        <div class="d-flex align-items-center gap-2">
-          <div class="icon-shape bg-success-subtle text-success rounded-3 p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
-            <i class="fa-solid fa-address-book"></i>
-          </div>
-          <h6 class="fw-bold mb-0 text-dark">Contact Information &amp; Address</h6>
-        </div>
-      </div>
-      <div class="card-body p-4">
-        <div class="row g-3">
-          <!-- Email Address -->
-          <div class="col-12 col-md-6">
-            <div class="p-3 bg-light rounded-3 border border-light-subtle h-100 d-flex align-items-start gap-3">
-              <div class="p-2.5 bg-white rounded-circle border shadow-sm text-primary flex-shrink-0" style="width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;">
-                <i class="fa-solid fa-envelope fs-5"></i>
-              </div>
-              <div class="overflow-hidden">
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1" style="letter-spacing: 0.5px;">Email Address</span>
-                <a href="mailto:{{ app.email }}" class="fw-bold text-dark text-decoration-none text-break fs-6 d-block mb-1 hover-primary">
-                  {{ app.email }}
-                </a>
-                <small class="text-muted"><i class="fa-solid fa-paper-plane me-1 text-secondary"></i>Official Portal Correspondence</small>
-              </div>
-            </div>
-          </div>
-          <!-- Phone Number -->
-          <div class="col-12 col-md-6">
-            <div class="p-3 bg-light rounded-3 border border-light-subtle h-100 d-flex align-items-start gap-3">
-              <div class="p-2.5 bg-white rounded-circle border shadow-sm text-success flex-shrink-0" style="width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;">
-                <i class="fa-solid fa-phone fs-5"></i>
-              </div>
-              <div>
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1" style="letter-spacing: 0.5px;">Mobile Contact</span>
-                <a href="tel:{{ app.phone }}" class="fw-bold text-dark text-decoration-none font-monospace fs-6 d-block mb-1">
-                  {{ app.phone }}
-                </a>
-                <small class="text-muted"><i class="fa-solid fa-comment-sms me-1 text-secondary"></i>SMS &amp; Telephony Channel</small>
-              </div>
-            </div>
-          </div>
-          <!-- Physical / Postal Address -->
-          <div class="col-12">
-            <div class="p-3 bg-light rounded-3 border border-light-subtle d-flex align-items-start gap-3">
-              <div class="p-2.5 bg-white rounded-circle border shadow-sm text-warning flex-shrink-0" style="width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;">
-                <i class="fa-solid fa-location-dot fs-5"></i>
-              </div>
-              <div class="flex-grow-1">
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1" style="letter-spacing: 0.5px;">Physical / Postal Address</span>
-                <div class="fw-semibold text-dark fs-6">{{ app.address|default:"No permanent physical address specified." }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 4. Secondary Education Credentials -->
-    <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden">
-      <div class="card-header bg-white border-bottom border-light-subtle py-3 px-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-2">
-          <div class="icon-shape bg-warning-subtle text-warning rounded-3 p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
-            <i class="fa-solid fa-award"></i>
-          </div>
-          <h6 class="fw-bold mb-0 text-dark">Secondary Education Credentials</h6>
-        </div>
-        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-3 py-1 fw-bold">
-          Mean Grade: {{ app.kcse_mean_grade }}
-        </span>
-      </div>
-      <div class="card-body p-4">
-        <div class="row g-3">
-          <div class="col-12 col-md-6">
-            <div class="p-3 bg-light rounded-3 border border-light-subtle h-100">
-              <span class="text-muted small text-uppercase fw-semibold d-block mb-1" style="letter-spacing: 0.5px;">
-                <i class="fa-solid fa-school me-1 text-muted"></i>Secondary School Attended
-              </span>
-              <div class="fw-bold text-dark fs-6">{{ app.secondary_school|default:"—" }}</div>
-            </div>
-          </div>
-          <div class="col-12 col-md-6">
-            <div class="p-3 bg-light rounded-3 border border-light-subtle h-100">
-              <span class="text-muted small text-uppercase fw-semibold d-block mb-1" style="letter-spacing: 0.5px;">
-                <i class="fa-solid fa-hashtag me-1 text-muted"></i>KCSE Index Number
-              </span>
-              <div class="fw-bold font-monospace text-dark fs-6">{{ app.kcse_index_number|default:"—" }}</div>
-            </div>
-          </div>
-          <div class="col-12 col-md-6">
-            <div class="p-3 bg-light rounded-3 border border-light-subtle h-100 d-flex align-items-center justify-content-between">
-              <div>
-                <span class="text-muted small text-uppercase fw-semibold d-block mb-1" style="letter-spacing: 0.5px;">KCSE Examination Grade</span>
-                <span class="small text-muted">Certified University Minimum Entry</span>
-              </div>
-              <div class="badge bg-success-subtle text-success border border-success-subtle rounded-circle p-0" style="width: 46px; height: 46px; display: flex; align-items: center; justify-content: center;">
-                <span class="fs-4 fw-bold">{{ app.kcse_mean_grade }}</span>
-              </div>
-            </div>
-          </div>
-          <div class="col-12 col-md-6">
-            <div class="p-3 bg-light rounded-3 border border-light-subtle h-100">
-              <span class="text-muted small text-uppercase fw-semibold d-block mb-1" style="letter-spacing: 0.5px;">
-                <i class="fa-solid fa-calendar me-1 text-muted"></i>Year of Examination
-              </span>
-              <div class="fw-bold text-dark fs-6">{{ app.kcse_year }}</div>
-              <small class="text-muted">National Examination Cycle</small>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 5. Fee Payment Details (if any) -->
-    {% if app.fee_payments.exists %}
-      <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden">
-        <div class="card-header bg-white border-bottom border-light-subtle py-3 px-4 d-flex justify-content-between align-items-center">
-          <div class="d-flex align-items-center gap-2">
-            <div class="icon-shape bg-success-subtle text-success rounded-3 p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
-              <i class="fa-solid fa-receipt"></i>
-            </div>
-            <h6 class="fw-bold mb-0 text-dark">Application Fee Payment Details</h6>
-          </div>
-          <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1 fw-semibold">
-            Verified
-          </span>
-        </div>
-        <div class="card-body p-4">
-          {% for pay in app.fee_payments.all %}
-            <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2 p-3 bg-light rounded-3 border border-light-subtle {% if not forloop.last %}mb-2{% endif %}">
-              <div>
-                <span class="badge bg-white text-dark border font-monospace me-1">{{ pay.method }}</span>
-                <span class="fw-bold font-monospace text-dark">{{ pay.reference }}</span>
-                <div class="small text-muted mt-1">Confirmed on {{ pay.confirmed_at|date:"d M Y, H:i"|default:pay.paid_at|date:"d M Y, H:i" }}</div>
-              </div>
-              <div class="text-sm-end">
-                <div class="fs-6 fw-bold text-success">KES {{ pay.amount|floatformat:2|intcomma }}</div>
-                <span class="badge bg-success rounded-pill" style="font-size:0.7rem;"><i class="fa-solid fa-check me-1"></i>Confirmed</span>
-              </div>
-            </div>
-          {% endfor %}
-        </div>
-      </div>
-    {% endif %}
-
   </div>
 
   <!-- Right: Decision & Action Controls -->
