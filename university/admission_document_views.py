@@ -391,35 +391,40 @@ def admin_templates_list(request):
 
 TEMPLATE_DEFAULTS = {
     "name": "Official Undergraduate Admission Offer",
-    "header_title": "OFFICE OF THE REGISTRAR (ACADEMIC AFFAIRS)",
-    "salutation_template": "Dear {{student_name}},",
-    "subject_template": "OFFER OF ADMISSION: {{programme_name}} ({{programme_code}})",
+    "header_title": "Office of the Deputy Vice-Chancellor<br/>(Academic Affairs)",
+    "salutation_template": "Dear {{title_name}}, Admission Number: {{registration_number}}",
+    "subject_template": "RE: ADMISSION INTO {{programme_name}} - {{academic_year}} ACADEMIC YEAR",
     "body_template": (
-        "Following consideration of your application by the University Admissions Board, I am pleased to offer you "
-        "admission to the <b>{{programme_name}}</b> ({{programme_code}}), offered through {{department_name}}, "
-        "{{faculty_name}}. Your place is reserved for the <b>{{intake}}</b> of the {{academic_year}} academic year "
-        "({{semester}}).\n\n"
-        "Please report for orientation, original-document verification, and Student Registration and Enrollment on "
-        "<b>{{reporting_date}}</b>. Bring this letter together with your original academic certificates and the "
-        "identification documents listed below. Your admission will be confirmed after the required checks are "
-        "completed.\n\n"
-        "We look forward to welcoming you to {{university_name}} and wish you every success in your studies."
+        "Following your application for admission to {{university_name}}, I wish to congratulate you on this achievement. "
+        "You have been admitted on the basis of your qualifications, which are subject to verification by the University. "
+        "When reporting, you will be required to present original and copies of the following:\n\n"
+        "1. KCSE Certificate or Result Slip\n"
+        "2. Birth Certificate\n"
+        "3. National Identity Card or Passport\n"
+        "4. Two coloured passport-size photographs\n"
+        "5. Proof of payment of tuition fees"
     ),
     "terms_and_conditions": (
-        "1. This offer is conditional upon verification of the original academic certificates, identification document, and birth certificate.\n"
-        "2. Student Registration and Enrollment is completed only after the University's admission and finance checks are satisfied.\n"
-        "3. You are bound by the University Charter, Statutes, Student Handbook, and all applicable academic and conduct regulations.\n"
-        "4. The University may withdraw this offer if information or documents supplied in support of the application are inaccurate, fraudulent, or materially incomplete."
+        "COMMENCEMENT DATE\n"
+        "The programme will commence on {{reporting_date}}. You are, therefore, expected to report and complete your registration on this date.\n\n"
+        "OTHER IMPORTANT INFORMATION\n"
+        "i. Admission to the University does not guarantee accommodation in the Halls of Residence. Students not allocated university accommodation will be required to make private arrangements.\n"
+        "ii. This admission offer is subject to your adherence to the University's Rules and Regulations.\n"
+        "iii. In case of any queries, please contact the Admissions Office at {{university_email}} or Tel: {{university_phone}}."
     ),
     "fee_schedule_instructions": (
-        "Before reporting, confirm the current fee schedule and approved payment instructions with the Finance Office.\n"
-        "Payment reference: {{application_number}}\n"
-        "Estimated first-semester tuition: {{tuition_fee}}\n"
-        "Estimated first-semester total: {{total_fees}}\n"
-        "Use only payment channels published by the University and retain the official receipt."
+        "TUITION FEES\n"
+        "You will pay {{tuition_fee}} as tuition fee in a Semester (Estimated total first-semester university charges: {{total_fees}}). "
+        "For more information, please contact the Finance Office at {{finance_email}} or Tel: {{university_phone}}.\n\n"
+        "FEE PAYMENT\n"
+        "You are required to follow the instructions below to pay the tuition fee:\n"
+        "1. While logged in to the students portal ({{portal_url}}), navigate to the \"STUDENT PAYMENT INSTRUCTIONS\" section at the bottom of the page.\n"
+        "2. Click on \"Fee Payment\" / \"M-Pesa Payment\" and follow the prompts.\n"
+        "   (M-Pesa Paybill: {{mpesa_paybill}}, Account: {{registration_number}} | Bank: {{bank_name}}, Account: {{bank_account}})\n"
+        "3. Ensure you obtain an official electronic receipt upon payment."
     ),
-    "signatory_name": "Dr. Margaret Omolo, PhD",
-    "signatory_title": "Registrar, Academic & Student Affairs",
+    "signatory_name": "DR. MARGARET OMOLO, PhD",
+    "signatory_title": "ACADEMIC REGISTRAR",
     "verification_base_url": "https://ums.ac.ke/verify-admission/",
 }
 
