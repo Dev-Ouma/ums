@@ -170,10 +170,33 @@ class ProfileUpdateTests(AccountTestBase):
             "details-date_of_birth": "2002-04-11",
             "details-address": "PO Box 42, Nairobi",
             "details-guardian_name": "A Guardian",
+            "details-guardian_relationship": "Parent",
+            "details-guardian_phone": "+254711222333",
+            "details-guardian_email": "parent@ums.test",
+            "details-guardian_address": "PO Box 7, Nairobi",
         })
         profile = StudentProfile.objects.get(pk=self.student.student_profile.pk)
         self.assertEqual(profile.address, "PO Box 42, Nairobi")
         self.assertEqual(profile.gender, "F")
+        self.assertEqual(profile.guardian_name, "A Guardian")
+        self.assertEqual(profile.guardian_relationship, "Parent")
+        self.assertEqual(profile.guardian_phone, "+254711222333")
+        self.assertEqual(profile.guardian_email, "parent@ums.test")
+        self.assertEqual(profile.guardian_address, "PO Box 7, Nairobi")
+
+    def test_student_profile_displays_parent_guardian_details(self):
+        profile = self.student.student_profile
+        profile.guardian_name = "A Guardian"
+        profile.guardian_relationship = "Sponsor"
+        profile.guardian_phone = "+254700123456"
+        profile.guardian_email = "guardian@ums.test"
+        profile.guardian_address = "Nairobi"
+        profile.save()
+        response = self.login(self.student).get(reverse("accounts:profile"))
+        self.assertContains(response, "A Guardian")
+        self.assertContains(response, "Sponsor")
+        self.assertContains(response, "+254700123456")
+        self.assertContains(response, "guardian@ums.test")
 
     def test_future_date_of_birth_is_rejected(self):
         client = self.login(self.student)

@@ -1,7 +1,10 @@
 import decimal
+import hashlib
+import hmac
 from decimal import Decimal
 import json
 import logging
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, HttpResponse, JsonResponse
@@ -18,10 +21,23 @@ from university.payment_services import (
     get_student_balance_summary,
     initiate_student_payment,
     process_payment_confirmation,
+    sanitize_payment_payload,
+    validate_provider_payload,
 )
+from university.payment_providers.registry import get_payment_adapter
 from university.financial_services import generate_fee_receipt_pdf
 
 logger = logging.getLogger(__name__)
+
+
+def _webhook_signature_valid(request):
+    """Require HMAC-SHA256 signatures for production provider callbacks."""
+    secret = getattr(settings, "PAYMENT_WEBHOOK_SECRET", "")
+    if not getattr(settings, "PAYMENT_WEBHOOK_REQUIRE_SIGNATURE", not settings.DEBUG):
+        return True
+    signature = request.headers.get("X-UMS-Webhook-Signature", "")
+    expected = hmac.new(secret.encode(), request.body, hashlib.sha256).hexdigest() if secret else ""
+    return bool(secret and signature and hmac.compare_digest(signature, expected))
 
 
 def _student_required(view_func):
@@ -103,6 +119,17 @@ def student_initiate_payment(request):
         return redirect("university:student_pay_fees")
 
 
+def _can_view_student_payment(user, owner_user_id):
+    """
+    A student may only view their own payment/receipt records; every other
+    role must be an authorized administrator -- there is no legitimate case
+    for e.g. Faculty to view another user's financial records.
+    """
+    if user.is_student:
+        return owner_user_id == user.id
+    return user.is_superuser or user.is_admin_role
+
+
 @login_required
 def student_payment_status(request, reference):
     """
@@ -114,8 +141,7 @@ def student_payment_status(request, reference):
         internal_reference=reference,
     )
 
-    # Security: Ensure student only views their own payment
-    if request.user.is_student and payment.student.user_id != request.user.id:
+    if not _can_view_student_payment(request.user, payment.student.user_id):
         raise Http404("Payment not found.")
 
     from university.payment_providers.registry import get_payment_adapter
@@ -137,7 +163,7 @@ def student_payment_poll(request, reference):
     AJAX endpoint for polling status during STK push or hosted checkout.
     """
     payment = get_object_or_404(Payment, internal_reference=reference)
-    if request.user.is_student and payment.student.user_id != request.user.id:
+    if not _can_view_student_payment(request.user, payment.student.user_id):
         return JsonResponse({"error": "unauthorized"}, status=403)
 
     receipt = FeeReceipt.objects.filter(payment=payment).first()
@@ -162,7 +188,7 @@ def student_receipt_view(request, receipt_no):
         receipt_number=receipt_no,
     )
 
-    if request.user.is_student and receipt.student.user_id != request.user.id:
+    if not _can_view_student_payment(request.user, receipt.student.user_id):
         raise Http404("Receipt not found.")
 
     return render(request, "dashboard/student_fee_receipt.html", {
@@ -182,7 +208,7 @@ def student_receipt_pdf(request, receipt_no):
         receipt_number=receipt_no,
     )
 
-    if request.user.is_student and receipt.student.user_id != request.user.id:
+    if not _can_view_student_payment(request.user, receipt.student.user_id):
         raise Http404("Receipt not found.")
 
     pdf_buffer = generate_fee_receipt_pdf(receipt.payment)
@@ -230,6 +256,9 @@ def mpesa_callback(request):
     from university.models import AcademicYear, AcademicTerm, FeeReceipt, PaymentReconciliation, FeeAccountLog
 
     logger.info("M-Pesa Webhook received")
+    if not _webhook_signature_valid(request):
+        logger.warning("Rejected unsigned or invalid M-Pesa webhook")
+        return JsonResponse({"ResultCode": 1, "ResultDesc": "Invalid signature"}, status=403)
     try:
         body_text = request.body.decode("utf-8")
         payload = json.loads(body_text) if body_text else {}
@@ -247,6 +276,8 @@ def mpesa_callback(request):
             account_type=FeeAccount.AccountType.MPESA_PAYBILL,
             status=FeeAccount.Status.ACTIVE,
         ).first() or FeeAccount.objects.filter(account_type=FeeAccount.AccountType.MPESA_PAYBILL).first()
+    if not fee_account:
+        return JsonResponse({"ResultCode": 1, "ResultDesc": "Unknown payment account"}, status=400)
 
     from university.payment_providers.mpesa import MpesaProviderAdapter
     adapter = MpesaProviderAdapter(fee_account)
@@ -268,16 +299,22 @@ def mpesa_callback(request):
             internal_reference=result.transaction_reference,
             status__in=[Payment.Status.INITIATED, Payment.Status.PENDING, Payment.Status.PROCESSING],
         ).first()
-
-    # If it was an STK Push without explicit internal_reference in top-level payload
-    if not payment and "stkCallback" in payload.get("Body", {}):
-        payment = Payment.objects.filter(
-            status__in=[Payment.Status.INITIATED, Payment.Status.PENDING, Payment.Status.PROCESSING],
-            fee_account__account_type__in=[FeeAccount.AccountType.MPESA_PAYBILL, FeeAccount.AccountType.MPESA_TILL],
-        ).order_by("-created_at").first()
+        if not payment:
+            payment = Payment.objects.filter(
+                provider_reference=result.transaction_reference,
+                status__in=[Payment.Status.INITIATED, Payment.Status.PENDING, Payment.Status.PROCESSING],
+            ).first()
 
     # If web payment record found: confirm it!
     if payment:
+        if not result.success:
+            payment.status = Payment.Status.CANCELLED
+            payment.save(update_fields=["status"])
+            return JsonResponse({"ResultCode": 0, "ResultDesc": "Payment failed or cancelled"})
+        valid, reason = validate_provider_payload(payment, payload, result.provider_reference)
+        if not valid:
+            logger.warning("Rejected M-Pesa callback for %s: %s", payment.internal_reference, reason)
+            return JsonResponse({"ResultCode": 1, "ResultDesc": "Payment verification failed"}, status=400)
         process_payment_confirmation(
             payment=payment,
             provider_reference=result.provider_reference,
@@ -361,7 +398,7 @@ def mpesa_callback(request):
             fee_account=fee_account,
             event_type=FeeAccountLog.EventType.CALLBACK_RECEIVED,
             message=f"Unmatched C2B payment {trans_id} for {fee_account.currency} {amount:,.2f} received (BillRef: '{bill_ref}'). Flagged for reconciliation.",
-            payload_preview=payload,
+            payload_preview=sanitize_payment_payload(payload),
         )
         logger.warning(f"Unmatched C2B payment {trans_id} logged to PaymentReconciliation cockpit.")
 
@@ -374,6 +411,9 @@ def card_callback(request):
     """
     Server-side webhook for Card Gateway payment confirmation.
     """
+    if not _webhook_signature_valid(request):
+        logger.warning("Rejected unsigned or invalid card webhook")
+        return JsonResponse({"status": "invalid_signature"}, status=403)
     try:
         payload = json.loads(request.body.decode("utf-8")) if request.body else {}
     except Exception:
@@ -384,6 +424,14 @@ def card_callback(request):
 
     payment = Payment.objects.filter(internal_reference=tx_ref).first()
     if payment:
+        result = get_payment_adapter(payment.fee_account).process_callback(request)
+        if not result.success:
+            payment.status = Payment.Status.CANCELLED
+            payment.save(update_fields=["status"])
+            return JsonResponse({"status": "cancelled"})
+        valid, _reason = validate_provider_payload(payment, payload, provider_ref)
+        if not valid:
+            return JsonResponse({"status": "verification_failed"}, status=400)
         process_payment_confirmation(
             payment=payment,
             provider_reference=provider_ref or f"CARD-{timezone.now().strftime('%H%M%S')}",
@@ -401,6 +449,9 @@ def bank_callback(request):
     """
     Server-side webhook for Direct Bank Integration feeds.
     """
+    if not _webhook_signature_valid(request):
+        logger.warning("Rejected unsigned or invalid bank webhook")
+        return JsonResponse({"status": "invalid_signature"}, status=403)
     try:
         payload = json.loads(request.body.decode("utf-8")) if request.body else {}
     except Exception:
@@ -411,6 +462,14 @@ def bank_callback(request):
 
     payment = Payment.objects.filter(internal_reference=tx_ref).first()
     if payment:
+        result = get_payment_adapter(payment.fee_account).process_callback(request)
+        if not result.success:
+            payment.status = Payment.Status.CANCELLED
+            payment.save(update_fields=["status"])
+            return JsonResponse({"status": "cancelled"})
+        valid, _reason = validate_provider_payload(payment, payload, bank_ref)
+        if not valid:
+            return JsonResponse({"status": "verification_failed"}, status=400)
         process_payment_confirmation(
             payment=payment,
             provider_reference=bank_ref or f"BNK-{timezone.now().strftime('%H%M%S')}",

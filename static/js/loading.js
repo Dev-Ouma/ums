@@ -271,15 +271,7 @@ const LoadingService = {
   _bindBfcacheRecovery() {
     window.addEventListener('pageshow', (event) => {
       if (event.persisted) {
-        this.hideAll();
-        this._navLoaderActive = false;
-        document.querySelectorAll('.ums-btn-loading').forEach((btn) => {
-          btn.classList.remove('ums-btn-loading');
-          btn.removeAttribute('aria-busy');
-          btn.disabled = false;
-          const spin = btn.querySelector('.ums-spin');
-          if (spin) spin.remove();
-        });
+        window.location.reload();
       }
     });
   },

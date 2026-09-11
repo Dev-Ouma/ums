@@ -16,11 +16,7 @@ SESSION_KEY = "_last_seen_written"
 
 
 def client_ip(request):
-    """Best-effort client IP, honouring a proxy header when one is present."""
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    if forwarded:
-        # Left-most entry is the original client.
-        return forwarded.split(",")[0].strip()
+    """Return the observed peer address, not an untrusted proxy header."""
     return request.META.get("REMOTE_ADDR") or None
 
 

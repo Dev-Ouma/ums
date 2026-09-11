@@ -97,7 +97,7 @@
                       <p class="mb-3 text-muted small">
                         Please download your official Letter of Offer below and present it on orientation day ({{ application.reporting_date|default:'Monday, 14 September 2026' }}).
                       </p>
-                      <a href="{% url 'university:download_admission_letter' application.pk %}" class="btn btn-success rounded-pill px-4 py-2 fw-semibold">
+                      <a href="{% url 'university:download_admission_letter' application.pk %}?access={{ application_access_token }}" class="btn btn-success rounded-pill px-4 py-2 fw-semibold">
                         <i class="fa-solid fa-file-arrow-down me-1"></i> Download Official Admission Letter (PDF)
                       </a>
                     </div>
@@ -110,7 +110,7 @@
                   <p class="text-muted small mb-3">
                     Your application will not be queued for review until the non-refundable application fee is paid.
                   </p>
-                  <a href="{% url 'university:pay_application_fee' application.pk %}" class="btn btn-warning rounded-pill px-4 py-2 fw-semibold">
+                  <a href="{% url 'university:pay_application_fee' application.pk %}?access={{ application_access_token }}" class="btn btn-warning rounded-pill px-4 py-2 fw-semibold">
                     <i class="fa-solid fa-credit-card me-1"></i> Pay Application Fee Now
                   </a>
                 </div>
@@ -137,7 +137,7 @@
           <div class="card border-0 shadow-sm rounded-4 p-5 text-center">
             <i class="fa-solid fa-circle-question fa-3x text-muted mb-3 opacity-50"></i>
             <h5 class="fw-bold text-dark">No Application Found</h5>
-            <p class="text-muted small mb-3">We could not locate an application matching your reference number or ID. Please verify your details or submit a new application.</p>
+            <p class="text-muted small mb-3">We could not locate an application matching both your reference number and ID. Please verify your details or submit a new application.</p>
             <a href="{% url 'university:admissions_apply' %}" class="btn btn-primary rounded-pill px-4 py-2 mx-auto">
               Submit New Application
             </a>

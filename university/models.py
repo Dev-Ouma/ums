@@ -355,7 +355,8 @@ class Course(models.Model):
     program = models.ForeignKey(Program, on_delete=models.SET_NULL, null=True, blank=True,
                                 related_name="courses")
     faculty = models.ForeignKey("accounts.FacultyProfile", on_delete=models.SET_NULL,
-                                null=True, blank=True, related_name="courses")
+                                null=True, blank=True, related_name="courses",
+                                verbose_name="Teaching Staff")
     credits = models.PositiveSmallIntegerField(default=4)
     semester_no = models.PositiveSmallIntegerField(default=1)
     description = models.TextField(blank=True, default="")
@@ -1095,7 +1096,7 @@ class Event(models.Model):
 
 class Notice(models.Model):
     AUDIENCE = [("ALL", "Everyone"), ("STUDENT", "Students"),
-                ("FACULTY", "Faculty"), ("ADMIN", "Admins")]
+                ("FACULTY", "Teaching Staff"), ("ADMIN", "Admins")]
     message_type = models.CharField(max_length=20, default="INFORMATION", choices=[(v, v.replace('_',' ').title()) for v in ['INFORMATION','ANNOUNCEMENT','WARNING','MAINTENANCE','EMERGENCY','SUCCESS','IMPORTANT_NOTICE']])
     priority = models.CharField(max_length=10, default="NORMAL", choices=[(v,v.title()) for v in ['LOW','NORMAL','HIGH','CRITICAL']])
     status = models.CharField(max_length=12, default="PUBLISHED", db_index=True, choices=[(v,v.title()) for v in ['DRAFT','SCHEDULED','PUBLISHED','PAUSED','EXPIRED','ARCHIVED','DELETED']])
@@ -1369,7 +1370,7 @@ class StudentRequest(models.Model):
 class RecycleBinItem(models.Model):
     class Module(models.TextChoices):
         STUDENTS = "Students", "Students"
-        FACULTY = "Faculty", "Faculty"
+        FACULTY = "Faculty", "Teaching Staff"
         COURSES = "Courses", "Courses"
         PROGRAMMES = "Programmes", "Programmes"
         SCHOOLS = "Schools", "Schools & Faculties"
@@ -1448,7 +1449,7 @@ class AuditLog(models.Model):
 
     class Module(models.TextChoices):
         STUDENTS = "Students", "Students"
-        FACULTY = "Faculty", "Faculty"
+        FACULTY = "Faculty", "Teaching Staff"
         COURSES = "Courses", "Courses"
         PROGRAMMES = "Programmes", "Programmes"
         DEPARTMENTS = "Departments", "Departments"

@@ -181,6 +181,32 @@ class StudentProvisioningTests(IdentityTestBase):
         _student, user, _ = matriculate_applicant(app, created_by=self.admin)
         self.assertTrue(InstitutionalEmail.objects.filter(user=user, is_primary=True).exists())
 
+    def test_activation_completes_the_pending_identity_chain(self):
+        from django.contrib.auth import authenticate
+        from university.identity_services import consume_reset_token, create_user_account
+
+        created = create_user_account(
+            user_type=UserType.STUDENT,
+            first_name="Pending", last_name="Student",
+            email="pending.activation@example.com", username="pending.activation",
+            password_mode="LINK", actor=self.admin, notify=False, generate_email=False,
+        )
+        user = created["user"]
+        token = created["activation_url"].rstrip("/").split("/")[-1]
+
+        self.assertFalse(user.is_active)
+        self.assertEqual(user.account.status, AccountStatus.PENDING)
+        self.assertIsNone(authenticate(username=user.username, password="Activated!Pass2026"))
+
+        ok, _message, activated = consume_reset_token(token, "Activated!Pass2026")
+
+        self.assertTrue(ok)
+        self.assertEqual(activated.pk, user.pk)
+        user.refresh_from_db()
+        self.assertTrue(user.is_active)
+        self.assertEqual(user.account.status, AccountStatus.ACTIVE)
+        self.assertIsNotNone(authenticate(username=user.username, password="Activated!Pass2026"))
+
 
 # ==============================================================================
 # 3. PASSWORD GENERATION & POLICY

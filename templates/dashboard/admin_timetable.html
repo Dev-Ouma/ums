@@ -72,7 +72,7 @@
       </select>
     </div>
     <div class="col-6 col-md-2">
-      <label class="form-label small fw-semibold mb-1">Faculty</label>
+      <label class="form-label small fw-semibold mb-1">Teaching Staff</label>
       <select name="faculty" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
         <option value="">All</option>
         {% for f in faculty_list %}<option value="{{ f.id }}" {% if filters.faculty == f.id|stringformat:"s" %}selected{% endif %}>{{ f.user.display_name }}</option>{% endfor %}

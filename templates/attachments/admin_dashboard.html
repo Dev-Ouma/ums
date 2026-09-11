@@ -161,7 +161,7 @@
                     </form>
                   {% endif %}
 
-                  <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#assignModal{{ p.id }}" title="Assign Faculty Supervisor">
+                  <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#assignModal{{ p.id }}" title="Assign Teaching Staff Supervisor">
                     <i class="fa-solid fa-user-plus me-1"></i> Supervisor
                   </button>
 
@@ -187,14 +187,14 @@
                       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body p-4">
-                      <p class="small text-muted">Select a faculty member from the department to supervise and assess <b>{{ p.student.user.get_full_name }}</b> at <b>{{ p.company_name }}</b>.</p>
+                      <p class="small text-muted">Select a teaching staff member from the department to supervise and assess <b>{{ p.student.user.get_full_name }}</b> at <b>{{ p.company_name }}</b>.</p>
                       <div class="mb-3">
-                        <label class="form-label small fw-semibold">Faculty Supervisor</label>
+                        <label class="form-label small fw-semibold">Teaching Staff Supervisor</label>
                         <select name="faculty_id" class="form-select" required>
-                          <option value="">Select Faculty Member...</option>
+                          <option value="">Select Teaching Staff Member...</option>
                           {% for fac in faculty_list %}
                             <option value="{{ fac.id }}" {% if p.academic_supervisor_id == fac.id %}selected{% endif %}>
-                              {{ fac.user.get_full_name }} &bull; {{ fac.department.name|default:"Faculty" }}
+                              {{ fac.user.get_full_name }} &bull; {{ fac.department.name|default:"Teaching Staff" }}
                             </option>
                           {% endfor %}
                         </select>

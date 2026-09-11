@@ -23,7 +23,7 @@
         <span class="badge rounded-pill" style="background:{{ course.department.color }}">{{ course.department.name }}</span>
         <p class="small text-muted mt-2">{{ course.description }}</p>
         <div class="small"><i class="fa-solid fa-chalkboard-user me-2 text-primary"></i>
-          {% if course.faculty %}{{ course.faculty.user.display_name }}{% else %}Faculty TBA{% endif %}</div>
+          {% if course.faculty %}{{ course.faculty.user.display_name }}{% else %}Teaching Staff TBA{% endif %}</div>
       </div>
     </div>
     {% if is_admin or user.is_superuser %}

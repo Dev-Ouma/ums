@@ -259,6 +259,28 @@ const UmsToast = {
 // Global shorthand
 window.umsToast = (msg, type, title, duration) => UmsToast.show(msg, type, title, duration);
 
+// One public feedback facade for modules that need client-side feedback. It
+// keeps presentation consistent while preserving the existing toast and
+// loading implementations used throughout the application.
+const UMSFeedbackService = {
+  showInfo(message, title = 'Information') { return UmsToast.show(message, 'info', title); },
+  showSuccess(message, title = 'Success') { return UmsToast.show(message, 'success', title); },
+  showWarning(message, title = 'Warning') { return UmsToast.show(message, 'warning', title); },
+  showError(message, title = 'Error') { return UmsToast.show(message, 'danger', title); },
+  showFailure(message, title = 'Operation failed') { return UmsToast.show(message, 'danger', title, 0); },
+  showCritical(message, title = 'Critical') { return UmsToast.show(message, 'critical', title, 0); },
+  showProcessing(message = 'Processing…') {
+    if (window.LoadingService) window.LoadingService.show(message);
+  },
+  hideProcessing() {
+    if (window.LoadingService) window.LoadingService.hide();
+  },
+  confirmAction(message, title = 'Confirm action') {
+    return window.confirm(`${title}\n\n${message}`);
+  },
+};
+window.UMSFeedbackService = UMSFeedbackService;
+
 // ---------- 2. INTERACTIVE CHARTS HELPER ----------
 const UmsCharts = {
   exportPng(canvasOrId, filename = 'chart.png') {

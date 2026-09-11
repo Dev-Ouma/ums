@@ -70,6 +70,7 @@ def admin_reports_dashboard(request):
         "academic_performance": "Senate & Deans",
         "grade_distribution": "Exam Board & Senate",
         "examination_results_summary": "Exam Board",
+        "pass_fail_analysis": "Exam Board & Academic Affairs",
         "cat_vs_exam_analysis": "Exam Board & HODs",
         "missing_marks_audit": "Exam Board & HODs",
         "registration_summary": "Registrar & Deans",

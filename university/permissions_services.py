@@ -427,6 +427,8 @@ def set_user_permission_override(user, permission_code, override_type, reason=""
             "granted_by": granted_by,
         }
     )
+    from university.identity_services import invalidate_user_sessions
+    invalidate_user_sessions(user)
 
     action_label = "GRANTED" if override_type == UserPermissionOverride.OverrideType.GRANT else "DENIED"
     log_activity(
@@ -448,6 +450,8 @@ def remove_user_permission_override(user, permission_code, actor=None, request=N
     perm = SystemPermission.objects.get(code=permission_code)
     deleted, _ = UserPermissionOverride.objects.filter(user=user, permission=perm).delete()
     if deleted:
+        from university.identity_services import invalidate_user_sessions
+        invalidate_user_sessions(user)
         log_activity(
             request=request,
             user=actor or user,
@@ -480,6 +484,8 @@ def assign_staff_role(user, role_id_or_code, department_id=None, actor=None, req
             "is_active": True,
         }
     )
+    from university.identity_services import invalidate_user_sessions
+    invalidate_user_sessions(user)
 
     dept_str = f" in {dept.code}" if dept else ""
     log_activity(
@@ -562,7 +568,7 @@ DEFAULT_USER_GROUPS = [
     {"code": "students", "name": "Students", "user_type": "STUDENT", "precedence": 90,
      "icon": "fa-solid fa-user-graduate", "color": "#0984e3", "roles": [],
      "description": "All enrolled students."},
-    {"code": "faculty", "name": "Faculty", "user_type": "STAFF", "precedence": 60,
+    {"code": "faculty", "name": "Teaching Staff", "user_type": "STAFF", "precedence": 60,
      "icon": "fa-solid fa-chalkboard-user", "color": "#00cec9", "roles": ["lecturer"],
      "description": "Teaching staff delivering course units."},
     {"code": "finance_staff", "name": "Finance Staff", "user_type": "STAFF", "precedence": 50,

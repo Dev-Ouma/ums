@@ -12,6 +12,7 @@ from django.db.models import Count, Q, Sum
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_safe
 
@@ -27,6 +28,7 @@ from university.models import (
     PaymentReconciliation,
     PaymentReversal,
 )
+from university.upload_security import validate_uploaded_file
 from university.audit_services import log_activity
 from university.payment_services import (
     process_payment_confirmation,
@@ -87,6 +89,15 @@ def fee_accounts_dashboard(request):
 
 @login_required
 @_finance_admin_required
+def payment_go_live_certification(request):
+    from university.payment_certification_services import build_payment_certification
+    return render(request, "finance/payment_go_live_certification.html", {
+        "certification": build_payment_certification(),
+    })
+
+
+@login_required
+@_finance_admin_required
 def fee_account_create(request):
     """
     Create a new institutional Fee Account (M-Pesa Paybill, Till, Card Gateway, or Bank Account).
@@ -110,8 +121,8 @@ def fee_account_create(request):
             config["account_ref_format"] = request.POST.get("account_ref_format", "STUDENT_REG_NO").strip()
             config["fixed_account_number"] = request.POST.get("fixed_account_number", "").strip()
             config["account_ref_prefix"] = request.POST.get("account_ref_prefix", "").strip()
-            config["consumer_key"] = request.POST.get("consumer_key", "").strip()
-            config["passkey"] = request.POST.get("passkey", "").strip()
+            if request.POST.get("consumer_key", "").strip() or request.POST.get("passkey", "").strip():
+                config["credentials_configured"] = True
         elif account_type == FeeAccount.AccountType.CARD_GATEWAY:
             config["callback_url"] = request.POST.get("callback_url", "/api/payments/callback/card/").strip()
             config["merchant_name"] = request.POST.get("merchant_name", "").strip()
@@ -120,7 +131,8 @@ def fee_account_create(request):
             config["bank_code"] = request.POST.get("bank_code", "").strip()
             config["swift_code"] = request.POST.get("swift_code", "").strip()
 
-        # Encrypted credentials (masked, never shown in logs)
+        # Provider credentials are managed by the deployment secret manager;
+        # only a non-sensitive configured marker is persisted in UMS.
         secret_raw = request.POST.get("secret_key", "").strip()
 
         if not name or not identifier:
@@ -147,7 +159,7 @@ def fee_account_create(request):
             is_default=is_default,
             status=FeeAccount.Status.ACTIVE,
             configuration=config,
-            encrypted_credentials=secret_raw,
+            encrypted_credentials="__MANAGED_EXTERNALLY__" if secret_raw else "",
             created_by=request.user,
         )
 
@@ -204,12 +216,9 @@ def fee_account_edit(request, pk):
             config["account_ref_format"] = request.POST.get("account_ref_format", "STUDENT_REG_NO").strip()
             config["fixed_account_number"] = request.POST.get("fixed_account_number", "").strip()
             config["account_ref_prefix"] = request.POST.get("account_ref_prefix", "").strip()
-            consumer_key = request.POST.get("consumer_key", "").strip()
-            if consumer_key and not consumer_key.startswith("••••"):
-                config["consumer_key"] = consumer_key
-            passkey = request.POST.get("passkey", "").strip()
-            if passkey and not passkey.startswith("••••"):
-                config["passkey"] = passkey
+            if (request.POST.get("consumer_key", "").strip()
+                    or request.POST.get("passkey", "").strip()):
+                config["credentials_configured"] = True
         elif account.account_type == FeeAccount.AccountType.CARD_GATEWAY:
             config["callback_url"] = request.POST.get("callback_url", config.get("callback_url", "")).strip()
         elif account.account_type == FeeAccount.AccountType.BANK_ACCOUNT:
@@ -221,7 +230,7 @@ def fee_account_edit(request, pk):
         # Only update secret if user typed a new one
         new_secret = request.POST.get("secret_key", "").strip()
         if new_secret and not new_secret.startswith("••••"):
-            account.encrypted_credentials = new_secret
+            account.encrypted_credentials = "__MANAGED_EXTERNALLY__"
 
         account.updated_by = request.user
         account.save()
@@ -558,6 +567,17 @@ def fee_reconciliation_import(request):
 
     if not account_id or not uploaded_file:
         messages.error(request, "Please select a Fee Account and choose a valid statement file (CSV or Excel).")
+        return redirect("university:fee_reconciliation_dashboard")
+
+    try:
+        validate_uploaded_file(
+            uploaded_file,
+            extensions={".csv", ".xlsx", ".xls"},
+            mime_types={"text/csv", "application/csv", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+            max_bytes=25 * 1024 * 1024,
+        )
+    except ValidationError as error:
+        messages.error(request, str(error.message if hasattr(error, "message") else error))
         return redirect("university:fee_reconciliation_dashboard")
 
     fee_account = get_object_or_404(FeeAccount, pk=account_id)

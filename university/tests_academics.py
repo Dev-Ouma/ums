@@ -9,7 +9,7 @@ from django.urls import reverse
 
 from accounts.models import Role, StudentProfile
 from university.models import (
-    AcademicTerm, Course, Department, Enrollment, Program, SemesterRegistration
+    AcademicTerm, AcademicYear, Course, Department, Enrollment, Program, SemesterRegistration
 )
 
 User = get_user_model()
@@ -20,10 +20,22 @@ class AcademicsModuleTests(TestCase):
     def setUpTestData(cls):
         cls.dept = Department.objects.create(name="School of Computing", code="SOC", color="#6C5CE7")
         cls.program = Program.objects.create(name="BSc Computer Science", department=cls.dept, level="UG")
+        cls.academic_year = AcademicYear.objects.create(
+            name="2026/2027",
+            start_date=date.today() - timedelta(days=30),
+            end_date=date.today() + timedelta(days=330),
+            status=AcademicYear.Status.PUBLISHED,
+            is_current=True,
+        )
         cls.term = AcademicTerm.objects.create(
+            academic_year=cls.academic_year,
             name="2026/2027 Academic Year",
+            semester_number=1,
             start_date=date.today() - timedelta(days=10),
             end_date=date.today() + timedelta(days=60),
+            registration_start_date=date.today() - timedelta(days=10),
+            registration_end_date=date.today() + timedelta(days=30),
+            status=AcademicYear.Status.CURRENT,
             is_current=True
         )
 
@@ -69,9 +81,13 @@ class AcademicsModuleTests(TestCase):
             password="password123", role=Role.ADMIN, first_name="Academic", last_name="Registrar"
         )
 
+    def complete_semester_registration(self):
+        self.client.force_login(self.student_user)
+        self.client.post(reverse("university:student_semester_registration"))
+
     def test_student_register_units_view_and_add_unit(self):
         """Student can view the registration page and add an available course unit."""
-        self.client.force_login(self.student_user)
+        self.complete_semester_registration()
         url = reverse("university:student_register_units")
         res = self.client.get(url)
         self.assertEqual(res.status_code, 200)
@@ -84,13 +100,13 @@ class AcademicsModuleTests(TestCase):
 
         # Verify registration and enrollment created
         reg = SemesterRegistration.objects.get(student=self.student, term=self.term)
-        self.assertEqual(reg.status, SemesterRegistration.DRAFT)
+        self.assertEqual(reg.status, SemesterRegistration.REGISTERED)
         self.assertEqual(reg.total_credits, 4)
         self.assertTrue(Enrollment.objects.filter(student=self.student, course=self.course1, status=Enrollment.DRAFT).exists())
 
     def test_student_cannot_add_duplicate_or_exceed_credits(self):
         """Student cannot add duplicate units and cannot exceed 24 total credits."""
-        self.client.force_login(self.student_user)
+        self.complete_semester_registration()
         url = reverse("university:student_register_units")
 
         # Add course 1
@@ -115,7 +131,7 @@ class AcademicsModuleTests(TestCase):
 
     def test_student_drop_unit(self):
         """Student can drop a previously added course unit while in draft."""
-        self.client.force_login(self.student_user)
+        self.complete_semester_registration()
         url = reverse("university:student_register_units")
         self.client.post(url, {"action": "add_unit", "course_id": self.course1.pk})
 
@@ -130,7 +146,7 @@ class AcademicsModuleTests(TestCase):
 
     def test_student_submit_registration(self):
         """Student can submit draft registration for formal administrative review."""
-        self.client.force_login(self.student_user)
+        self.complete_semester_registration()
         url = reverse("university:student_register_units")
         self.client.post(url, {"action": "add_unit", "course_id": self.course1.pk})
         self.client.post(url, {"action": "add_unit", "course_id": self.course2.pk})

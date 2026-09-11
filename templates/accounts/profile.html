@@ -31,6 +31,9 @@
         {% if user.is_student %}
           <div class="col-sm-6"><small class="text-muted">Roll No</small><div class="fw-semibold">{{ user.student_profile.roll_no }}</div></div>
           <div class="col-sm-6"><small class="text-muted">Program</small><div class="fw-semibold">{{ user.student_profile.program }}</div></div>
+          <div class="col-12 border-top pt-3 mt-2"><small class="text-muted">Parent / Guardian</small><div class="fw-semibold">{{ user.student_profile.guardian_name|default:"—" }}{% if user.student_profile.guardian_relationship %} · {{ user.student_profile.guardian_relationship }}{% endif %}</div></div>
+          <div class="col-sm-6"><small class="text-muted">Guardian phone</small><div class="fw-semibold">{{ user.student_profile.guardian_phone|default:"—" }}</div></div>
+          <div class="col-sm-6"><small class="text-muted">Guardian email</small><div class="fw-semibold">{{ user.student_profile.guardian_email|default:"—" }}</div></div>
         {% elif user.is_faculty %}
           <div class="col-sm-6"><small class="text-muted">Employee ID</small><div class="fw-semibold">{{ user.faculty_profile.employee_id }}</div></div>
           <div class="col-sm-6"><small class="text-muted">Department</small><div class="fw-semibold">{{ user.faculty_profile.department }}</div></div>
@@ -93,6 +96,13 @@
           </tbody>
         </table>
       </div>
+    </div>
+
+    <div class="card card-ums p-4 mt-4">
+      <h6 class="fw-bold mb-2"><i class="fa-solid fa-file-export me-2 text-primary"></i>Your data</h6>
+      <p class="text-muted small mb-3">Download a copy of your account and identity data. Credentials, session keys and security tokens are never included.</p>
+      <a class="btn btn-outline-primary btn-sm rounded-pill align-self-start" href="{% url 'accounts:personal_data_export' %}">
+        <i class="fa-solid fa-download me-1"></i>Download personal data</a>
     </div>
   </div>
 </div>

@@ -33,7 +33,7 @@
       <a href="{% url 'accounts:login' %}" class="text-decoration-none">
       <div class="portal-card">
         <div class="pc-head"><span class="pc-icon"><i class="fa-solid fa-chalkboard-user"></i></span>
-          <h5>Faculty Portal</h5></div>
+          <h5>Teaching Staff Portal</h5></div>
         <p>Take day-wise attendance, publish and grade assignments, and monitor class performance at a glance.</p>
         <span class="pc-chevron"><i class="fa-solid fa-chevron-down"></i></span>
       </div></a>
@@ -43,7 +43,7 @@
       <div class="portal-card">
         <div class="pc-head"><span class="pc-icon"><i class="fa-solid fa-user-shield"></i></span>
           <h5>Administration</h5></div>
-        <p>Full control over students, faculty, courses, departments and fees with live campus-wide analytics.</p>
+        <p>Full control over students, teaching staff, courses, departments and fees with live campus-wide analytics.</p>
         <span class="pc-chevron"><i class="fa-solid fa-chevron-down"></i></span>
       </div></a>
     </div>
@@ -58,7 +58,7 @@
       <div class="lbl">Students</div><div class="val">{{ s.students|intcomma }}+</div>
       <i class="fa-solid fa-users ghost"></i></div></div>
     <div class="col-6 col-lg-3"><div class="card stat-tile" style="background:linear-gradient(135deg,#20c997,#12b886)">
-      <div class="lbl">Faculty</div><div class="val">{{ s.faculty|intcomma }}+</div>
+      <div class="lbl">Teaching Staff</div><div class="val">{{ s.faculty|intcomma }}+</div>
       <i class="fa-solid fa-chalkboard-user ghost"></i></div></div>
     <div class="col-6 col-lg-3"><div class="card stat-tile" style="background:linear-gradient(135deg,#f368a6,#e6488a)">
       <div class="lbl">Courses</div><div class="val">{{ s.courses|intcomma }}+</div>
@@ -83,7 +83,7 @@
       <div class="card feature-card card-ums h-100 p-4">
         <span class="icon-circle mb-3" style="background:linear-gradient(135deg,#6C5CE7,#8f7bff)"><i class="fa-solid fa-user-shield"></i></span>
         <h5 class="fw-bold">Administrator</h5>
-        <p class="text-muted small">Manage students, faculty, departments, courses and fees. Live analytics,
+        <p class="text-muted small">Manage students, teaching staff, departments, courses and fees. Live analytics,
           fee collection charts and at-risk detection at a glance.</p>
         <ul class="small text-muted"><li>Enrollment & department analytics</li><li>Fee collection tracking</li><li>Campus-wide notices</li></ul>
       </div>
@@ -91,7 +91,7 @@
     <div class="col-md-4">
       <div class="card feature-card card-ums h-100 p-4">
         <span class="icon-circle mb-3" style="background:linear-gradient(135deg,#009688,#26c6a6)"><i class="fa-solid fa-chalkboard-user"></i></span>
-        <h5 class="fw-bold">Faculty</h5>
+        <h5 class="fw-bold">Teaching Staff</h5>
         <p class="text-muted small">Take attendance, publish assignments, grade submissions and monitor class
           performance with grade-distribution charts.</p>
         <ul class="small text-muted"><li>One-click attendance</li><li>Assignment grading</li><li>Class insights</li></ul>

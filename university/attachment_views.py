@@ -19,6 +19,7 @@ from university.attachment_services import (
     reject_attachment_application, review_logbook_entry,
     submit_attachment_assessment
 )
+from university.upload_security import validate_uploaded_file
 from university.models import (
     AcademicTerm, AttachmentAssessment, AttachmentLogbookEntry,
     AttachmentPlacement
@@ -91,6 +92,16 @@ def student_attachment_apply(request):
     start_date_str = request.POST.get("start_date", "").strip()
     end_date_str = request.POST.get("end_date", "").strip()
     offer_letter = request.FILES.get("offer_letter")
+
+    try:
+        validate_uploaded_file(
+            offer_letter,
+            extensions={".pdf", ".docx"},
+            mime_types={"application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+        )
+    except ValidationError as error:
+        messages.error(request, str(error.message if hasattr(error, "message") else error))
+        return redirect("university:student_attachment_portal")
 
     if not (company_name and company_sup_name and company_sup_phone and start_date_str and end_date_str):
         messages.error(request, "Please fill in all required company and date details.")

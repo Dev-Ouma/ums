@@ -30,12 +30,14 @@ User = get_user_model()
 
 
 def get_client_ip(request):
-    """Extract client IP honoring proxy forward headers."""
+    """Return the observed peer address.
+
+    Forwarded headers are client-controlled unless the deployment explicitly
+    terminates traffic through a trusted proxy. Recording them here would let
+    a caller spoof the source address in audit and security events.
+    """
     if not request:
         return None
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
     return request.META.get("REMOTE_ADDR") or None
 
 

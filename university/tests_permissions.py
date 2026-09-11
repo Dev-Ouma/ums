@@ -2,6 +2,7 @@ import io
 from datetime import date
 from django.test import TestCase, Client
 from django.urls import reverse
+from django.contrib.sessions.models import Session
 
 from accounts.models import User, Role, FacultyProfile
 from university.models import (
@@ -13,6 +14,7 @@ from university.models import (
     AuditLog,
 )
 from university.permissions_services import (
+    DEFAULT_ROLES,
     seed_default_permissions_and_roles,
     has_user_permission,
     get_user_effective_permissions,
@@ -124,6 +126,57 @@ class StaffPermissionsAndOverridesTestCase(TestCase):
         # 6. Remove override -> Reverts to role defaults
         remove_user_permission_override(self.faculty_user, "hostels.allocate_room", actor=self.admin_user)
         self.assertFalse(has_user_permission(self.faculty_user, "hostels.allocate_room"))
+
+    def test_role_and_permission_changes_revoke_sessions_and_are_audited(self):
+        self.client.force_login(self.faculty_user)
+        session_key = self.client.session.session_key
+
+        assignment = assign_staff_role(
+            self.faculty_user, "finance_officer", actor=self.admin_user)
+
+        self.assertIsNotNone(assignment)
+        self.assertFalse(Session.objects.filter(session_key=session_key).exists())
+        self.assertTrue(AuditLog.objects.filter(
+            user=self.admin_user, entity__startswith="Staff Role:").exists())
+
+        self.client.force_login(self.faculty_user)
+        session_key = self.client.session.session_key
+        set_user_permission_override(
+            user=self.faculty_user,
+            permission_code="finance.create_invoices",
+            override_type=UserPermissionOverride.OverrideType.DENY,
+            reason="Security review",
+            granted_by=self.admin_user,
+        )
+
+        self.assertFalse(Session.objects.filter(session_key=session_key).exists())
+        self.assertTrue(AuditLog.objects.filter(
+            user=self.admin_user, entity__startswith="Permission Override:").exists())
+
+    def test_every_seeded_staff_role_resolves_its_backend_permission_matrix(self):
+        """Role labels are not enough; every seeded grant must work server-side."""
+        for index, role_data in enumerate(DEFAULT_ROLES):
+            with self.subTest(role=role_data["code"]):
+                user = User.objects.create_user(
+                    username=f"matrix_{index}", password="MatrixPass123!",
+                    role=Role.FACULTY)
+                assign_staff_role(user, role_data["code"], actor=self.admin_user)
+
+                for permission_code in role_data["permissions"]:
+                    self.assertTrue(
+                        has_user_permission(user, permission_code),
+                        f"{role_data['code']} did not receive {permission_code}",
+                    )
+
+    def test_student_cannot_call_admin_api_or_read_another_user_record(self):
+        self.client.force_login(self.student_user)
+
+        api_response = self.client.get(reverse("university:api_generate_password"))
+        self.assertEqual(api_response.status_code, 403)
+
+        record_response = self.client.get(
+            reverse("university:user_detail", args=[self.faculty_user.pk]))
+        self.assertEqual(record_response.status_code, 403)
 
     def test_staff_permissions_dashboard_view(self):
         """Verify staff permissions dashboard endpoints and tabs."""

@@ -33,8 +33,54 @@ a{text-decoration:none}
   box-shadow:0 4px 20px rgba(0,0,0,.05)}
 .brand-gradient{font-weight:700;background:linear-gradient(90deg,#6C5CE7,#e84393,#00b894);
   -webkit-background-clip:text;background-clip:text;color:transparent}
-.nav-link{font-weight:500;color:#41415a!important}
-.nav-link:hover{color:var(--primary)!important}
+.navbar-glass .nav-link{font-weight:500;color:#41415a}
+.navbar-glass .nav-link:hover{color:var(--primary)}
+
+/* ---------- NAV PILLS & TABS ---------- */
+.nav-pills .nav-link{font-weight:600;color:#4b5563;transition:all .15s ease}
+.nav-pills .nav-link:hover{color:var(--primary,#0d6efd);background-color:rgba(13,110,253,.08)}
+.nav-pills .nav-link.active,
+.nav-pills .show > .nav-link{
+  color:#ffffff!important;
+  background-color:var(--primary,#0d6efd)!important;
+}
+.nav-pills .nav-link.active i{
+  color:#ffffff!important;
+}
+
+/* Specific student roster tab high-contrast styling */
+#studentRosterTabs .nav-link{
+  color:#4b5563;
+  font-weight:600;
+}
+#studentRosterTabs .nav-link.active{
+  color:#ffffff!important;
+  background-color:var(--primary,#0d6efd)!important;
+}
+#studentRosterTabs #tab-at-risk.active{
+  color:#ffffff!important;
+  background-color:var(--primary,#0d6efd)!important;
+}
+#studentRosterTabs #tab-at-risk.active i{
+  color:#fef08a!important; /* bright amber warning icon on blue for high contrast */
+}
+#studentRosterTabs #tab-at-risk.active .badge{
+  background-color:#ef4444!important;
+  color:#ffffff!important;
+  box-shadow:0 0 0 1px rgba(255,255,255,.35);
+}
+#studentRosterTabs #tab-top-students.active{
+  color:#ffffff!important;
+  background-color:var(--primary,#0d6efd)!important;
+}
+#studentRosterTabs #tab-top-students.active i{
+  color:#fef08a!important;
+}
+#studentRosterTabs #tab-top-students.active .badge{
+  background-color:#10b981!important;
+  color:#ffffff!important;
+  box-shadow:0 0 0 1px rgba(255,255,255,.35);
+}
 
 /* ---------- HERO ---------- */
 .hero{background:radial-gradient(1200px 500px at 80% -10%,rgba(108,92,231,.18),transparent),

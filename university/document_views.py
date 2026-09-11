@@ -23,4 +23,8 @@ def present_pdf(request, response, title='Document preview'):
     response['X-Frame-Options'] = 'SAMEORIGIN'
     response['X-Content-Type-Options'] = 'nosniff'
     response['Cache-Control'] = 'private, no-store'
+    # The global CSP correctly blocks framing by default. Mark only this
+    # already-authorized PDF response so the same-origin document viewer can
+    # embed it without weakening CSP for normal application pages.
+    response._ums_allow_same_origin_frame = True
     return response

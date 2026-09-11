@@ -31,33 +31,106 @@
     {% endif %}
   </div>
 
-  <!-- READINESS BANNER -->
-  {% if summary.is_ready %}
+  <!-- FORMAL GO-LIVE GATE -->
+  {% if summary.gate_status == 'GREEN' %}
     <div class="card border-0 shadow-sm rounded-4 mb-4 p-4 text-white" style="background: linear-gradient(135deg, #10b981, #059669);">
       <div class="d-flex align-items-center gap-3">
         <i class="fa-solid fa-circle-check fa-2x"></i>
         <div>
-          <div class="h5 fw-bold mb-0">READY FOR GO-LIVE</div>
-          <small class="opacity-75">All readiness categories are signed off and there are no open Critical/High issues.</small>
+          <div class="h5 fw-bold mb-0">{{ summary.gate_title }}</div>
+          <small class="opacity-75">No unresolved critical/high issues. Every applicable readiness area is signed off.</small>
         </div>
       </div>
+    </div>
+  {% elif summary.gate_status == 'AMBER' %}
+    <div class="card border-0 shadow-sm rounded-4 mb-4 p-4 text-dark" style="background: #fef3c7; border-left: 5px solid #d97706 !important;">
+      <div class="d-flex align-items-center gap-3 mb-2">
+        <i class="fa-solid fa-triangle-exclamation fa-2x text-warning"></i>
+        <div>
+          <div class="h5 fw-bold mb-0">{{ summary.gate_title }}</div>
+          <small class="text-muted">No critical/high blocker is open, but conditional readiness work remains.</small>
+        </div>
+      </div>
+      <ul class="mb-0 ps-4 small">
+        {% for reason in summary.gate_reasons %}<li>{{ reason }}</li>{% endfor %}
+      </ul>
     </div>
   {% else %}
     <div class="card border-0 shadow-sm rounded-4 mb-4 p-4 text-white" style="background: linear-gradient(135deg, #ef4444, #b91c1c);">
       <div class="d-flex align-items-center gap-3 mb-2">
-        <i class="fa-solid fa-triangle-exclamation fa-2x"></i>
+        <i class="fa-solid fa-circle-xmark fa-2x"></i>
         <div>
-          <div class="h5 fw-bold mb-0">NOT READY FOR GO-LIVE</div>
-          <small class="opacity-75">{{ summary.not_ready_reasons|length }} blocking reason(s) outstanding.</small>
+          <div class="h5 fw-bold mb-0">{{ summary.gate_title }}</div>
+          <small class="opacity-75">Launch approval is blocked until the following risks are resolved and retested.</small>
         </div>
       </div>
       <ul class="mb-0 ps-4 small">
-        {% for reason in summary.not_ready_reasons %}
-          <li>{{ reason }}</li>
-        {% endfor %}
+        {% for reason in summary.gate_reasons %}<li>{{ reason }}</li>{% endfor %}
       </ul>
     </div>
   {% endif %}
+
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white border-0 pt-3 px-4">
+      <h6 class="fw-bold text-dark mb-1"><i class="fa-solid fa-shield-halved text-primary me-2"></i>Final Go-Live Gate</h6>
+      <small class="text-muted">The gate is calculated from the readiness board and issue ledger; it cannot be approved by hiding a warning.</small>
+    </div>
+    <div class="card-body pt-2 px-4 pb-3">
+      <div class="row g-2 small">
+        <div class="col-md-4"><span class="badge bg-success-subtle text-success me-1">GREEN</span>{{ summary.gate_definitions.GREEN }}</div>
+        <div class="col-md-4"><span class="badge bg-warning-subtle text-warning me-1">AMBER</span>{{ summary.gate_definitions.AMBER }}</div>
+        <div class="col-md-4"><span class="badge bg-danger-subtle text-danger me-1">RED</span>{{ summary.gate_definitions.RED }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ORDERED CERTIFICATION SEQUENCE -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white border-0 pt-3 px-4">
+      <h6 class="fw-bold text-dark mb-1"><i class="fa-solid fa-route text-primary me-2"></i>Final UMS Go-Live Sequence</h6>
+      <small class="text-muted">Certification is reviewed in order. Each step inherits its status and evidence from the readiness board.</small>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table align-middle mb-0 small">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-4">Step</th>
+              <th>Certification Area</th>
+              <th>Status</th>
+              <th>Tested By</th>
+              <th>Tested Date</th>
+              <th>Evidence / Notes</th>
+              <th>Retest</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for step in summary.sequence %}
+            <tr>
+              <td class="ps-4 fw-bold text-muted">{{ step.order|stringformat:"02d" }}</td>
+              <td>
+                <div class="fw-semibold text-dark">{{ step.name }}</div>
+                <div class="text-muted" style="font-size:0.72rem;">{{ step.category_label }}</div>
+              </td>
+              <td>
+                {% if step.status == 'PASS' %}<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Passed</span>
+                {% elif step.status == 'WARN' %}<span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill">Warning</span>
+                {% elif step.status == 'FAIL' %}<span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill">Failed</span>
+                {% elif step.status == 'IN_PROGRESS' %}<span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill">In Progress</span>
+                {% elif step.status == 'NOT_APPLICABLE' %}<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill">Exempted</span>
+                {% else %}<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill">Not Tested</span>{% endif %}
+              </td>
+              <td>{{ step.tested_by.display_name|default:step.tested_by|default:"—" }}</td>
+              <td class="text-muted">{{ step.tested_at|date:"d M Y H:i"|default:"—" }}</td>
+              <td class="text-muted" style="max-width:240px;">{{ step.evidence|default:step.notes|truncatechars:80|default:"—" }}</td>
+              <td class="text-muted">{{ step.retest|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 
   <!-- STATS CARDS ROW -->
   <div class="row g-3 mb-4">

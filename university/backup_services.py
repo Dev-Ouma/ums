@@ -17,6 +17,7 @@ import time
 import zipfile
 from datetime import datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from django.conf import settings
@@ -42,6 +43,23 @@ from university.models import (
 from university.audit_services import log_activity
 
 logger = logging.getLogger(__name__)
+
+
+def safe_extract_tar(archive_path: str, destination: str) -> None:
+    """Extract a verified backup without allowing archive path traversal."""
+    target_root = Path(destination).resolve()
+    target_root.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(archive_path, "r:gz") as archive:
+        members = archive.getmembers()
+        for member in members:
+            member_path = (target_root / member.name).resolve()
+            try:
+                member_path.relative_to(target_root)
+            except ValueError as exc:
+                raise ValueError("Backup archive contains an unsafe path") from exc
+            if member.issym() or member.islnk():
+                raise ValueError("Backup archive contains an unsafe link")
+        archive.extractall(path=target_root)
 
 
 # ==============================================================================
@@ -655,8 +673,7 @@ def execute_restore_job(restore_job_id: int, user=None) -> BackupRestoreJob:
     try:
         # Step 3: Extract Archive into Temp Restoration Workspace
         _log(f"Extracting archive {backup.archive_path}...")
-        with tarfile.open(backup.archive_path, "r:gz") as tar:
-            tar.extractall(path=scratch_restore)
+        safe_extract_tar(backup.archive_path, scratch_restore)
 
         restored_components = []
 
@@ -992,6 +1009,7 @@ def calculate_recovery_readiness() -> Dict[str, Any]:
     Backup recency, verification rate, storage capacity, retention, schedule coverage, and recent failures.
     """
     now = timezone.now()
+    policy = BackupSetting.get_settings()
     latest_success = BackupJob.objects.filter(status=BackupJob.Status.SUCCESSFUL).order_by("-completed_at").first()
     
     total_backups = BackupJob.objects.filter(status=BackupJob.Status.SUCCESSFUL).count()
@@ -999,6 +1017,9 @@ def calculate_recovery_readiness() -> Dict[str, Any]:
         status=BackupJob.Status.SUCCESSFUL,
         verification_status=BackupJob.VerificationStatus.PASSED,
     ).count()
+    restore_test = BackupRestoreJob.objects.filter(
+        status=BackupRestoreJob.Status.COMPLETED,
+    ).order_by("-completed_at").first()
 
     recent_failures = BackupJob.objects.filter(
         status=BackupJob.Status.FAILED,
@@ -1023,16 +1044,30 @@ def calculate_recovery_readiness() -> Dict[str, Any]:
     # Determine readiness state
     status = "HEALTHY"
     reasons = []
+    certification_reasons = []
 
     if not latest_success:
         status = "CRITICAL"
         reasons.append("No successful backup exists in the system.")
-    elif backup_age_hours > 48.0:
+    elif backup_age_hours > policy.health_overdue_threshold_hours:
         status = "CRITICAL"
         reasons.append(f"Latest backup is overdue ({backup_age_hours:.1f} hours old).")
-    elif backup_age_hours > 24.0:
+    elif backup_age_hours > policy.health_overdue_threshold_hours * 0.66:
         status = "WARNING"
         reasons.append(f"Latest backup was taken over 24 hours ago ({backup_age_hours:.1f}h).")
+
+    if not restore_test:
+        certification_reasons.append("No completed restore test exists; backup recoverability is unproven.")
+
+    active_storage = BackupStorage.objects.filter(is_active=True)
+    if not active_storage.exclude(storage_type=BackupStorage.StorageType.LOCAL).exists():
+        certification_reasons.append("No active off-server backup destination is configured.")
+
+    if latest_success and not latest_success.encryption_enabled:
+        certification_reasons.append("Latest successful backup is not marked as encrypted.")
+
+    if not policy.notify_on_failure or not policy.notification_emails.strip():
+        certification_reasons.append("Backup failure notifications are not fully configured.")
 
     if recent_failures >= 3:
         status = "CRITICAL"
@@ -1066,4 +1101,10 @@ def calculate_recovery_readiness() -> Dict[str, Any]:
         "storage_used_percent": used_percent,
         "storage_available_gb": avail_gb,
         "active_schedules_count": BackupSchedule.objects.filter(is_active=True).count(),
+        "restore_test": restore_test,
+        "rpo_minutes": policy.rpo_minutes,
+        "rto_minutes": policy.rto_minutes,
+        "recovery_procedure_configured": bool(policy.disaster_recovery_procedure.strip()),
+        "certification_reasons": certification_reasons + ([] if policy.disaster_recovery_procedure.strip() else ["Approved disaster recovery procedure is not documented."]),
+        "certification_status": "READY" if not certification_reasons and policy.disaster_recovery_procedure.strip() else "NOT CERTIFIED",
     }

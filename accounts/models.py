@@ -5,7 +5,7 @@ from django.urls import reverse
 
 class Role(models.TextChoices):
     ADMIN = "ADMIN", "Administrator"
-    FACULTY = "FACULTY", "Faculty"
+    FACULTY = "FACULTY", "Teaching Staff"
     STUDENT = "STUDENT", "Student"
 
 
@@ -24,7 +24,7 @@ ROLE_THEMES = {
     },
     Role.FACULTY: {
         "key": "faculty",
-        "name": "Faculty",
+        "name": "Teaching Staff",
         "primary": "#009688",
         "primary_dark": "#00695c",
         "accent": "#ff7043",
@@ -130,6 +130,10 @@ class StudentProfile(models.Model):
     admission_date = models.DateField(null=True, blank=True)
     address = models.CharField(max_length=255, blank=True, default="Campus Hostel Block")
     guardian_name = models.CharField(max_length=120, blank=True, default="Guardian")
+    guardian_relationship = models.CharField(max_length=60, blank=True, default="")
+    guardian_phone = models.CharField(max_length=30, blank=True, default="")
+    guardian_email = models.EmailField(blank=True, default="")
+    guardian_address = models.CharField(max_length=255, blank=True, default="")
 
     class Meta:
         ordering = ["roll_no"]
@@ -164,6 +168,8 @@ class FacultyProfile(models.Model):
 
     class Meta:
         ordering = ["employee_id"]
+        verbose_name = "Teaching Staff"
+        verbose_name_plural = "Teaching Staff"
 
     def get_absolute_url(self):
         return reverse("university:faculty_detail", args=[self.pk])
