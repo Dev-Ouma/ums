@@ -11,6 +11,9 @@ urlpatterns = [
     path("profile/", views.profile, name="profile"),
     path("data/export/", views.personal_data_export, name="personal_data_export"),
     path("profile/settings/", views.profile_settings, name="profile_settings"),
+    path("profile/signature/view/", views.serve_user_signature, name="serve_my_signature"),
+    path("profile/signature/view/<int:user_id>/", views.serve_user_signature, name="serve_user_signature"),
+    path("profile/signature/view/<int:user_id>/history/<int:history_id>/", views.serve_user_signature, name="serve_user_signature_history"),
     path("profile/sessions/revoke-others/", views.revoke_other_sessions,
          name="revoke_other_sessions"),
 

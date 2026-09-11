@@ -1446,6 +1446,15 @@ class AuditLog(models.Model):
         BACKUP_VERIFY = "BACKUP_VERIFY", "Backup Verified"
         BACKUP_DELETE = "BACKUP_DELETE", "Backup Deleted"
         BACKUP_SCHEDULE = "BACKUP_SCHEDULE", "Backup Scheduled"
+        SIGNATURE_UPLOAD = "SIGNATURE_UPLOAD", "Signature Uploaded"
+        SIGNATURE_UPDATE = "SIGNATURE_UPDATE", "Signature Replaced / Updated"
+        SIGNATURE_REMOVE = "SIGNATURE_REMOVE", "Signature Removed"
+        SIGNATURE_ACTIVATE = "SIGNATURE_ACTIVATE", "Signature Activated"
+        SIGNATURE_DEACTIVATE = "SIGNATURE_DEACTIVATE", "Signature Deactivated"
+        SIGNATURE_APPROVE = "SIGNATURE_APPROVE", "Signature Approved"
+        SIGNATURE_REVOKE = "SIGNATURE_REVOKE", "Signature Revoked"
+        DOCUMENT_SIGNED = "DOCUMENT_SIGNED", "Document Signed & Finalized"
+        SIGNATORY_CHANGED = "SIGNATORY_CHANGED", "Document Signatory Changed"
 
     class Module(models.TextChoices):
         STUDENTS = "Students", "Students"
@@ -1464,6 +1473,7 @@ class AuditLog(models.Model):
         NOTICES = "Notices & Events", "Notices & Events"
         MODULE_MGMT = "Module Management", "Module Management"
         BACKUPS = "System Backups", "System Backups & Recovery"
+        SIGNATURES = "Signature Management", "Signature Management"
 
     timestamp = models.DateTimeField(default=timezone.now, db_index=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="audit_logs")
@@ -2230,6 +2240,17 @@ class IssuedAdmissionDocument(models.Model):
     pdf_file = models.FileField(upload_to="admissions/issued_letters/", null=True, blank=True)
     generated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="generated_admission_documents")
     generated_at = models.DateTimeField(default=timezone.now)
+    # Signatory Snapshot Information (Immutable preservation of historical signature state)
+    signatory = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="signed_admission_documents")
+    signatory_name = models.CharField(max_length=150, blank=True, default="")
+    signatory_title = models.CharField(max_length=150, blank=True, default="")
+    signatory_office = models.CharField(max_length=150, blank=True, default="")
+    signature_version = models.PositiveIntegerField(null=True, blank=True)
+    signature_snapshot = models.FileField(upload_to="signatures/document_snapshots/", null=True, blank=True, help_text="Immutable snapshot of signature image at issue time")
+    co_signatory = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="co_signed_admission_documents")
+    co_signatory_name = models.CharField(max_length=150, blank=True, default="")
+    co_signatory_title = models.CharField(max_length=150, blank=True, default="")
+    co_signature_snapshot = models.FileField(upload_to="signatures/document_snapshots/", null=True, blank=True)
     change_reason = models.CharField(max_length=255, blank=True, default="", help_text="Reason for generation or regeneration")
     revoked_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="revoked_admission_documents")
     revoked_at = models.DateTimeField(null=True, blank=True)
@@ -2334,6 +2355,69 @@ class ApplicationCustomFieldValue(models.Model):
     def __str__(self):
         return f"{self.field.name}: {self.value}"
 
+
+class DocumentSignatureConfig(models.Model):
+    """
+    Central configurable document-to-signature policy mapping.
+    Controls signatory roles, explicit authorized users, placement, number of signatures,
+    and whether a signature is required for document finalization.
+    """
+    class DocumentType(models.TextChoices):
+        ADMISSION_LETTER = "ADMISSION_LETTER", "Admission Letter"
+        OFFER_LETTER = "OFFER_LETTER", "Offer Letter"
+        ACADEMIC_TRANSCRIPT = "ACADEMIC_TRANSCRIPT", "Academic Transcript"
+        PROVISIONAL_TRANSCRIPT = "PROVISIONAL_TRANSCRIPT", "Provisional Transcript"
+        EXAM_RESULT_SLIP = "EXAM_RESULT_SLIP", "Examination Result Slip"
+        DEGREE_CERTIFICATE = "DEGREE_CERTIFICATE", "Degree Certificate"
+        FINANCIAL_STATEMENT = "FINANCIAL_STATEMENT", "Official Financial Statement"
+        DEFERMENT_DECISION = "DEFERMENT_DECISION", "Deferment Decision Letter"
+        CLEARANCE_CERTIFICATE = "CLEARANCE_CERTIFICATE", "Clearance Certificate"
+        OTHER = "OTHER", "Other Official Document"
+
+    class SignaturePosition(models.TextChoices):
+        BOTTOM_RIGHT = "BOTTOM_RIGHT", "Bottom Right"
+        BOTTOM_LEFT = "BOTTOM_LEFT", "Bottom Left"
+        BOTTOM_CENTER = "BOTTOM_CENTER", "Bottom Center"
+        DUAL_BOTTOM = "DUAL_BOTTOM", "Dual Signatures (Left & Right)"
+
+    document_type = models.CharField(max_length=50, choices=DocumentType.choices, unique=True)
+    title = models.CharField(max_length=120, help_text="e.g. Official Admission Letter Signatory Policy")
+    is_signature_required = models.BooleanField(default=True)
+    required_roles = models.CharField(
+        max_length=255,
+        default="ADMIN,REGISTRAR,STAFF",
+        help_text="Comma-separated user roles authorized to sign (e.g. REGISTRAR,STAFF,ADMIN)"
+    )
+    authorized_users = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="authorized_signature_documents",
+        help_text="Explicitly authorized individuals (leave empty to allow anyone with required role)"
+    )
+    number_of_signatures = models.PositiveSmallIntegerField(default=1)
+    primary_label = models.CharField(max_length=100, default="Registrar (Academic Affairs)")
+    primary_position = models.CharField(max_length=30, choices=SignaturePosition.choices, default=SignaturePosition.BOTTOM_RIGHT)
+    secondary_label = models.CharField(max_length=100, blank=True, default="", help_text="For dual signature documents")
+    secondary_position = models.CharField(max_length=30, choices=SignaturePosition.choices, default=SignaturePosition.BOTTOM_LEFT)
+    is_active = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.get_document_type_display()} Signature Config"
+
+    def get_authorized_roles_list(self):
+        return [r.strip().upper() for r in (self.required_roles or "").split(",") if r.strip()]
+
+    def is_user_authorized(self, user):
+        if not user or not user.is_authenticated:
+            return False
+        if user.is_superuser or getattr(user, 'role', '') == 'ADMIN':
+            return True
+        if self.authorized_users.exists():
+            return self.authorized_users.filter(pk=user.pk).exists()
+        allowed_roles = self.get_authorized_roles_list()
+        user_role = str(getattr(user, 'role', '')).upper()
+        return user_role in allowed_roles
 
 
 from .module_models import SystemModule, SystemSubmodule, SystemFeature, ModuleDependency  # noqa: E402,F401

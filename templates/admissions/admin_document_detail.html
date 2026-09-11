@@ -122,9 +122,17 @@
           <iframe id="admin-pdf-frame" src="{% url 'university:admin_view_admission_document' active_letter.id %}?inline=1#toolbar=1" style="display:block; width:100%; height:75vh; border-radius:8px; border:none; box-shadow:0 6px 24px rgba(0,0,0,0.3);"></iframe>
         </div>
 
-        <div class="card-footer bg-light p-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2 small text-muted">
-          <span><i class="fa-solid fa-circle-check text-success me-1"></i>Active Template: <b>{{ active_letter.template.name|default:"Universal Standard" }}</b></span>
+        <div class="card-footer bg-light p-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-3 small text-muted">
+          <span><i class="fa-solid fa-circle-check text-success me-1"></i>Template: <b>{{ active_letter.template.name|default:"Universal Standard" }}</b></span>
           <span>Reporting Date: <b>{{ active_letter.reporting_date|date:"l, d F Y"|default:"Not specified" }}</b></span>
+          <span>
+            <i class="fa-solid fa-file-signature text-primary me-1"></i>
+            Signatory: <b>{{ active_letter.signatory_name|default:"Academic Registrar" }}</b>
+            {% if active_letter.signature_version %}<span class="badge bg-light text-dark border font-monospace ms-1">v{{ active_letter.signature_version }}</span>{% endif %}
+            {% if active_letter.signature_snapshot %}
+              <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill ms-1" title="Immutable signature snapshot preserved"><i class="fa-solid fa-lock me-1"></i>Snapshot Sealed</span>
+            {% endif %}
+          </span>
         </div>
       </div>
     {% else %}
@@ -478,14 +486,46 @@
             </div>
 
             <div class="col-md-6">
+              <label class="form-label fw-semibold">Authorized Signatory</label>
+              <select name="signatory_id" id="modal-signatory-select" class="form-select rounded-3">
+                {% for s in signatories %}
+                  {% with sig=s.user_signature %}
+                    <option value="{{ s.id }}"
+                      data-has-sig="{% if sig and sig.signature_image and sig.status == 'ACTIVE' %}true{% else %}false{% endif %}"
+                      {% if active_letter and active_letter.signatory_id == s.id %}selected{% elif forloop.first %}selected{% endif %}>
+                      {{ s.get_full_name|default:s.username }} ({{ s.role }})
+                      {% if sig and sig.signature_image and sig.status == 'ACTIVE' %}
+                        ✓ Active Sig (v{{ sig.version }})
+                      {% else %}
+                        ⚠ No Active Signature
+                      {% endif %}
+                    </option>
+                  {% endwith %}
+                {% endfor %}
+              </select>
+              <div class="form-text small">Selected officer's official digital signature will be stamped on this document.</div>
+            </div>
+
+            <!-- Missing Signature Warning Banner -->
+            <div id="sig-warning-box" class="col-12" style="display:none;">
+              <div class="alert alert-warning border border-warning d-flex align-items-center gap-2 mb-0 py-2 small rounded-3">
+                <i class="fa-solid fa-triangle-exclamation text-warning fa-lg"></i>
+                <div>
+                  <strong>⚠ Signature Required:</strong> An active signature has not been configured for the selected signatory.
+                  <a href="{% url 'accounts:profile_settings' %}?tab=signature" target="_blank" class="alert-link ms-1">Update Signature in Profile</a> or select another authorized signatory.
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-6">
               <label class="form-label fw-semibold">Reporting Date</label>
               <input type="date" name="reporting_date" class="form-control rounded-3" value="{{ app.reporting_date|date:'Y-m-d' }}">
               <div class="form-text">Leave blank to use current scheduled date.</div>
             </div>
 
-            <div class="col-12">
+            <div class="col-md-6">
               <label class="form-label fw-semibold">Reason for Generation / Changes <span class="text-danger">*</span></label>
-              <input type="text" name="reason" class="form-control rounded-3" placeholder="e.g. Updated reporting date; corrected fee quotation; initial issuance" required>
+              <input type="text" name="reason" class="form-control rounded-3" placeholder="e.g. Initial issuance / updated date" required>
             </div>
           </div>
         </div>
@@ -589,5 +629,28 @@ University Management System</textarea>
   </div>
 </div>
 {% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const sigSelect = document.getElementById('modal-signatory-select');
+  const warningBox = document.getElementById('sig-warning-box');
+
+  function checkSig() {
+    if (!sigSelect || !warningBox) return;
+    const selectedOpt = sigSelect.options[sigSelect.selectedIndex];
+    const hasSig = selectedOpt && selectedOpt.getAttribute('data-has-sig') === 'true';
+    if (!hasSig) {
+      warningBox.style.display = 'block';
+    } else {
+      warningBox.style.display = 'none';
+    }
+  }
+
+  if (sigSelect) {
+    sigSelect.addEventListener('change', checkSig);
+    checkSig();
+  }
+});
+</script>
 
 {% endblock %}

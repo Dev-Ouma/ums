@@ -176,3 +176,66 @@ class FacultyProfile(models.Model):
 
     def __str__(self):
         return f"{self.employee_id} - {self.user.display_name}"
+
+
+class UserSignature(models.Model):
+    """
+    Centralized official signature profile for a user.
+    Maintains active signature asset, title, department, verification status, and versioning.
+    """
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active / Approved"
+        PENDING_VERIFICATION = "PENDING_VERIFICATION", "Pending Verification"
+        INACTIVE = "INACTIVE", "Inactive"
+        REVOKED = "REVOKED", "Revoked"
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="signature")
+    signature_image = models.ImageField(upload_to="signatures/users/", null=True, blank=True)
+    title = models.CharField(max_length=150, blank=True, default="", help_text="Official designation (e.g. Academic Registrar, Dean)")
+    department_or_office = models.CharField(max_length=150, blank=True, default="", help_text="Office/Faculty/Department (e.g. Office of the Registrar)")
+    status = models.CharField(max_length=25, choices=Status.choices, default=Status.ACTIVE, db_index=True)
+    version = models.PositiveIntegerField(default=1)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    activated_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    verified_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="verified_signatures")
+
+    class Meta:
+        verbose_name = "User Signature"
+        verbose_name_plural = "User Signatures"
+
+    def __str__(self):
+        return f"{self.user.display_name} - Signature (v{self.version}) [{self.status}]"
+
+    @property
+    def is_usable(self):
+        return bool(self.is_active and self.status == self.Status.ACTIVE and self.signature_image)
+
+
+class UserSignatureHistory(models.Model):
+    """
+    Immutable archive of historical user signature versions.
+    Ensures that past issued documents retain exact historical signature assets.
+    """
+    signature = models.ForeignKey(UserSignature, on_delete=models.CASCADE, related_name="history")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="signature_history")
+    version = models.PositiveIntegerField()
+    signature_image = models.ImageField(upload_to="signatures/users/history/")
+    title = models.CharField(max_length=150, blank=True, default="")
+    department_or_office = models.CharField(max_length=150, blank=True, default="")
+    status = models.CharField(max_length=25)
+    valid_from = models.DateTimeField()
+    valid_until = models.DateTimeField(null=True, blank=True)
+    change_reason = models.CharField(max_length=255, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-version"]
+        verbose_name = "User Signature History"
+        verbose_name_plural = "User Signature Histories"
+
+    def __str__(self):
+        return f"{self.user.display_name} - Signature v{self.version} ({self.valid_from.date()} to {self.valid_until.date() if self.valid_until else 'present'})"

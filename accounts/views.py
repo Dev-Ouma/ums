@@ -179,10 +179,14 @@ def _details_form_for(user, data=None):
 def profile_settings(request):
     """View and update the signed-in user's own profile.
 
-    Three independent forms share one page; the submitted ``form_type`` decides
+    Four independent forms share one page; the submitted ``form_type`` decides
     which one is bound, so a validation error in one section never discards
     what the user typed elsewhere.
     """
+    from .models import UserSignature, UserSignatureHistory
+    from .forms import UserSignatureForm
+    from .signature_services import save_user_signature, remove_user_signature
+
     user = request.user
     form_type = request.POST.get("form_type") if request.method == "POST" else None
 
@@ -190,9 +194,14 @@ def profile_settings(request):
     details_form = _details_form_for(user)
     avatar_form = AvatarForm(instance=user, prefix="avatar")
     password_form = UMSPasswordChangeForm(user=user, prefix="password")
+
+    user_signature = UserSignature.objects.filter(user=user).first()
+    signature_history = user.signature_history.all()[:10]
+    signature_form = UserSignatureForm(instance=user_signature, prefix="signature")
+
     # ?tab= lets the header menu deep-link straight to a section.
     requested = request.GET.get("tab")
-    active_tab = requested if requested in {"profile", "avatar", "password", "activity"} else "profile"
+    active_tab = requested if requested in {"profile", "avatar", "signature", "password", "activity"} else "profile"
 
     if form_type == "profile":
         profile_form = ProfileForm(request.POST, instance=user, prefix="profile")
@@ -217,6 +226,40 @@ def profile_settings(request):
             return redirect("accounts:profile_settings")
         messages.error(request, "That image could not be saved — see the message below.")
 
+    elif form_type == "signature":
+        active_tab = "signature"
+        sig_action = request.POST.get("signature_action")
+        if sig_action == "remove":
+            remove_user_signature(user=user, actor=user, request=request)
+            messages.success(request, "Your official signature has been removed.")
+            return redirect(f"{reverse('accounts:profile_settings')}?tab=signature")
+
+        signature_form = UserSignatureForm(request.POST, request.FILES, instance=user_signature, prefix="signature")
+        if signature_form.is_valid():
+            file = signature_form.cleaned_data.get("signature_file")
+            title = signature_form.cleaned_data.get("title") or ""
+            dept = signature_form.cleaned_data.get("department_or_office") or ""
+            status = signature_form.cleaned_data.get("status") or UserSignature.Status.ACTIVE
+            reason = signature_form.cleaned_data.get("change_reason") or ""
+            try:
+                save_user_signature(
+                    user=user,
+                    signature_file=file,
+                    title=title,
+                    department_or_office=dept,
+                    status=status,
+                    actor=user,
+                    reason=reason,
+                    request=request
+                )
+                messages.success(request, "Your official signature and details have been saved.")
+                return redirect(f"{reverse('accounts:profile_settings')}?tab=signature")
+            except Exception as e:
+                signature_form.add_error("signature_file", str(e))
+                messages.error(request, f"Signature error: {e}")
+        else:
+            messages.error(request, "Could not update signature. Please review the errors below.")
+
     elif form_type == "password":
         active_tab = "password"
         password_form = UMSPasswordChangeForm(user=user, data=request.POST, prefix="password")
@@ -239,9 +282,61 @@ def profile_settings(request):
         "profile_form": profile_form,
         "details_form": details_form,
         "avatar_form": avatar_form,
+        "signature_form": signature_form,
+        "user_signature": user_signature,
+        "signature_history": signature_history,
         "password_form": password_form,
         "active_tab": active_tab,
     })
+
+
+@login_required
+def serve_user_signature(request, user_id=None, history_id=None):
+    """
+    Secure access-controlled endpoint for serving official user signatures.
+    Strictly forbids unauthorized third-party access and prevents predictable public URLs.
+    """
+    from django.http import Http404, HttpResponseForbidden, FileResponse
+    from django.shortcuts import get_object_or_404
+    from .models import UserSignature, UserSignatureHistory
+
+    target_user_id = user_id or request.user.id
+    is_owner = (request.user.id == target_user_id)
+    is_authorized_staff = (
+        request.user.is_superuser
+        or getattr(request.user, "role", "") in ["ADMIN", "REGISTRAR", "STAFF"]
+    )
+
+    if not (is_owner or is_authorized_staff):
+        return HttpResponseForbidden("Access Denied: You do not have permission to view this signature asset.")
+
+    if history_id:
+        record = get_object_or_404(UserSignatureHistory, pk=history_id, user_id=target_user_id)
+        img_field = record.signature_image
+    else:
+        record = UserSignature.objects.filter(user_id=target_user_id).first()
+        if not record or not record.signature_image:
+            raise Http404("Active signature asset not found.")
+        img_field = record.signature_image
+
+    if not img_field:
+        raise Http404("Signature file does not exist.")
+
+    try:
+        f = img_field.open("rb")
+    except Exception:
+        raise Http404("Signature file is missing on storage.")
+
+    content_type = "image/png"
+    lower_name = str(img_field.name).lower()
+    if lower_name.endswith(".jpg") or lower_name.endswith(".jpeg"):
+        content_type = "image/jpeg"
+    elif lower_name.endswith(".webp"):
+        content_type = "image/webp"
+
+    response = FileResponse(f, content_type=content_type)
+    response["Cache-Control"] = "private, no-cache, no-store, must-revalidate"
+    return response
 
 
 # ==============================================================================
