@@ -662,7 +662,7 @@ def build_admission_letter_pdf_bytes(issued_document):
         for block in body_rendered.split("\n\n"):
             lines = [ln.strip() for ln in block.strip().split("\n") if ln.strip()]
             for line in lines:
-                if re.match(r"^\d+\.\s+", line):
+                if re.match(r"^(?:<[^>]+>)*\s*\d+\.\s*", line):
                     story.append(Paragraph(line, list_item_style))
                 else:
                     story.append(Paragraph(line, body_style))
@@ -677,7 +677,7 @@ def build_admission_letter_pdf_bytes(issued_document):
             for i, line in enumerate(lines):
                 if i == 0 and ("TUITION FEES" in line.upper() or "FEE PAYMENT" in line.upper() or "SCHEDULE" in line.upper()):
                     story.append(Paragraph(line, section_head_style))
-                elif re.match(r"^\d+\.\s+", line) or line.startswith("•") or line.startswith("-"):
+                elif re.match(r"^(?:<[^>]+>)*\s*\d+\.\s*", line) or line.startswith("•") or line.startswith("-"):
                     story.append(Paragraph(line, list_item_style))
                 else:
                     story.append(Paragraph(line, body_style))
@@ -692,7 +692,7 @@ def build_admission_letter_pdf_bytes(issued_document):
             for i, line in enumerate(lines):
                 if i == 0 and ("COMMENCEMENT" in line.upper() or "IMPORTANT INFORMATION" in line.upper() or "CONDITIONS" in line.upper() or "REPORTING" in line.upper()):
                     story.append(Paragraph(line, section_head_style))
-                elif re.match(r"^(?:[ivx]+|[a-z]|\d+)\.\s+", line, re.IGNORECASE) or line.startswith("•") or line.startswith("-"):
+                elif re.match(r"^(?:<[^>]+>)*\s*(?:[ivx]+|[a-z]|\d+)\.\s*", line, re.IGNORECASE) or line.startswith("•") or line.startswith("-"):
                     story.append(Paragraph(line, list_item_style))
                 else:
                     story.append(Paragraph(line, body_style))
