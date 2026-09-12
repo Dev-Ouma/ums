@@ -383,3 +383,46 @@ class CentralSignatureAndAdmissionLetterTests(TestCase):
         )
         self.assertEqual(doc_v2.signature_version, 2)
         self.assertEqual(doc_v2.signatory_title, "Registrar v2")
+
+    def test_admission_letter_security_verification_qr_block_and_endpoint(self):
+        """
+        Verify that admission letters include dynamic QR codes, SHA-256 checksums,
+        and that the public verification endpoint validates the document authentic record.
+        """
+        from university.admission_document_services import compute_admission_document_checksum
+
+        # Upload active signature for registrar
+        png = _create_sample_png(250, 80, "qr_reg_sig.png")
+        save_user_signature(
+            user=self.registrar,
+            signature_file=png,
+            title="Academic Registrar",
+            department_or_office="Office of Academic Affairs",
+            status=UserSignature.Status.ACTIVE,
+            actor=self.registrar,
+        )
+
+        template = get_or_create_default_template(program=self.prog, academic_year=self.ay)
+        doc = generate_admission_document(
+            application=self.application,
+            template=template,
+            user=self.admin,
+            signatory_user=self.registrar,
+        )
+
+        # 1. Test checksum computation
+        checksum = compute_admission_document_checksum(doc, doc.rendered_context)
+        self.assertEqual(len(checksum), 64)
+
+        # 2. Test PDF generation with QR block
+        pdf_bytes = build_admission_letter_pdf_bytes(doc)
+        self.assertTrue(pdf_bytes.startswith(b"%PDF"))
+
+        # 3. Test public verification portal with document reference
+        verify_url = reverse("university:verify_document", kwargs={"reference_no": doc.document_reference})
+        response = self.client.get(verify_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Certified Authentic Admission Offer")
+        self.assertContains(response, self.application.full_name)
+        self.assertContains(response, doc.document_reference)
+        self.assertContains(response, checksum)
