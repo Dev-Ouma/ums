@@ -422,45 +422,34 @@ def admin_templates_list(request):
 TEMPLATE_DEFAULTS = {
     "name": "Official Undergraduate Admission Offer",
     "header_title": "Office of the Deputy Vice-Chancellor<br/>(Academic Affairs)",
-    "salutation_template": "Dear <b>{{title_name}}</b>, Admission Number: <b>{{registration_number}}</b>",
-    "subject_template": "RE: OFFER OF ADMISSION TO <b>{{programme_name}}</b> (CODE: <b>{{programme_code}}</b>) — <b>{{academic_year}}</b> ACADEMIC YEAR",
+    "salutation_template": "Dear {{title_name}}, Admission Number: {{registration_number}}",
+    "subject_template": "RE: ADMISSION INTO {{programme_name}} - {{academic_year}} ACADEMIC YEAR",
     "body_template": (
-        "Following your application for admission to <b>{{university_name}}</b>, we are pleased to inform you that you have been offered admission to the:\n\n"
-        "<b>{{programme_name}}</b>\n"
-        "<b>Programme Code:</b> {{programme_code}}\n"
-        "<b>Academic Year:</b> {{academic_year}}\n"
-        "<b>Intake:</b> {{intake}}\n"
-        "<b>Faculty / School:</b> {{faculty_name}}\n"
-        "<b>Department:</b> {{department_name}}\n"
-        "<b>Level / Study Mode:</b> {{level}} ({{study_mode}})\n"
-        "<b>Campus:</b> {{campus}}\n"
-        "<b>Admission Reference:</b> {{document_reference}}\n\n"
-        "You have been admitted on the basis of your declared academic qualifications, which are subject to formal verification upon reporting. "
-        "When reporting, you will be required to present the <b>original and copies</b> of the following mandatory documents:\n\n"
-        "1. <b>KCSE Certificate or Official Result Slip</b> (verified against KNEC records)\n"
-        "2. <b>Birth Certificate</b> or national identification document\n"
-        "3. <b>National Identity Card or Passport</b>\n"
-        "4. <b>Two recent coloured passport-size photographs</b> (bearing your name and registration number on the reverse)\n"
-        "5. <b>Official proof of payment of tuition fees</b>"
+        "Following your application for admission to {{university_name}}, I wish to congratulate you on this achievement. "
+        "You have been admitted on the basis of your qualifications, which are subject to verification by the University. "
+        "When reporting, you will be required to present original and copies of the following:\n\n"
+        "1. KCSE Certificate or Result Slip\n"
+        "2. Birth Certificate\n"
+        "3. National Identity Card or Passport\n"
+        "4. Two coloured passport-size photographs\n"
+        "5. Proof of payment of tuition fees"
     ),
     "terms_and_conditions": (
-        "<b>ADMISSION REPORTING DATE & ACCEPTANCE DEADLINE</b>\n"
-        "The programme will commence on <b>{{reporting_date}}</b>. You are, therefore, expected to report and complete your registration on or before <b>{{acceptance_deadline}}</b>.\n\n"
-        "<b>IMPORTANT CONDITIONS OF ADMISSION</b>\n"
-        "i. <b>Accommodation:</b> Admission to the University does not guarantee accommodation in the Halls of Residence. Students not allocated university accommodation will be required to make private arrangements.\n"
-        "ii. <b>Rules & Regulations:</b> This admission offer is subject to your strict adherence to the University's <b>Rules and Regulations</b>.\n"
-        "iii. <b>Inquiries:</b> In case of any queries, please contact the Admissions Office at <b>{{university_email}}</b> or Tel: <b>{{university_phone}}</b>."
+        "COMMENCEMENT DATE\n"
+        "The programme will commence on {{reporting_date}}. You are, therefore, expected to report and complete your registration on this date.\n\n"
+        "OTHER IMPORTANT INFORMATION\n"
+        "i. Admission to the University does not guarantee accommodation in the Halls of Residence. Students not allocated university accommodation will be required to make private arrangements.\n"
+        "ii. This admission offer is subject to your adherence to the University's Rules and Regulations.\n"
+        "iii. In case of any queries, please contact the Admissions Office at {{university_email}} or Tel: {{university_phone}}"
     ),
     "fee_schedule_instructions": (
-        "<b>TUITION FEES & PAYMENT SCHEDULE</b>\n"
-        "You will pay <b>{{tuition_fee}}</b> as tuition fee in a Semester (Estimated total first-semester charges: <b>{{total_fees}}</b>). "
-        "For more information, please contact the Finance Directorate at <b>{{finance_email}}</b> or Tel: <b>{{university_phone}}</b>.\n\n"
-        "<b>FEE PAYMENT INSTRUCTIONS</b>\n"
-        "You are required to follow the official instructions below to pay the tuition fee:\n"
-        "1. While logged in to the students portal (<b>{{portal_url}}</b>), navigate to the <b>\"STUDENT PAYMENT INSTRUCTIONS\"</b> section.\n"
-        "2. Click on <b>\"Fee Payment\"</b> / <b>\"M-Pesa Payment\"</b> and follow the prompts.\n"
-        "   (<b>M-Pesa Paybill:</b> {{mpesa_paybill}}, <b>Account:</b> {{registration_number}} | <b>Bank:</b> {{bank_name}}, <b>Account:</b> {{bank_account}}, Branch: {{bank_branch}})\n"
-        "3. Ensure you obtain an <b>official electronic receipt</b> upon payment to complete registration clearance."
+        "TUITION FEES\n"
+        "You will pay {{tuition_fee}} as tuition fee in a Semester. "
+        "For more information, please contact the Finance Office at {{finance_email}} or Tel: {{university_phone}}\n\n"
+        "FEE PAYMENT\n"
+        "You are required to follow the instructions below to pay the tuition fee:\n"
+        "1. While logged in to the students portal, navigate to the \"STUDENT PAYMENT INSTRUCTIONS\" section at the bottom of the page.\n"
+        "2. Click on \"Fee Payment\" / \"M-Pesa Payment\" and follow the prompts."
     ),
     "signatory_name": "DR. MARGARET OMOLO, PhD",
     "signatory_title": "ACADEMIC REGISTRAR",
