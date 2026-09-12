@@ -186,6 +186,25 @@ def dashboard(request):
 
 
 @login_required
+def finance_hub(request):
+    """
+    Dedicated Finance entrypoint (/finance/).
+    Routes users to the appropriate role-based finance dashboard.
+    - Admins/Staff: Fee Accounts & Finance Management (/finance/fee-accounts/)
+    - Students: Student Fees & Payment Portal (/me/fees/)
+    - Faculty/Other: University dashboard with informational message
+    """
+    user = request.user
+    if user.is_admin_role or user.is_superuser or user.role == Role.ADMIN:
+        return redirect("university:fee_accounts_dashboard")
+    elif user.is_student:
+        return redirect("university:student_fees")
+    else:
+        messages.info(request, "Finance portal is available for students and administrative staff.")
+        return redirect("university:dashboard")
+
+
+@login_required
 def api_academic_performance(request):
     if not (request.user.is_admin_role or request.user.is_superuser or request.user.is_faculty):
         return JsonResponse({"error": "Forbidden"}, status=403)

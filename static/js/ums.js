@@ -187,6 +187,61 @@ function aiFormSubmit(ev, inputId, boxId) {
   sync();
 })();
 
+// ---------- Sidebar Single-Expanded Accordion Navigation ----------
+(function () {
+  document.addEventListener('DOMContentLoaded', function () {
+    const sidebar = document.getElementById('appSidebar');
+    if (!sidebar) return;
+
+    const submenus = sidebar.querySelectorAll('.collapse.submenu');
+
+    submenus.forEach(submenu => {
+      // Listen to Bootstrap's show.bs.collapse event
+      submenu.addEventListener('show.bs.collapse', function (e) {
+        if (e.target !== submenu) return;
+        submenus.forEach(other => {
+          if (other !== submenu && other.classList.contains('show')) {
+            if (window.bootstrap && window.bootstrap.Collapse) {
+              const instance = window.bootstrap.Collapse.getInstance(other) || new window.bootstrap.Collapse(other, { toggle: false });
+              instance.hide();
+            } else {
+              other.classList.remove('show');
+              const toggle = sidebar.querySelector(`[data-bs-target="#${other.id}"]`);
+              if (toggle) toggle.setAttribute('aria-expanded', 'false');
+            }
+          }
+        });
+      });
+    });
+
+    // Also support direct click toggles in case of custom trigger
+    sidebar.querySelectorAll('.item-toggle').forEach(toggleBtn => {
+      toggleBtn.addEventListener('click', function () {
+        const targetSelector = this.getAttribute('data-bs-target');
+        if (!targetSelector) return;
+        const targetSubmenu = sidebar.querySelector(targetSelector);
+        if (!targetSubmenu) return;
+
+        // If target is about to expand, collapse all other submenus
+        if (!targetSubmenu.classList.contains('show')) {
+          submenus.forEach(other => {
+            if (other !== targetSubmenu && other.classList.contains('show')) {
+              if (window.bootstrap && window.bootstrap.Collapse) {
+                const instance = window.bootstrap.Collapse.getInstance(other) || new window.bootstrap.Collapse(other, { toggle: false });
+                instance.hide();
+              } else {
+                other.classList.remove('show');
+                const otherToggle = sidebar.querySelector(`[data-bs-target="#${other.id}"]`);
+                if (otherToggle) otherToggle.setAttribute('aria-expanded', 'false');
+              }
+            }
+          });
+        }
+      });
+    });
+  });
+})();
+
 // ==========================================================================
 // SYSTEM ENHANCEMENTS SUITE: CLIENT-SIDE INTERACTIVITY & UTILITIES
 // ==========================================================================
