@@ -1,7 +1,10 @@
 from university.document_views import present_pdf
 import json
+import logging
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
+
+logger = logging.getLogger(__name__)
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -2709,8 +2712,12 @@ def student_fees(request):
 # ==========================================================================
 @login_required
 def ai_assistant(request):
-    return render(request, "dashboard/ai_assistant.html",
-                  {"suggestions": ai._default_suggestions(request.user)})
+    try:
+        suggestions = ai._default_suggestions(request.user)
+    except Exception as exc:
+        logger.warning("Error fetching default suggestions: %s", exc)
+        suggestions = ["Check my fees", "Register for courses", "My exam card", "Graduation clearance", "Hostel booking"]
+    return render(request, "dashboard/ai_assistant.html", {"suggestions": suggestions})
 
 
 @login_required
@@ -2718,10 +2725,22 @@ def ai_assistant(request):
 def ai_reply(request):
     try:
         payload = json.loads(request.body.decode() or "{}")
-    except json.JSONDecodeError:
+    except Exception:
         payload = {}
-    message = payload.get("message", "")
-    return JsonResponse(ai.assistant_reply(message, request.user))
+    message = payload.get("message", "") if isinstance(payload, dict) else ""
+    try:
+        reply_data = ai.assistant_reply(message, request.user)
+        return JsonResponse(reply_data)
+    except Exception as exc:
+        logger.exception("Unexpected error in ai_reply view: %s", exc)
+        return JsonResponse({
+            "reply": (
+                "I encountered an unexpected issue processing that request. "
+                "Please try rephrasing or pick one of the quick options below."
+            ),
+            "icon": "fa-circle-exclamation",
+            "suggestions": ai._default_suggestions(request.user),
+        })
 
 
 @login_required
@@ -2729,12 +2748,39 @@ def ai_insights(request):
     user = request.user
     if user.is_student and hasattr(user, "student_profile"):
         sp = user.student_profile
+        try:
+            prediction = ai.student_prediction(sp)
+            recommendations = ai.study_recommendations(sp)
+            stats = services.student_stats(sp)
+        except Exception as exc:
+            logger.exception("Error generating student AI insights: %s", exc)
+            prediction = {
+                "projected": 0.0,
+                "band": "Awaiting records",
+                "tone": "info",
+                "icon": "fa-circle-info",
+                "drivers": ["More academic records needed to calculate live projection."],
+                "inputs": {"attendance": 0.0, "avg_marks": 0.0, "submission_rate": 0.0},
+            }
+            recommendations = []
+            stats = {
+                "courses": 0, "attendance_pct": 0.0, "avg_marks": 0.0,
+                "gpa": 0.0, "pending_assignments": 0, "submission_rate": 0.0,
+                "fee_due": 0.0, "weakest_subject": None,
+            }
         return render(request, "dashboard/ai_insights_student.html", {
-            "prediction": ai.student_prediction(sp),
-            "recommendations": ai.study_recommendations(sp),
-            "stats": services.student_stats(sp),
+            "prediction": prediction,
+            "recommendations": recommendations,
+            "stats": stats,
         })
+    try:
+        at_risk = ai.at_risk_students(12)
+        top_courses = services.popular_courses(5)
+    except Exception as exc:
+        logger.exception("Error generating staff AI insights: %s", exc)
+        at_risk = []
+        top_courses = []
     return render(request, "dashboard/ai_insights_staff.html", {
-        "at_risk": ai.at_risk_students(12),
-        "top_courses": services.popular_courses(5),
+        "at_risk": at_risk,
+        "top_courses": top_courses,
     })
