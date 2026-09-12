@@ -39,30 +39,41 @@
                 <table class="table table-sm table-borderless mb-0 align-middle">
                   <tbody>
                     <tr class="border-bottom">
-                      <th class="text-muted py-2" style="width: 35%;">Student Name</th>
-                      <td class="fw-bold text-dark py-2">{{ student.user.display_name }}</td>
+                      <th class="text-muted py-2" style="width: 35%;">{% if admission_doc %}Applicant / Student Name{% else %}Student Name{% endif %}</th>
+                      <td class="fw-bold text-dark py-2">{% if admission_doc %}{{ ctx.student_name }}{% else %}{{ student.user.display_name }}{% endif %}</td>
                     </tr>
                     <tr class="border-bottom">
-                      <th class="text-muted py-2">Registration / Roll No</th>
-                      <td class="fw-semibold text-dark py-2"><code>{{ student.roll_no }}</code></td>
+                      <th class="text-muted py-2">{% if admission_doc %}Admission / Reg Number{% else %}Registration / Roll No{% endif %}</th>
+                      <td class="fw-semibold text-dark py-2"><code>{% if admission_doc %}{{ ctx.registration_number }}{% else %}{{ student.roll_no }}{% endif %}</code></td>
                     </tr>
                     <tr class="border-bottom">
                       <th class="text-muted py-2">Programme of Study</th>
-                      <td class="text-dark py-2">{{ student.program.name }} ({{ student.program.code }})</td>
+                      <td class="text-dark py-2">{% if admission_doc %}{{ ctx.programme_name }}{% if ctx.programme_code %} ({{ ctx.programme_code }}){% endif %}{% else %}{{ student.program.name }} ({{ student.program.code }}){% endif %}</td>
                     </tr>
-                    <tr class="border-bottom">
-                      <th class="text-muted py-2">Department / Faculty</th>
-                      <td class="text-dark py-2">{{ student.program.department.name|default:"General" }}</td>
-                    </tr>
-                    <tr class="border-bottom">
-                      <th class="text-muted py-2">Cumulative GPA / Standing</th>
-                      <td class="text-dark py-2">
-                        <strong class="text-primary">{{ ctx.cgpa|default:"In Progress" }}</strong>
-                        {% if ctx.overall_standing %}
-                          <span class="badge bg-light text-dark border ms-2">{{ ctx.overall_standing }}</span>
-                        {% endif %}
-                      </td>
-                    </tr>
+                    {% if admission_doc %}
+                      <tr class="border-bottom">
+                        <th class="text-muted py-2">Academic Intake &amp; Year</th>
+                        <td class="text-dark py-2">{{ ctx.intake }} · Academic Year {{ ctx.academic_year }}</td>
+                      </tr>
+                      <tr class="border-bottom">
+                        <th class="text-muted py-2">Authorized Signatory</th>
+                        <td class="text-dark py-2"><strong>{{ ctx.signatory_name }}</strong> <span class="text-muted">({{ ctx.signatory_title }})</span></td>
+                      </tr>
+                    {% else %}
+                      <tr class="border-bottom">
+                        <th class="text-muted py-2">Department / Faculty</th>
+                        <td class="text-dark py-2">{{ student.program.department.name|default:"General" }}</td>
+                      </tr>
+                      <tr class="border-bottom">
+                        <th class="text-muted py-2">Cumulative GPA / Standing</th>
+                        <td class="text-dark py-2">
+                          <strong class="text-primary">{{ ctx.cgpa|default:"In Progress" }}</strong>
+                          {% if ctx.overall_standing %}
+                            <span class="badge bg-light text-dark border ms-2">{{ ctx.overall_standing }}</span>
+                          {% endif %}
+                        </td>
+                      </tr>
+                    {% endif %}
                     <tr class="border-bottom">
                       <th class="text-muted py-2">Document Serial Reference</th>
                       <td class="text-dark py-2"><code class="text-primary">{{ reference_no }}</code></td>

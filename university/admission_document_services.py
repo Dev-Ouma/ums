@@ -1,3 +1,4 @@
+import hashlib
 import io
 import os
 import re
@@ -21,7 +22,7 @@ from reportlab.platypus import (
 
 from django.core.exceptions import PermissionDenied
 from university.document_design import (
-    ReportDocTemplate, document_styles, get_branding
+    ReportDocTemplate, document_styles, get_branding, make_qr_code_flowable
 )
 from university.models import (
     AcademicTerm, AcademicYear, Application, ApplicationAttachment,
@@ -412,6 +413,20 @@ def get_or_create_default_template(program=None, academic_year=None):
     return tmpl
 
 
+def compute_admission_document_checksum(issued_document=None, context=None):
+    """
+    Computes a cryptographic SHA-256 digest for an admission letter to guarantee non-repudiation.
+    """
+    context = context or {}
+    doc_ref = getattr(issued_document, "document_reference", "") or context.get("document_reference", "")
+    reg_no = context.get("registration_number", context.get("admission_number", ""))
+    prog_code = context.get("programme_code", "UG")
+    issue_date = str(context.get("issue_date", ""))
+    secret = getattr(settings, "SECRET_KEY", "ums-secret-key")
+    raw = f"{doc_ref}:{reg_no}:{prog_code}:{issue_date}:{secret}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
 def build_admission_letter_pdf_bytes(issued_document):
     """
     Renders the official university admission letter as a clean, authentic
@@ -670,25 +685,23 @@ def build_admission_letter_pdf_bytes(issued_document):
                     story.append(Paragraph(line, list_item_style))
                 else:
                     story.append(Paragraph(line, body_style))
-            story.append(Spacer(1, 1))
-
     # 10. Closing & Sign-off Block
     story.append(Paragraph(
         f"We look forward to welcoming you to {escape(context.get('university_name', 'University Management System'))} and supporting you on your academic journey.",
         closing_style
     ))
-    story.append(Paragraph("Yours faithfully,", closing_style))
+    story.append(Spacer(1, 2))
 
-    # 11. Official Signatures (Single or Dual Signatories)
+    # 11. Official Signatures and Bottom-Left Security Verification Badge
     sig_img_path = None
-    sig_name = issued_document.signatory_name or context.get("signatory_name", "DR. MARGARET OMOLO, PhD")
-    sig_title = issued_document.signatory_title or context.get("signatory_title", "ACADEMIC REGISTRAR")
+    sig_name = (issued_document.signatory_name if (issued_document and issued_document.signatory_name) else None) or context.get("signatory_name", "DR. MARGARET OMOLO, PhD")
+    sig_title = (issued_document.signatory_title if (issued_document and issued_document.signatory_title) else None) or context.get("signatory_title", "ACADEMIC REGISTRAR")
 
     # Priority 1: Historical snapshot
-    if issued_document.signature_snapshot and hasattr(issued_document.signature_snapshot, "path") and os.path.exists(issued_document.signature_snapshot.path):
+    if issued_document and issued_document.signature_snapshot and hasattr(issued_document.signature_snapshot, "path") and os.path.exists(issued_document.signature_snapshot.path):
         sig_img_path = issued_document.signature_snapshot.path
     # Priority 2: Primary signatory active User profile signature
-    elif issued_document.signatory:
+    elif issued_document and issued_document.signatory:
         from accounts.models import UserSignature
         user_sig = UserSignature.objects.filter(user=issued_document.signatory, status=UserSignature.Status.ACTIVE).first()
         if user_sig and user_sig.signature_image and hasattr(user_sig.signature_image, "path") and os.path.exists(user_sig.signature_image.path):
@@ -704,18 +717,76 @@ def build_admission_letter_pdf_bytes(issued_document):
         if os.path.exists(static_sig):
             sig_img_path = static_sig
 
+    # Checksum & Verification Badge Metadata
+    doc_ref = (issued_document.document_reference if issued_document else None) or context.get("document_reference", "UMS/ADM/SAMPLE/001")
+    doc_hash = compute_admission_document_checksum(issued_document, context)
+    checksum_short = f"{doc_hash[:6]}...{doc_hash[-4:]}"
+    issued_ts = timezone.now().strftime("%Y-%m-%d %H:%M UTC")
+    ver_url = context.get("verification_url") or f"https://ums.ac.ke/verify/document/{doc_ref.replace('/', '-')}"
+
+    qr_flowable = make_qr_code_flowable(ver_url, size=46)
+
+    badge_meta_style = ParagraphStyle(
+        "BadgeMetaText",
+        parent=styles["Normal"],
+        fontName="Courier",
+        fontSize=6.5,
+        leading=8,
+        textColor=colors.HexColor("#334155"),
+    )
+
+    badge_meta_html = (
+        '<font color="#059669">●</font> <b><font face="Times-Bold" size="7.5" color="#0f172a">SECURE VERIFICATION</font></b><br/>'
+        f'<font color="#64748b">Doc Ref:</font> <b>{escape(doc_ref)}</b><br/>'
+        f'<font color="#64748b">Checksum:</font> {checksum_short} (SHA256)<br/>'
+        f'<font color="#64748b">Issued:</font> {issued_ts}<br/>'
+        '<font size="5.8" color="#94a3b8">Scan to authenticate original record.</font>'
+    )
+
+    badge_inner_table = Table(
+        [[qr_flowable, Paragraph(badge_meta_html, badge_meta_style)]],
+        colWidths=[50, 195]
+    )
+    badge_inner_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (0, 0), 2),
+        ("RIGHTPADDING", (0, 0), (0, 0), 2),
+        ("LEFTPADDING", (1, 0), (1, 0), 2),
+        ("RIGHTPADDING", (1, 0), (1, 0), 2),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+    ]))
+
+    # Signatory column on the right
+    sig_cell_elements = []
+    sig_cell_elements.append(Paragraph("Yours faithfully,", closing_style))
     if sig_img_path and os.path.exists(sig_img_path):
         try:
-            sig_rl = RLImage(sig_img_path, width=80, height=22)
+            sig_rl = RLImage(sig_img_path, width=72, height=18)
             sig_rl.hAlign = "LEFT"
-            story.append(sig_rl)
+            sig_cell_elements.append(sig_rl)
         except Exception:
-            story.append(Spacer(1, 12))
+            sig_cell_elements.append(Spacer(1, 8))
     else:
-        story.append(Spacer(1, 12))
+        sig_cell_elements.append(Spacer(1, 8))
 
-    story.append(Paragraph(f"<u><b>{escape(sig_name.upper())}</b></u>", sig_style))
-    story.append(Paragraph(f"<b>{escape(sig_title.upper())}</b>", sig_style))
+    sig_cell_elements.append(Paragraph(f"<u><b>{escape(sig_name.upper())}</b></u>", sig_style))
+    sig_cell_elements.append(Paragraph(f"<b>{escape(sig_title.upper())}</b>", sig_style))
+
+    footer_table = Table(
+        [[badge_inner_table, sig_cell_elements]],
+        colWidths=[255, 268]
+    )
+    footer_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    story.append(footer_table)
 
     doc.build(story)
     pdf_bytes = buffer.getvalue()
