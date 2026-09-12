@@ -540,39 +540,47 @@ html.sidebar-collapsed .sidebar .pill-soon{display:none!important}
   gap:6px;
 }
 .chart-filter-btn{
-  font-size:.74rem;
-  padding:3px 9px;
+  font-size:.72rem;
+  padding:3px 10px;
   border-radius:20px;
-  border:1px solid #e2e4ef;
-  background:#fff;
-  color:#5a6072;
+  border:1px solid #e2e8f0;
+  background:#f8fafc;
+  color:#64748b;
   font-weight:600;
   cursor:pointer;
-  transition:all .15s;
+  transition:all .18s ease;
 }
 .chart-filter-btn:hover{
   border-color:var(--primary);
   color:var(--primary);
+  background:#fff;
 }
 .chart-filter-btn.active{
   background:var(--primary);
   border-color:var(--primary);
   color:#fff;
+  box-shadow:0 2px 6px rgba(108,92,231,0.28);
 }
 .btn-chart-export{
-  font-size:.74rem;
-  padding:3px 8px;
-  border-radius:8px;
-  background:#f4f5fb;
-  border:1px solid #e2e4ef;
-  color:#5a6072;
+  font-size:.72rem;
+  padding:3px 9px;
+  border-radius:20px;
+  background:#f8fafc;
+  border:1px solid #e2e8f0;
+  color:#64748b;
+  font-weight:500;
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
   cursor:pointer;
-  transition:all .15s;
+  transition:all .18s ease;
 }
 .btn-chart-export:hover{
   background:var(--primary);
   color:#fff;
   border-color:var(--primary);
+  box-shadow:0 2px 6px rgba(108,92,231,0.25);
+  transform:translateY(-1px);
 }
 
 /* ---------- FLOATING BULK ACTIONS BAR ---------- */
