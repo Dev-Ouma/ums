@@ -5,7 +5,7 @@
 <!-- 1. Central Status Overview Cards -->
 <div class="row g-3 mb-4">
   <div class="col-sm-6 col-lg-4 col-xl-2">
-    <div class="control-stat-card shadow-sm border-0" style="border-left: 4px solid {% if state.status == 'Operational' %}#22c55e{% elif state.status == 'Maintenance' %}#f59e0b{% elif state.status == 'Read Only' %}#0ea5e9{% else %}#ef4444{% endif %} !important;">
+    <div class="control-stat-card shadow-sm border-0">
       <div class="stat-label">
         <span>System Status</span>
         <i class="fa-solid fa-server text-muted"></i>
@@ -18,7 +18,7 @@
   </div>
 
   <div class="col-sm-6 col-lg-4 col-xl-2">
-    <div class="control-stat-card shadow-sm border-0" style="border-left: 4px solid {% if state.maintenance %}#f59e0b{% else %}#94a3b8{% endif %} !important;">
+    <div class="control-stat-card shadow-sm border-0">
       <div class="stat-label">
         <span>Maintenance</span>
         <i class="fa-solid fa-screwdriver-wrench text-muted"></i>
@@ -35,7 +35,7 @@
   </div>
 
   <div class="col-sm-6 col-lg-4 col-xl-2">
-    <div class="control-stat-card shadow-sm border-0" style="border-left: 4px solid {% if state.lockdown %}#ef4444{% else %}#94a3b8{% endif %} !important;">
+    <div class="control-stat-card shadow-sm border-0">
       <div class="stat-label">
         <span>Lockdown</span>
         <i class="fa-solid fa-lock text-muted"></i>
@@ -52,7 +52,7 @@
   </div>
 
   <div class="col-sm-6 col-lg-4 col-xl-2">
-    <div class="control-stat-card shadow-sm border-0" style="border-left: 4px solid {% if state.read_only %}#0ea5e9{% else %}#94a3b8{% endif %} !important;">
+    <div class="control-stat-card shadow-sm border-0">
       <div class="stat-label">
         <span>Read-Only</span>
         <i class="fa-solid fa-database text-muted"></i>

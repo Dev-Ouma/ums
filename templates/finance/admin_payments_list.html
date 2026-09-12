@@ -34,7 +34,7 @@
   <!-- Stat Cards -->
   <div class="row g-3 mb-4">
     <div class="col-sm-6 col-lg-3">
-      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #10b981 !important;">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
         <span class="text-muted small fw-semibold text-uppercase">Total Settled Collections</span>
         <div class="display-6 fw-bold text-success mt-2">
           <span class="fs-5 text-muted fw-normal">KES </span>{{ summary.total_amount|floatformat:0|intcomma }}
@@ -43,21 +43,21 @@
       </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #3b82f6 !important;">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
         <span class="text-muted small fw-semibold text-uppercase">Total Payment Records</span>
         <div class="display-6 fw-bold text-dark mt-2">{{ summary.total_count }}</div>
         <span class="small text-muted mt-1">Across all filtered states</span>
       </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #f59e0b !important;">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
         <span class="text-muted small fw-semibold text-uppercase">Pending / In-Flight</span>
         <div class="display-6 fw-bold text-warning mt-2">{{ summary.pending_count }}</div>
         <span class="small text-muted mt-1">Awaiting provider callback or manual verification</span>
       </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #6366f1 !important;">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
         <span class="text-muted small fw-semibold text-uppercase">Success Rate</span>
         <div class="display-6 fw-bold text-primary mt-2">
           {% if summary.total_count > 0 %}
