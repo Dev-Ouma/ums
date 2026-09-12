@@ -91,28 +91,28 @@
   <!-- Metrics Grid -->
   <div class="row g-3 mb-4">
     <div class="col-sm-6 col-lg-3">
-      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #10b981 !important;">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
         <span class="text-muted small fw-semibold text-uppercase">Successful Backups</span>
         <div class="display-6 fw-bold text-success mt-2">{{ successful_jobs }}</div>
         <span class="small text-muted mt-1">{{ readiness.verified_backups }} verified with SHA-256</span>
       </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #ef4444 !important;">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
         <span class="text-muted small fw-semibold text-uppercase">Failed Jobs</span>
         <div class="display-6 fw-bold text-danger mt-2">{{ failed_jobs }}</div>
         <span class="small text-muted mt-1">{{ readiness.recent_failures }} in the last 7 days</span>
       </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #6C5CE7 !important;">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
         <span class="text-muted small fw-semibold text-uppercase">Total Storage Used</span>
         <div class="display-6 fw-bold text-dark mt-2">{{ total_storage_mb }} <span class="fs-6 text-muted">MB</span></div>
         <span class="small text-muted mt-1">{{ readiness.storage_available_gb }} GB free on disk</span>
       </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100" style="border-left: 4px solid #0ea5e9 !important;">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
         <span class="text-muted small fw-semibold text-uppercase">Active Schedules</span>
         <div class="display-6 fw-bold text-primary mt-2">{{ readiness.active_schedules_count }}</div>
         <span class="small text-muted mt-1">
