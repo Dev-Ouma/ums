@@ -587,3 +587,64 @@ class AdminFinanceOperationsTests(FeeAccountIntegrationTestBase):
         self.assertTrue(sms_res["success"])
         self.assertIn("REC-2026-000999", sms_res["message"])
         self.assertIn("KES 5,000.00", sms_res["message"])
+
+    def test_paybill_account_number_formats(self):
+        # 1. Standard roll number
+        self.paybill.configuration = {"account_ref_format": "STUDENT_REG_NO"}
+        self.paybill.save()
+        self.assertEqual(self.paybill.get_student_account_number(self.student), "BSE/2026/001")
+
+        # 2. Clean alphanumeric roll number
+        self.paybill.configuration = {"account_ref_format": "CLEAN_REG_NO"}
+        self.paybill.save()
+        self.assertEqual(self.paybill.get_student_account_number(self.student), "BSE2026001")
+
+        # 3. Unique virtual account number
+        self.paybill.configuration = {"account_ref_format": "UNIQUE_STUDENT_ID", "account_ref_prefix": "ACC"}
+        self.paybill.save()
+        self.assertEqual(self.paybill.get_student_account_number(self.student), f"ACC{self.student.id:06d}")
+
+        # 4. Prefix roll number
+        self.paybill.configuration = {"account_ref_format": "PREFIX_REG_NO", "account_ref_prefix": "FEES-"}
+        self.paybill.save()
+        self.assertEqual(self.paybill.get_student_account_number(self.student), "FEES-BSE/2026/001")
+
+        # 5. Fixed account number
+        self.paybill.configuration = {"account_ref_format": "FIXED_ACCOUNT", "fixed_account_number": "01129012345600"}
+        self.paybill.save()
+        self.assertEqual(self.paybill.get_student_account_number(self.student), "01129012345600")
+
+    def test_c2b_url_registration_action(self):
+        self.client.force_login(self.admin)
+        url = reverse("university:fee_account_register_urls", kwargs={"pk": self.paybill.pk})
+        res = self.client.post(url, {
+            "callback_url": "https://example.com/api/payments/callback/mpesa/",
+            "validation_url": "https://example.com/api/payments/callback/mpesa/validation/",
+            "response_type": "Completed",
+        })
+        self.assertEqual(res.status_code, 302)
+        self.paybill.refresh_from_db()
+        self.assertEqual(self.paybill.configuration.get("callback_url"), "https://example.com/api/payments/callback/mpesa/")
+        self.assertIsNotNone(self.paybill.configuration.get("c2b_urls_registered_at"))
+
+    def test_resolve_student_from_bill_ref_multi_strategy(self):
+        from university.fee_payment_views import resolve_student_from_bill_ref
+
+        # 1. Exact roll number
+        s1 = resolve_student_from_bill_ref("BSE/2026/001", fee_account=self.paybill)
+        self.assertEqual(s1, self.student)
+
+        # 2. Clean alphanumeric roll number
+        s2 = resolve_student_from_bill_ref("BSE2026001", fee_account=self.paybill)
+        self.assertEqual(s2, self.student)
+
+        # 3. Virtual account number
+        s3 = resolve_student_from_bill_ref(f"ACC{self.student.id:06d}", fee_account=self.paybill)
+        self.assertEqual(s3, self.student)
+
+        # 4. Prefix stripped
+        self.paybill.configuration = {"account_ref_prefix": "FEES-"}
+        self.paybill.save()
+        s4 = resolve_student_from_bill_ref("FEES-BSE/2026/001", fee_account=self.paybill)
+        self.assertEqual(s4, self.student)
+

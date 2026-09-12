@@ -910,14 +910,52 @@ class FeeAccount(models.Model):
         fmt = config.get("account_ref_format", "STUDENT_REG_NO")
         if fmt == "FIXED_ACCOUNT":
             return config.get("fixed_account_number") or "Fixed Account"
+        elif fmt == "CLEAN_REG_NO":
+            return "Alphanumeric Reg No (e.g. BTCSE0012027)"
+        elif fmt == "UNIQUE_STUDENT_ID":
+            prefix = config.get("account_ref_prefix", "ACC")
+            return f"Unique Virtual Account (e.g. {prefix}000001)"
         elif fmt == "PREFIX_REG_NO":
-            prefix = config.get("account_ref_prefix", "")
+            prefix = config.get("account_ref_prefix", "FEES-")
             return f"{prefix}[Student Reg No]"
         elif fmt == "INVOICE_NUMBER":
             return "[Invoice Number]"
         elif fmt == "PAYMENT_REFERENCE":
             return "[Payment Ref]"
-        return "Student Reg No (e.g. BSE/2026/001)"
+        return "Student Reg No (e.g. BT-CSE/001/2027)"
+
+    def get_student_account_number(self, student=None, invoice=None, payment=None):
+        """
+        Returns the exact Paybill Account Number to be entered by a student based on this FeeAccount's configured rule.
+        """
+        config = self.configuration or {}
+        fmt = config.get("account_ref_format", "STUDENT_REG_NO")
+
+        if fmt == "FIXED_ACCOUNT":
+            return config.get("fixed_account_number") or self.account_identifier
+        elif fmt == "INVOICE_NUMBER" and invoice:
+            return getattr(invoice, "invoice_number", "")
+        elif fmt == "PAYMENT_REFERENCE" and payment:
+            return getattr(payment, "internal_reference", "")
+
+        if not student:
+            return config.get("fixed_account_number") or self.account_identifier
+
+        roll_no = getattr(student, "roll_no", "") or ""
+        clean_roll = re.sub(r"[^A-Za-z0-9]", "", roll_no).upper()
+
+        if fmt == "CLEAN_REG_NO":
+            return clean_roll or roll_no
+        elif fmt == "UNIQUE_STUDENT_ID":
+            prefix = config.get("account_ref_prefix", "ACC").strip().upper()
+            student_id = getattr(student, "id", 0) or 0
+            return f"{prefix}{student_id:06d}"
+        elif fmt == "PREFIX_REG_NO":
+            prefix = config.get("account_ref_prefix", "FEES-").strip()
+            return f"{prefix}{roll_no}"
+
+        # Default standard STUDENT_REG_NO
+        return roll_no
 
 
 class Payment(models.Model):

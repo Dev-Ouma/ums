@@ -1,9 +1,10 @@
 import decimal
 import hashlib
 import hmac
-from decimal import Decimal
 import json
 import logging
+import re
+from decimal import Decimal
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -222,6 +223,74 @@ def student_receipt_pdf(request, receipt_no):
 # ==============================================================================
 
 @csrf_exempt
+def resolve_student_from_bill_ref(bill_ref: str, fee_account=None, phone: str = ""):
+    """
+    Safely resolves a StudentProfile instance from an M-Pesa BillRefNumber (Account Number).
+    Resolution strategies:
+    1. Exact roll_no match (e.g. 'BT-CSE/001/2027')
+    2. Prefix-stripped roll_no match (e.g. 'FEES-BT-CSE/001/2027' -> 'BT-CSE/001/2027')
+    3. Virtual account number match (e.g. 'ACC000001' or 'STU000001' or student ID)
+    4. Clean alphanumeric roll_no match (e.g. 'BTCSE0012027' matching 'BT-CSE/001/2027')
+    5. User username match (e.g. 'student1')
+    6. Mobile phone number match fallback
+    """
+    if not bill_ref and not phone:
+        return None
+
+    raw_ref = (bill_ref or "").strip()
+    config = (fee_account.configuration if fee_account else {}) or {}
+    prefix = config.get("account_ref_prefix", "").strip()
+
+    cleaned_ref = raw_ref
+    if prefix and cleaned_ref.upper().startswith(prefix.upper()):
+        cleaned_ref = cleaned_ref[len(prefix):].strip()
+
+    # 1. Exact roll number match
+    if cleaned_ref:
+        student = StudentProfile.objects.filter(roll_no__iexact=cleaned_ref).first()
+        if student:
+            return student
+
+    # 2. Virtual account identifier match (e.g. ACC000012, STU000012, or just ID number)
+    if cleaned_ref:
+        match = re.match(r"^(?:ACC|STU|UFA|PAY)?0*([1-9]\d*)$", cleaned_ref.upper())
+        if match:
+            try:
+                stu_id = int(match.group(1))
+                student = StudentProfile.objects.filter(id=stu_id).first()
+                if student:
+                    return student
+            except (ValueError, TypeError):
+                pass
+
+    # 3. Clean alphanumeric roll number match (strips slashes, dashes, dots, spaces)
+    if cleaned_ref:
+        alpha_target = re.sub(r"[^A-Za-z0-9]", "", cleaned_ref).upper()
+        if alpha_target:
+            for s in StudentProfile.objects.only("id", "roll_no").iterator():
+                s_alpha = re.sub(r"[^A-Za-z0-9]", "", s.roll_no or "").upper()
+                if s_alpha == alpha_target:
+                    return StudentProfile.objects.filter(id=s.id).first()
+
+    # 4. User username match
+    if cleaned_ref:
+        student = StudentProfile.objects.filter(user__username__iexact=cleaned_ref).first()
+        if student:
+            return student
+
+    # 5. Fallback: Lookup by mobile phone number
+    if phone:
+        phone_cleaned = re.sub(r"[^0-9]", "", phone)
+        phone_suffix = phone_cleaned[-9:] if len(phone_cleaned) >= 9 else phone_cleaned
+        if phone_suffix:
+            student = StudentProfile.objects.filter(user__phone__icontains=phone_suffix).first()
+            if student:
+                return student
+
+    return None
+
+
+@csrf_exempt
 @require_POST
 def mpesa_validation(request):
     """
@@ -236,9 +305,16 @@ def mpesa_validation(request):
         payload = {}
 
     bill_ref = (payload.get("BillRefNumber") or "").strip()
-    # Accept by default or confirm student exists if provided
+    shortcode = str(payload.get("BusinessShortCode") or "")
+    fee_account = None
+    if shortcode:
+        fee_account = FeeAccount.objects.filter(account_identifier=shortcode).first()
+
     if bill_ref:
         logger.info(f"M-Pesa C2B validation check for BillRefNumber: {bill_ref}")
+        student = resolve_student_from_bill_ref(bill_ref, fee_account=fee_account)
+        if student:
+            logger.info(f"C2B validation matched student {student.roll_no} ({student.user.display_name})")
 
     return JsonResponse({"ResultCode": 0, "ResultDesc": "Accepted"})
 
@@ -337,25 +413,8 @@ def mpesa_callback(request):
     last_name = payload.get("LastName") or ""
     payer_name = f"{first_name} {last_name}".strip()
 
-    # Resolve Student from BillRefNumber (Account Number)
-    student = None
-    if bill_ref:
-        config = fee_account.configuration if fee_account else {}
-        prefix = config.get("account_ref_prefix", "") if config else ""
-        cleaned_ref = bill_ref
-        if prefix and cleaned_ref.upper().startswith(prefix.upper()):
-            cleaned_ref = cleaned_ref[len(prefix):].strip()
-
-        # Lookup by registration / roll number
-        student = StudentProfile.objects.filter(roll_no__iexact=cleaned_ref).first()
-        if not student:
-            # Lookup by user username
-            student = StudentProfile.objects.filter(user__username__iexact=cleaned_ref).first()
-
-    # Fallback: lookup by mobile phone number
-    if not student and phone:
-        phone_suffix = phone[-9:] if len(phone) >= 9 else phone
-        student = StudentProfile.objects.filter(user__phone__icontains=phone_suffix).first()
+    # Resolve Student from BillRefNumber (Account Number) using multi-strategy resolver
+    student = resolve_student_from_bill_ref(bill_ref, fee_account=fee_account, phone=phone)
 
     if student and amount > 0:
         ay = AcademicYear.objects.filter(is_current=True).first() or AcademicYear.objects.order_by("-start_date").first()

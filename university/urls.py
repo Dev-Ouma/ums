@@ -161,6 +161,7 @@ urlpatterns = [
     path("finance/fee-accounts/<int:pk>/toggle-status/", fee_account_views.fee_account_toggle_status, name="fee_account_toggle_status"),
     path("finance/fee-accounts/<int:pk>/set-default/", fee_account_views.fee_account_set_default, name="fee_account_set_default"),
     path("finance/fee-accounts/<int:pk>/test/", fee_account_views.fee_account_test, name="fee_account_test"),
+    path("finance/fee-accounts/<int:pk>/register-urls/", fee_account_views.fee_account_register_urls, name="fee_account_register_urls"),
     path("finance/fee-accounts/<int:pk>/delete/", fee_account_views.fee_account_delete, name="fee_account_delete"),
 
     # Payments Ledger & Admin Verification / Reversal

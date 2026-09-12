@@ -1,3 +1,4 @@
+import re
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.urls import reverse
@@ -145,6 +146,16 @@ class StudentProfile(models.Model):
     @property
     def semester(self):
         return ((self.current_semester - 1) % 2) + 1 if self.current_semester else 1
+
+    @property
+    def clean_roll_no(self):
+        """Alphanumeric registration number without slashes, dashes, or whitespace."""
+        return re.sub(r"[^A-Za-z0-9]", "", self.roll_no or "").upper()
+
+    @property
+    def virtual_account_number(self):
+        """Deterministic unique virtual fee account identifier."""
+        return f"ACC{self.id:06d}"
 
     @property
     def is_active_student(self):

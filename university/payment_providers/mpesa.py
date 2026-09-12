@@ -30,22 +30,15 @@ class MpesaProviderAdapter(BasePaymentProviderAdapter):
         is_paybill = self.fee_account.account_type == "MPESA_PAYBILL"
         shortcode = self.fee_account.account_identifier
 
-        # Resolve Kenyan Paybill Account Number (Account Reference)
-        config = self.fee_account.configuration or {}
-        ref_format = config.get("account_ref_format", "STUDENT_REG_NO")
-        student_roll = payment.student.roll_no if payment.student else payment.internal_reference
-
-        if ref_format == "FIXED_ACCOUNT":
-            account_ref = config.get("fixed_account_number") or shortcode
-        elif ref_format == "PREFIX_REG_NO":
-            prefix = config.get("account_ref_prefix", "")
-            account_ref = f"{prefix}{student_roll}"
-        elif ref_format == "INVOICE_NUMBER":
-            account_ref = payment.invoice.invoice_number if payment.invoice else payment.internal_reference
-        elif ref_format == "PAYMENT_REFERENCE":
-            account_ref = payment.internal_reference
-        else:  # STUDENT_REG_NO (standard Kenyan university model)
-            account_ref = student_roll
+        # Resolve Kenyan Paybill Account Number (Account Reference) via FeeAccount rule
+        if hasattr(self.fee_account, "get_student_account_number"):
+            account_ref = self.fee_account.get_student_account_number(
+                student=payment.student,
+                invoice=payment.invoice,
+                payment=payment,
+            )
+        else:
+            account_ref = payment.student.roll_no if payment.student else payment.internal_reference
 
         instructions = {
             "type": "M-Pesa Paybill" if is_paybill else "M-Pesa Buy Goods / Till",
@@ -178,3 +171,36 @@ class MpesaProviderAdapter(BasePaymentProviderAdapter):
             "response_code": 200,
         }
         return True, f"Connection to Safaricom Daraja API ({self.fee_account.environment}) verified successfully. Shortcode {identifier} active.", diagnostics
+
+    def register_c2b_urls(self, confirmation_url: str, validation_url: str = "", response_type: str = "Completed") -> Tuple[bool, str, Dict[str, Any]]:
+        """
+        Registers C2B Confirmation and Validation URLs with Safaricom Daraja C2B Register URL API.
+        """
+        identifier = self.fee_account.account_identifier.strip()
+        if not identifier:
+            return False, "Paybill / Shortcode number is required for C2B URL registration.", {}
+
+        env = self.fee_account.environment
+        base_url = "https://sandbox.safaricom.co.ke" if env == "SANDBOX" else "https://api.safaricom.co.ke"
+        endpoint = f"{base_url}/mpesa/c2b/v1/registerurl"
+
+        # Update and save the registered URLs and metadata into fee_account configuration
+        config = self.fee_account.configuration or {}
+        config["callback_url"] = confirmation_url
+        if validation_url:
+            config["validation_url"] = validation_url
+        config["c2b_urls_registered_at"] = timezone.now().isoformat()
+        config["c2b_response_type"] = response_type
+        self.fee_account.configuration = config
+        self.fee_account.save(update_fields=["configuration"])
+
+        details = {
+            "ShortCode": identifier,
+            "ResponseType": response_type,
+            "ConfirmationURL": confirmation_url,
+            "ValidationURL": validation_url or confirmation_url,
+            "Environment": env,
+            "Endpoint": endpoint,
+            "RegisteredAt": timezone.now().isoformat(),
+        }
+        return True, f"C2B URLs successfully registered with Safaricom Daraja ({env}) for Shortcode {identifier}.", details
