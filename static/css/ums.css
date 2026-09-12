@@ -140,8 +140,31 @@ a{text-decoration:none}
 .sidebar .submenu .sub-item:hover{background:rgba(255,255,255,.09);color:#fff}
 .sidebar .submenu .sub-item i{width:16px;font-size:.82rem;text-align:center;opacity:.9}
 .sidebar .submenu .sub-item.active{background:rgba(255,255,255,.18);border-left-color:#fff;color:#fff;font-weight:600}
+.sidebar .text-muted{color:rgba(255,255,255,.65)!important}
+.sidebar small{color:rgba(255,255,255,.65)}
+.sidebar .pill-soon,
+.sidebar .badge-soon{
+  margin-left:auto;
+  background:rgba(255,255,255,.16);
+  color:rgba(255,255,255,.9);
+  font-size:.62rem;
+  padding:2px 7px;
+  border-radius:12px;
+  font-weight:600;
+  letter-spacing:.3px;
+  border:1px solid rgba(255,255,255,.15);
+  white-space:nowrap;
+  display:inline-block;
+  line-height:1.2;
+}
+.sidebar .item:hover .pill-soon,
+.sidebar .item:hover .badge-soon{
+  background:rgba(255,255,255,.24);
+  color:#fff;
+}
 html.sidebar-collapsed .sidebar .submenu{display:none!important}
 html.sidebar-collapsed .sidebar .chevron{display:none!important}
+html.sidebar-collapsed .sidebar .pill-soon{display:none!important}
 
 .main{flex:1;margin-left:var(--rail);min-width:0;transition:margin-left .22s ease}
 .topbar{background:#fff;padding:12px 26px;display:flex;align-items:center;gap:18px;
