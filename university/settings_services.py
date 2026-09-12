@@ -282,8 +282,8 @@ DEFAULT_SETTINGS = [
         "key": "session_timeout_minutes",
         "label": "Session Inactivity Timeout (Minutes)",
         "value_type": SystemSetting.ValueType.INTEGER,
-        "value": "60",
-        "description": "Automatic idle user logout expiration window.",
+        "value": "30",
+        "description": "Automatic idle user logout expiration window (default: 30 minutes).",
         "is_public": False,
     },
     {

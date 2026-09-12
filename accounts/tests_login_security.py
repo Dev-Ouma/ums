@@ -148,7 +148,23 @@ class LoginPageSecurityTests(TestCase):
         session_key = session.session_key
         response = client.get(reverse("university:dashboard"))
         self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("accounts:login"), response.url)
+        self.assertIn("reason=inactivity", response.url)
         self.assertFalse(Session.objects.filter(session_key=session_key).exists())
+
+    def test_login_page_renders_reason_notifications(self):
+        reasons = {
+            "inactivity": "Your session expired due to 30 minutes of inactivity. Please log in again.",
+            "manual": "You have been successfully logged out.",
+            "session_conflict": "Logged out because your account was opened in another window.",
+            "security": "Your session was terminated for security reasons. Please re-authenticate.",
+            "expired": "Your session has expired. Please sign in again.",
+        }
+        for code, text in reasons.items():
+            with self.subTest(reason=code):
+                response = self.client.get(f"{reverse('accounts:login')}?reason={code}")
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, text)
 
     @override_settings(DEBUG=False, SECURE_SSL_REDIRECT=False, SESSION_COOKIE_SECURE=True, CSRF_COOKIE_SECURE=True)
     def test_authenticated_cookies_have_production_flags(self):

@@ -24,6 +24,21 @@ class UMSLoginView(LoginView):
     def dispatch(self, request, *args, **kwargs):
         return super().dispatch(request, *args, **kwargs)
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        reason = self.request.GET.get("reason", "")
+        reason_messages = {
+            "inactivity": "Your session expired due to 30 minutes of inactivity. Please log in again.",
+            "manual": "You have been successfully logged out.",
+            "session_conflict": "Logged out because your account was opened in another window.",
+            "security": "Your session was terminated for security reasons. Please re-authenticate.",
+            "expired": "Your session has expired. Please sign in again.",
+        }
+        if reason in reason_messages:
+            context["logout_reason"] = reason
+            context["logout_message"] = reason_messages[reason]
+        return context
+
     def form_invalid(self, form):
         """Apply a bounded progressive response delay after repeated failures."""
         from .models import User
@@ -88,8 +103,8 @@ def logout_view(request):
     cookie cannot be replayed against protected pages.
     """
     logout(request)
-    messages.info(request, "You have been signed out.")
-    response = redirect("university:home")
+    messages.info(request, "You have been successfully logged out.")
+    response = redirect(f"{reverse('accounts:login')}?reason=manual")
     response["Clear-Site-Data"] = '"cache", "storage"'
     response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response["Pragma"] = "no-cache"

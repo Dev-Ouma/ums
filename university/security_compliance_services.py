@@ -287,7 +287,7 @@ def build_security_compliance_summary():
 
     from university.settings_services import get_setting
     from university.database_security_services import build_database_security_checks
-    idle_timeout_minutes = get_setting("session_timeout_minutes", 60) or 0
+    idle_timeout_minutes = get_setting("session_timeout_minutes", 30) or 0
     runtime_checks = [
         {
             "label": "Production debug mode",
