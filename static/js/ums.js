@@ -38,7 +38,8 @@ async function aiSend(message, boxId = 'aiMessages', inputId = null) {
     typing.innerHTML = `<i class="fa-solid ${data.icon} me-2 text-primary"></i>${data.reply}`;
     renderChips(data.suggestions, boxId, inputId);
   } catch (e) {
-    typing.innerHTML = 'Sorry, I could not reach the assistant.';
+    typing.innerHTML = '<i class="fa-solid fa-circle-exclamation me-2 text-warning"></i>I had trouble connecting to the campus server. Please try again in a moment.';
+    renderChips(['Check my fees', 'Register for courses', 'My exam card', 'Graduation clearance'], boxId, inputId);
   }
   box.scrollTop = box.scrollHeight;
 }
