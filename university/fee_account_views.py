@@ -352,6 +352,61 @@ def fee_account_test(request, pk):
 @login_required
 @_finance_admin_required
 @require_POST
+def fee_account_register_urls(request, pk):
+    """
+    Registers C2B Confirmation (Callback) and Validation URLs with Safaricom Daraja API
+    directly from the Fee Account Detail interface.
+    """
+    account = get_object_or_404(FeeAccount, pk=pk)
+
+    if account.account_type not in [FeeAccount.AccountType.MPESA_PAYBILL, FeeAccount.AccountType.MPESA_TILL]:
+        messages.error(request, "C2B URL registration is only applicable for M-Pesa Paybill or Till accounts.")
+        return redirect("university:fee_account_detail", pk=account.pk)
+
+    host = request.build_absolute_uri('/')[:-1]
+    default_callback = host + reverse("university:mpesa_callback")
+    default_validation = host + reverse("university:mpesa_validation")
+
+    confirmation_url = request.POST.get("callback_url", "").strip() or (account.configuration or {}).get("callback_url") or default_callback
+    validation_url = request.POST.get("validation_url", "").strip() or (account.configuration or {}).get("validation_url") or default_validation
+    response_type = request.POST.get("response_type", "Completed").strip()
+
+    from university.payment_providers.mpesa import MpesaProviderAdapter
+    adapter = MpesaProviderAdapter(account)
+    success, message, details = adapter.register_c2b_urls(
+        confirmation_url=confirmation_url,
+        validation_url=validation_url,
+        response_type=response_type,
+    )
+
+    FeeAccountLog.objects.create(
+        fee_account=account,
+        event_type=FeeAccountLog.EventType.CONFIG_CHANGE,
+        message=f"C2B URL Registration: {message}",
+        payload_preview=details,
+    )
+
+    log_activity(
+        request=request,
+        user=request.user,
+        action=AuditLog.Action.UPDATE,
+        module=AuditLog.Module.FEES,
+        entity="FeeAccount",
+        entity_id=str(account.id),
+        description=f"Registered Daraja C2B URLs for {account.name}: {confirmation_url}.",
+    )
+
+    if success:
+        messages.success(request, f"Daraja C2B URLs Registered Successfully! Confirmation: {confirmation_url} | Validation: {validation_url}")
+    else:
+        messages.error(request, f"C2B URL Registration Failed: {message}")
+
+    return redirect("university:fee_account_detail", pk=account.pk)
+
+
+@login_required
+@_finance_admin_required
+@require_POST
 def fee_account_delete(request, pk):
     """
     Safe account deactivation. Preserves records if payments exist.

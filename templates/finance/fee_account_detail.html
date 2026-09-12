@@ -41,6 +41,11 @@
 
     <!-- Action Buttons -->
     <div class="d-flex gap-2 flex-wrap">
+      {% if account.account_type == 'MPESA_PAYBILL' or account.account_type == 'MPESA_TILL' %}
+      <button type="button" class="btn btn-outline-success btn-sm rounded-pill px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#registerC2BModal">
+        <i class="fa-solid fa-cloud-arrow-up me-1"></i> Register C2B URLs with Daraja
+      </button>
+      {% endif %}
       <form method="post" action="{% url 'university:fee_account_test' account.pk %}">
         {% csrf_token %}
         <button type="submit" class="btn btn-outline-info btn-sm rounded-pill px-3 shadow-sm">
@@ -64,6 +69,54 @@
       </a>
     </div>
   </div>
+
+  <!-- Register C2B URLs Modal -->
+  {% if account.account_type == 'MPESA_PAYBILL' or account.account_type == 'MPESA_TILL' %}
+  <div class="modal fade" id="registerC2BModal" tabindex="-1" aria-labelledby="registerC2BModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content rounded-4 border-0 shadow">
+        <form method="post" action="{% url 'university:fee_account_register_urls' account.pk %}">
+          {% csrf_token %}
+          <div class="modal-header border-0 pb-0">
+            <h5 class="modal-title fw-bold text-dark" id="registerC2BModalLabel">
+              <i class="fa-solid fa-cloud-arrow-up text-success me-2"></i>Register C2B URLs with Daraja
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body py-3">
+            <p class="text-muted small">
+              Register this paybill's <b>Confirmation (Callback) URL</b> and <b>Validation URL</b> with Safaricom Daraja so payments made on M-Pesa SIM Toolkit / M-Pesa App are instantly verified and credited to student accounts.
+            </p>
+            <div class="mb-3">
+              <label class="form-label fw-semibold small text-secondary">Confirmation / Callback URL</label>
+              <input type="text" name="callback_url" class="form-control font-monospace small" value="{{ account.configuration.callback_url|default:request.scheme|add:'://'|add:request.get_host|add:'/api/payments/callback/mpesa/' }}" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold small text-secondary">Validation URL</label>
+              <input type="text" name="validation_url" class="form-control font-monospace small" value="{{ account.configuration.validation_url|default:request.scheme|add:'://'|add:request.get_host|add:'/api/payments/callback/mpesa/validation/' }}">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold small text-secondary">Response Type</label>
+              <select name="response_type" class="form-select small">
+                <option value="Completed" selected>Completed (Default Safaricom behavior)</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div class="alert alert-info border-0 rounded-3 small mb-0">
+              <i class="fa-solid fa-circle-info me-1"></i> In Sandbox/Test environments, this validates endpoint readiness and stores the registration status safely.
+            </div>
+          </div>
+          <div class="modal-footer border-0 pt-0">
+            <button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-success rounded-pill px-4">
+              <i class="fa-solid fa-check me-1"></i> Register with Daraja
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   <!-- Stat Cards -->
   <div class="row g-3 mb-4">
@@ -149,9 +202,16 @@
           Account &amp; Integration Parameters
         {% endif %}
       </h5>
-      <a href="{% url 'university:fee_account_edit' account.pk %}" class="btn btn-outline-primary btn-sm rounded-pill px-3">
-        <i class="fa-solid fa-pen-to-square me-1"></i> Modify Parameters
-      </a>
+      <div class="d-flex gap-2">
+        {% if account.account_type == 'MPESA_PAYBILL' or account.account_type == 'MPESA_TILL' %}
+        <button type="button" class="btn btn-outline-success btn-sm rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#registerC2BModal">
+          <i class="fa-solid fa-cloud-arrow-up me-1"></i> Register URLs
+        </button>
+        {% endif %}
+        <a href="{% url 'university:fee_account_edit' account.pk %}" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+          <i class="fa-solid fa-pen-to-square me-1"></i> Modify Parameters
+        </a>
+      </div>
     </div>
 
     <div class="row g-3">
@@ -159,7 +219,12 @@
       <div class="col-md-6 col-lg-3">
         <div class="p-3 bg-light rounded-3 h-100">
           <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size: 0.72rem;">1. Business / Paybill Number</small>
-          <span class="font-monospace fw-bold fs-5 text-dark">{{ account.account_identifier }}</span>
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="font-monospace fw-bold fs-5 text-dark" id="businessNoDisplay">{{ account.account_identifier }}</span>
+            <button type="button" class="btn btn-sm btn-link text-secondary p-0" onclick="navigator.clipboard.writeText('{{ account.account_identifier }}'); alert('Business Number copied: {{ account.account_identifier }}');" title="Copy Business Number">
+              <i class="fa-solid fa-copy"></i>
+            </button>
+          </div>
           <small class="text-muted d-block mt-1">Safaricom Shortcode</small>
         </div>
       </div>
@@ -167,7 +232,7 @@
         <div class="p-3 bg-light rounded-3 h-100">
           <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size: 0.72rem;">2. Account Number Rule</small>
           <span class="fw-bold fs-6 text-primary">{{ account.paybill_account_number_display }}</span>
-          <small class="text-muted d-block mt-1">Rule: <code>{{ account.configuration.account_ref_format|default:'STUDENT_REG_NO' }}</code></small>
+          <small class="text-muted d-block mt-1">Format: <code>{{ account.configuration.account_ref_format|default:'STUDENT_REG_NO' }}</code></small>
         </div>
       </div>
       <div class="col-md-6 col-lg-3">
@@ -179,31 +244,35 @@
       </div>
       <div class="col-md-6 col-lg-3">
         <div class="p-3 bg-light rounded-3 h-100">
-          <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size: 0.72rem;">4. Daraja STK Push Passkey</small>
-          {% if account.configuration.passkey %}
+          <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size: 0.72rem;">4. C2B URL Registration</small>
+          {% if account.configuration.c2b_urls_registered_at %}
             <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1">
-              <i class="fa-solid fa-check me-1"></i> Passkey Configured
+              <i class="fa-solid fa-circle-check me-1"></i> Registered with Daraja
             </span>
           {% else %}
-            <span class="badge bg-secondary-subtle text-secondary border rounded-pill px-2.5 py-1">
-              Optional / Not Set
+            <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-2.5 py-1">
+              <i class="fa-solid fa-circle-exclamation me-1"></i> Pending Registration
             </span>
           {% endif %}
-          <small class="text-muted d-block mt-1">Consumer Key: {% if account.configuration.consumer_key %}••••••••{{ account.configuration.consumer_key|slice:"-4:" }}{% else %}Not set{% endif %}</small>
+          <small class="text-muted d-block mt-1">Consumer Key: {% if account.configuration.consumer_key %}••••••••{{ account.configuration.consumer_key|slice:"-4:" }}{% else %}Default / External{% endif %}</small>
         </div>
       </div>
 
-      <!-- Live Student Mobile Preview Alert for Kenyan Paybill -->
+      <!-- 5-Step M-Pesa Instructions Card -->
       <div class="col-12">
-        <div class="p-3 rounded-3 border bg-success-subtle border-success-subtle d-flex align-items-center gap-3">
-          <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width: 40px; height: 40px;">
-            <i class="fa-solid fa-mobile-screen"></i>
-          </div>
-          <div class="flex-grow-1">
-            <span class="fw-bold text-success-emphasis d-block small">Kenya M-Pesa Mobile Flow Preview:</span>
-            <span class="small text-dark">
-              Students go to <b>Lipa na M-Pesa</b> &rarr; <b>Paybill</b> &rarr; Enter Business No: <b>{{ account.account_identifier }}</b> &rarr; Enter Account No: <b>{{ account.paybill_account_number_display }}</b> &rarr; Enter Amount.
+        <div class="p-3.5 rounded-4 border shadow-sm" style="background: linear-gradient(135deg, #0b1523 0%, #172a45 100%); color: #fff;">
+          <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom border-secondary border-opacity-25 flex-wrap gap-2">
+            <span class="badge bg-success rounded-pill px-3 py-1 text-uppercase" style="font-size: 0.75rem;">
+              <i class="fa-solid fa-mobile-screen me-1"></i> Standard 5-Step M-Pesa Instructions Flow
             </span>
+            <span class="text-white-50 small">Displayed to students and parents during fee payment</span>
+          </div>
+          <div class="font-monospace small p-3 rounded-3" style="background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.12); line-height: 1.9;">
+            <div class="text-light">&bull; 1. Open M-Pesa on your mobile phone</div>
+            <div class="text-light">&bull; 2. Select Lipa na M-Pesa &rarr; Paybill</div>
+            <div class="text-success">&bull; 3. Enter Business Number: <b class="text-white">{{ account.account_identifier }}</b></div>
+            <div class="text-warning">&bull; 4. Enter Account Number: <b class="text-white">{% if account.configuration.account_ref_format == 'FIXED_ACCOUNT' %}{{ account.configuration.fixed_account_number|default:account.account_identifier }}{% elif account.configuration.account_ref_format == 'CLEAN_REG_NO' %}BTCSE0012027{% elif account.configuration.account_ref_format == 'UNIQUE_STUDENT_ID' %}{{ account.configuration.account_ref_prefix|default:'ACC' }}000001{% elif account.configuration.account_ref_format == 'PREFIX_REG_NO' %}{{ account.configuration.account_ref_prefix|default:'FEES-' }}BT-CSE/001/2027{% else %}BT-CSE/001/2027{% endif %}</b> <span class="text-white-50">({{ account.paybill_account_number_display }})</span></div>
+            <div class="text-info">&bull; 5. Enter Amount: <b class="text-white">KES 55,500.00</b> <span class="text-white-50">(or required student amount)</span></div>
           </div>
         </div>
       </div>
@@ -233,14 +302,20 @@
         <div class="row g-2 small">
           <div class="col-md-6">
             <span class="text-muted fw-semibold">Daraja / Provider Callback URL:</span>
-            <div class="font-monospace text-dark bg-light p-2 rounded border mt-1 text-truncate">
-              {{ account.configuration.callback_url|default:'http://127.0.0.1:8000/finance/pay/callback/mpesa/' }}
+            <div class="d-flex align-items-center justify-content-between font-monospace text-dark bg-light p-2 rounded border mt-1">
+              <span class="text-truncate">{{ account.configuration.callback_url|default:'/api/payments/callback/mpesa/' }}</span>
+              <button type="button" class="btn btn-sm btn-link text-secondary p-0 ms-2" onclick="navigator.clipboard.writeText('{{ account.configuration.callback_url|default:'/api/payments/callback/mpesa/' }}'); alert('Callback URL copied');">
+                <i class="fa-solid fa-copy"></i>
+              </button>
             </div>
           </div>
           <div class="col-md-6">
             <span class="text-muted fw-semibold">Daraja C2B Validation URL:</span>
-            <div class="font-monospace text-dark bg-light p-2 rounded border mt-1 text-truncate">
-              {{ account.configuration.validation_url|default:'http://127.0.0.1:8000/finance/pay/callback/mpesa/validation/' }}
+            <div class="d-flex align-items-center justify-content-between font-monospace text-dark bg-light p-2 rounded border mt-1">
+              <span class="text-truncate">{{ account.configuration.validation_url|default:'/api/payments/callback/mpesa/validation/' }}</span>
+              <button type="button" class="btn btn-sm btn-link text-secondary p-0 ms-2" onclick="navigator.clipboard.writeText('{{ account.configuration.validation_url|default:'/api/payments/callback/mpesa/validation/' }}'); alert('Validation URL copied');">
+                <i class="fa-solid fa-copy"></i>
+              </button>
             </div>
           </div>
         </div>

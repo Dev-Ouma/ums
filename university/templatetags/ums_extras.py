@@ -51,3 +51,12 @@ def toggle_sort(current, field):
     other column starts it ascending.
     """
     return f"-{field}" if current == field else field
+
+
+@register.filter
+def student_account_number(fee_account, student):
+    """Resolve student paybill account number for a given fee account."""
+    if not fee_account or not hasattr(fee_account, "get_student_account_number"):
+        return getattr(student, "roll_no", "") if student else ""
+    return fee_account.get_student_account_number(student=student)
+
