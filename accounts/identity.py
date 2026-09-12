@@ -200,7 +200,7 @@ class SessionIdleTimeoutMiddleware:
             return self.get_response(request)
 
         from university.settings_services import get_setting
-        timeout_minutes = get_setting("session_timeout_minutes", 60) or 0
+        timeout_minutes = get_setting("session_timeout_minutes", 30) or 0
         if timeout_minutes <= 0:
             return self.get_response(request)
 
@@ -208,8 +208,8 @@ class SessionIdleTimeoutMiddleware:
         last_seen = request.session.get(_IDLE_ACTIVITY_KEY)
         if last_seen is not None and (now - last_seen) > timeout_minutes * 60:
             auth_logout(request)
-            messages.info(request, "You were signed out after a period of inactivity.")
-            return redirect(reverse("accounts:login"))
+            messages.warning(request, "Your session expired due to 30 minutes of inactivity. Please log in again.")
+            return redirect(f"{reverse('accounts:login')}?reason=inactivity")
 
         if last_seen is None or (now - last_seen) >= _IDLE_WRITE_THROTTLE_SECONDS:
             request.session[_IDLE_ACTIVITY_KEY] = now

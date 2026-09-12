@@ -395,7 +395,8 @@ class LogoutTests(AccountTestBase):
                 client = self.login(user)
                 response = client.post(reverse("accounts:logout"))
                 self.assertEqual(response.status_code, 302)
-                self.assertEqual(response.url, reverse("university:home"))
+                self.assertIn(reverse("accounts:login"), response.url)
+                self.assertIn("reason=manual", response.url)
 
     def test_protected_pages_are_closed_after_logout(self):
         client = self.login(self.student)

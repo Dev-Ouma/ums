@@ -27,6 +27,29 @@
                 <small class="text-muted">Enter credentials to continue</small>
               </div>
             </div>
+            {% if request.GET.reason or logout_message %}
+              <div class="alert {% if request.GET.reason == 'security' or logout_reason == 'security' %}alert-danger border-danger{% elif request.GET.reason == 'inactivity' or logout_reason == 'inactivity' or request.GET.reason == 'session_conflict' or logout_reason == 'session_conflict' or request.GET.reason == 'expired' or logout_reason == 'expired' %}alert-warning border-warning{% else %}alert-info border-info{% endif %} py-2 px-3 small mb-3 rounded-3 d-flex align-items-center gap-2">
+                {% if request.GET.reason == 'inactivity' or logout_reason == 'inactivity' %}
+                  <i class="fa-solid fa-clock-rotate-left flex-shrink-0 text-warning"></i>
+                  <div>Your session expired due to 30 minutes of inactivity. Please log in again.</div>
+                {% elif request.GET.reason == 'manual' or logout_reason == 'manual' %}
+                  <i class="fa-solid fa-circle-check flex-shrink-0 text-info"></i>
+                  <div>You have been successfully logged out.</div>
+                {% elif request.GET.reason == 'session_conflict' or logout_reason == 'session_conflict' %}
+                  <i class="fa-solid fa-triangle-exclamation flex-shrink-0 text-warning"></i>
+                  <div>Logged out because your account was opened in another window.</div>
+                {% elif request.GET.reason == 'security' or logout_reason == 'security' %}
+                  <i class="fa-solid fa-shield-halved flex-shrink-0 text-danger"></i>
+                  <div>Your session was terminated for security reasons. Please re-authenticate.</div>
+                {% elif request.GET.reason == 'expired' or logout_reason == 'expired' %}
+                  <i class="fa-solid fa-hourglass-end flex-shrink-0 text-warning"></i>
+                  <div>Your session has expired. Please sign in again.</div>
+                {% else %}
+                  <i class="fa-solid fa-circle-info flex-shrink-0 text-info"></i>
+                  <div>{{ logout_message|default:"Please log in to continue." }}</div>
+                {% endif %}
+              </div>
+            {% endif %}
             {% if form.non_field_errors %}
               {% for error in form.non_field_errors %}
                 <div class="alert alert-danger py-2 small mb-2">{{ error }}</div>
