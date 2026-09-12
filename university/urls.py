@@ -50,6 +50,7 @@ urlpatterns = [
     # Dashboard router
     path("dashboard/", views.dashboard, name="dashboard"),
     path("manage/", views.dashboard, name="manage_dashboard"),
+    path("finance/", views.finance_hub, name="finance"),
     path("manage/api/academic-performance/", views.api_academic_performance, name="api_academic_performance"),
     path("manage/api/hierarchy/", views.api_academic_hierarchy, name="api_academic_hierarchy"),
 

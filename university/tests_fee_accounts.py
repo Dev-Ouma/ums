@@ -648,3 +648,26 @@ class AdminFinanceOperationsTests(FeeAccountIntegrationTestBase):
         s4 = resolve_student_from_bill_ref("FEES-BSE/2026/001", fee_account=self.paybill)
         self.assertEqual(s4, self.student)
 
+    def test_dashboard_and_finance_distinct_routing(self):
+        """Ensure /dashboard/ and /finance/ have distinct URLs, views, and proper role-based routing."""
+        # 1. Admin accessing /dashboard/ gets admin dashboard
+        self.client.force_login(self.admin)
+        res_dash = self.client.get(reverse("university:dashboard"))
+        self.assertEqual(res_dash.status_code, 200)
+        self.assertTemplateUsed(res_dash, "dashboard/admin_dashboard.html")
+
+        # 2. Admin accessing /finance/ routes to fee_accounts_dashboard
+        res_fin_admin = self.client.get(reverse("university:finance"))
+        self.assertRedirects(res_fin_admin, reverse("university:fee_accounts_dashboard"))
+
+        # 3. Student accessing /dashboard/ gets student dashboard
+        self.client.force_login(self.student.user)
+        res_student_dash = self.client.get(reverse("university:dashboard"))
+        self.assertEqual(res_student_dash.status_code, 200)
+        self.assertTemplateUsed(res_student_dash, "dashboard/student_dashboard.html")
+
+        # 4. Student accessing /finance/ routes to student fees portal
+        res_fin_student = self.client.get(reverse("university:finance"))
+        self.assertRedirects(res_fin_student, reverse("university:student_fees"))
+
+
