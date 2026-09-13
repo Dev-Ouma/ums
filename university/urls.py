@@ -244,6 +244,8 @@ urlpatterns = [
 
     # Admissions (Public & Admin)
     path("admissions/apply/", admissions_views.apply, name="admissions_apply"),
+    path("admissions/apply/upload-document/", admissions_views.upload_admission_document, name="admissions_upload_document"),
+    path("admissions/apply/remove-document/", admissions_views.remove_admission_document, name="admissions_remove_document"),
     path("admissions/<int:pk>/pay-fee/", admissions_views.pay_application_fee, name="pay_application_fee"),
     path("admissions/status/", admissions_views.application_status, name="admissions_status"),
     path("admissions/<int:pk>/letter/", admissions_views.download_admission_letter, name="download_admission_letter"),

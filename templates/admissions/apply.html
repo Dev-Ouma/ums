@@ -185,48 +185,226 @@
             <div class="mb-5">
               <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
                 <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">{% if custom_fields %}5{% else %}4{% endif %}</div>
-                <h5 class="fw-bold mb-0 text-dark">Required Document Attachments</h5>
+                <h5 class="fw-bold mb-0 text-dark">Required Supporting Documents</h5>
               </div>
-              <p class="text-muted small mb-4">Please attach digital copies of your original credentials. Formats accepted: PDF, JPG, PNG (Max 5MB per file).</p>
               
+              <div class="alert alert-info border-0 rounded-3 py-2 px-3 mb-4 d-flex align-items-center gap-2 small">
+                <i class="fa-solid fa-circle-info text-primary flex-shrink-0"></i>
+                <div>
+                  Accepted formats: <strong class="text-dark">PDF (.pdf)</strong> and <strong class="text-dark">PNG (.png)</strong> (or JPG for photos). Maximum size: <strong class="text-dark">5 MB</strong> per file. All uploads are strictly scanned and verified before saving.
+                </div>
+              </div>
+
               <div class="row g-3">
+                <!-- 1. KCSE Document -->
                 <div class="col-md-6">
-                  <div class="p-3 border rounded-3 bg-light">
-                    <label class="form-label fw-semibold mb-1">
-                      <i class="fa-solid fa-file-lines text-primary me-1"></i> KCSE Result Slip / Certificate <span class="text-danger">*</span>
+                  <div class="document-card h-100 p-3 border rounded-3 bg-light position-relative {% if draft_documents.kcse_document %}is-uploaded{% endif %}" 
+                       id="doc-card-kcse" 
+                       data-type="kcse_document" 
+                       data-title="KCSE Result Slip / Certificate"
+                       data-required="true">
+                    <label class="form-label fw-semibold mb-1 d-flex justify-content-between">
+                      <span><i class="fa-solid fa-file-lines text-primary me-1"></i> KCSE Result Slip / Certificate <span class="text-danger">*</span></span>
+                      <span class="badge bg-secondary-subtle text-secondary small upload-req-badge">Required</span>
                     </label>
-                    <input type="file" name="kcse_document" class="form-control rounded-3" accept=".pdf,.jpg,.jpeg,.png" required>
-                    <div class="form-text">Official slip or KNEC certificate</div>
+                    <div class="form-text text-muted small mb-2">Official KCSE result slip or certificate (PDF or PNG, Max 5MB)</div>
+
+                    <!-- Drop Zone -->
+                    <div class="drop-zone border-2 border-dashed border-secondary-subtle rounded-3 p-3 text-center bg-white position-relative" style="cursor: pointer; transition: all 0.2s ease;">
+                      <input type="file" name="kcse_document" class="d-none file-input" accept=".pdf,.png,.jpg,.jpeg">
+                      
+                      <!-- Idle State -->
+                      <div class="idle-state {% if draft_documents.kcse_document %}d-none{% endif %} py-2">
+                        <i class="fa-solid fa-cloud-arrow-up text-primary fs-3 mb-1"></i>
+                        <p class="mb-0 fw-semibold text-dark small">Click to select or drag &amp; drop</p>
+                        <span class="text-muted" style="font-size: 0.72rem;">PDF or PNG (Max 5MB)</span>
+                      </div>
+
+                      <!-- Processing State -->
+                      <div class="processing-state d-none py-2 text-center">
+                        <div class="spinner-border spinner-border-sm text-primary mb-1" role="status"></div>
+                        <p class="mb-0 fw-bold text-primary small status-text">Uploading &amp; Verifying…</p>
+                        <span class="text-muted" style="font-size: 0.72rem;">Processing file signature and saving…</span>
+                      </div>
+
+                      <!-- Saved State -->
+                      <div class="saved-state {% if not draft_documents.kcse_document %}d-none{% endif %} py-1">
+                        <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-success-subtle border border-success-subtle text-start">
+                          <div class="d-flex align-items-center gap-2 overflow-hidden">
+                            <i class="fa-solid fa-circle-check text-success fs-5 flex-shrink-0"></i>
+                            <div class="overflow-hidden">
+                              <p class="mb-0 fw-bold text-dark text-truncate file-name-display small" style="max-width: 180px;">{{ draft_documents.kcse_document.original_name|default:'kcse_document.pdf' }}</p>
+                              <span class="badge bg-success text-white" style="font-size: 0.68rem;">✓ Saved to Application (<span class="file-size-display">{{ draft_documents.kcse_document.file_size_formatted|default:'' }}</span>)</span>
+                            </div>
+                          </div>
+                          <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2 py-0.5 btn-replace" style="font-size: 0.75rem;">
+                            <i class="fa-solid fa-arrow-rotate-right me-1"></i>Replace
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Client-side / Server-side Validation Error -->
+                    <div class="error-msg alert alert-danger py-1 px-2 mt-2 mb-0 small rounded-2 d-none"></div>
                   </div>
                 </div>
 
+                <!-- 2. ID / Birth Certificate / Passport -->
                 <div class="col-md-6">
-                  <div class="p-3 border rounded-3 bg-light">
-                    <label class="form-label fw-semibold mb-1">
-                      <i class="fa-solid fa-id-card text-primary me-1"></i> National ID / Birth Certificate / Passport <span class="text-danger">*</span>
+                  <div class="document-card h-100 p-3 border rounded-3 bg-light position-relative {% if draft_documents.id_document %}is-uploaded{% endif %}" 
+                       id="doc-card-id" 
+                       data-type="id_document" 
+                       data-title="National ID / Birth Certificate / Passport"
+                       data-required="true">
+                    <label class="form-label fw-semibold mb-1 d-flex justify-content-between">
+                      <span><i class="fa-solid fa-id-card text-primary me-1"></i> National ID / Passport <span class="text-danger">*</span></span>
+                      <span class="badge bg-secondary-subtle text-secondary small upload-req-badge">Required</span>
                     </label>
-                    <input type="file" name="id_document" class="form-control rounded-3" accept=".pdf,.jpg,.jpeg,.png" required>
-                    <div class="form-text">Both sides of ID or clear certificate page</div>
+                    <div class="form-text text-muted small mb-2">Both sides of ID card, passport or birth certificate (PDF or PNG, Max 5MB)</div>
+
+                    <!-- Drop Zone -->
+                    <div class="drop-zone border-2 border-dashed border-secondary-subtle rounded-3 p-3 text-center bg-white position-relative" style="cursor: pointer; transition: all 0.2s ease;">
+                      <input type="file" name="id_document" class="d-none file-input" accept=".pdf,.png,.jpg,.jpeg">
+                      
+                      <!-- Idle State -->
+                      <div class="idle-state {% if draft_documents.id_document %}d-none{% endif %} py-2">
+                        <i class="fa-solid fa-cloud-arrow-up text-primary fs-3 mb-1"></i>
+                        <p class="mb-0 fw-semibold text-dark small">Click to select or drag &amp; drop</p>
+                        <span class="text-muted" style="font-size: 0.72rem;">PDF or PNG (Max 5MB)</span>
+                      </div>
+
+                      <!-- Processing State -->
+                      <div class="processing-state d-none py-2 text-center">
+                        <div class="spinner-border spinner-border-sm text-primary mb-1" role="status"></div>
+                        <p class="mb-0 fw-bold text-primary small status-text">Uploading &amp; Verifying…</p>
+                        <span class="text-muted" style="font-size: 0.72rem;">Processing file signature and saving…</span>
+                      </div>
+
+                      <!-- Saved State -->
+                      <div class="saved-state {% if not draft_documents.id_document %}d-none{% endif %} py-1">
+                        <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-success-subtle border border-success-subtle text-start">
+                          <div class="d-flex align-items-center gap-2 overflow-hidden">
+                            <i class="fa-solid fa-circle-check text-success fs-5 flex-shrink-0"></i>
+                            <div class="overflow-hidden">
+                              <p class="mb-0 fw-bold text-dark text-truncate file-name-display small" style="max-width: 180px;">{{ draft_documents.id_document.original_name|default:'id_document.pdf' }}</p>
+                              <span class="badge bg-success text-white" style="font-size: 0.68rem;">✓ Saved to Application (<span class="file-size-display">{{ draft_documents.id_document.file_size_formatted|default:'' }}</span>)</span>
+                            </div>
+                          </div>
+                          <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2 py-0.5 btn-replace" style="font-size: 0.75rem;">
+                            <i class="fa-solid fa-arrow-rotate-right me-1"></i>Replace
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Validation Error -->
+                    <div class="error-msg alert alert-danger py-1 px-2 mt-2 mb-0 small rounded-2 d-none"></div>
                   </div>
                 </div>
 
+                <!-- 3. Passport Photo -->
                 <div class="col-md-6">
-                  <div class="p-3 border rounded-3 bg-light">
-                    <label class="form-label fw-semibold mb-1">
-                      <i class="fa-solid fa-image text-primary me-1"></i> Passport Size Photograph <span class="text-danger">*</span>
+                  <div class="document-card h-100 p-3 border rounded-3 bg-light position-relative {% if draft_documents.passport_photo %}is-uploaded{% endif %}" 
+                       id="doc-card-photo" 
+                       data-type="passport_photo" 
+                       data-title="Passport Size Photograph"
+                       data-required="true">
+                    <label class="form-label fw-semibold mb-1 d-flex justify-content-between">
+                      <span><i class="fa-solid fa-image text-primary me-1"></i> Passport Size Photograph <span class="text-danger">*</span></span>
+                      <span class="badge bg-secondary-subtle text-secondary small upload-req-badge">Required</span>
                     </label>
-                    <input type="file" name="passport_photo" class="form-control rounded-3" accept=".jpg,.jpeg,.png" required>
-                    <div class="form-text">Recent colour photo with white background (Max 2MB)</div>
+                    <div class="form-text text-muted small mb-2">Recent clear photograph on white background (PNG or JPG, Max 5MB)</div>
+
+                    <!-- Drop Zone -->
+                    <div class="drop-zone border-2 border-dashed border-secondary-subtle rounded-3 p-3 text-center bg-white position-relative" style="cursor: pointer; transition: all 0.2s ease;">
+                      <input type="file" name="passport_photo" class="d-none file-input" accept=".png,.jpg,.jpeg,.pdf">
+                      
+                      <!-- Idle State -->
+                      <div class="idle-state {% if draft_documents.passport_photo %}d-none{% endif %} py-2">
+                        <i class="fa-solid fa-cloud-arrow-up text-primary fs-3 mb-1"></i>
+                        <p class="mb-0 fw-semibold text-dark small">Click to select or drag &amp; drop</p>
+                        <span class="text-muted" style="font-size: 0.72rem;">PNG or JPG (Max 5MB)</span>
+                      </div>
+
+                      <!-- Processing State -->
+                      <div class="processing-state d-none py-2 text-center">
+                        <div class="spinner-border spinner-border-sm text-primary mb-1" role="status"></div>
+                        <p class="mb-0 fw-bold text-primary small status-text">Uploading &amp; Verifying…</p>
+                        <span class="text-muted" style="font-size: 0.72rem;">Processing image signature and saving…</span>
+                      </div>
+
+                      <!-- Saved State -->
+                      <div class="saved-state {% if not draft_documents.passport_photo %}d-none{% endif %} py-1">
+                        <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-success-subtle border border-success-subtle text-start">
+                          <div class="d-flex align-items-center gap-2 overflow-hidden">
+                            <i class="fa-solid fa-circle-check text-success fs-5 flex-shrink-0"></i>
+                            <div class="overflow-hidden">
+                              <p class="mb-0 fw-bold text-dark text-truncate file-name-display small" style="max-width: 180px;">{{ draft_documents.passport_photo.original_name|default:'photo.png' }}</p>
+                              <span class="badge bg-success text-white" style="font-size: 0.68rem;">✓ Saved to Application (<span class="file-size-display">{{ draft_documents.passport_photo.file_size_formatted|default:'' }}</span>)</span>
+                            </div>
+                          </div>
+                          <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2 py-0.5 btn-replace" style="font-size: 0.75rem;">
+                            <i class="fa-solid fa-arrow-rotate-right me-1"></i>Replace
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Validation Error -->
+                    <div class="error-msg alert alert-danger py-1 px-2 mt-2 mb-0 small rounded-2 d-none"></div>
                   </div>
                 </div>
 
+                <!-- 4. Other Supporting Document (Optional) -->
                 <div class="col-md-6">
-                  <div class="p-3 border rounded-3 bg-light">
-                    <label class="form-label fw-semibold mb-1">
-                      <i class="fa-solid fa-file-circle-check text-muted me-1"></i> Other Supporting Document (Optional)
+                  <div class="document-card h-100 p-3 border rounded-3 bg-light position-relative {% if draft_documents.other_document %}is-uploaded{% endif %}" 
+                       id="doc-card-other" 
+                       data-type="other_document" 
+                       data-title="Other Supporting Document"
+                       data-required="false">
+                    <label class="form-label fw-semibold mb-1 d-flex justify-content-between">
+                      <span><i class="fa-solid fa-file-circle-check text-muted me-1"></i> Other Document <span class="text-muted small fw-normal">(Optional)</span></span>
+                      <span class="badge bg-light text-muted border small">Optional</span>
                     </label>
-                    <input type="file" name="other_document" class="form-control rounded-3" accept=".pdf,.jpg,.jpeg,.png">
-                    <div class="form-text">Leaving cert, transcript, sponsorship letter</div>
+                    <div class="form-text text-muted small mb-2">School leaving cert, transcript, testimonial, sponsorship (PDF or PNG, Max 5MB)</div>
+
+                    <!-- Drop Zone -->
+                    <div class="drop-zone border-2 border-dashed border-secondary-subtle rounded-3 p-3 text-center bg-white position-relative" style="cursor: pointer; transition: all 0.2s ease;">
+                      <input type="file" name="other_document" class="d-none file-input" accept=".pdf,.png,.jpg,.jpeg">
+                      
+                      <!-- Idle State -->
+                      <div class="idle-state {% if draft_documents.other_document %}d-none{% endif %} py-2">
+                        <i class="fa-solid fa-cloud-arrow-up text-secondary fs-3 mb-1"></i>
+                        <p class="mb-0 fw-semibold text-dark small">Click to select or drag &amp; drop</p>
+                        <span class="text-muted" style="font-size: 0.72rem;">PDF or PNG (Max 5MB)</span>
+                      </div>
+
+                      <!-- Processing State -->
+                      <div class="processing-state d-none py-2 text-center">
+                        <div class="spinner-border spinner-border-sm text-primary mb-1" role="status"></div>
+                        <p class="mb-0 fw-bold text-primary small status-text">Uploading &amp; Verifying…</p>
+                        <span class="text-muted" style="font-size: 0.72rem;">Processing file signature and saving…</span>
+                      </div>
+
+                      <!-- Saved State -->
+                      <div class="saved-state {% if not draft_documents.other_document %}d-none{% endif %} py-1">
+                        <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-success-subtle border border-success-subtle text-start">
+                          <div class="d-flex align-items-center gap-2 overflow-hidden">
+                            <i class="fa-solid fa-circle-check text-success fs-5 flex-shrink-0"></i>
+                            <div class="overflow-hidden">
+                              <p class="mb-0 fw-bold text-dark text-truncate file-name-display small" style="max-width: 180px;">{{ draft_documents.other_document.original_name|default:'other_doc.pdf' }}</p>
+                              <span class="badge bg-success text-white" style="font-size: 0.68rem;">✓ Saved to Application (<span class="file-size-display">{{ draft_documents.other_document.file_size_formatted|default:'' }}</span>)</span>
+                            </div>
+                          </div>
+                          <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2 py-0.5 btn-replace" style="font-size: 0.75rem;">
+                            <i class="fa-solid fa-arrow-rotate-right me-1"></i>Replace
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Validation Error -->
+                    <div class="error-msg alert alert-danger py-1 px-2 mt-2 mb-0 small rounded-2 d-none"></div>
                   </div>
                 </div>
               </div>
@@ -246,7 +424,7 @@
               <a href="{% url 'university:home' %}" class="btn btn-light px-4 py-2 rounded-pill">
                 <i class="fa-solid fa-arrow-left me-1"></i> Back to Home
               </a>
-              <button type="submit" class="btn btn-primary px-5 py-2 rounded-pill fw-semibold">
+              <button type="submit" id="submitApplicationBtn" class="btn btn-primary px-5 py-2.5 rounded-pill fw-semibold shadow-sm">
                 Submit Application <i class="fa-solid fa-paper-plane ms-1"></i>
               </button>
             </div>
@@ -258,4 +436,206 @@
     </div>
   </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const ALLOWED_EXTENSIONS = ['.pdf', '.png', '.jpg', '.jpeg'];
+    const ALLOWED_MIMES = ['application/pdf', 'image/png', 'image/jpeg', 'image/pjpeg'];
+    const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+
+    const submitBtn = document.getElementById('submitApplicationBtn');
+    const documentCards = document.querySelectorAll('.document-card');
+    const uploadUrl = "{% url 'university:admissions_upload_document' %}";
+    const removeUrl = "{% url 'university:admissions_remove_document' %}";
+    const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
+
+    let activeUploadsCount = 0;
+
+    function formatBytes(bytes) {
+        if (!bytes || bytes < 0) return '0 B';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+
+    function checkUploadsState() {
+        if (activeUploadsCount > 0) {
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Uploading Documents…';
+            }
+        } else {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'Submit Application <i class="fa-solid fa-paper-plane ms-1"></i>';
+            }
+        }
+    }
+
+    documentCards.forEach(card => {
+        const dropZone = card.querySelector('.drop-zone');
+        const fileInput = card.querySelector('.file-input');
+        const errorMsg = card.querySelector('.error-msg');
+        const idleState = card.querySelector('.idle-state');
+        const processingState = card.querySelector('.processing-state');
+        const savedState = card.querySelector('.saved-state');
+        const statusText = card.querySelector('.status-text');
+        const fileNameDisplay = card.querySelector('.file-name-display');
+        const fileSizeDisplay = card.querySelector('.file-size-display');
+        const replaceBtn = card.querySelector('.btn-replace');
+        const docType = card.getAttribute('data-type');
+
+        // Drag & drop highlight
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.add('border-primary', 'bg-primary-subtle');
+            });
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.remove('border-primary', 'bg-primary-subtle');
+            });
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            if (dt && dt.files && dt.files.length > 0) {
+                handleFile(dt.files[0]);
+            }
+        });
+
+        // Trigger file select
+        dropZone.addEventListener('click', (e) => {
+            if (!e.target.closest('.btn-replace')) {
+                fileInput.click();
+            }
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                handleFile(fileInput.files[0]);
+            }
+        });
+
+        function showError(msg) {
+            errorMsg.textContent = msg;
+            errorMsg.classList.remove('d-none');
+            idleState.classList.remove('d-none');
+            processingState.classList.add('d-none');
+            savedState.classList.add('d-none');
+            card.classList.remove('is-uploaded');
+            activeUploadsCount = Math.max(0, activeUploadsCount - 1);
+            checkUploadsState();
+        }
+
+        function clearError() {
+            errorMsg.textContent = '';
+            errorMsg.classList.add('d-none');
+        }
+
+        function handleFile(file) {
+            clearError();
+
+            // 1. Strict Size Check (5MB)
+            if (file.size > MAX_FILE_SIZE_BYTES) {
+                showError('File exceeds 5MB limit (' + formatBytes(file.size) + '). Please compress or choose a smaller file.');
+                return;
+            }
+            if (file.size === 0) {
+                showError('The selected file is empty (0 bytes). Please choose a valid document.');
+                return;
+            }
+
+            // 2. Strict Extension Check (.pdf, .png, .jpg, .jpeg)
+            const ext = '.' + file.name.split('.').pop().toLowerCase();
+            if (!ALLOWED_EXTENSIONS.includes(ext)) {
+                showError('Invalid file type (' + ext + '). Only standard PDF (.pdf) and PNG (.png) documents are permitted.');
+                return;
+            }
+
+            // 3. Strict MIME Check
+            if (file.type && !ALLOWED_MIMES.includes(file.type.toLowerCase())) {
+                showError('Invalid content type (' + file.type + '). Ensure you upload a genuine PDF or PNG document.');
+                return;
+            }
+
+            // 4. Multi-Stage Visual Flow (Selecting -> Uploading -> Processing -> Saving -> Saved)
+            activeUploadsCount++;
+            checkUploadsState();
+
+            idleState.classList.add('d-none');
+            savedState.classList.add('d-none');
+            processingState.classList.remove('d-none');
+            if (statusText) statusText.textContent = 'Uploading ' + file.name + '…';
+
+            const formData = new FormData();
+            formData.append('document_type', docType);
+            formData.append('file', file);
+            formData.append('csrfmiddlewaretoken', csrfToken);
+
+            setTimeout(() => {
+                if (statusText) statusText.textContent = 'Processing & Verifying file…';
+            }, 350);
+
+            fetch(uploadUrl, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            })
+            .then(async response => {
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to upload document.');
+                }
+                return data;
+            })
+            .then(data => {
+                if (statusText) statusText.textContent = 'Saving document…';
+                setTimeout(() => {
+                    processingState.classList.add('d-none');
+                    savedState.classList.remove('d-none');
+                    if (fileNameDisplay) fileNameDisplay.textContent = data.file_name || file.name;
+                    if (fileSizeDisplay) fileSizeDisplay.textContent = data.file_size_formatted || formatBytes(file.size);
+                    card.classList.add('is-uploaded');
+                    activeUploadsCount = Math.max(0, activeUploadsCount - 1);
+                    checkUploadsState();
+                }, 250);
+            })
+            .catch(err => {
+                showError(err.message || 'Error uploading file.');
+            });
+        }
+
+        // Replace Button
+        if (replaceBtn) {
+            replaceBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                fileInput.value = '';
+                
+                // Call remove endpoint
+                const formData = new FormData();
+                formData.append('document_type', docType);
+                formData.append('csrfmiddlewaretoken', csrfToken);
+                fetch(removeUrl, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                }).catch(() => {});
+
+                savedState.classList.add('d-none');
+                idleState.classList.remove('d-none');
+                card.classList.remove('is-uploaded');
+                clearError();
+                checkUploadsState();
+            });
+        }
+    });
+});
+</script>
 {% endblock %}

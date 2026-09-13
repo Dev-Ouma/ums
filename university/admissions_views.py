@@ -56,47 +56,150 @@ def application_from_access_token(raw_token):
         return None
 
 
-# ==============================================================================
-# PUBLIC ADMISSIONS VIEWS
-# ==============================================================================
+import os
+import uuid
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from django.http import Http404, HttpResponse, JsonResponse
+from university.academic_calendar_services import get_current_academic_year
+
+
+def format_file_size(size_bytes):
+    if not size_bytes or size_bytes < 0:
+        return "0 B"
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    else:
+        return f"{size_bytes / (1024 * 1024):.2f} MB"
+
+
+@require_POST
+def upload_admission_document(request):
+    """
+    Asynchronously uploads, strictly validates (PDF, PNG, JPG), and temporarily saves
+    an admission supporting document into the applicant's session draft storage.
+    """
+    doc_type = request.POST.get("document_type", "").strip()
+    valid_doc_types = {
+        "kcse_document": "KCSE Result Slip / Certificate",
+        "id_document": "National ID / Birth Certificate / Passport",
+        "passport_photo": "Passport Size Photograph",
+        "other_document": "Other Supporting Document",
+    }
+    if doc_type not in valid_doc_types:
+        return JsonResponse({"success": False, "error": "Invalid document type."}, status=400)
+
+    uploaded = request.FILES.get("file") or request.FILES.get(doc_type)
+    if not uploaded:
+        return JsonResponse({"success": False, "error": "No file was selected for upload."}, status=400)
+
+    # Strict Validation: PDF, PNG, JPG, Max 5MB
+    MAX_SIZE = 5 * 1024 * 1024
+    ALLOWED_EXTS = {".pdf", ".png", ".jpg", ".jpeg"}
+    ALLOWED_MIMES = {"application/pdf", "image/png", "image/jpeg", "image/pjpeg"}
+
+    try:
+        validate_uploaded_file(
+            uploaded,
+            extensions=ALLOWED_EXTS,
+            mime_types=ALLOWED_MIMES,
+            max_bytes=MAX_SIZE,
+        )
+    except ValidationError as err:
+        err_msg = err.message if hasattr(err, "message") else str(err)
+        return JsonResponse({"success": False, "error": err_msg}, status=400)
+    except Exception as e:
+        return JsonResponse({"success": False, "error": f"Validation failed: {str(e)}"}, status=400)
+
+    # Ensure session exists
+    if not request.session.session_key:
+        request.session.save()
+    session_key = request.session.session_key
+
+    # Store file in draft storage
+    ext = os.path.splitext(uploaded.name)[1].lower()
+    safe_name = f"{doc_type}_{uuid.uuid4().hex[:10]}{ext}"
+    sub_dir = f"applications/draft_attachments/{session_key}"
+    stored_path = default_storage.save(f"{sub_dir}/{safe_name}", uploaded)
+
+    draft_docs = request.session.get("draft_application_documents", {})
+    # Remove previous draft file if replaced
+    if doc_type in draft_docs and draft_docs[doc_type].get("file_path"):
+        try:
+            prev_path = draft_docs[doc_type]["file_path"]
+            if default_storage.exists(prev_path):
+                default_storage.delete(prev_path)
+        except Exception:
+            pass
+
+    draft_docs[doc_type] = {
+        "file_path": stored_path,
+        "original_name": uploaded.name,
+        "file_size": uploaded.size,
+        "file_size_formatted": format_file_size(uploaded.size),
+        "mime_type": uploaded.content_type or "application/octet-stream",
+        "uploaded_at": timezone.now().isoformat(),
+        "display_name": valid_doc_types[doc_type],
+    }
+    request.session["draft_application_documents"] = draft_docs
+    request.session.modified = True
+
+    return JsonResponse({
+        "success": True,
+        "message": f"{valid_doc_types[doc_type]} uploaded and verified successfully.",
+        "document_type": doc_type,
+        "file_name": uploaded.name,
+        "file_size": uploaded.size,
+        "file_size_formatted": format_file_size(uploaded.size),
+    })
+
+
+@require_POST
+def remove_admission_document(request):
+    """Removes a previously saved draft document from the session and storage."""
+    doc_type = request.POST.get("document_type", "").strip()
+    draft_docs = request.session.get("draft_application_documents", {})
+    if doc_type in draft_docs:
+        stored_path = draft_docs[doc_type].get("file_path")
+        if stored_path:
+            try:
+                if default_storage.exists(stored_path):
+                    default_storage.delete(stored_path)
+            except Exception:
+                pass
+        del draft_docs[doc_type]
+        request.session["draft_application_documents"] = draft_docs
+        request.session.modified = True
+    return JsonResponse({"success": True, "message": "Document removed successfully."})
+
 
 def apply(request):
-    """Public portal: Prospective students apply for undergraduate/diploma programmes."""
-    programs = Program.objects.all().select_related("department").order_by("name")
-    active_intake = Intake.objects.filter(is_active=True).order_by("-start_date").first()
-    if not active_intake:
-        # Create a default active intake if none exists yet
-        active_ay = get_current_academic_year()
-        active_intake = Intake.objects.create(
-            name="September 2026 Regular Intake",
-            academic_year=active_ay,
-            start_date=timezone.now().date(),
-            end_date=timezone.now().date() + timedelta(days=90),
-            is_active=True,
-        )
-
-    custom_fields = ApplicationCustomField.objects.filter(is_active=True).order_by("display_order")
+    """Public prospective student application form."""
+    active_intake = Intake.objects.filter(is_active=True).first()
+    programs = Program.objects.filter(status=Program.Status.ACTIVE).select_related("department")
+    custom_fields = ApplicationCustomField.objects.filter(is_active=True)
+    draft_docs = request.session.get("draft_application_documents", {})
 
     if request.method == "POST":
+        errors = []
         program_id = request.POST.get("program")
-        program = Program.objects.filter(pk=program_id).select_related("department").first()
+        program = Program.objects.filter(pk=program_id, status=Program.Status.ACTIVE).first()
+        if not program:
+            errors.append("Please select a valid programme of study.")
 
         first_name = request.POST.get("first_name", "").strip()
         last_name = request.POST.get("last_name", "").strip()
-        email = request.POST.get("email", "").strip()
+        email = request.POST.get("email", "").strip().lower()
         phone = request.POST.get("phone", "").strip()
         dob = request.POST.get("date_of_birth", "").strip()
-        gender = request.POST.get("gender", "MALE")
+        gender = request.POST.get("gender", "").strip()
         national_id = request.POST.get("national_id", "").strip()
         address = request.POST.get("address", "").strip()
 
-        errors = []
-        if program is None:
-            errors.append("Please select a valid programme.")
         try:
             parsed_dob = date.fromisoformat(dob)
-            if parsed_dob > timezone.now().date():
-                errors.append("Date of birth cannot be in the future.")
         except ValueError:
             parsed_dob = None
             errors.append("Enter a valid date of birth.")
@@ -115,6 +218,29 @@ def apply(request):
 
         if not (first_name and last_name and email and phone and dob and national_id):
             errors.insert(0, "Please fill in all mandatory personal details.")
+
+        file_mappings = [
+            ("kcse_document", ApplicationAttachment.DocType.KCSE_CERTIFICATE, "KCSE Result Slip / Certificate"),
+            ("id_document", ApplicationAttachment.DocType.NATIONAL_ID, "National ID / Birth Certificate / Passport"),
+            ("passport_photo", ApplicationAttachment.DocType.PASSPORT_PHOTO, "Passport Size Photograph"),
+            ("other_document", ApplicationAttachment.DocType.OTHER, "Other Supporting Document"),
+        ]
+
+        # Check for any directly uploaded files that might fail validation
+        for input_name, doc_type, display_title in file_mappings:
+            uploaded = request.FILES.get(input_name)
+            if uploaded:
+                try:
+                    validate_uploaded_file(
+                        uploaded,
+                        extensions={".pdf", ".png", ".jpg", ".jpeg"},
+                        mime_types={"application/pdf", "image/png", "image/jpeg", "image/pjpeg"},
+                        max_bytes=5 * 1024 * 1024,
+                    )
+                except ValidationError as error:
+                    err_text = error.message if hasattr(error, "message") else str(error)
+                    errors.append(f"{display_title}: {err_text}")
+
         if errors:
             for error in errors:
                 messages.error(request, error)
@@ -123,6 +249,7 @@ def apply(request):
                 "intake": active_intake,
                 "custom_fields": custom_fields,
                 "data": request.POST,
+                "draft_documents": draft_docs,
             })
 
         app_num = generate_application_number(active_intake)
@@ -155,14 +282,7 @@ def apply(request):
                     value=cf_val
                 )
 
-        # Process Application Attachments
-        file_mappings = [
-            ("kcse_document", ApplicationAttachment.DocType.KCSE_CERTIFICATE, "KCSE Result Slip / Certificate"),
-            ("id_document", ApplicationAttachment.DocType.NATIONAL_ID, "National ID / Birth Certificate / Passport"),
-            ("passport_photo", ApplicationAttachment.DocType.PASSPORT_PHOTO, "Passport Size Photograph"),
-            ("other_document", ApplicationAttachment.DocType.OTHER, "Other Supporting Document"),
-        ]
-
+        # Process Application Attachments (from direct uploads or saved session draft documents)
         for input_name, doc_type, display_title in file_mappings:
             uploaded = request.FILES.get(input_name)
             if uploaded:
@@ -170,22 +290,50 @@ def apply(request):
                     validate_uploaded_file(
                         uploaded,
                         extensions={".pdf", ".png", ".jpg", ".jpeg"},
-                        mime_types={"application/pdf", "image/png", "image/jpeg"},
+                        mime_types={"application/pdf", "image/png", "image/jpeg", "image/pjpeg"},
+                        max_bytes=5 * 1024 * 1024,
                     )
-                except ValidationError as error:
-                    messages.error(request, f"{display_title}: {error.message if hasattr(error, 'message') else error}")
-                    continue
-                ApplicationAttachment.objects.create(
-                    application=application,
-                    document_type=doc_type,
-                    name=display_title,
-                    file=uploaded,
-                    file_name=uploaded.name,
-                    file_size=uploaded.size,
-                    mime_type=uploaded.content_type or "application/octet-stream",
-                    verification_status=ApplicationAttachment.VerificationStatus.PENDING,
-                    is_visible_to_student=True,
-                )
+                    ApplicationAttachment.objects.create(
+                        application=application,
+                        document_type=doc_type,
+                        name=display_title,
+                        file=uploaded,
+                        file_name=uploaded.name,
+                        file_size=uploaded.size,
+                        mime_type=uploaded.content_type or "application/octet-stream",
+                        verification_status=ApplicationAttachment.VerificationStatus.PENDING,
+                        is_visible_to_student=True,
+                    )
+                except ValidationError:
+                    pass
+            elif input_name in draft_docs:
+                d_info = draft_docs[input_name]
+                stored_path = d_info.get("file_path")
+                if stored_path and default_storage.exists(stored_path):
+                    try:
+                        with default_storage.open(stored_path, "rb") as f:
+                            content = f.read()
+                        attachment = ApplicationAttachment(
+                            application=application,
+                            document_type=doc_type,
+                            name=display_title,
+                            file_name=d_info.get("original_name", os.path.basename(stored_path)),
+                            file_size=d_info.get("file_size", len(content)),
+                            mime_type=d_info.get("mime_type", "application/pdf"),
+                            verification_status=ApplicationAttachment.VerificationStatus.PENDING,
+                            is_visible_to_student=True,
+                        )
+                        attachment.file.save(d_info.get("original_name", os.path.basename(stored_path)), ContentFile(content), save=True)
+                        try:
+                            default_storage.delete(stored_path)
+                        except Exception:
+                            pass
+                    except Exception as e:
+                        logger.error("Failed to migrate draft document %s: %s", input_name, e)
+
+        # Clear session draft documents
+        request.session.pop("draft_application_documents", None)
+        request.session.modified = True
 
         messages.success(
             request,
@@ -200,6 +348,7 @@ def apply(request):
         "programs": programs,
         "intake": active_intake,
         "custom_fields": custom_fields,
+        "draft_documents": draft_docs,
     })
 
 
