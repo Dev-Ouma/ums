@@ -96,24 +96,24 @@ You can seed or reset these demo accounts at any time with:
 python manage.py seed_demo_users
 ```
 
-| Role | Username | Password | Title / Description |
-|------|----------|----------|---------------------|
-| 👑 Super Admin | `superadmin` | `demo1234` | Super Administrator (Django Superuser, full access across all portals) |
-| 🛡️ System Admin | `admin` | `demo1234` | System Administrator (system settings, audit trails, and user management) |
-| 🏛️ Vice Chancellor | `vc` | `demo1234` | Vice Chancellor (Executive head & institutional governance) |
-| 🎓 DVC (Academic Affairs) | `dvcaa` | `demo1234` | Deputy Vice Chancellor - Academic Affairs (Curricula, faculties, Senate) |
-| 📜 Academic Registrar | `registrar` | `demo1234` | Academic Registrar (Admissions, student records, graduations, transcripts) |
-| 💻 Director of ICT | `ictdirector` | `demo1234` | Director of ICT (Identity management, access control, cybersecurity) |
-| 🏫 Dean of School | `dean` | `demo1234` | Dean, School of Computing (Approve exam marks, publish results, faculty review) |
-| 🏢 Head of Department | `hod` | `demo1234` | Head of Department (HOD) - Computer Science (Mark reviews, approvals, assignments) |
-| 📝 Examinations Officer | `examofficer` | `demo1234` | Examinations Officer (Exam scheduling, moderation records, result registers) |
-| 🧑‍🏫 Course Lecturer / Instructor | `lecturer` | `demo1234` | Course Lecturer / Instructor (Marks capture, CATs, exam grading, attendance) |
-| 🧑‍🏫 Senior Faculty | `prof.rao` | `demo1234` | Professor of Computing (Faculty teaching portal) |
-| 🎓 Student | `student` | `demo1234` | Student Portal (Unit registration, fee statements, course marks) |
-| 🎓 Enrolled Student | `stu.aarav` | `demo1234` | Student with historical grades, fees, and examination statements |
-| 💰 Finance Officer | `finance` | `demo1234` | Chief Finance Officer (Fee structures, invoices, receipts, clearances) |
-| 📋 Admissions Officer | `admissions` | `demo1234` | Admissions Officer (Applicant screening, cohorts, enrollment processing) |
-| 🔍 Compliance Auditor | `auditor` | `demo1234` | System & Compliance Auditor (Audit log inspection, compliance reporting) |
+| Role | Username | Title / Description |
+|------|----------|---------------------|
+| 👑 Super Admin | `superadmin` | Super Administrator (Django Superuser, full access across all portals) |
+| 🛡️ System Admin | `admin` | System Administrator (system settings, audit trails, and user management) |
+| 🏛️ Vice Chancellor | `vc` | Vice Chancellor (Executive head & institutional governance) |
+| 🎓 DVC (Academic Affairs) | `dvcaa` | Deputy Vice Chancellor - Academic Affairs (Curricula, faculties, Senate) |
+| 📜 Academic Registrar | `registrar` | Academic Registrar (Admissions, student records, graduations, transcripts) |
+| 💻 Director of ICT | `ictdirector` | Director of ICT (Identity management, access control, cybersecurity) |
+| 🏫 Dean of School | `dean` | Dean, School of Computing (Approve exam marks, publish results, faculty review) |
+| 🏢 Head of Department | `hod` | Head of Department (HOD) - Computer Science (Mark reviews, approvals, assignments) |
+| 📝 Examinations Officer | `examofficer` | Examinations Officer (Exam scheduling, moderation records, result registers) |
+| 🧑‍🏫 Course Lecturer / Instructor | `lecturer` | Course Lecturer / Instructor (Marks capture, CATs, exam grading, attendance) |
+| 🧑‍🏫 Senior Faculty | `prof.rao` | Professor of Computing (Faculty teaching portal) |
+| 🎓 Student | `student` | Student Portal (Unit registration, fee statements, course marks) |
+| 🎓 Enrolled Student | `stu.aarav` | Student with historical grades, fees, and examination statements |
+| 💰 Finance Officer | `finance` | Chief Finance Officer (Fee structures, invoices, receipts, clearances) |
+| 📋 Admissions Officer | `admissions` | Admissions Officer (Applicant screening, cohorts, enrollment processing) |
+| 🔍 Compliance Auditor | `auditor` | System & Compliance Auditor (Audit log inspection, compliance reporting) |
 
 After logging in at `/login/`, you are automatically routed to the corresponding dashboard and portal for that role. Django admin is accessible at `/django-admin/` using `admin` or `superadmin`.
 
