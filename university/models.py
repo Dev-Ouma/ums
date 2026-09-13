@@ -1607,6 +1607,56 @@ class SystemSetting(models.Model):
         return f"{self.category} · {self.key} = {self.value}"
 
 
+class DomainMigrationRecord(models.Model):
+    """
+    Audit ledger tracking institutional domain & identity changes over time.
+    Preserves before/after states, account migration counts, and migration policies.
+    """
+    class Status(models.TextChoices):
+        PREVIEW = "PREVIEW", "Preview"
+        COMPLETED = "COMPLETED", "Completed"
+        FAILED = "FAILED", "Failed"
+
+    class Policy(models.TextChoices):
+        MIGRATE_AND_ARCHIVE_ALIASES = "MIGRATE_AND_ARCHIVE_ALIASES", "Migrate Active Accounts & Retain Old Emails as Aliases"
+        APPLY_TO_NEW_ONLY = "APPLY_TO_NEW_ONLY", "Apply to New Accounts Only"
+        FULL_REPLACE = "FULL_REPLACE", "Full Replacement"
+
+    initiated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="domain_migrations")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    previous_institution_name = models.CharField(max_length=200, blank=True, default="")
+    new_institution_name = models.CharField(max_length=200, blank=True, default="")
+    previous_short_name = models.CharField(max_length=50, blank=True, default="")
+    new_short_name = models.CharField(max_length=50, blank=True, default="")
+
+    previous_primary_domain = models.CharField(max_length=120, blank=True, default="")
+    new_primary_domain = models.CharField(max_length=120, blank=True, default="")
+    previous_staff_domain = models.CharField(max_length=120, blank=True, default="")
+    new_staff_domain = models.CharField(max_length=120, blank=True, default="")
+    previous_student_domain = models.CharField(max_length=120, blank=True, default="")
+    new_student_domain = models.CharField(max_length=120, blank=True, default="")
+    previous_student_prefix = models.CharField(max_length=50, blank=True, default="students")
+    new_student_prefix = models.CharField(max_length=50, blank=True, default="students")
+
+    migration_policy = models.CharField(max_length=40, choices=Policy.choices, default=Policy.MIGRATE_AND_ARCHIVE_ALIASES)
+    staff_accounts_affected = models.PositiveIntegerField(default=0)
+    student_accounts_affected = models.PositiveIntegerField(default=0)
+    total_emails_migrated = models.PositiveIntegerField(default=0)
+
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.COMPLETED)
+    logs = models.TextField(blank=True, default="")
+    details = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Domain Migration Record"
+        verbose_name_plural = "Domain Migration Records"
+
+    def __str__(self):
+        return f"Domain Migration: {self.previous_primary_domain} -> {self.new_primary_domain} ({self.created_at:%Y-%m-%d %H:%M})"
+
+
 # ==============================================================================
 # MODULE: GRADUATION & MULTI-DEPARTMENT CLEARANCE
 # ==============================================================================

@@ -187,12 +187,10 @@ def _slug(value):
 
 
 def get_domain_for(user_type):
-    key = {
-        UserType.STUDENT: "email_student_domain",
-        UserType.STAFF: "email_staff_domain",
-        UserType.ADMIN: "email_admin_domain",
-    }.get(user_type, "email_staff_domain")
-    return (get_setting(key, "") or get_setting("email_staff_domain", "") or "university.edu").strip().lstrip("@")
+    from university.institution_domain_services import get_staff_email_domain, get_student_email_domain
+    if user_type == UserType.STUDENT:
+        return get_student_email_domain()
+    return get_staff_email_domain()
 
 
 def get_format_for(user_type):

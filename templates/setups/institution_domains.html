@@ -1,0 +1,435 @@
+{% extends "base_dashboard.html" %}
+{% load static %}
+
+{% block title %}University Identity & Institutional Domains — {{ institution_settings.institution_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <!-- Page Header -->
+  <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1 small">
+          <li class="breadcrumb-item"><a href="{% url 'university:admin_setups_dashboard' %}" class="text-decoration-none">Admin Setups</a></li>
+          <li class="breadcrumb-item active" aria-current="page">University Identity & Domains</li>
+        </ol>
+      </nav>
+      <h1 class="h3 fw-bold mb-1 text-dark">
+        <i class="fa-solid fa-globe text-primary me-2"></i>University Identity & Domain Architecture
+      </h1>
+      <p class="text-muted mb-0">Configure the single source of truth for university branding, root internet domain, staff and student email domains, and migration rules.</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <a href="{% url 'university:admin_setups_dashboard' %}?tab=university" class="btn btn-outline-secondary">
+        <i class="fa-solid fa-arrow-left me-1"></i> Back to Setups
+      </a>
+      <button type="button" class="btn btn-primary px-4" data-bs-toggle="modal" data-bs-target="#migrationModal">
+        <i class="fa-solid fa-floppy-disk me-1"></i> Review & Apply Changes
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Grid -->
+  <form id="domainSettingsForm" method="post" action="{% url 'university:execute_domain_migration' %}">
+    {% csrf_token %}
+    <div class="row g-4 mb-4">
+      
+      <!-- Left Column: Settings Configuration -->
+      <div class="col-12 col-xl-8">
+        
+        <!-- Card 1: University Identity & Branding -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+          <div class="card-header bg-white border-0 p-4 pb-2 d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge bg-primary-subtle text-primary p-2 rounded-3"><i class="fa-solid fa-building-columns fs-5"></i></span>
+              <div>
+                <h5 class="fw-bold mb-0 text-dark">Institutional Identity</h5>
+                <p class="text-muted small mb-0">Official university naming appearing on transcripts, letters, and system branding.</p>
+              </div>
+            </div>
+            <span class="badge bg-success-subtle text-success rounded-pill px-3 py-1.5 small fw-semibold">Active Profile</span>
+          </div>
+          <div class="card-body p-4 pt-3">
+            <div class="row g-3">
+              <div class="col-12 col-md-8">
+                <label for="id_institution_name" class="form-label fw-semibold small text-dark">University Full Name <span class="text-danger">*</span></label>
+                <input type="text" id="id_institution_name" name="institution_name" class="form-control rounded-3" value="{{ settings.institution_name }}" required oninput="updateLivePreview()">
+                <div class="form-text small">Legal university title used across credentials, degree letters, and portals.</div>
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="id_institution_short_name" class="form-label fw-semibold small text-dark">Institution Code / Short Name <span class="text-danger">*</span></label>
+                <input type="text" id="id_institution_short_name" name="institution_short_name" class="form-control rounded-3 font-monospace" value="{{ settings.institution_short_name }}" required oninput="updateLivePreview()">
+                <div class="form-text small">Abbreviation (e.g. UMS, NIU, MUST).</div>
+              </div>
+              <div class="col-12 col-md-6">
+                <label for="id_website_url" class="form-label fw-semibold small text-dark">Primary Website URL</label>
+                <input type="url" id="id_website_url" name="website_url" class="form-control rounded-3" value="{{ settings.website_url }}">
+              </div>
+              <div class="col-12 col-md-6">
+                <label for="id_portal_url" class="form-label fw-semibold small text-dark">Student & Staff Portal URL</label>
+                <input type="url" id="id_portal_url" name="portal_url" class="form-control rounded-3" value="{{ settings.portal_url }}">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: Root Domain & Subdomain Architecture -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+          <div class="card-header bg-white border-0 p-4 pb-2 d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge bg-primary-subtle text-primary p-2 rounded-3"><i class="fa-solid fa-network-wired fs-5"></i></span>
+              <div>
+                <h5 class="fw-bold mb-0 text-dark">Domain Architecture & Routing</h5>
+                <p class="text-muted small mb-0">Central configuration deriving staff root domains and student subdomains dynamically.</p>
+              </div>
+            </div>
+          </div>
+          <div class="card-body p-4 pt-3">
+            
+            <div class="alert alert-info border-0 rounded-4 p-3 mb-4 d-flex align-items-start gap-3">
+              <i class="fa-solid fa-circle-info fs-5 text-info mt-0.5"></i>
+              <div class="small">
+                <strong>Dynamic Domain Derivation:</strong> Changing the <em>Primary University Root Domain</em> will automatically derive the staff domain (<code id="infoStaff">@{{ settings.primary_domain }}</code>) and student domain (<code id="infoStudent">@students.{{ settings.primary_domain }}</code>), unless explicitly overridden below.
+              </div>
+            </div>
+
+            <div class="row g-3">
+              <!-- Primary Root Domain -->
+              <div class="col-12">
+                <label for="id_primary_domain" class="form-label fw-bold text-dark">Primary University Root Domain <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text bg-light text-muted"><i class="fa-solid fa-globe"></i></span>
+                  <input type="text" id="id_primary_domain" name="primary_domain" class="form-control form-control-lg rounded-end-3 font-monospace fw-bold" value="{{ settings.primary_domain }}" required oninput="handleRootDomainChange()">
+                </div>
+                <div class="form-text small">Example: <code>ums.ac.ke</code> or <code>newuniversity.ac.ke</code> (without http/https or @).</div>
+              </div>
+
+              <!-- Staff Domain -->
+              <div class="col-12 col-md-6">
+                <label for="id_staff_email_domain" class="form-label fw-semibold small text-dark">Staff Email Domain <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text bg-light text-muted">@</span>
+                  <input type="text" id="id_staff_email_domain" name="staff_email_domain" class="form-control rounded-end-3 font-monospace" value="{{ settings.staff_email_domain }}" required oninput="updateLivePreview()">
+                </div>
+                <div class="form-text small">Assigned to faculty and administrators (e.g. <code>ums.ac.ke</code>).</div>
+              </div>
+
+              <!-- Student Subdomain Prefix & Domain -->
+              <div class="col-12 col-md-6">
+                <label for="id_student_email_subdomain_prefix" class="form-label fw-semibold small text-dark">Student Subdomain Prefix</label>
+                <div class="input-group">
+                  <input type="text" id="id_student_email_subdomain_prefix" name="student_email_subdomain_prefix" class="form-control font-monospace" value="{{ settings.student_email_subdomain_prefix }}" oninput="handlePrefixChange()">
+                  <span class="input-group-text bg-light text-muted">.{root_domain}</span>
+                </div>
+                <div class="form-text small">E.g., <code>students</code> or <code>student</code>.</div>
+              </div>
+
+              <div class="col-12">
+                <label for="id_email_student_domain" class="form-label fw-semibold small text-dark">Derived / Custom Student Email Domain <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <span class="input-group-text bg-light text-muted">@</span>
+                  <input type="text" id="id_email_student_domain" name="email_student_domain" class="form-control rounded-end-3 font-monospace" value="{{ settings.student_email_domain }}" required oninput="updateLivePreview()">
+                </div>
+                <div class="form-text small">Assigned to students (e.g. <code>students.ums.ac.ke</code>).</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Card 3: Institutional Contact Endpoints -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+          <div class="card-header bg-white border-0 p-4 pb-2">
+            <h5 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-envelope-open-text text-primary me-2"></i>Institutional Notification Endpoints</h5>
+          </div>
+          <div class="card-body p-4 pt-3">
+            <div class="row g-3">
+              <div class="col-12 col-md-6">
+                <label for="id_admissions_email" class="form-label fw-semibold small text-dark">Admissions Office Email</label>
+                <input type="email" id="id_admissions_email" name="admissions_email" class="form-control rounded-3 font-monospace" value="{{ settings.admissions_email }}" oninput="updateLivePreview()">
+              </div>
+              <div class="col-12 col-md-6">
+                <label for="id_finance_email" class="form-label fw-semibold small text-dark">Student Finance Office Email</label>
+                <input type="email" id="id_finance_email" name="finance_email" class="form-control rounded-3 font-monospace" value="{{ settings.finance_email }}" oninput="updateLivePreview()">
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: Live Preview & Account Sandbox -->
+      <div class="col-12 col-xl-4">
+        
+        <!-- Live Preview Sandbox -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4 position-sticky" style="top: 2rem;">
+          <div class="card-header bg-primary text-white border-0 p-3 rounded-top-4 d-flex align-items-center justify-content-between">
+            <span class="fw-bold"><i class="fa-solid fa-eye me-2"></i>Live Address Sandbox</span>
+            <span class="badge bg-white text-primary rounded-pill small">Auto-Calculated</span>
+          </div>
+          <div class="card-body p-4">
+            <p class="text-muted small mb-3">Live demonstration of how institutional addresses and communications will render under the current input values:</p>
+
+            <!-- Staff Example -->
+            <div class="p-3 bg-light rounded-3 border mb-3">
+              <div class="d-flex align-items-center justify-content-between mb-1">
+                <span class="badge bg-primary text-white small">Staff Account</span>
+                <span class="text-muted small" style="font-size:0.75rem;">Dr. Michael Wabs</span>
+              </div>
+              <div class="font-monospace fw-bold text-dark text-break" id="previewStaffEmail">
+                m.wabs@{{ settings.staff_email_domain }}
+              </div>
+            </div>
+
+            <!-- Student Example -->
+            <div class="p-3 bg-light rounded-3 border mb-3">
+              <div class="d-flex align-items-center justify-content-between mb-1">
+                <span class="badge bg-success text-white small">Student Account</span>
+                <span class="text-muted small" style="font-size:0.75rem;">Amina Ouma (CS/01/2026)</span>
+              </div>
+              <div class="font-monospace fw-bold text-dark text-break" id="previewStudentEmail">
+                cs012026@{{ settings.student_email_domain }}
+              </div>
+            </div>
+
+            <!-- Admissions Notification Example -->
+            <div class="p-3 bg-light rounded-3 border mb-3">
+              <div class="d-flex align-items-center justify-content-between mb-1">
+                <span class="badge bg-info text-dark small">Admissions Dispatcher</span>
+              </div>
+              <div class="font-monospace small text-dark text-break" id="previewAdmissionsEmail">
+                {{ settings.admissions_email }}
+              </div>
+            </div>
+
+            <!-- Summary of Current Migration Impact -->
+            <div class="p-3 bg-warning bg-opacity-10 border border-warning rounded-3 mb-3">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="fa-solid fa-users text-warning fs-5"></i>
+                <h6 class="fw-bold mb-0 text-dark">Impacted Identities</h6>
+              </div>
+              <div class="d-flex justify-content-between text-muted small py-1 border-bottom">
+                <span>Active Staff Accounts:</span>
+                <strong class="text-dark">{{ sample_preview.staff_affected_count }}</strong>
+              </div>
+              <div class="d-flex justify-content-between text-muted small py-1">
+                <span>Active Student Accounts:</span>
+                <strong class="text-dark">{{ sample_preview.student_affected_count }}</strong>
+              </div>
+            </div>
+
+            <button type="button" class="btn btn-primary w-100 py-2.5 rounded-3 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#migrationModal">
+              <i class="fa-solid fa-arrow-right-arrow-left me-1"></i> Preview & Apply Domain Change
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Migration Confirmation Modal -->
+    <div class="modal fade" id="migrationModal" tabindex="-1" aria-labelledby="migrationModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+          <div class="modal-header bg-primary text-white border-0 p-4">
+            <h5 class="modal-title fw-bold" id="migrationModalLabel">
+              <i class="fa-solid fa-shield-halved me-2"></i>Confirm Institutional Domain Migration
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-4">
+            
+            <div class="alert alert-warning border-0 rounded-3 p-3 mb-4 d-flex align-items-start gap-3">
+              <i class="fa-solid fa-triangle-exclamation text-warning fs-4 mt-0.5"></i>
+              <div>
+                <h6 class="fw-bold mb-1">Administrative Confirmation Required</h6>
+                <p class="small mb-0">
+                  Changing the institutional domain updates the central source of truth for email generation, validation rules, and outbound notifications. Please select the account migration policy below:
+                </p>
+              </div>
+            </div>
+
+            <!-- Migration Policy Selection -->
+            <div class="mb-4">
+              <label class="form-label fw-bold small text-dark text-uppercase">Account Migration Policy</label>
+              <div class="form-check p-3 border rounded-3 mb-2 bg-light">
+                <input class="form-check-input" type="radio" name="migration_policy" id="policy1" value="MIGRATE_AND_ARCHIVE_ALIASES" checked>
+                <label class="form-check-label ms-2" for="policy1">
+                  <strong class="d-block text-dark">Migrate Active Accounts & Retain Old Emails as Aliases (Recommended)</strong>
+                  <span class="text-muted small">Generates new primary institutional addresses with the updated domain while preserving previous addresses as historical archives. Historical transcripts, invoices, and audit logs remain intact.</span>
+                </label>
+              </div>
+              <div class="form-check p-3 border rounded-3 mb-2">
+                <input class="form-check-input" type="radio" name="migration_policy" id="policy2" value="APPLY_TO_NEW_ONLY">
+                <label class="form-check-label ms-2" for="policy2">
+                  <strong class="d-block text-dark">Apply to New Accounts Only</strong>
+                  <span class="text-muted small">Retains existing staff and student addresses as-is; only newly admitted students and provisioned staff will receive addresses matching the new domain.</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Migration Diff Summary -->
+            <div class="table-responsive border rounded-3 mb-3">
+              <table class="table table-sm mb-0">
+                <thead class="table-light small">
+                  <tr>
+                    <th>Setting</th>
+                    <th>Current Value</th>
+                    <th>New Value (Target)</th>
+                  </tr>
+                </thead>
+                <tbody class="small font-monospace">
+                  <tr>
+                    <td>Root Domain</td>
+                    <td class="text-muted">{{ settings.primary_domain }}</td>
+                    <td class="text-primary fw-bold" id="modalTargetRoot">{{ settings.primary_domain }}</td>
+                  </tr>
+                  <tr>
+                    <td>Staff Domain</td>
+                    <td class="text-muted">@{{ settings.staff_email_domain }}</td>
+                    <td class="text-primary fw-bold" id="modalTargetStaff">@{{ settings.staff_email_domain }}</td>
+                  </tr>
+                  <tr>
+                    <td>Student Domain</td>
+                    <td class="text-muted">@{{ settings.student_email_domain }}</td>
+                    <td class="text-primary fw-bold" id="modalTargetStudent">@{{ settings.student_email_domain }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+          <div class="modal-footer bg-light border-0 p-3">
+            <button type="button" class="btn btn-outline-secondary px-4 rounded-3" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary px-4 rounded-3 fw-bold">
+              <i class="fa-solid fa-check me-1"></i> Apply Domain Migration
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <!-- Domain Change Audit Trail -->
+  <div class="card border-0 shadow-sm rounded-4 mt-4">
+    <div class="card-header bg-white border-0 p-4 pb-2 d-flex align-items-center justify-content-between">
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-secondary-subtle text-secondary p-2 rounded-3"><i class="fa-solid fa-clock-rotate-left fs-5"></i></span>
+        <div>
+          <h5 class="fw-bold mb-0 text-dark">Domain Change Audit History</h5>
+          <p class="text-muted small mb-0">Immutable chronological record of institutional rebrands and domain migrations.</p>
+        </div>
+      </div>
+    </div>
+    <div class="card-body p-4 pt-2">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light small">
+            <tr>
+              <th>Timestamp</th>
+              <th>Initiated By</th>
+              <th>Domain Transition</th>
+              <th>Policy</th>
+              <th>Accounts Migrated</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody class="small">
+            {% for item in migration_history %}
+              <tr>
+                <td class="text-muted">{{ item.created_at|date:"d M Y, H:i" }}</td>
+                <td class="fw-semibold">{{ item.initiated_by.get_full_name|default:item.initiated_by.username|default:"System Admin" }}</td>
+                <td>
+                  <span class="font-monospace text-muted">{{ item.previous_primary_domain }}</span>
+                  <i class="fa-solid fa-arrow-right mx-1 text-primary small"></i>
+                  <span class="font-monospace text-primary fw-bold">{{ item.new_primary_domain }}</span>
+                </td>
+                <td><span class="badge bg-light text-dark border">{{ item.get_migration_policy_display }}</span></td>
+                <td>
+                  <span class="badge bg-info-subtle text-info fw-bold">{{ item.total_emails_migrated }} accounts</span>
+                  <span class="text-muted small">({{ item.staff_accounts_affected }} staff, {{ item.student_accounts_affected }} students)</span>
+                </td>
+                <td>
+                  {% if item.status == 'COMPLETED' %}
+                    <span class="badge bg-success-subtle text-success"><i class="fa-solid fa-circle-check me-1"></i>Completed</span>
+                  {% else %}
+                    <span class="badge bg-warning-subtle text-warning">{{ item.status }}</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="6" class="text-center py-4 text-muted">
+                  <i class="fa-solid fa-clock-rotate-left fs-3 mb-2 d-block opacity-25"></i>
+                  No previous domain migrations recorded. Current institutional baseline active.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Real-Time Interactive Script -->
+<script>
+function cleanDomain(val) {
+  if (!val) return "";
+  return val.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^@+/, '').replace(/\/+$/, '');
+}
+
+function handleRootDomainChange() {
+  const rootInput = document.getElementById('id_primary_domain');
+  const staffInput = document.getElementById('id_staff_email_domain');
+  const prefixInput = document.getElementById('id_student_email_subdomain_prefix');
+  const studentInput = document.getElementById('id_email_student_domain');
+
+  const root = cleanDomain(rootInput.value);
+  const prefix = (prefixInput.value || "students").trim().toLowerCase().replace(/^\.+|\.+$/g, '');
+
+  staffInput.value = root;
+  studentInput.value = prefix ? `${prefix}.${root}` : root;
+
+  document.getElementById('infoStaff').innerText = `@${root}`;
+  document.getElementById('infoStudent').innerText = `@${prefix ? prefix + '.' : ''}${root}`;
+
+  updateLivePreview();
+}
+
+function handlePrefixChange() {
+  const rootInput = document.getElementById('id_primary_domain');
+  const prefixInput = document.getElementById('id_student_email_subdomain_prefix');
+  const studentInput = document.getElementById('id_email_student_domain');
+
+  const root = cleanDomain(rootInput.value);
+  const prefix = (prefixInput.value || "students").trim().toLowerCase().replace(/^\.+|\.+$/g, '');
+
+  studentInput.value = prefix ? `${prefix}.${root}` : root;
+  document.getElementById('infoStudent').innerText = `@${prefix ? prefix + '.' : ''}${root}`;
+
+  updateLivePreview();
+}
+
+function updateLivePreview() {
+  const staffDomain = cleanDomain(document.getElementById('id_staff_email_domain').value);
+  const studentDomain = cleanDomain(document.getElementById('id_email_student_domain').value);
+  const rootDomain = cleanDomain(document.getElementById('id_primary_domain').value);
+  const admInput = document.getElementById('id_admissions_email');
+
+  document.getElementById('previewStaffEmail').innerText = `m.wabs@${staffDomain || 'ums.ac.ke'}`;
+  document.getElementById('previewStudentEmail').innerText = `cs012026@${studentDomain || 'students.ums.ac.ke'}`;
+  document.getElementById('previewAdmissionsEmail').innerText = admInput.value || `admissions@${staffDomain || 'ums.ac.ke'}`;
+
+  // Update modal preview
+  document.getElementById('modalTargetRoot').innerText = rootDomain || 'ums.ac.ke';
+  document.getElementById('modalTargetStaff').innerText = `@${staffDomain || 'ums.ac.ke'}`;
+  document.getElementById('modalTargetStudent').innerText = `@${studentDomain || 'students.ums.ac.ke'}`;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  updateLivePreview();
+});
+</script>
+{% endblock %}
