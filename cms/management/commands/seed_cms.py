@@ -39,8 +39,8 @@ BLOCKS = [
 ]
 
 MENUS = [
-    ("header", [("Home", "/"), ("About Us", "/about/"), ("Courses", "/catalog/"), ("Contact", "/contact/")]),
-    ("footer_explore", [("Home", "/"), ("Courses", "/catalog/"), ("About", "/about/"), ("Contact", "/contact/")]),
+    ("header", [("Home", "/"), ("About Us", "/about/"), ("Courses", "/catalog/"), ("Apply Now", "/admissions/apply/"), ("Contact", "/contact/")]),
+    ("footer_explore", [("Home", "/"), ("Courses", "/catalog/"), ("Apply Now", "/admissions/apply/"), ("About", "/about/"), ("Contact", "/contact/")]),
 ]
 
 

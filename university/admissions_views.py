@@ -665,15 +665,28 @@ def application_status(request):
     })
 
 
+def view_admission_letter(request, pk):
+    """View official PDF admission offer letter in interactive document viewer."""
+    return _serve_admission_letter(request, pk, as_attachment=False)
+
+
 def download_admission_letter(request, pk):
     """Download official PDF admission offer letter for accepted applicants."""
+    as_attachment = request.GET.get("download") == "1" or request.GET.get("attachment") == "1"
+    return _serve_admission_letter(request, pk, as_attachment=as_attachment)
+
+
+def _serve_admission_letter(request, pk, as_attachment=False):
     app = get_object_or_404(Application.objects.select_related("program", "intake", "student"), pk=pk)
 
     is_staff = request.user.is_authenticated and (
         request.user.is_staff or request.user.is_superuser or getattr(request.user, "role", "") in (Role.ADMIN, "ADMIN")
     )
     is_applicant = (
-        request.user.is_authenticated and hasattr(app, "student") and app.student and getattr(app.student, "user", None) == request.user
+        request.user.is_authenticated and (
+            app.applicant_user == request.user or
+            (hasattr(app, "student") and app.student and getattr(app.student, "user", None) == request.user)
+        )
     )
     access_token = request.GET.get("access", "")
     token_valid = bool(access_token and application_from_access_token(access_token) == app)
@@ -686,10 +699,10 @@ def download_admission_letter(request, pk):
             f"{reverse('university:admissions_status')}?access={application_access_token(app)}")
 
     from university.admission_document_services import generate_admission_document, build_admission_letter_pdf_bytes
-    doc = app.active_admission_document
+    doc = getattr(app, "active_admission_document", None) or app.issued_documents.filter(is_current_version=True).first()
     if not doc:
         user = request.user if request.user.is_authenticated else None
-        doc = generate_admission_document(app, user=user, reason="Generated on public download request")
+        doc = generate_admission_document(app, user=user, reason="Generated on applicant letter request")
 
     if not doc.pdf_file:
         pdf_data = build_admission_letter_pdf_bytes(doc)
@@ -701,8 +714,53 @@ def download_admission_letter(request, pk):
 
     response = HttpResponse(pdf_data, content_type="application/pdf")
     filename = f"Admission_Letter_{doc.document_reference.replace('/', '_')}.pdf"
-    response["Content-Disposition"] = f'inline; filename="{filename}"'
-    return present_pdf(request, response, title=f"Admission Letter - {doc.document_reference}")
+    if as_attachment:
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+    else:
+        response["Content-Disposition"] = f'inline; filename="{filename}"'
+        return present_pdf(request, response, title=f"Admission Letter - {doc.document_reference}")
+
+
+@login_required
+@require_POST
+def applicant_accept_offer(request, pk):
+    """Applicant action to confirm acceptance of official admission offer."""
+    app = get_object_or_404(
+        Application.objects.select_related("program", "intake", "student"),
+        pk=pk
+    )
+    if app.applicant_user != request.user and not (request.user.is_staff or request.user.is_superuser or getattr(request.user, "role", "") in (Role.ADMIN, "ADMIN")):
+        messages.error(request, "Access denied. You do not have permission to accept this admission offer.")
+        return redirect("university:applicant_dashboard")
+
+    if app.status != Application.Status.ACCEPTED:
+        messages.warning(request, f"Application is currently in '{app.get_status_display()}' state. Offer acceptance is applicable only for Accepted offers.")
+        return redirect("university:applicant_dashboard")
+
+    app.review_notes = (app.review_notes or "") + f"\n[Offer Accepted by Applicant on {timezone.now():%Y-%m-%d %H:%M UTC}]"
+    app.save(update_fields=["review_notes", "updated_at"])
+
+    log_activity(
+        user=request.user,
+        action=AuditLog.Action.UPDATE,
+        module=AuditLog.Module.ADMISSIONS,
+        entity="Application",
+        entity_id=app.id,
+        description=f"Applicant {app.full_name} ({app.application_number}) accepted admission offer for {app.program.name if app.program else 'Degree Programme'}.",
+        new_state={
+            "application_number": app.application_number,
+            "accepted_at": str(timezone.now()),
+            "status": app.status,
+        }
+    )
+
+    messages.success(
+        request,
+        f"🎉 Congratulations {app.first_name}! You have formally accepted your admission offer for {app.program.name if app.program else 'your degree programme'}. "
+        f"Please download your official Admission Letter and proceed with reporting/registration preparations."
+    )
+    return redirect("university:applicant_dashboard")
 
 
 

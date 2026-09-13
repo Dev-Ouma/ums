@@ -99,7 +99,48 @@
             </div>
           </div>
 
-        {% elif status == "AMENDED" %}
+        {% elif status == "REVOKED" %}
+          <!-- REVOKED BADGE -->
+          <div class="card border-0 shadow-sm rounded-4 mb-4 border-start border-danger border-5">
+            <div class="card-body p-4 p-md-5">
+              <div class="d-flex align-items-center gap-3 mb-3">
+                <div class="rounded-circle bg-danger-subtle text-danger p-3 d-flex align-items-center justify-content-center" style="width: 54px; height: 54px;">
+                  <i class="fa-solid fa-ban fs-3"></i>
+                </div>
+                <div>
+                  <span class="badge bg-danger px-3 py-2 text-uppercase mb-1">Document Revoked</span>
+                  <h4 class="fw-bold text-dark mb-0">{{ status_label|default:"Admission Offer Revoked" }}</h4>
+                </div>
+              </div>
+              <p class="text-danger fw-semibold">This admission offer or official document has been officially <strong>REVOKED / VOIDED</strong> and is no longer valid.</p>
+              {% if ctx %}
+              <div class="table-responsive mt-3">
+                <table class="table table-sm table-borderless mb-0 align-middle">
+                  <tbody>
+                    <tr class="border-bottom">
+                      <th class="text-muted py-2" style="width: 35%;">Candidate Legal Name</th>
+                      <td class="fw-bold text-dark py-2">{{ ctx.student_name }}</td>
+                    </tr>
+                    <tr class="border-bottom">
+                      <th class="text-muted py-2">Programme</th>
+                      <td class="text-dark py-2">{{ ctx.programme_name }}</td>
+                    </tr>
+                    <tr class="border-bottom">
+                      <th class="text-muted py-2">Document Serial</th>
+                      <td class="text-dark py-2"><code>{{ reference_no }}</code></td>
+                    </tr>
+                    <tr>
+                      <th class="text-muted py-2">Status</th>
+                      <td class="text-danger fw-bold py-2"><span class="badge bg-danger">REVOKED / VOID</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+        {% elif status == "AMENDED" or status == "SUPERSEDED" %}
           <!-- AMENDED / SUPERSEDED BADGE -->
           <div class="card border-0 shadow-sm rounded-4 mb-4 border-start border-warning border-5">
             <div class="card-body p-4 p-md-5">
@@ -112,8 +153,12 @@
                   <h4 class="fw-bold text-dark mb-0">{{ status_label }}</h4>
                 </div>
               </div>
-              <p class="text-muted">A candidate with matching registration was found, but the certified marks or revision digest have been updated since this document was generated. Please request an updated, re-certified transcript from the Academic Registrar.</p>
-              <p class="mb-0"><strong>Candidate:</strong> {{ student.user.display_name }} ({{ student.roll_no }})</p>
+              <p class="text-muted">A candidate with matching registration was found, but the certified marks or revision digest have been updated since this document was generated. Please request an updated, re-certified document from the Academic Registrar.</p>
+              {% if student %}
+                <p class="mb-0"><strong>Candidate:</strong> {{ student.user.display_name }} ({{ student.roll_no }})</p>
+              {% elif ctx %}
+                <p class="mb-0"><strong>Candidate:</strong> {{ ctx.student_name }} ({{ ctx.registration_number }})</p>
+              {% endif %}
             </div>
           </div>
 
