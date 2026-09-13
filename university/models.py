@@ -1252,12 +1252,16 @@ class Application(models.Model):
 
     # Personal details (soft validation on drafts)
     first_name = models.CharField(max_length=80, blank=True, default="")
+    middle_name = models.CharField(max_length=80, blank=True, default="", verbose_name="Middle / Other Name")
     last_name = models.CharField(max_length=80, blank=True, default="")
     email = models.EmailField(blank=True, default="")
     phone = models.CharField(max_length=30, blank=True, default="")
     date_of_birth = models.DateField(null=True, blank=True)
     gender = models.CharField(max_length=20, blank=True, default="MALE", choices=[("MALE", "Male"), ("FEMALE", "Female"), ("OTHER", "Other")])
     national_id = models.CharField(max_length=50, blank=True, default="", verbose_name="National ID / Passport No.")
+    country = models.CharField(max_length=80, blank=True, default="Kenya", verbose_name="Country")
+    county = models.CharField(max_length=80, blank=True, default="Nairobi", verbose_name="County / State / Region")
+    nationality = models.CharField(max_length=80, blank=True, default="Kenyan", verbose_name="Nationality")
     address = models.TextField(blank=True, default="")
 
     # Guardian & Emergency Contact details
@@ -1298,12 +1302,12 @@ class Application(models.Model):
 
     def __str__(self):
         prog_code = self.program.code if self.program else "Draft"
-        name = f"{self.first_name} {self.last_name}".strip() or "Unnamed Applicant"
-        return f"{self.application_number} · {name} ({prog_code})"
+        return f"{self.application_number} · {self.full_name} ({prog_code})"
 
     @property
     def full_name(self):
-        name = f"{self.first_name} {self.last_name}".strip()
+        parts = [self.first_name, self.middle_name, self.last_name]
+        name = " ".join(p.strip() for p in parts if p and p.strip())
         return name if name else "Draft Applicant"
 
     @property

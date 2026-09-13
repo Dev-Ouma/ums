@@ -3,6 +3,143 @@
 
 {% block title %}Apply for Admission | University Management System{% endblock %}
 
+{% block extra_css %}
+<style>
+/* Custom Searchable Select Styling */
+.custom-select-wrapper {
+  position: relative;
+  width: 100%;
+}
+.custom-select-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #1e293b;
+  background-color: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  text-align: left;
+}
+.form-select-lg + .custom-select-wrapper .custom-select-toggle {
+  padding: 0.75rem 1.15rem;
+  font-size: 1.05rem;
+}
+.custom-select-toggle:hover, .custom-select-toggle:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  outline: none;
+}
+.custom-select-wrapper.is-invalid .custom-select-toggle {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12) !important;
+}
+.custom-select-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1050;
+  display: none;
+  margin-top: 4px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  padding: 0.5rem;
+  max-height: 320px;
+  overflow: hidden;
+}
+.custom-select-wrapper.open .custom-select-menu {
+  display: flex;
+  flex-direction: column;
+}
+.custom-select-search-wrap {
+  position: relative;
+  margin-bottom: 0.5rem;
+}
+.custom-select-search-wrap i {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 0.875rem;
+}
+.custom-select-search {
+  width: 100%;
+  padding: 0.45rem 0.75rem 0.45rem 2.2rem;
+  font-size: 0.875rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.375rem;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.custom-select-search:focus {
+  border-color: #2563eb;
+}
+.custom-select-options {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.custom-select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.9rem;
+  color: #334155;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.custom-select-option:hover, .custom-select-option.highlighted {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+.custom-select-option.selected {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+.custom-select-empty {
+  padding: 0.75rem;
+  font-size: 0.85rem;
+  color: #64748b;
+  text-align: center;
+}
+.custom-select-toggle .chevron {
+  transition: transform 0.2s ease;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+.custom-select-wrapper.open .custom-select-toggle .chevron {
+  transform: rotate(180deg);
+}
+.field-error-feedback {
+  display: none;
+  width: 100%;
+  margin-top: 0.25rem;
+  font-size: 0.825rem;
+  color: #dc2626;
+  font-weight: 500;
+}
+.is-invalid ~ .field-error-feedback,
+.custom-select-wrapper.is-invalid ~ .field-error-feedback,
+.is-invalid + .field-error-feedback {
+  display: block;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container py-4 py-md-5">
   <div class="row justify-content-center">
@@ -14,8 +151,8 @@
           <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
             <div>
               <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-                <span class="badge bg-white text-primary px-3 py-1.5 rounded-pill fw-semibold">
-                  <i class="fa-solid fa-calendar-check me-1"></i> {{ intake.name }}
+                <span class="badge bg-white text-primary px-3 py-1.5 rounded-pill fw-semibold" id="activeIntakeBadgeHeader">
+                  <i class="fa-solid fa-calendar-check me-1"></i> {{ intake.name|default:"Admissions Open" }}
                 </span>
                 <span class="badge bg-white/20 text-white px-3 py-1.5 rounded-pill fw-normal" id="applicationNumberBadge" style="background-color: rgba(255,255,255,0.2);">
                   <i class="fa-solid fa-hashtag me-1"></i> Draft: <span class="fw-bold font-monospace">{{ draft_application.application_number }}</span>
@@ -73,76 +210,141 @@
       <!-- Application Form -->
       <div class="card border-0 shadow-sm rounded-4">
         <div class="card-body p-4 p-md-5">
-          <form id="admissionsApplicationForm" method="post" action="{% url 'university:admissions_apply' %}" enctype="multipart/form-data">
+          <form id="admissionsApplicationForm" method="post" action="{% url 'university:admissions_apply' %}" enctype="multipart/form-data" novalidate>
             {% csrf_token %}
 
-            <!-- SECTION 1: Programme Selection -->
+            <!-- SECTION 1: Programme & Intake Selection -->
             <div class="mb-5 form-section" data-step="1">
               <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
                 <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">1</div>
-                <h5 class="fw-bold mb-0 text-dark">Programme of Study</h5>
+                <h5 class="fw-bold mb-0 text-dark">Programme &amp; Academic Intake</h5>
               </div>
               <div class="row g-3">
-                <div class="col-md-8">
+                <div class="col-md-7">
                   <label class="form-label fw-semibold">Select Degree / Diploma Programme <span class="text-danger">*</span></label>
-                  <select name="program" id="field_program" class="form-select form-select-lg rounded-3" required>
-                    <option value="" disabled {% if not data.program %}selected{% endif %}>-- Choose Programme --</option>
+                  <select name="program" id="field_program" class="form-select form-select-lg rounded-3 search-select" required data-searchable="true">
+                    <option value="" disabled {% if not data.program %}selected{% endif %}>-- Search or Select Programme --</option>
                     {% for p in programs %}
                       <option value="{{ p.id }}" {% if data.program == p.id|stringformat:"s" %}selected{% endif %}>
                         {{ p.code }} — {{ p.name }} ({{ p.department.name }})
                       </option>
                     {% endfor %}
                   </select>
+                  <div class="field-error-feedback" id="err_program">Please select an academic programme.</div>
                 </div>
-                <div class="col-md-4">
-                  <label class="form-label fw-semibold">Academic Intake Cycle</label>
-                  <input type="text" class="form-control form-control-lg rounded-3 bg-light" value="{{ intake.name }}" readonly>
+                <div class="col-md-5">
+                  <label class="form-label fw-semibold">Academic Intake Cycle <span class="text-danger">*</span></label>
+                  {% if not available_intakes and not intakes_data.intakes %}
+                    <div class="alert alert-warning py-2.5 px-3 small rounded-3 mb-0" id="noActiveIntakeBanner">
+                      <i class="fa-solid fa-triangle-exclamation me-1"></i> No active intake cycles are currently open for applications.
+                    </div>
+                    <input type="hidden" name="intake_id" id="field_intake_id" value="">
+                  {% else %}
+                    <select name="intake_id" id="field_intake_id" class="form-select form-select-lg rounded-3 search-select" required data-searchable="true">
+                      {% for itk in available_intakes %}
+                        <option value="{{ itk.id }}" 
+                                data-badge="{{ itk.status_label }}"
+                                data-badge-class="{{ itk.badge_class }}"
+                                data-year="{{ itk.academic_year }}"
+                                {% if data.intake_id == itk.id|stringformat:"s" or not data.intake_id and itk.is_default %}selected{% endif %}>
+                          {{ itk.name }} ({{ itk.academic_year }})
+                        </option>
+                      {% endfor %}
+                    </select>
+                    <div class="field-error-feedback" id="err_intake_id">Please select a valid open intake cycle.</div>
+                  {% endif %}
                 </div>
               </div>
             </div>
 
-            <!-- SECTION 2: Personal Bio-Data -->
+            <!-- SECTION 2: Personal Bio-Data & Smart Location Dropdowns -->
             <div class="mb-5 form-section" data-step="2">
               <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
                 <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">2</div>
                 <h5 class="fw-bold mb-0 text-dark">Applicant Personal Information</h5>
               </div>
               <div class="row g-3">
-                <div class="col-md-6">
+                <div class="col-md-4">
                   <label class="form-label fw-semibold">First Name <span class="text-danger">*</span></label>
-                  <input type="text" name="first_name" id="field_first_name" class="form-control rounded-3" placeholder="e.g. Kelvin" value="{{ data.first_name|default:'' }}" required>
+                  <input type="text" name="first_name" id="field_first_name" class="form-control rounded-3" placeholder="e.g. Kelvin" value="{{ data.first_name|default:'' }}" required autocomplete="given-name">
+                  <div class="field-error-feedback" id="err_first_name">Please enter a valid first name (letters, hyphens, and apostrophes only, min 2 chars).</div>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Middle Name</label>
+                  <input type="text" name="middle_name" id="field_middle_name" class="form-control rounded-3" placeholder="e.g. Kiprono (Optional)" value="{{ data.middle_name|default:'' }}" autocomplete="additional-name">
+                  <div class="field-error-feedback" id="err_middle_name">Middle name contains invalid characters.</div>
+                </div>
+                <div class="col-md-4">
                   <label class="form-label fw-semibold">Last / Family Name <span class="text-danger">*</span></label>
-                  <input type="text" name="last_name" id="field_last_name" class="form-control rounded-3" placeholder="e.g. Ochieng" value="{{ data.last_name|default:'' }}" required>
+                  <input type="text" name="last_name" id="field_last_name" class="form-control rounded-3" placeholder="e.g. Ochieng" value="{{ data.last_name|default:'' }}" required autocomplete="family-name">
+                  <div class="field-error-feedback" id="err_last_name">Please enter a valid last name (letters, hyphens, and apostrophes only, min 2 chars).</div>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Email Address <span class="text-danger">*</span></label>
-                  <input type="email" name="email" id="field_email" class="form-control rounded-3" placeholder="name@example.com" value="{{ data.email|default:'' }}" required>
+                  <input type="email" name="email" id="field_email" class="form-control rounded-3" placeholder="name@example.com" value="{{ data.email|default:'' }}" required autocomplete="email">
+                  <div class="field-error-feedback" id="err_email">Please enter a valid email address (e.g. name@example.com).</div>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Mobile Phone Number <span class="text-danger">*</span></label>
-                  <input type="tel" name="phone" id="field_phone" class="form-control rounded-3" placeholder="+254 712 345 678" value="{{ data.phone|default:'' }}" required>
+                  <input type="tel" name="phone" id="field_phone" class="form-control rounded-3" placeholder="0712345678 or +254712345678" value="{{ data.phone|default:'' }}" required autocomplete="tel">
+                  <div class="field-error-feedback" id="err_phone">Please enter a valid mobile phone number (e.g. 0712345678 or +254712345678).</div>
                 </div>
                 <div class="col-md-4">
                   <label class="form-label fw-semibold">Date of Birth <span class="text-danger">*</span></label>
                   <input type="date" name="date_of_birth" id="field_date_of_birth" class="form-control rounded-3" value="{{ data.date_of_birth|default:'' }}" required>
+                  <div class="field-error-feedback" id="err_date_of_birth">Applicant must be at least 16 years of age and date cannot be in the future.</div>
                 </div>
                 <div class="col-md-4">
                   <label class="form-label fw-semibold">Gender <span class="text-danger">*</span></label>
                   <select name="gender" id="field_gender" class="form-select rounded-3" required>
-                    <option value="MALE" {% if data.gender == "MALE" %}selected{% endif %}>Male</option>
+                    <option value="MALE" {% if data.gender == "MALE" or not data.gender %}selected{% endif %}>Male</option>
                     <option value="FEMALE" {% if data.gender == "FEMALE" %}selected{% endif %}>Female</option>
                     <option value="OTHER" {% if data.gender == "OTHER" %}selected{% endif %}>Other</option>
                   </select>
+                  <div class="field-error-feedback" id="err_gender">Please select your gender.</div>
                 </div>
                 <div class="col-md-4">
                   <label class="form-label fw-semibold">National ID / Passport No. <span class="text-danger">*</span></label>
                   <input type="text" name="national_id" id="field_national_id" class="form-control rounded-3" placeholder="e.g. 34567890" value="{{ data.national_id|default:'' }}" required>
+                  <div class="field-error-feedback" id="err_national_id">Please enter a valid National ID or Passport Number (min 3 chars).</div>
                 </div>
+
+                <!-- Country & Cascading County Dropdowns -->
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Nationality</label>
+                  <input type="text" name="nationality" id="field_nationality" class="form-control rounded-3" placeholder="e.g. Kenyan" value="{{ data.nationality|default:'Kenyan' }}">
+                  <div class="field-error-feedback" id="err_nationality">Please enter a valid nationality.</div>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Country <span class="text-danger">*</span></label>
+                  <select name="country" id="field_country" class="form-select rounded-3 search-select" required data-searchable="true">
+                    {% for c in countries %}
+                      <option value="{{ c }}" {% if data.country == c or not data.country and c == 'Kenya' %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                  </select>
+                  <div class="field-error-feedback" id="err_country">Please select a valid country.</div>
+                </div>
+                <div class="col-md-4" id="countyContainerWrapper">
+                  <label class="form-label fw-semibold" id="countyFieldLabel">County <span class="text-danger">*</span></label>
+                  <div id="kenyanCountySection" {% if data.country and data.country != 'Kenya' %}class="d-none"{% endif %}>
+                    <select name="county_select" id="field_county_select" class="form-select rounded-3 search-select" data-searchable="true">
+                      {% for cnty in kenyan_counties %}
+                        <option value="{{ cnty }}" {% if data.county == cnty or not data.county and cnty == 'Nairobi' %}selected{% endif %}>{{ cnty }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div id="internationalRegionSection" {% if not data.country or data.country == 'Kenya' %}class="d-none"{% endif %}>
+                    <input type="text" name="county_text" id="field_county_text" class="form-control rounded-3" placeholder="e.g. Kampala, California, Ontario" value="{% if data.country and data.country != 'Kenya' %}{{ data.county|default:'' }}{% endif %}">
+                  </div>
+                  <!-- Canonical submitted county value -->
+                  <input type="hidden" name="county" id="field_county" value="{{ data.county|default:'Nairobi' }}">
+                  <div class="field-error-feedback" id="err_county">Please select or provide your county or region.</div>
+                </div>
+
                 <div class="col-12">
                   <label class="form-label fw-semibold">Postal / Home Address</label>
                   <input type="text" name="address" id="field_address" class="form-control rounded-3" placeholder="e.g. P.O. Box 1234 - 00100, Nairobi" value="{{ data.address|default:'' }}">
+                  <div class="field-error-feedback" id="err_address">Please enter a valid home/postal address.</div>
                 </div>
               </div>
             </div>
@@ -157,6 +359,7 @@
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Guardian Full Name <span class="text-danger">*</span></label>
                   <input type="text" name="guardian_name" id="field_guardian_name" class="form-control rounded-3" placeholder="e.g. Mary Jane Wabs" value="{{ data.guardian_name|default:'' }}" required>
+                  <div class="field-error-feedback" id="err_guardian_name">Please enter the guardian's full name.</div>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Relationship to Applicant <span class="text-danger">*</span></label>
@@ -165,22 +368,27 @@
                       <option value="{{ val }}" {% if data.guardian_relationship == val or not data.guardian_relationship and val == 'Parent' %}selected{% endif %}>{{ lbl }}</option>
                     {% endfor %}
                   </select>
+                  <div class="field-error-feedback" id="err_guardian_relationship">Please select a relationship.</div>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Primary Contact Phone <span class="text-danger">*</span></label>
                   <input type="tel" name="guardian_phone" id="field_guardian_phone" class="form-control rounded-3" placeholder="+254 712 345 678" value="{{ data.guardian_phone|default:'' }}" required>
+                  <div class="field-error-feedback" id="err_guardian_phone">Please enter a valid guardian phone number.</div>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Alternative Phone Number</label>
                   <input type="tel" name="guardian_alternative_phone" id="field_guardian_alternative_phone" class="form-control rounded-3" placeholder="Optional alternative phone" value="{{ data.guardian_alternative_phone|default:'' }}">
+                  <div class="field-error-feedback" id="err_guardian_alternative_phone">Please enter a valid phone number.</div>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Email Address</label>
                   <input type="email" name="guardian_email" id="field_guardian_email" class="form-control rounded-3" placeholder="guardian@example.com" value="{{ data.guardian_email|default:'' }}">
+                  <div class="field-error-feedback" id="err_guardian_email">Please enter a valid email address.</div>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Country of Residence</label>
                   <input type="text" name="guardian_country" id="field_guardian_country" class="form-control rounded-3" value="{{ data.guardian_country|default:'Kenya' }}">
+                  <div class="field-error-feedback" id="err_guardian_country">Please enter a valid country.</div>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Occupation</label>
@@ -252,22 +460,22 @@
               <div class="row g-3">
                 {% for cf in custom_fields %}
                   <div class="col-md-6">
-                    <label class="form-label fw-semibold">{{ cf.label }} {% if cf.is_required %}<span class="text-danger">*</span>{% endif %}</label>
-                    {% if cf.field_type == "SELECT" %}
-                      <select name="custom_{{ cf.name }}" id="field_custom_{{ cf.name }}" class="form-select rounded-3" {% if cf.is_required %}required{% endif %}>
-                        <option value="" selected disabled>-- Select {{ cf.label }} --</option>
-                        {% for choice in cf.get_choices %}
-                          <option value="{{ choice }}">{{ choice }}</option>
+                    <label class="form-label fw-semibold">{{ cf.name }} {% if cf.is_required %}<span class="text-danger">*</span>{% endif %}</label>
+                    {% if cf.field_type == 'text' %}
+                      <input type="text" name="custom_{{ cf.id }}" id="field_custom_{{ cf.id }}" class="form-control rounded-3" value="{{ data|default_if_none:'' }}">
+                    {% elif cf.field_type == 'select' %}
+                      <select name="custom_{{ cf.id }}" id="field_custom_{{ cf.id }}" class="form-select rounded-3">
+                        <option value="">-- Select --</option>
+                        {% for opt in cf.get_options_list %}
+                          <option value="{{ opt }}">{{ opt }}</option>
                         {% endfor %}
                       </select>
-                    {% elif cf.field_type == "TEXTAREA" %}
-                      <textarea name="custom_{{ cf.name }}" id="field_custom_{{ cf.name }}" class="form-control rounded-3" rows="2" placeholder="{{ cf.help_text }}" {% if cf.is_required %}required{% endif %}></textarea>
-                    {% elif cf.field_type == "NUMBER" %}
-                      <input type="number" name="custom_{{ cf.name }}" id="field_custom_{{ cf.name }}" class="form-control rounded-3" placeholder="{{ cf.help_text }}" {% if cf.is_required %}required{% endif %}>
-                    {% else %}
-                      <input type="text" name="custom_{{ cf.name }}" id="field_custom_{{ cf.name }}" class="form-control rounded-3" placeholder="{{ cf.help_text }}" {% if cf.is_required %}required{% endif %}>
+                    {% elif cf.field_type == 'checkbox' %}
+                      <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" name="custom_{{ cf.id }}" id="field_custom_{{ cf.id }}">
+                        <label class="form-check-label" for="field_custom_{{ cf.id }}">{{ cf.name }}</label>
+                      </div>
                     {% endif %}
-                    {% if cf.help_text %}<div class="form-text text-muted">{{ cf.help_text }}</div>{% endif %}
                   </div>
                 {% endfor %}
               </div>
@@ -276,9 +484,17 @@
 
             <!-- SECTION {% if custom_fields %}6{% else %}5{% endif %}: Document Attachments -->
             <div class="mb-5 form-section" data-step="{% if custom_fields %}6{% else %}5{% endif %}">
-              <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
-                <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">{% if custom_fields %}6{% else %}5{% endif %}</div>
-                <h5 class="fw-bold mb-0 text-dark">Required Supporting Documents</h5>
+              <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
+                <div class="d-flex align-items-center gap-2">
+                  <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">{% if custom_fields %}6{% else %}5{% endif %}</div>
+                  <div>
+                    <h5 class="fw-bold mb-0 text-dark">Required Supporting Documents</h5>
+                    <p class="text-muted small mb-0">Documents are automatically uploaded, verified, and saved to your application.</p>
+                  </div>
+                </div>
+                <span class="badge bg-light text-dark border px-3 py-1.5 rounded-pill small">
+                  <i class="fa-solid fa-shield-halved text-success me-1"></i> Cloud Encrypted
+                </span>
               </div>
               
               <div class="alert alert-info border-0 rounded-3 py-2 px-3 mb-4 d-flex align-items-center gap-2 small">
@@ -288,7 +504,7 @@
                 </div>
               </div>
 
-              <div class="row g-3">
+              <div class="row g-4">
                 <!-- 1. KCSE Document -->
                 <div class="col-md-6">
                   <div class="document-card h-100 p-3 border rounded-3 bg-light position-relative {% if draft_documents.kcse_document %}is-uploaded{% endif %}" 
@@ -300,7 +516,7 @@
                       <span><i class="fa-solid fa-file-lines text-primary me-1"></i> KCSE Result Slip / Certificate <span class="text-danger">*</span></span>
                       <span class="badge bg-secondary-subtle text-secondary small upload-req-badge">Required</span>
                     </label>
-                    <div class="form-text text-muted small mb-2">Official KCSE result slip or certificate (PDF or PNG, Max 5MB)</div>
+                    <div class="form-text text-muted small mb-2">Original or certified copy (PDF or PNG, Max 5MB)</div>
 
                     <!-- Drop Zone -->
                     <div class="drop-zone border-2 border-dashed border-secondary-subtle rounded-3 p-3 text-center bg-white position-relative" style="cursor: pointer; transition: all 0.2s ease;">
@@ -317,7 +533,7 @@
                       <div class="processing-state d-none py-2 text-center">
                         <div class="spinner-border spinner-border-sm text-primary mb-1" role="status"></div>
                         <p class="mb-0 fw-bold text-primary small status-text">Uploading &amp; Verifying…</p>
-                        <span class="text-muted" style="font-size: 0.72rem;">Processing file signature and saving…</span>
+                        <span class="text-muted" style="font-size: 0.72rem;">Validating file integrity and saving…</span>
                       </div>
 
                       <!-- Saved State -->
@@ -326,7 +542,7 @@
                           <div class="d-flex align-items-center gap-2 overflow-hidden">
                             <i class="fa-solid fa-circle-check text-success fs-5 flex-shrink-0"></i>
                             <div class="overflow-hidden">
-                              <p class="mb-0 fw-bold text-dark text-truncate file-name-display small" style="max-width: 180px;">{{ draft_documents.kcse_document.file_name|default:'kcse_document.pdf' }}</p>
+                              <p class="mb-0 fw-bold text-dark text-truncate file-name-display small" style="max-width: 180px;">{{ draft_documents.kcse_document.file_name|default:'document.pdf' }}</p>
                               <span class="badge bg-success text-white" style="font-size: 0.68rem;">✓ Saved to Application (<span class="file-size-display">{{ draft_documents.kcse_document.file_size_formatted|default:'' }}</span>)</span>
                             </div>
                           </div>
@@ -347,13 +563,13 @@
                   <div class="document-card h-100 p-3 border rounded-3 bg-light position-relative {% if draft_documents.id_document %}is-uploaded{% endif %}" 
                        id="doc-card-id" 
                        data-type="id_document" 
-                       data-title="National ID / Birth Certificate / Passport"
+                       data-title="National ID / Birth Certificate"
                        data-required="true">
                     <label class="form-label fw-semibold mb-1 d-flex justify-content-between">
-                      <span><i class="fa-solid fa-id-card text-primary me-1"></i> National ID / Passport <span class="text-danger">*</span></span>
+                      <span><i class="fa-solid fa-id-card text-primary me-1"></i> National ID / Birth Certificate <span class="text-danger">*</span></span>
                       <span class="badge bg-secondary-subtle text-secondary small upload-req-badge">Required</span>
                     </label>
-                    <div class="form-text text-muted small mb-2">Both sides of ID card, passport or birth certificate (PDF or PNG, Max 5MB)</div>
+                    <div class="form-text text-muted small mb-2">Government issued ID or Birth Cert (PDF or PNG, Max 5MB)</div>
 
                     <!-- Drop Zone -->
                     <div class="drop-zone border-2 border-dashed border-secondary-subtle rounded-3 p-3 text-center bg-white position-relative" style="cursor: pointer; transition: all 0.2s ease;">
@@ -379,7 +595,7 @@
                           <div class="d-flex align-items-center gap-2 overflow-hidden">
                             <i class="fa-solid fa-circle-check text-success fs-5 flex-shrink-0"></i>
                             <div class="overflow-hidden">
-                              <p class="mb-0 fw-bold text-dark text-truncate file-name-display small" style="max-width: 180px;">{{ draft_documents.id_document.file_name|default:'id_document.pdf' }}</p>
+                              <p class="mb-0 fw-bold text-dark text-truncate file-name-display small" style="max-width: 180px;">{{ draft_documents.id_document.file_name|default:'document.pdf' }}</p>
                               <span class="badge bg-success text-white" style="font-size: 0.68rem;">✓ Saved to Application (<span class="file-size-display">{{ draft_documents.id_document.file_size_formatted|default:'' }}</span>)</span>
                             </div>
                           </div>
@@ -510,6 +726,7 @@
                 <label class="form-check-label text-muted small" for="declaration">
                   I hereby certify that all information provided in this application (including Guardian Details and Uploaded Documents) is true, complete, and accurate. I understand that any false statement or omission will lead to the immediate disqualification of my application or revocation of admission.
                 </label>
+                <div class="field-error-feedback" id="err_declaration">You must certify and accept the declaration to submit your application.</div>
               </div>
             </div>
 
@@ -558,6 +775,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const progressText = document.getElementById('completionPercentageText');
     const documentCards = document.querySelectorAll('.document-card');
 
+    const countrySelect = document.getElementById('field_country');
+    const countyContainerWrapper = document.getElementById('countyContainerWrapper');
+    const countyFieldLabel = document.getElementById('countyFieldLabel');
+    const kenyanCountySection = document.getElementById('kenyanCountySection');
+    const internationalRegionSection = document.getElementById('internationalRegionSection');
+    const countySelectField = document.getElementById('field_county_select');
+    const countyTextField = document.getElementById('field_county_text');
+    const countyCanonicalHidden = document.getElementById('field_county');
+
     // Engine State
     let isHydrating = true;
     let autoSaveTimer = null;
@@ -566,6 +792,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let offlineQueue = null;
     let currentVersion = {{ draft_version|default:1 }};
     let currentStep = {{ draft_step|default:1 }};
+    let customSelectInstances = [];
 
     // Parse initial server-injected state
     let draftData = {};
@@ -578,6 +805,421 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     } catch (e) {
         console.warn('Could not parse initial draft JSON:', e);
+    }
+
+    // Initialize Searchable Dropdown Components
+    function initSearchableSelects() {
+        document.querySelectorAll('select.search-select').forEach(selectEl => {
+            if (selectEl.dataset.customSelectInitialized) return;
+            selectEl.dataset.customSelectInitialized = 'true';
+            selectEl.style.display = 'none';
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'custom-select-wrapper';
+
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'custom-select-toggle';
+            toggle.setAttribute('aria-haspopup', 'listbox');
+            toggle.setAttribute('aria-expanded', 'false');
+
+            const toggleContent = document.createElement('div');
+            toggleContent.className = 'd-flex align-items-center gap-2 flex-grow-1 overflow-hidden';
+            
+            const toggleText = document.createElement('span');
+            toggleText.className = 'text-truncate';
+            toggleContent.appendChild(toggleText);
+
+            const toggleBadge = document.createElement('span');
+            toggleBadge.className = 'badge rounded-pill d-none';
+            toggleContent.appendChild(toggleBadge);
+
+            const chevron = document.createElement('i');
+            chevron.className = 'fa-solid fa-chevron-down chevron ms-2';
+
+            toggle.appendChild(toggleContent);
+            toggle.appendChild(chevron);
+
+            const menu = document.createElement('div');
+            menu.className = 'custom-select-menu';
+
+            const searchWrap = document.createElement('div');
+            searchWrap.className = 'custom-select-search-wrap';
+            searchWrap.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i>';
+            const searchInput = document.createElement('input');
+            searchInput.type = 'text';
+            searchInput.className = 'custom-select-search';
+            searchInput.placeholder = 'Search...';
+            searchInput.autocomplete = 'off';
+            searchWrap.appendChild(searchInput);
+
+            const optionsList = document.createElement('ul');
+            optionsList.className = 'custom-select-options';
+
+            const emptyNotice = document.createElement('div');
+            emptyNotice.className = 'custom-select-empty d-none';
+            emptyNotice.textContent = 'No matching options found';
+
+            menu.appendChild(searchWrap);
+            menu.appendChild(optionsList);
+            menu.appendChild(emptyNotice);
+
+            wrapper.appendChild(toggle);
+            wrapper.appendChild(menu);
+            selectEl.parentNode.insertBefore(wrapper, selectEl.nextSibling);
+
+            function populateOptions() {
+                optionsList.innerHTML = '';
+                Array.from(selectEl.options).forEach((opt, idx) => {
+                    if (opt.disabled && !opt.value) return; // Skip placeholder if disabled
+                    const li = document.createElement('li');
+                    li.className = 'custom-select-option' + (opt.selected ? ' selected' : '');
+                    li.dataset.value = opt.value;
+                    li.dataset.index = idx;
+
+                    const labelSpan = document.createElement('span');
+                    labelSpan.className = 'text-truncate';
+                    labelSpan.textContent = opt.textContent.trim();
+                    li.appendChild(labelSpan);
+
+                    const badgeText = opt.getAttribute('data-badge');
+                    if (badgeText) {
+                        const badgeClass = opt.getAttribute('data-badge-class') || 'bg-primary';
+                        const badgeSpan = document.createElement('span');
+                        badgeSpan.className = `badge ${badgeClass} ms-2`;
+                        badgeSpan.textContent = badgeText;
+                        li.appendChild(badgeSpan);
+                    }
+
+                    li.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        selectOption(opt.value);
+                        closeDropdown();
+                    });
+                    optionsList.appendChild(li);
+                });
+                updateToggleDisplay();
+            }
+
+            function updateToggleDisplay() {
+                const selectedOpt = selectEl.options[selectEl.selectedIndex];
+                if (selectedOpt && selectedOpt.value) {
+                    toggleText.textContent = selectedOpt.textContent.trim();
+                    const badgeText = selectedOpt.getAttribute('data-badge');
+                    if (badgeText) {
+                        const badgeClass = selectedOpt.getAttribute('data-badge-class') || 'bg-primary';
+                        toggleBadge.className = `badge ${badgeClass} ms-2`;
+                        toggleBadge.textContent = badgeText;
+                        toggleBadge.classList.remove('d-none');
+                    } else {
+                        toggleBadge.classList.add('d-none');
+                    }
+                } else {
+                    toggleText.textContent = selectEl.getAttribute('placeholder') || '-- Select --';
+                    toggleBadge.classList.add('d-none');
+                }
+
+                // Update active class in list
+                optionsList.querySelectorAll('.custom-select-option').forEach(li => {
+                    li.classList.toggle('selected', li.dataset.value === selectEl.value);
+                });
+            }
+
+            function selectOption(val) {
+                selectEl.value = val;
+                updateToggleDisplay();
+                validateField(selectEl);
+                selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            function openDropdown() {
+                closeAllDropdowns();
+                wrapper.classList.add('open');
+                toggle.setAttribute('aria-expanded', 'true');
+                searchInput.value = '';
+                filterOptions('');
+                searchInput.focus();
+            }
+
+            function closeDropdown() {
+                wrapper.classList.remove('open');
+                toggle.setAttribute('aria-expanded', 'false');
+            }
+
+            function filterOptions(query) {
+                const q = query.toLowerCase().trim();
+                let visibleCount = 0;
+                optionsList.querySelectorAll('.custom-select-option').forEach(li => {
+                    const text = li.textContent.toLowerCase();
+                    const matches = text.includes(q);
+                    li.style.display = matches ? 'flex' : 'none';
+                    if (matches) visibleCount++;
+                });
+                emptyNotice.classList.toggle('d-none', visibleCount > 0);
+            }
+
+            toggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (wrapper.classList.contains('open')) {
+                    closeDropdown();
+                } else {
+                    openDropdown();
+                }
+            });
+
+            searchInput.addEventListener('input', (e) => {
+                filterOptions(e.target.value);
+            });
+
+            searchInput.addEventListener('keydown', (e) => {
+                const visibleOptions = Array.from(optionsList.querySelectorAll('.custom-select-option:not([style*="display: none"])'));
+                const highlighted = optionsList.querySelector('.custom-select-option.highlighted');
+                let currentIndex = visibleOptions.indexOf(highlighted);
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (currentIndex < visibleOptions.length - 1) {
+                        if (highlighted) highlighted.classList.remove('highlighted');
+                        visibleOptions[currentIndex + 1].classList.add('highlighted');
+                        visibleOptions[currentIndex + 1].scrollIntoView({ block: 'nearest' });
+                    }
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (currentIndex > 0) {
+                        if (highlighted) highlighted.classList.remove('highlighted');
+                        visibleOptions[currentIndex - 1].classList.add('highlighted');
+                        visibleOptions[currentIndex - 1].scrollIntoView({ block: 'nearest' });
+                    }
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (highlighted) {
+                        selectOption(highlighted.dataset.value);
+                        closeDropdown();
+                    }
+                } else if (e.key === 'Escape') {
+                    closeDropdown();
+                    toggle.focus();
+                }
+            });
+
+            populateOptions();
+            customSelectInstances.push({ selectEl, wrapper, updateToggleDisplay, populateOptions });
+        });
+    }
+
+    function closeAllDropdowns() {
+        document.querySelectorAll('.custom-select-wrapper.open').forEach(w => {
+            w.classList.remove('open');
+            w.querySelector('.custom-select-toggle')?.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.custom-select-wrapper')) {
+            closeAllDropdowns();
+        }
+    });
+
+    function syncAllCustomSelects() {
+        customSelectInstances.forEach(inst => {
+            inst.updateToggleDisplay();
+        });
+    }
+
+    // Country & County Cascading Engine
+    function syncCountryCountyCascading() {
+        const countryVal = countrySelect?.value || 'Kenya';
+        const isKenya = countryVal.toLowerCase() === 'kenya';
+
+        if (isKenya) {
+            countyFieldLabel.innerHTML = 'County <span class="text-danger">*</span>';
+            kenyanCountySection.classList.remove('d-none');
+            internationalRegionSection.classList.add('d-none');
+            const selectedCounty = countySelectField?.value || 'Nairobi';
+            countyCanonicalHidden.value = selectedCounty;
+        } else {
+            countyFieldLabel.innerHTML = 'State / Province / Region <span class="text-danger">*</span>';
+            kenyanCountySection.classList.add('d-none');
+            internationalRegionSection.classList.remove('d-none');
+            countyCanonicalHidden.value = countyTextField?.value || '';
+        }
+    }
+
+    if (countrySelect) {
+        countrySelect.addEventListener('change', () => {
+            const isKenya = countrySelect.value.toLowerCase() === 'kenya';
+            if (isKenya) {
+                if (!countySelectField.value) countySelectField.value = 'Nairobi';
+                countyCanonicalHidden.value = countySelectField.value;
+            } else {
+                countyCanonicalHidden.value = countyTextField.value || '';
+            }
+            syncCountryCountyCascading();
+            syncAllCustomSelects();
+            scheduleAutoSave(true);
+        });
+    }
+
+    if (countySelectField) {
+        countySelectField.addEventListener('change', () => {
+            if (countrySelect.value.toLowerCase() === 'kenya') {
+                countyCanonicalHidden.value = countySelectField.value;
+                scheduleAutoSave(true);
+            }
+        });
+    }
+
+    if (countyTextField) {
+        countyTextField.addEventListener('input', () => {
+            if (countrySelect.value.toLowerCase() !== 'kenya') {
+                countyCanonicalHidden.value = countyTextField.value.trim();
+                scheduleAutoSave(false);
+            }
+        });
+        countyTextField.addEventListener('blur', () => {
+            if (countrySelect.value.toLowerCase() !== 'kenya') {
+                countyCanonicalHidden.value = countyTextField.value.trim();
+                scheduleAutoSave(true);
+            }
+        });
+    }
+
+    // Strict Client-Side Field Validation Rules
+    const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+    const NAME_REGEX = /^[a-zA-Z\s'-]{2,60}$/;
+    const MIDDLE_NAME_REGEX = /^[a-zA-Z\s'-]{1,60}$/;
+    const KENYAN_PHONE_REGEX = /^(?:(?:\+254|254|0)?([71]\d{8}))$/;
+    const INTERNATIONAL_PHONE_REGEX = /^\+[1-9]\d{7,14}$/;
+
+    function formatPhoneToE164(phone) {
+        if (!phone) return phone;
+        let cleaned = phone.replace(/[\s\-\(\)]/g, '');
+        const keMatch = cleaned.match(KENYAN_PHONE_REGEX);
+        if (keMatch) {
+            return `+254${keMatch[1]}`;
+        }
+        return cleaned;
+    }
+
+    function validateField(input) {
+        if (!input) return true;
+        const name = input.name || input.id;
+        const val = typeof input.value === 'string' ? input.value.trim() : input.value;
+        const errEl = document.getElementById('err_' + name) || input.parentElement.querySelector('.field-error-feedback');
+        const customWrapper = input.nextElementSibling?.classList?.contains('custom-select-wrapper') ? input.nextElementSibling : null;
+
+        let isValid = true;
+        let errMsg = '';
+
+        if (name === 'program' || name === 'field_program') {
+            if (!val) {
+                isValid = false;
+                errMsg = 'Please select a degree or diploma programme.';
+            }
+        } else if (name === 'intake_id' || name === 'field_intake_id') {
+            if (!val) {
+                isValid = false;
+                errMsg = 'Please select an active academic intake cycle.';
+            }
+        } else if (name === 'first_name' || name === 'field_first_name') {
+            if (!val || !NAME_REGEX.test(val)) {
+                isValid = false;
+                errMsg = 'Please enter a valid first name (letters, hyphens, apostrophes only, min 2 chars).';
+            }
+        } else if (name === 'middle_name' || name === 'field_middle_name') {
+            if (val && !MIDDLE_NAME_REGEX.test(val)) {
+                isValid = false;
+                errMsg = 'Middle name contains invalid characters.';
+            }
+        } else if (name === 'last_name' || name === 'field_last_name') {
+            if (!val || !NAME_REGEX.test(val)) {
+                isValid = false;
+                errMsg = 'Please enter a valid last name (letters, hyphens, apostrophes only, min 2 chars).';
+            }
+        } else if (name === 'email' || name === 'field_email') {
+            if (!val || !EMAIL_REGEX.test(val) || val.includes('..') || val.endsWith('.')) {
+                isValid = false;
+                errMsg = 'Please enter a valid email address (e.g. name@example.com).';
+            }
+        } else if (name === 'phone' || name === 'field_phone') {
+            const cleaned = val.replace(/[\s\-\(\)]/g, '');
+            if (!cleaned || (!KENYAN_PHONE_REGEX.test(cleaned) && !INTERNATIONAL_PHONE_REGEX.test(cleaned))) {
+                isValid = false;
+                errMsg = 'Please enter a valid mobile phone number (e.g. 0712345678 or +254712345678).';
+            }
+        } else if (name === 'date_of_birth' || name === 'field_date_of_birth') {
+            if (!val) {
+                isValid = false;
+                errMsg = 'Date of birth is required.';
+            } else {
+                const dob = new Date(val);
+                const today = new Date();
+                const minAgeDate = new Date(today.getFullYear() - 16, today.getMonth(), today.getDate());
+                if (isNaN(dob.getTime()) || dob > today) {
+                    isValid = false;
+                    errMsg = 'Date of birth cannot be in the future.';
+                } else if (dob > minAgeDate) {
+                    isValid = false;
+                    errMsg = 'Applicant must be at least 16 years of age for university admission.';
+                }
+            }
+        } else if (name === 'national_id' || name === 'field_national_id') {
+            if (!val || val.length < 3) {
+                isValid = false;
+                errMsg = 'Please enter a valid National ID or Passport Number.';
+            }
+        } else if (name === 'country' || name === 'field_country') {
+            if (!val) {
+                isValid = false;
+                errMsg = 'Please select your country of residence.';
+            }
+        } else if (name === 'guardian_name' || name === 'field_guardian_name') {
+            if (!val || val.length < 2) {
+                isValid = false;
+                errMsg = "Please enter guardian's full name.";
+            }
+        } else if (name === 'guardian_phone' || name === 'field_guardian_phone') {
+            const cleaned = val.replace(/[\s\-\(\)]/g, '');
+            if (!cleaned || (!KENYAN_PHONE_REGEX.test(cleaned) && !INTERNATIONAL_PHONE_REGEX.test(cleaned))) {
+                isValid = false;
+                errMsg = 'Please enter a valid guardian phone number.';
+            }
+        }
+
+        if (!isValid) {
+            input.classList.add('is-invalid');
+            if (customWrapper) customWrapper.classList.add('is-invalid');
+            if (errEl) {
+                errEl.textContent = errMsg;
+                errEl.style.display = 'block';
+            }
+        } else {
+            input.classList.remove('is-invalid');
+            if (customWrapper) customWrapper.classList.remove('is-invalid');
+            if (errEl) {
+                errEl.textContent = '';
+                errEl.style.display = 'none';
+            }
+        }
+
+        return isValid;
+    }
+
+    function validateAllFields() {
+        let allValid = true;
+        const inputsToValidate = form.querySelectorAll('input[required], select[required]');
+        inputsToValidate.forEach(input => {
+            const v = validateField(input);
+            if (!v) allValid = false;
+        });
+
+        // Also check county
+        if (countrySelect?.value.toLowerCase() !== 'kenya' && !countyTextField.value.trim()) {
+            validateField(countyTextField);
+            allValid = false;
+        }
+
+        return allValid;
     }
 
     function formatBytes(bytes) {
@@ -631,14 +1273,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Collect all form values safely without destroying server data with blanks
+    // Collect all form values safely
     function collectFormData() {
         const formData = new FormData(form);
         const payload = {};
         for (let [key, val] of formData.entries()) {
-            if (key === 'csrfmiddlewaretoken' || key.endsWith('_document') || key === 'file') continue;
+            if (key === 'csrfmiddlewaretoken' || key.endsWith('_document') || key === 'file' || key === 'county_select' || key === 'county_text') continue;
             payload[key] = typeof val === 'string' ? val.trim() : val;
         }
+
+        // Ensure canonical county is set
+        payload['county'] = countyCanonicalHidden ? countyCanonicalHidden.value : (payload['county'] || 'Nairobi');
+
         // Handle checkbox
         const emergencyCb = document.getElementById('is_guardian_emergency_contact');
         if (emergencyCb) {
@@ -662,13 +1308,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (input.type === 'radio') {
                     const r = form.querySelector(`input[name="${key}"][value="${val}"]`);
                     if (r) r.checked = true;
-                } else if (input.tagName === 'SELECT') {
-                    input.value = String(val);
                 } else {
                     input.value = String(val);
                 }
             }
         }
+
+        // Hydrate County & Country correctly
+        if (fields.country) {
+            if (countrySelect) countrySelect.value = fields.country;
+        }
+        if (fields.county) {
+            if (countyCanonicalHidden) countyCanonicalHidden.value = fields.county;
+            if (fields.country && fields.country.toLowerCase() !== 'kenya') {
+                if (countyTextField) countyTextField.value = fields.county;
+            } else {
+                if (countySelectField) countySelectField.value = fields.county;
+            }
+        }
+
+        syncCountryCountyCascading();
+        syncAllCustomSelects();
 
         // Hydrate uploaded documents
         if (state.documents) {
@@ -708,7 +1368,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Abort previous in-flight save request if newer changes occurred
         if (pendingSaveController) {
             pendingSaveController.abort();
         }
@@ -736,7 +1395,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const resData = await response.json();
 
             if (response.status === 409 && resData.conflict) {
-                // Optimistic lock conflict: reconcile with newest server version
                 console.warn('Draft conflict resolved with server state:', resData);
                 currentVersion = resData.server_version || (currentVersion + 1);
                 if (resData.current_state) {
@@ -745,11 +1403,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            if (response.status === 422 && resData.field_errors) {
+                for (const [fName, fErr] of Object.entries(resData.field_errors)) {
+                    const inp = form.elements[fName] || document.getElementById('field_' + fName);
+                    const errEl = document.getElementById('err_' + fName);
+                    if (inp) inp.classList.add('is-invalid');
+                    if (errEl) {
+                        errEl.textContent = fErr;
+                        errEl.style.display = 'block';
+                    }
+                }
+                setBadgeState('failed', 'Some fields have validation errors');
+                return;
+            }
+
             if (!response.ok) {
                 throw new Error(resData.error || 'Server rejected auto-save update.');
             }
 
-            // Success
             currentVersion = resData.version || (currentVersion + 1);
             if (resData.step) currentStep = resData.step;
             updateProgress(resData.completion_percentage);
@@ -757,10 +1428,7 @@ document.addEventListener('DOMContentLoaded', () => {
             offlineQueue = null;
 
         } catch (err) {
-            if (err.name === 'AbortError') {
-                // Ignore aborted requests because a newer request replaced it
-                return;
-            }
+            if (err.name === 'AbortError') return;
             console.error('Auto-save error:', err);
             if (!navigator.onLine) {
                 offlineQueue = { data: payloadData, step: step, version: currentVersion };
@@ -773,7 +1441,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Trigger debounced auto-save (700ms for text inputs)
+    // Trigger debounced auto-save
     function scheduleAutoSave(immediate = false) {
         if (isHydrating) return;
         if (autoSaveTimer) clearTimeout(autoSaveTimer);
@@ -788,16 +1456,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Attach form input listeners
+    // Attach form input listeners & field validation on blur
     const textInputs = form.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"], input[type="number"], textarea');
     textInputs.forEach(input => {
-        input.addEventListener('input', () => scheduleAutoSave(false));
-        input.addEventListener('blur', () => scheduleAutoSave(true));
+        input.addEventListener('input', () => {
+            if (input.classList.contains('is-invalid')) {
+                validateField(input);
+            }
+            scheduleAutoSave(false);
+        });
+        input.addEventListener('blur', () => {
+            const isValid = validateField(input);
+            if (isValid) {
+                if (input.name === 'phone' || input.name === 'guardian_phone') {
+                    input.value = formatPhoneToE164(input.value);
+                }
+                scheduleAutoSave(true);
+            }
+        });
     });
 
     const choiceInputs = form.querySelectorAll('select, input[type="date"], input[type="checkbox"], input[type="radio"]');
     choiceInputs.forEach(input => {
-        input.addEventListener('change', () => scheduleAutoSave(true));
+        input.addEventListener('change', () => {
+            validateField(input);
+            scheduleAutoSave(true);
+        });
     });
 
     // Manual Retry Button
@@ -1008,7 +1692,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Form Submission Intercept
+    // Form Submission Intercept with Full Client-Side Verification
     form.addEventListener('submit', async (e) => {
         if (activeUploadsCount > 0) {
             e.preventDefault();
@@ -1017,19 +1701,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const declaration = document.getElementById('declaration');
+        const errDecl = document.getElementById('err_declaration');
         if (declaration && !declaration.checked) {
             e.preventDefault();
-            alert('Please accept the certification declaration before submitting your application.');
+            if (errDecl) errDecl.style.display = 'block';
             declaration.focus();
+            return;
+        } else if (errDecl) {
+            errDecl.style.display = 'none';
+        }
+
+        const isValid = validateAllFields();
+        if (!isValid) {
+            e.preventDefault();
+            const firstInvalid = form.querySelector('.is-invalid');
+            if (firstInvalid) {
+                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                firstInvalid.focus();
+            }
             return;
         }
     });
+
+    // Initialize custom dropdowns
+    initSearchableSelects();
+    syncCountryCountyCascading();
 
     // Initial Hydration Execution
     if (draftData && draftData.fields) {
         hydrateForm(draftData);
     } else {
-        // Fallback fetch
         fetch(getDraftUrl, {
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
         })

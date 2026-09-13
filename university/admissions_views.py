@@ -41,6 +41,10 @@ from university.admissions_draft_services import (
     serialize_draft_state,
     validate_and_submit_application,
     get_draft_documents_metadata,
+    get_available_intakes_data,
+    get_default_active_intake,
+    COUNTRIES_LIST,
+    KENYAN_COUNTIES,
 )
 from university.models import (
     AcademicYear, Application, ApplicationAttachment,
@@ -252,6 +256,29 @@ def remove_admission_document(request):
     })
 
 
+def api_available_intakes(request):
+    """
+    GET /api/admissions/intakes/available/ or /admissions/api/intakes/available/
+    Returns structured list of all available intakes with status flags and active default.
+    """
+    data = get_available_intakes_data()
+    return JsonResponse({"success": True, **data})
+
+
+def api_locations(request):
+    """
+    GET /api/admissions/locations/ or /admissions/api/locations/
+    Returns structured country and Kenyan county datasets for smart dropdowns.
+    """
+    return JsonResponse({
+        "success": True,
+        "countries": COUNTRIES_LIST,
+        "counties": KENYAN_COUNTIES,
+        "default_country": "Kenya",
+        "default_county": "Nairobi",
+    })
+
+
 def api_get_draft(request):
     """
     GET /api/admissions/draft/ or /admissions/api/draft/
@@ -304,7 +331,7 @@ def api_save_draft(request):
     )
 
     if not success:
-        status_code = 409 if res.get("conflict") else 400
+        status_code = 409 if res.get("conflict") else 422
         return JsonResponse(res, status=status_code)
 
     return JsonResponse(res)
@@ -336,7 +363,7 @@ def api_submit_application(request):
     )
 
     if not success:
-        return JsonResponse(res, status=400)
+        return JsonResponse(res, status=422)
 
     return JsonResponse(res)
 
@@ -442,8 +469,9 @@ def apply(request):
     Prospective student application form with real-time draft auto-save & state recovery.
     Hydrates existing draft data on load and delegates strict validation on submission.
     """
-    active_intake = Intake.objects.filter(is_active=True).first()
-    programs = Program.objects.filter(status=Program.Status.ACTIVE).select_related("department")
+    intakes_data = get_available_intakes_data()
+    active_intake = get_default_active_intake()
+    programs = Program.objects.filter(status=Program.Status.ACTIVE).select_related("department", "department__school")
     custom_fields = ApplicationCustomField.objects.filter(is_active=True)
 
     if request.method == "POST":
@@ -480,15 +508,21 @@ def apply(request):
                 messages.error(request, error)
             
             session_docs = request.session.get("draft_application_documents", {})
+            post_fields = request.POST.dict()
             return render(request, "admissions/apply.html", {
                 "programs": programs,
                 "intake": active_intake,
+                "intakes_data": intakes_data,
+                "available_intakes": intakes_data.get("intakes", []),
+                "countries": COUNTRIES_LIST,
+                "kenyan_counties": KENYAN_COUNTIES,
                 "custom_fields": custom_fields,
                 "draft_application": draft,
-                "draft_state_json": json.dumps({"fields": request.POST.dict(), "documents": session_docs}),
+                "draft_state_json": json.dumps({"fields": post_fields, "documents": session_docs, "intakes_data": intakes_data}),
                 "draft_documents": session_docs,
                 "guardian_relationships": Application.GUARDIAN_RELATIONSHIPS,
-                "data": request.POST.dict(),
+                "data": post_fields,
+                "field_errors": res.get("field_errors", {}),
                 "draft_step": 1,
                 "completion_percentage": 0,
                 "draft_version": 1,
@@ -499,7 +533,11 @@ def apply(request):
 
     return render(request, "admissions/apply.html", {
         "programs": programs,
-        "intake": active_intake,
+        "intake": draft.intake or active_intake,
+        "intakes_data": intakes_data,
+        "available_intakes": intakes_data.get("intakes", []),
+        "countries": COUNTRIES_LIST,
+        "kenyan_counties": KENYAN_COUNTIES,
         "custom_fields": custom_fields,
         "draft_application": draft,
         "draft_state_json": json.dumps(state),

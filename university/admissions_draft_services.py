@@ -36,14 +36,227 @@ from university.models import (
 logger = logging.getLogger(__name__)
 
 
+KENYAN_COUNTIES = [
+    "Baringo", "Bomet", "Bungoma", "Busia", "Elgeyo-Marakwet", "Embu",
+    "Garissa", "Homa Bay", "Isiolo", "Kajiado", "Kakamega", "Kericho",
+    "Kiambu", "Kilifi", "Kirinyaga", "Kisii", "Kisumu", "Kitui",
+    "Kwale", "Laikipia", "Lamu", "Machakos", "Makueni", "Mandera",
+    "Marsabit", "Meru", "Migori", "Mombasa", "Murang'a", "Nairobi",
+    "Nakuru", "Nandi", "Narok", "Nyamira", "Nyandarua", "Nyeri",
+    "Samburu", "Siaya", "Taita-Taveta", "Tana River", "Tharaka-Nithi",
+    "Trans Nzoia", "Turkana", "Uasin Gishu", "Vihiga", "Wajir", "West Pokot",
+]
+
+COUNTRIES_LIST = [
+    "Kenya", "Uganda", "Tanzania", "Rwanda", "Burundi", "South Sudan",
+    "Ethiopia", "Somalia", "Nigeria", "Ghana", "South Africa", "Egypt",
+    "United Kingdom", "United States", "Canada", "Australia", "India",
+    "Germany", "France", "China", "United Arab Emirates", "Other",
+]
+
+
+def get_default_active_intake() -> Optional[Intake]:
+    """
+    Determines the most active/current intake based on date ranges
+    (start_date <= today <= end_date and is_active=True).
+    Falls back to closest upcoming active intake or latest active intake.
+    """
+    today = timezone.now().date()
+    # 1. Currently active and within date range
+    active_current = Intake.objects.filter(is_active=True, start_date__lte=today, end_date__gte=today).order_by("start_date").first()
+    if active_current:
+        return active_current
+    # 2. Active intake whose end_date is in future
+    upcoming_active = Intake.objects.filter(is_active=True, end_date__gte=today).order_by("start_date").first()
+    if upcoming_active:
+        return upcoming_active
+    # 3. Any active intake
+    return Intake.objects.filter(is_active=True).order_by("-start_date").first()
+
+
+def get_available_intakes_data() -> Dict[str, Any]:
+    """
+    Returns structured list of all available intakes with status flags and default active ID.
+    """
+    today = timezone.now().date()
+    default_intake = get_default_active_intake()
+    default_id = default_intake.id if default_intake else None
+
+    intakes = []
+    for intake in Intake.objects.all().select_related("academic_year").order_by("-start_date"):
+        is_current = (intake.id == default_id)
+        if intake.is_active and intake.start_date <= today <= intake.end_date:
+            status_label = "ACTIVE"
+            status_badge = "bg-success"
+        elif intake.is_active and intake.start_date > today:
+            status_label = "Upcoming"
+            status_badge = "bg-primary"
+        elif intake.is_active:
+            status_label = "Active (Extended)"
+            status_badge = "bg-info"
+        else:
+            status_label = "Closed"
+            status_badge = "bg-secondary"
+
+        intakes.append({
+            "id": intake.id,
+            "name": intake.name,
+            "academic_year": intake.academic_year.name if intake.academic_year else "",
+            "start_date": intake.start_date.isoformat(),
+            "end_date": intake.end_date.isoformat(),
+            "is_active": intake.is_active,
+            "is_current": is_current,
+            "is_default": is_current,
+            "status_label": status_label,
+            "status_badge": status_badge,
+        })
+
+    return {
+        "intakes": intakes,
+        "default_intake_id": default_id,
+        "has_active_intake": bool(default_intake),
+    }
+
+
+def normalize_and_validate_phone(phone_str: str) -> Tuple[bool, Optional[str], Optional[str]]:
+    """
+    Validates mobile phone format (Kenyan mobile & E.164 international).
+    Rejects text/garbage (e.g. 07hbhbh09784, abc123456, 07!!!!!!!!!).
+    Normalizes Kenyan numbers to +254XXXXXXXXX.
+    """
+    if not phone_str or not str(phone_str).strip():
+        return False, None, "Mobile phone number is required."
+
+    raw = str(phone_str).strip()
+
+    # Reject if contains letters or special garbage chars (other than +, -, space, brackets)
+    if re.search(r"[a-zA-Z]", raw) or re.search(r"[^\d+\-\s().]", raw):
+        return False, None, "Please enter a valid mobile phone number without letters or special characters."
+
+    has_plus = raw.startswith("+")
+    digits_only = re.sub(r"\D", "", raw)
+
+    if len(digits_only) < 9 or len(digits_only) > 15:
+        return False, None, "Please enter a valid mobile phone number (9 to 15 digits)."
+
+    # Case 1: 07XXXXXXXX or 01XXXXXXXX (10 digits starting with 07 or 01)
+    if digits_only.startswith("0") and len(digits_only) == 10 and digits_only[1] in ("7", "1"):
+        normalized = f"+254{digits_only[1:]}"
+        return True, normalized, None
+
+    # Case 2: 2547XXXXXXXX or 2541XXXXXXXX (12 digits starting with 2547 or 2541)
+    if digits_only.startswith("254") and len(digits_only) == 12 and digits_only[3] in ("7", "1"):
+        normalized = f"+{digits_only}"
+        return True, normalized, None
+
+    # Case 3: 7XXXXXXXX or 1XXXXXXXX (9 digits starting with 7 or 1)
+    if len(digits_only) == 9 and digits_only[0] in ("7", "1"):
+        normalized = f"+254{digits_only}"
+        return True, normalized, None
+
+    # Case 4: International format starting with +
+    if has_plus and 8 <= len(digits_only) <= 15:
+        return True, f"+{digits_only}", None
+
+    # Generic 10-15 digit phone format
+    if 9 <= len(digits_only) <= 15:
+        normalized = f"+{digits_only}" if has_plus else (f"+254{digits_only}" if len(digits_only) == 9 else f"+{digits_only}")
+        return True, normalized, None
+
+    return False, None, "Please enter a valid mobile phone number."
+
+
+EMAIL_REGEX = re.compile(
+    r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}$"
+)
+
+
+def normalize_and_validate_email(email_str: str) -> Tuple[bool, Optional[str], Optional[str]]:
+    """
+    Validates RFC email format, rejecting consecutive dots, missing TLDs, and invalid chars.
+    Normalizes by trimming whitespace and lowercasing.
+    """
+    if not email_str or not str(email_str).strip():
+        return False, None, "Email address is required."
+
+    raw = str(email_str).strip().lower()
+
+    if ".." in raw or "@." in raw or ".@" in raw or raw.startswith(".") or raw.endswith("."):
+        return False, None, "Please enter a valid email address."
+
+    if not EMAIL_REGEX.match(raw):
+        return False, None, "Please enter a valid email address."
+
+    try:
+        EmailField().clean(raw)
+    except ValidationError:
+        return False, None, "Please enter a valid email address."
+
+    return True, raw, None
+
+
+NAME_REGEX = re.compile(r"^[a-zA-Z\s'-]+$")
+
+
+def validate_name_field(name_str: str, field_label: str = "Name", min_len: int = 2, max_len: int = 60, required: bool = True) -> Tuple[bool, Optional[str], Optional[str]]:
+    """
+    Validates names to contain only alphabetic characters, hyphens, and apostrophes.
+    """
+    if not name_str or not str(name_str).strip():
+        if required:
+            return False, None, f"{field_label} is required."
+        return True, "", None
+
+    raw = " ".join(str(name_str).strip().split())
+
+    if len(raw) < min_len:
+        return False, None, f"{field_label} must be at least {min_len} characters long."
+    if len(raw) > max_len:
+        return False, None, f"{field_label} cannot exceed {max_len} characters."
+
+    if not NAME_REGEX.match(raw):
+        return False, None, f"{field_label} must contain only letters, hyphens, or apostrophes."
+
+    normalized = raw.title()
+    return True, normalized, None
+
+
+def validate_date_of_birth(dob_val: Any, min_age: int = 16, max_age: int = 100) -> Tuple[bool, Optional[date], Optional[str]]:
+    """
+    Validates date of birth: must be a valid date, not future, and applicant >= 16 years old.
+    """
+    if not dob_val or not str(dob_val).strip():
+        return False, None, "Date of birth is required."
+
+    parsed_date = None
+    if isinstance(dob_val, date):
+        parsed_date = dob_val
+    else:
+        try:
+            parsed_date = date.fromisoformat(str(dob_val).strip())
+        except (ValueError, TypeError):
+            return False, None, "Please enter a valid date of birth (YYYY-MM-DD)."
+
+    today = timezone.now().date()
+    if parsed_date > today:
+        return False, None, "Date of birth cannot be in the future."
+
+    age = today.year - parsed_date.year - ((today.month, today.day) < (parsed_date.month, parsed_date.day))
+    if age < min_age:
+        return False, None, f"Applicant must be at least {min_age} years of age for tertiary admission."
+    if age > max_age:
+        return False, None, "Please enter a valid date of birth."
+
+    return True, parsed_date, None
+
+
 def get_or_create_applicant_draft(request) -> Application:
     """
     Retrieves the single active draft application for the authenticated applicant
-    or anonymous session. If none exists, creates an idempotent draft record.
-    If an applicant registers/logs in after starting an anonymous session draft,
-    automatically claims and merges that draft into their user account.
+    or anonymous session. If none exists, creates an idempotent draft record with
+    active intake and location defaults.
     """
-    active_intake = Intake.objects.filter(is_active=True).first()
+    active_intake = get_default_active_intake()
     user = request.user if request.user.is_authenticated else None
     session = request.session
     if not session.session_key:
@@ -97,6 +310,9 @@ def get_or_create_applicant_draft(request) -> Application:
                     last_name=user.last_name or "",
                     email=user.email or "",
                     phone=user.phone if getattr(user, "phone", "") != "0000" else "",
+                    country="Kenya",
+                    county="Nairobi",
+                    nationality="Kenyan",
                     status=Application.Status.DRAFT,
                     draft_step=1,
                     draft_version=1,
@@ -117,6 +333,9 @@ def get_or_create_applicant_draft(request) -> Application:
                     application_number=app_num,
                     session_key=session_key,
                     intake=active_intake,
+                    country="Kenya",
+                    county="Nairobi",
+                    nationality="Kenyan",
                     status=Application.Status.DRAFT,
                     draft_step=1,
                     draft_version=1,
@@ -132,7 +351,6 @@ def calculate_completion_percentage(application: Application, request=None) -> i
         return 0
 
     points = 0
-    total_points = 100
 
     # 1. Programme Selection (15 pts)
     if application.program_id:
@@ -254,15 +472,23 @@ def serialize_draft_state(application: Application, request=None) -> Dict[str, A
         if k not in custom_field_values and k.startswith("custom_"):
             custom_field_values[k] = v
 
+    intakes_data = get_available_intakes_data()
+
     fields = {
+        "intake": str(application.intake_id) if application.intake_id else str(intakes_data.get("default_intake_id") or ""),
+        "intake_id": application.intake_id or intakes_data.get("default_intake_id"),
         "program": str(application.program_id) if application.program_id else "",
         "first_name": application.first_name or "",
+        "middle_name": application.middle_name or "",
         "last_name": application.last_name or "",
         "email": application.email or "",
         "phone": application.phone or "",
         "date_of_birth": application.date_of_birth.isoformat() if application.date_of_birth else "",
         "gender": application.gender or "MALE",
         "national_id": application.national_id or "",
+        "country": application.country or "Kenya",
+        "county": application.county or "Nairobi",
+        "nationality": application.nationality or "Kenyan",
         "address": application.address or "",
         "guardian_name": application.guardian_name or "",
         "guardian_relationship": application.guardian_relationship or "Parent",
@@ -292,6 +518,13 @@ def serialize_draft_state(application: Application, request=None) -> Dict[str, A
         "updated_at": application.updated_at.isoformat() if application.updated_at else timezone.now().isoformat(),
         "fields": fields,
         "documents": draft_docs,
+        "intakes_data": intakes_data,
+        "locations": {
+            "countries": COUNTRIES_LIST,
+            "counties": KENYAN_COUNTIES,
+            "default_country": "Kenya",
+            "default_county": "Nairobi",
+        },
     }
 
 
@@ -303,76 +536,197 @@ def update_applicant_draft(
     request=None,
 ) -> Tuple[bool, Dict[str, Any]]:
     """
-    Updates the draft application with partial form inputs.
-    Applies soft validation, increments draft_version, and enforces optimistic locking.
+    Applies partial form updates with optimistic locking and strict normalization/validation.
     """
-    if not application:
-        return False, {"error": "Application draft not found."}
-
-    # Optimistic locking concurrency check
+    # Optimistic locking check
     if client_version is not None:
         try:
-            cv = int(client_version)
-            if cv < application.draft_version:
+            c_ver = int(client_version)
+            if c_ver < application.draft_version:
+                current_state = serialize_draft_state(application, request)
                 logger.warning(
-                    "Concurrency conflict on application %s: client version %d < server version %d",
-                    application.application_number,
-                    cv,
-                    application.draft_version,
+                    f"Concurrency conflict on application {application.application_number}: "
+                    f"client version {c_ver} < server version {application.draft_version}"
                 )
-                # Return current server state so client can reconcile
                 return False, {
                     "conflict": True,
-                    "message": "A newer save exists on the server.",
                     "server_version": application.draft_version,
-                    "current_state": serialize_draft_state(application, request),
+                    "client_version": c_ver,
+                    "current_state": current_state,
+                    "message": "Application draft has been updated elsewhere. Form state refreshed.",
                 }
         except (ValueError, TypeError):
             pass
 
-    # Map model fields
-    field_handlers = {
-        "first_name": lambda v: setattr(application, "first_name", str(v).strip()[:80]),
-        "last_name": lambda v: setattr(application, "last_name", str(v).strip()[:80]),
-        "email": lambda v: setattr(application, "email", str(v).strip().lower()[:254]),
-        "phone": lambda v: setattr(application, "phone", str(v).strip()[:30]),
-        "gender": lambda v: setattr(application, "gender", str(v).strip()[:20] if str(v).strip() in ["MALE", "FEMALE", "OTHER"] else "MALE"),
-        "national_id": lambda v: setattr(application, "national_id", str(v).strip()[:50]),
-        "address": lambda v: setattr(application, "address", str(v).strip()),
-        "guardian_name": lambda v: setattr(application, "guardian_name", str(v).strip()[:120]),
-        "guardian_relationship": lambda v: setattr(application, "guardian_relationship", str(v).strip()[:60]),
-        "guardian_phone": lambda v: setattr(application, "guardian_phone", str(v).strip()[:30]),
-        "guardian_alternative_phone": lambda v: setattr(application, "guardian_alternative_phone", str(v).strip()[:30]),
-        "guardian_email": lambda v: setattr(application, "guardian_email", str(v).strip().lower()[:254]),
-        "guardian_address": lambda v: setattr(application, "guardian_address", str(v).strip()[:255]),
-        "guardian_country": lambda v: setattr(application, "guardian_country", str(v).strip()[:80]),
-        "guardian_occupation": lambda v: setattr(application, "guardian_occupation", str(v).strip()[:120]),
-        "guardian_employer": lambda v: setattr(application, "guardian_employer", str(v).strip()[:150]),
-        "secondary_school": lambda v: setattr(application, "secondary_school", str(v).strip()[:160]),
-        "kcse_index_number": lambda v: setattr(application, "kcse_index_number", str(v).strip()[:60]),
-        "kcse_mean_grade": lambda v: setattr(application, "kcse_mean_grade", str(v).strip()[:10]),
-    }
+    errors = {}
 
-    # Update Program
+    # Validate Intake & Programme
+    if "intake_id" in data or "intake" in data:
+        raw_intake_id = data.get("intake_id") or data.get("intake")
+        if raw_intake_id:
+            itk = Intake.objects.filter(pk=raw_intake_id, is_active=True).first()
+            if not itk:
+                errors["intake_id"] = "The selected intake cycle is not currently available for applications."
+            else:
+                application.intake = itk
+
     if "program" in data:
-        prog_val = data["program"]
-        if prog_val:
-            prog = Program.objects.filter(pk=prog_val, status=Program.Status.ACTIVE).first()
+        prog_id = str(data["program"]).strip()
+        if prog_id:
+            prog = Program.objects.filter(pk=prog_id, status=Program.Status.ACTIVE).first()
             if prog:
                 application.program = prog
-        else:
-            application.program = None
+            else:
+                errors["program"] = "Please select a valid active academic programme."
 
-    # Update Date of Birth (soft validation)
+    # Validate Names
+    if "first_name" in data:
+        val = str(data["first_name"]).strip()
+        if val:
+            valid, norm, err = validate_name_field(val, "First Name", min_len=2, max_len=60, required=False)
+            if not valid:
+                errors["first_name"] = err
+            else:
+                application.first_name = norm
+        else:
+            application.first_name = ""
+
+    if "middle_name" in data:
+        val = str(data["middle_name"]).strip()
+        if val:
+            valid, norm, err = validate_name_field(val, "Middle Name", min_len=1, max_len=60, required=False)
+            if not valid:
+                errors["middle_name"] = err
+            else:
+                application.middle_name = norm
+        else:
+            application.middle_name = ""
+
+    if "last_name" in data:
+        val = str(data["last_name"]).strip()
+        if val:
+            valid, norm, err = validate_name_field(val, "Last Name", min_len=2, max_len=60, required=False)
+            if not valid:
+                errors["last_name"] = err
+            else:
+                application.last_name = norm
+        else:
+            application.last_name = ""
+
+    # Validate Email
+    if "email" in data:
+        val = str(data["email"]).strip()
+        if val:
+            valid, norm, err = normalize_and_validate_email(val)
+            if not valid:
+                errors["email"] = err
+            else:
+                application.email = norm
+        else:
+            application.email = ""
+
+    # Validate Mobile Phone
+    if "phone" in data:
+        val = str(data["phone"]).strip()
+        if val:
+            valid, norm, err = normalize_and_validate_phone(val)
+            if not valid:
+                errors["phone"] = err
+            else:
+                application.phone = norm
+        else:
+            application.phone = ""
+
+    # Validate Date of Birth
     if "date_of_birth" in data:
-        dob_val = data["date_of_birth"]
-        if dob_val:
-            try:
-                application.date_of_birth = date.fromisoformat(str(dob_val).strip())
-            except (ValueError, TypeError):
-                pass
+        val = str(data["date_of_birth"]).strip()
+        if val:
+            valid, parsed_dob, err = validate_date_of_birth(val)
+            if not valid:
+                errors["date_of_birth"] = err
+            else:
+                application.date_of_birth = parsed_dob
         else:
             application.date_of_birth = None
+
+    # Validate Gender
+    if "gender" in data:
+        val = str(data["gender"]).strip().upper()
+        if val in ["MALE", "FEMALE", "OTHER"]:
+            application.gender = val
+        elif val:
+            errors["gender"] = "Please select a valid gender."
+
+    # Validate Country, County, Nationality
+    if "country" in data:
+        val = str(data["country"]).strip()[:80]
+        application.country = val or "Kenya"
+        if application.country == "Kenya":
+            application.nationality = "Kenyan"
+
+    if "county" in data:
+        val = str(data["county"]).strip()[:80]
+        target_country = data.get("country") or application.country or "Kenya"
+        if target_country.lower() == "kenya":
+            if val and val not in KENYAN_COUNTIES:
+                errors["county"] = "Please select a valid Kenyan county (e.g. Nairobi, Mombasa)."
+            else:
+                application.county = val or "Nairobi"
+        else:
+            application.county = val
+
+    if "nationality" in data:
+        val = str(data["nationality"]).strip()[:80]
+        application.nationality = val or "Kenyan"
+
+    # Validate Guardian details
+    if "guardian_phone" in data:
+        val = str(data["guardian_phone"]).strip()
+        if val:
+            valid, norm, err = normalize_and_validate_phone(val)
+            if not valid:
+                errors["guardian_phone"] = err
+            else:
+                application.guardian_phone = norm
+        else:
+            application.guardian_phone = ""
+
+    if "guardian_email" in data:
+        val = str(data["guardian_email"]).strip()
+        if val:
+            valid, norm, err = normalize_and_validate_email(val)
+            if not valid:
+                errors["guardian_email"] = err
+            else:
+                application.guardian_email = norm
+        else:
+            application.guardian_email = ""
+
+    if "guardian_name" in data:
+        application.guardian_name = str(data["guardian_name"]).strip()[:120]
+    if "guardian_relationship" in data:
+        application.guardian_relationship = str(data["guardian_relationship"]).strip()[:60]
+    if "guardian_alternative_phone" in data:
+        application.guardian_alternative_phone = str(data["guardian_alternative_phone"]).strip()[:30]
+    if "guardian_address" in data:
+        application.guardian_address = str(data["guardian_address"]).strip()[:255]
+    if "guardian_country" in data:
+        application.guardian_country = str(data["guardian_country"]).strip()[:80]
+    if "guardian_occupation" in data:
+        application.guardian_occupation = str(data["guardian_occupation"]).strip()[:120]
+    if "guardian_employer" in data:
+        application.guardian_employer = str(data["guardian_employer"]).strip()[:150]
+
+    if "national_id" in data:
+        application.national_id = str(data["national_id"]).strip()[:50]
+    if "address" in data:
+        application.address = str(data["address"]).strip()
+    if "secondary_school" in data:
+        application.secondary_school = str(data["secondary_school"]).strip()[:160]
+    if "kcse_index_number" in data:
+        application.kcse_index_number = str(data["kcse_index_number"]).strip()[:60]
+    if "kcse_mean_grade" in data:
+        application.kcse_mean_grade = str(data["kcse_mean_grade"]).strip()[:10]
 
     # Update KCSE Year
     if "kcse_year" in data:
@@ -386,10 +740,14 @@ def update_applicant_draft(
         val = data["is_guardian_emergency_contact"]
         application.is_guardian_emergency_contact = val in (True, "true", "True", "1", 1, "on")
 
-    # Apply standard string fields
-    for field_name, handler in field_handlers.items():
-        if field_name in data:
-            handler(data[field_name])
+    # If format errors exist, reject update and do not persist corrupted draft
+    if errors:
+        return False, {
+            "success": False,
+            "errors": errors,
+            "error": next(iter(errors.values())),
+            "message": "Validation failed for one or more fields.",
+        }
 
     # Handle Custom fields & dynamic data
     custom_updates = {}
@@ -431,6 +789,7 @@ def update_applicant_draft(
         "step": application.draft_step,
         "completion_percentage": calculate_completion_percentage(application, request),
         "updated_at": application.updated_at.isoformat(),
+        "fields": serialize_draft_state(application, request)["fields"],
     }
 
 
@@ -441,85 +800,144 @@ def validate_and_submit_application(
     require_documents: bool = False,
 ) -> Tuple[bool, Dict[str, Any]]:
     """
-    Performs validation across all application sections.
+    Performs strict validation across all application sections.
     Transitions status from DRAFT / IN_PROGRESS to READY_FOR_PAYMENT.
     Migrates any session draft documents to ApplicationAttachment models.
     """
     if not application:
-        return False, {"errors": ["Application record not found."]}
+        return False, {"errors": ["Application record not found."], "field_errors": {}}
 
     errors = []
+    field_errors = {}
     p = dict(payload or {})
 
-    # 1. Programme Selection
+    # 1. Academic Intake Selection
+    intake_id = p.get("intake") or (application.intake_id if application.intake else None)
+    intake_obj = None
+    if intake_id:
+        intake_obj = Intake.objects.filter(pk=intake_id, is_active=True).first()
+    if not intake_obj and not application.intake:
+        errors.append("Please select a valid academic intake.")
+        field_errors["intake"] = "Please select an available intake."
+
+    # 2. Programme Selection
     prog_id = p.get("program") or (application.program_id if application.program else None)
     program_obj = None
     if prog_id:
         program_obj = Program.objects.filter(pk=prog_id, status=Program.Status.ACTIVE).first()
     if not program_obj and not application.program:
         errors.append("Please select a valid programme of study.")
+        field_errors["program"] = "Please select a programme."
 
-    # 2. Personal Information
-    first_name = p.get("first_name", application.first_name or "").strip()
-    last_name = p.get("last_name", application.last_name or "").strip()
-    email = p.get("email", application.email or "").strip().lower()
-    phone = p.get("phone", application.phone or "").strip()
+    # 3. Personal Information
+    first_name_raw = p.get("first_name", application.first_name or "").strip()
+    middle_name_raw = p.get("middle_name", application.middle_name or "").strip()
+    last_name_raw = p.get("last_name", application.last_name or "").strip()
+    email_raw = p.get("email", application.email or "").strip().lower()
+    phone_raw = p.get("phone", application.phone or "").strip()
     dob_raw = p.get("date_of_birth", application.date_of_birth.isoformat() if application.date_of_birth else "").strip()
-    gender = p.get("gender", application.gender or "").strip()
+    gender = p.get("gender", application.gender or "").strip().upper()
     national_id = p.get("national_id", application.national_id or "").strip()
+    country = p.get("country", application.country or "Kenya").strip()
+    county = p.get("county", application.county or "Nairobi").strip()
+    nationality = p.get("nationality", application.nationality or "Kenyan").strip()
     address = p.get("address", application.address or "").strip()
 
-    if not (first_name and last_name and email and phone and dob_raw and national_id):
-        errors.append("Please fill in all mandatory personal details.")
+    # First Name
+    valid_fn, first_name, fn_err = validate_name_field(first_name_raw, "First Name", min_len=2, max_len=60, required=True)
+    if not valid_fn:
+        errors.append(fn_err)
+        field_errors["first_name"] = fn_err
 
-    parsed_dob = None
-    if dob_raw:
-        try:
-            parsed_dob = date.fromisoformat(dob_raw)
-        except (ValueError, TypeError):
-            errors.append("Enter a valid date of birth.")
+    # Middle Name (optional)
+    valid_mn, middle_name, mn_err = validate_name_field(middle_name_raw, "Middle Name", min_len=2, max_len=60, required=False)
+    if not valid_mn:
+        errors.append(mn_err)
+        field_errors["middle_name"] = mn_err
 
-    if email:
-        try:
-            EmailField().clean(email)
-        except ValidationError:
-            errors.append("Enter a valid email address.")
+    # Last Name
+    valid_ln, last_name, ln_err = validate_name_field(last_name_raw, "Last Name", min_len=2, max_len=60, required=True)
+    if not valid_ln:
+        errors.append(ln_err)
+        field_errors["last_name"] = ln_err
 
-    if gender and gender not in ["MALE", "FEMALE", "OTHER"]:
+    # Email
+    valid_em, email, em_err = normalize_and_validate_email(email_raw)
+    if not valid_em:
+        errors.append(em_err)
+        field_errors["email"] = em_err
+
+    # Mobile Phone
+    valid_ph, phone, ph_err = normalize_and_validate_phone(phone_raw)
+    if not valid_ph:
+        errors.append(ph_err)
+        field_errors["phone"] = ph_err
+
+    # Date of birth
+    valid_dob, parsed_dob, dob_err = validate_date_of_birth(dob_raw, min_age=16)
+    if not valid_dob:
+        errors.append(dob_err)
+        field_errors["date_of_birth"] = dob_err
+
+    # Gender
+    if gender not in ["MALE", "FEMALE", "OTHER"]:
         errors.append("Please select a valid gender.")
+        field_errors["gender"] = "Please select a valid gender."
 
-    # 3. Guardian Details
+    # National ID
+    if not national_id:
+        errors.append("National ID / Passport Number is required.")
+        field_errors["national_id"] = "National ID / Passport is required."
+    elif len(national_id) < 4:
+        errors.append("National ID / Passport Number must be at least 4 characters.")
+        field_errors["national_id"] = "National ID / Passport must be at least 4 characters."
+
+    # Location (Country & County)
+    if not country:
+        errors.append("Country of residence is required.")
+        field_errors["country"] = "Country is required."
+    if not county:
+        errors.append("County / State / Province is required.")
+        field_errors["county"] = "County/State is required."
+    elif country == "Kenya" and county not in KENYAN_COUNTIES:
+        errors.append(f"Please select a valid Kenyan county (e.g. Nairobi, Mombasa).")
+        field_errors["county"] = "Please select a valid Kenyan county."
+
+    # 4. Guardian Details
     guardian_name = p.get("guardian_name", application.guardian_name or "").strip()
     guardian_relationship = p.get("guardian_relationship", application.guardian_relationship or "Parent").strip()
-    guardian_phone = p.get("guardian_phone", application.guardian_phone or "").strip()
+    guardian_phone_raw = p.get("guardian_phone", application.guardian_phone or "").strip()
     guardian_alt_phone = p.get("guardian_alternative_phone", application.guardian_alternative_phone or "").strip()
-    guardian_email = p.get("guardian_email", application.guardian_email or "").strip().lower()
+    guardian_email_raw = p.get("guardian_email", application.guardian_email or "").strip().lower()
     guardian_address = p.get("guardian_address", application.guardian_address or "").strip()
     guardian_country = p.get("guardian_country", application.guardian_country or "Kenya").strip()
     guardian_occupation = p.get("guardian_occupation", application.guardian_occupation or "").strip()
     guardian_employer = p.get("guardian_employer", application.guardian_employer or "").strip()
     is_guardian_emergency = p.get("is_guardian_emergency_contact", application.is_guardian_emergency_contact) in ("on", "true", "True", "1", 1, True)
 
-    if "guardian_name" in p or "guardian_phone" in p:
-        if not guardian_name:
-            errors.append("Please provide the full name of your parent, guardian, or sponsor.")
-        if not guardian_phone:
-            errors.append("Please provide the primary contact phone number for your guardian.")
-        elif len(re.sub(r"[^0-9+]", "", guardian_phone)) < 7:
-            errors.append("Please enter a valid primary phone number for your guardian (at least 7 digits).")
+    if not guardian_name:
+        errors.append("Please provide the full name of your parent, guardian, or sponsor.")
+        field_errors["guardian_name"] = "Guardian full name is required."
+
+    if not guardian_phone_raw:
+        errors.append("Please provide the primary contact phone number for your guardian.")
+        field_errors["guardian_phone"] = "Guardian phone number is required."
     else:
-        if not guardian_name:
-            guardian_name = f"Parent of {first_name}" if first_name else "Parent / Guardian"
-        if not guardian_phone:
-            guardian_phone = phone
+        valid_gph, guardian_phone, gph_err = normalize_and_validate_phone(guardian_phone_raw)
+        if not valid_gph:
+            errors.append(f"Guardian phone: {gph_err}")
+            field_errors["guardian_phone"] = gph_err
+    guardian_phone = guardian_phone if 'guardian_phone' in locals() else guardian_phone_raw
 
-    if guardian_email:
-        try:
-            EmailField().clean(guardian_email)
-        except ValidationError:
-            errors.append("Enter a valid email address for your guardian.")
+    if guardian_email_raw:
+        valid_gem, guardian_email, gem_err = normalize_and_validate_email(guardian_email_raw)
+        if not valid_gem:
+            errors.append(f"Guardian email: {gem_err}")
+            field_errors["guardian_email"] = gem_err
+    else:
+        guardian_email = ""
 
-    # 4. Academic Details
+    # 5. Academic Details
     secondary_school = p.get("secondary_school", application.secondary_school or "").strip()
     kcse_index = p.get("kcse_index_number", application.kcse_index_number or "").strip()
     kcse_grade = p.get("kcse_mean_grade", application.kcse_mean_grade or "C+").strip()
@@ -529,7 +947,7 @@ def validate_and_submit_application(
     except (ValueError, TypeError):
         kcse_year = 2025
 
-    # 5. Required Documents (if strictly enforced)
+    # 6. Required Documents (if strictly enforced)
     if require_documents:
         docs = get_draft_documents_metadata(application, request)
         required_docs = [
@@ -539,20 +957,33 @@ def validate_and_submit_application(
         for doc_key, label in required_docs:
             if doc_key not in docs or not docs[doc_key].get("uploaded"):
                 errors.append(f"{label} is required before final submission.")
+                field_errors[doc_key] = f"{label} is required."
 
     if errors:
-        return False, {"errors": errors}
+        return False, {
+            "success": False,
+            "errors": errors,
+            "field_errors": field_errors,
+            "error": errors[0],
+            "message": "Please correct the highlighted errors.",
+        }
 
     # Apply updates to application
+    if intake_obj:
+        application.intake = intake_obj
     if program_obj:
         application.program = program_obj
     application.first_name = first_name
+    application.middle_name = middle_name
     application.last_name = last_name
     application.email = email
     application.phone = phone
     application.date_of_birth = parsed_dob
     application.gender = gender or "MALE"
     application.national_id = national_id
+    application.country = country
+    application.county = county
+    application.nationality = nationality
     application.address = address
     application.guardian_name = guardian_name
     application.guardian_relationship = guardian_relationship
@@ -601,7 +1032,7 @@ def validate_and_submit_application(
                             content = f.read()
 
                         if existing_att:
-                            existing_att.file.save(d_info.get("original_name", "doc.pdf"), ContentFile(content), save=True)
+                            existing_att.file.save(d_info.get("original_name", f"{doc_key}.pdf"), ContentFile(content), save=True)
                             existing_att.file_name = d_info.get("original_name", os.path.basename(stored_path))
                             existing_att.file_size = d_info.get("file_size", len(content))
                             existing_att.save()
@@ -609,14 +1040,13 @@ def validate_and_submit_application(
                             att = ApplicationAttachment(
                                 application=application,
                                 document_type=doc_type,
-                                name=title,
+                                title=title,
                                 file_name=d_info.get("original_name", os.path.basename(stored_path)),
                                 file_size=d_info.get("file_size", len(content)),
                                 mime_type=d_info.get("mime_type", "application/pdf"),
-                                verification_status=ApplicationAttachment.VerificationStatus.PENDING,
-                                is_visible_to_student=True,
+                                is_verified=False,
                             )
-                            att.file.save(d_info.get("original_name", os.path.basename(stored_path)), ContentFile(content), save=True)
+                            att.file.save(d_info.get("original_name", f"{doc_key}.pdf"), ContentFile(content), save=True)
 
                         try:
                             default_storage.delete(stored_path)
@@ -629,23 +1059,25 @@ def validate_and_submit_application(
         request.session.pop("draft_application_documents", None)
         request.session.modified = True
 
-    # Transition status
+    # Transition to READY_FOR_PAYMENT
     application.status = Application.Status.READY_FOR_PAYMENT
+    application.draft_step = 5
+    application.draft_version += 1
     application.save()
 
     log_activity(
         request=request,
-        user=request.user if request and request.user.is_authenticated else None,
+        user=application.applicant_user,
         action=AuditLog.Action.CREATE,
-        module=AuditLog.Module.ACADEMICS,
+        module=AuditLog.Module.ADMISSIONS,
         entity="Application",
-        entity_id=application.pk,
-        description=f"Application {application.application_number} submitted and ready for payment.",
+        entity_id=str(application.pk),
+        description=f"Application {application.application_number} submitted and transitioned to READY_FOR_PAYMENT.",
     )
 
     from university.admissions_views import application_access_token
     token = application_access_token(application)
-    pay_url = f"{reverse('university:pay_application_fee', args=[application.pk])}?access={token}"
+    pay_url = f"{reverse('university:admissions_fee_pay', kwargs={'pk': application.pk})}?access={token}"
 
     return True, {
         "success": True,
@@ -653,4 +1085,5 @@ def validate_and_submit_application(
         "application_number": application.application_number,
         "status": application.status,
         "redirect_url": pay_url,
+        "message": "Application saved successfully! Please proceed to pay the application fee.",
     }

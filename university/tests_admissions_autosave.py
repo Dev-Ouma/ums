@@ -258,7 +258,7 @@ class AdmissionsAutoSaveTests(TestCase):
             data=json.dumps({"data": {"first_name": "Kelvin"}}),
             content_type="application/json",
         )
-        self.assertEqual(sub_resp1.status_code, 400)
+        self.assertEqual(sub_resp1.status_code, 422)
         res1 = sub_resp1.json()
         self.assertFalse(res1.get("success", False))
         self.assertTrue(len(res1.get("errors", [])) > 0)
