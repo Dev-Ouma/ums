@@ -12,7 +12,9 @@ Creates accounts for all institutional roles:
 - hod (Head of Department)
 - examofficer (Examinations Officer)
 - lecturer / instructor / teacher
+- prof.rao (Senior Faculty)
 - student
+- stu.aarav (Enrolled Student with history)
 - finance (Finance & Accounts Officer)
 - admissions (Admissions Officer)
 - auditor (Compliance Auditor)
@@ -20,13 +22,20 @@ Creates accounts for all institutional roles:
 All accounts are created with password: demo1234
 """
 import os
-from datetime import date
+from datetime import date, time
+from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
 from accounts.models import FacultyProfile, Role, StudentProfile
-from university.models import Department, Program, StaffRole, StaffRoleAssignment
-from university.permissions_services import seed_default_permissions_and_roles
+from university.models import (
+    AcademicTerm, Course, Department, Enrollment, Exam, Program, Result,
+    School, StaffRole, StaffRoleAssignment
+)
+from university.identity_models import UserGroup, UserGroupMembership, AccountStatus, UserAccount
+from university.permissions_services import (
+    seed_default_permissions_and_roles, seed_default_user_groups
+)
 
 User = get_user_model()
 DEFAULT_PASSWORD = os.environ.get("DEMO_ACCOUNTS_PASSWORD", "demo1234")
@@ -45,15 +54,34 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         password = options["password"]
-        self.stdout.write("Initializing system permissions and staff roles...")
+        self.stdout.write("Initializing system permissions, staff roles, and user groups...")
         seed_default_permissions_and_roles()
+        seed_default_user_groups()
 
-        dept = Department.objects.first()
+        # Ensure School of Computing exists and is linked
+        school, _ = School.objects.get_or_create(
+            code="SCIS",
+            defaults={
+                "name": "School of Computing & Informatics",
+                "dean_name": "Prof. Daniel Otieno",
+                "description": "Faculty of Computing, Software Engineering, and Information Technology",
+            }
+        )
+
+        dept = Department.objects.filter(code="CSE").first()
         if not dept:
-            dept = Department.objects.create(name="Computer Science", code="CSE", color="#6C5CE7")
-        program = Program.objects.first()
+            dept = Department.objects.create(
+                name="Computer Science", code="CSE", school=school, color="#6C5CE7"
+            )
+        elif not dept.school:
+            dept.school = school
+            dept.save()
+
+        program = Program.objects.filter(code="BT-CSE").first()
         if not program:
-            program = Program.objects.create(name="B.Tech Computer Science", code="BT-CSE", department=dept, level="UG", duration_years=4)
+            program = Program.objects.create(
+                name="B.Tech Computer Science", code="BT-CSE", department=dept, level="UG", duration_years=4
+            )
 
         demo_accounts = [
             {
@@ -64,6 +92,7 @@ class Command(BaseCommand):
                 "is_staff": True,
                 "is_superuser": True,
                 "staff_role": "identity_admin",
+                "group": "system_administrators",
                 "designation": "Super Administrator",
                 "description": "Full system administrator with unrestricted access across all modules",
             },
@@ -75,6 +104,7 @@ class Command(BaseCommand):
                 "is_staff": True,
                 "is_superuser": True,
                 "staff_role": "identity_admin",
+                "group": "system_administrators",
                 "designation": "System Administrator",
                 "description": "System administrator managing university configuration and operations",
             },
@@ -86,6 +116,7 @@ class Command(BaseCommand):
                 "is_staff": True,
                 "is_superuser": False,
                 "staff_role": "vc",
+                "group": "system_administrators",
                 "designation": "Vice Chancellor",
                 "description": "Chief Executive & Academic Head of the University",
             },
@@ -93,10 +124,11 @@ class Command(BaseCommand):
                 "username": "dvcaa",
                 "first": "Prof. David",
                 "last": "Kariuki",
-                "role": Role.FACULTY,
+                "role": Role.ADMIN,
                 "is_staff": True,
                 "is_superuser": False,
                 "staff_role": "dvcaa",
+                "group": "system_administrators",
                 "designation": "Deputy Vice Chancellor (Academic Affairs)",
                 "description": "Executive oversight of academic faculties, Senate, and curricula",
             },
@@ -104,10 +136,11 @@ class Command(BaseCommand):
                 "username": "registrar",
                 "first": "Dr. Rachel",
                 "last": "Wanjiku",
-                "role": Role.FACULTY,
+                "role": Role.ADMIN,
                 "is_staff": True,
                 "is_superuser": False,
                 "staff_role": "academic_registrar",
+                "group": "registry_staff",
                 "designation": "Academic Registrar",
                 "description": "Academic registrations, graduations, and official student records",
             },
@@ -119,6 +152,7 @@ class Command(BaseCommand):
                 "is_staff": True,
                 "is_superuser": False,
                 "staff_role": "identity_admin",
+                "group": "system_administrators",
                 "designation": "Director of ICT & Digital Services",
                 "description": "Head of university ICT infrastructure, user identity, and cybersecurity",
             },
@@ -127,9 +161,11 @@ class Command(BaseCommand):
                 "first": "Prof. Daniel",
                 "last": "Otieno",
                 "role": Role.FACULTY,
-                "is_staff": False,
+                "is_staff": True,
                 "is_superuser": False,
                 "staff_role": "dean",
+                "department": dept,
+                "group": "faculty",
                 "designation": "Dean, School of Computing",
                 "description": "Dean approving exam marks, publishing results, and overseeing school faculty",
             },
@@ -142,6 +178,7 @@ class Command(BaseCommand):
                 "is_superuser": False,
                 "staff_role": "hod",
                 "department": dept,
+                "group": "department_heads",
                 "designation": "Head of Department, Computer Science",
                 "description": "HoD managing departmental teaching, mark reviews, and approvals",
             },
@@ -149,10 +186,11 @@ class Command(BaseCommand):
                 "username": "examofficer",
                 "first": "Esther",
                 "last": "Njoroge",
-                "role": Role.FACULTY,
-                "is_staff": False,
+                "role": Role.ADMIN,
+                "is_staff": True,
                 "is_superuser": False,
                 "staff_role": "exam_officer",
+                "group": "examinations_staff",
                 "designation": "Examinations Officer",
                 "description": "Central examination sessions coordinator and transcript officer",
             },
@@ -165,7 +203,8 @@ class Command(BaseCommand):
                 "is_superuser": False,
                 "staff_role": "lecturer",
                 "department": dept,
-                "designation": "Senior Lecturer",
+                "group": "faculty",
+                "designation": "Course Lecturer / Instructor",
                 "description": "Course lecturer & instructor capturing marks and assessments",
             },
             {
@@ -177,6 +216,7 @@ class Command(BaseCommand):
                 "is_superuser": False,
                 "staff_role": "lecturer",
                 "department": dept,
+                "group": "faculty",
                 "designation": "Professor of Computing",
                 "description": "Senior faculty & lecturer for Computer Science courses",
             },
@@ -188,6 +228,7 @@ class Command(BaseCommand):
                 "is_staff": False,
                 "is_superuser": False,
                 "roll_no": "DEMO-STU-001",
+                "group": "students",
                 "description": "Undergraduate student viewing portal, units, fees, and marks",
             },
             {
@@ -198,16 +239,18 @@ class Command(BaseCommand):
                 "is_staff": False,
                 "is_superuser": False,
                 "roll_no": "UMS20260001",
+                "group": "students",
                 "description": "Enrolled student account with historical grades and fee statements",
             },
             {
                 "username": "finance",
                 "first": "Faith",
                 "last": "Nduta",
-                "role": Role.FACULTY,
-                "is_staff": False,
+                "role": Role.ADMIN,
+                "is_staff": True,
                 "is_superuser": False,
                 "staff_role": "finance_officer",
+                "group": "finance_staff",
                 "designation": "Chief Finance Officer",
                 "description": "Finance officer managing fee invoices, payments, and clearances",
             },
@@ -215,10 +258,11 @@ class Command(BaseCommand):
                 "username": "admissions",
                 "first": "Alice",
                 "last": "Chebet",
-                "role": Role.FACULTY,
-                "is_staff": False,
+                "role": Role.ADMIN,
+                "is_staff": True,
                 "is_superuser": False,
                 "staff_role": "admissions_officer",
+                "group": "registry_staff",
                 "designation": "Admissions Officer",
                 "description": "Admissions officer reviewing applications and registering new cohorts",
             },
@@ -227,9 +271,10 @@ class Command(BaseCommand):
                 "first": "Arthur",
                 "last": "Maina",
                 "role": Role.ADMIN,
-                "is_staff": False,
+                "is_staff": True,
                 "is_superuser": False,
                 "staff_role": "auditor",
+                "group": "system_administrators",
                 "designation": "System & Compliance Auditor",
                 "description": "Internal compliance auditor inspecting audit logs and trail events",
             },
@@ -237,6 +282,7 @@ class Command(BaseCommand):
 
         created_count = 0
         updated_count = 0
+        user_objects = {}
 
         self.stdout.write(f"\nSeeding sample users with password '{password}':\n")
         header = f"{'Username':<14} | {'Role':<10} | {'Display Name':<24} | {'Staff Role / Title':<32}"
@@ -265,6 +311,7 @@ class Command(BaseCommand):
             user.is_staff = item.get("is_staff", False)
             user.is_superuser = item.get("is_superuser", False)
             user.save()
+            user_objects[uname] = user
 
             if created:
                 created_count += 1
@@ -323,8 +370,15 @@ class Command(BaseCommand):
                     sassign.department = item.get("department", None)
                     sassign.save()
 
+            # Assign UserGroup if configured
+            group_code = item.get("group")
+            if group_code:
+                ug = UserGroup.objects.filter(code=group_code).first()
+                if ug:
+                    UserGroupMembership.objects.get_or_create(user=user, group=ug)
+
+            # Ensure account security envelope is active
             from university.identity_services import ensure_account
-            from university.identity_models import AccountStatus, UserAccount
             try:
                 acc = ensure_account(user)
                 if acc:
@@ -340,6 +394,119 @@ class Command(BaseCommand):
             self.stdout.write(
                 f"{uname:<14} | {user.role:<10} | {user.display_name:<24} | {title_display:<32}"
             )
+
+        # --------------------------------------------------------------------------
+        # End-to-End Course & Examination Linking for Workflow Testing
+        # --------------------------------------------------------------------------
+        try:
+            lecturer_user = user_objects.get("lecturer")
+            prof_rao_user = user_objects.get("prof.rao")
+            student_user = user_objects.get("student")
+            aarav_user = user_objects.get("stu.aarav")
+
+            lecturer_fp = getattr(lecturer_user, "faculty_profile", None)
+            prof_fp = getattr(prof_rao_user, "faculty_profile", None)
+            student_sp = getattr(student_user, "student_profile", None)
+            aarav_sp = getattr(aarav_user, "student_profile", None)
+
+            # Term
+            term = AcademicTerm.objects.filter(is_current=True).first() or AcademicTerm.objects.first()
+            if not term:
+                term = AcademicTerm.objects.create(
+                    name="2025/2026 Semester 1",
+                    semester_number=1,
+                    start_date=date(2025, 9, 1),
+                    end_date=date(2026, 1, 31),
+                    is_current=True
+                )
+
+            # CS101 assigned to lecturer
+            cs101, _ = Course.objects.get_or_create(
+                code="CS101",
+                defaults={
+                    "title": "Introduction to Programming",
+                    "department": dept,
+                    "credits": 4,
+                    "semester": 1,
+                    "faculty": lecturer_fp,
+                }
+            )
+            if lecturer_fp and cs101.faculty != lecturer_fp:
+                cs101.faculty = lecturer_fp
+                cs101.save()
+
+            # CS201 assigned to prof.rao
+            cs201, _ = Course.objects.get_or_create(
+                code="CS201",
+                defaults={
+                    "title": "Data Structures & Algorithms",
+                    "department": dept,
+                    "credits": 4,
+                    "semester": 2,
+                    "faculty": prof_fp,
+                }
+            )
+            if prof_fp and cs201.faculty != prof_fp:
+                cs201.faculty = prof_fp
+                cs201.save()
+
+            # Enroll demo students in CS101
+            for sp in (student_sp, aarav_sp):
+                if sp:
+                    Enrollment.objects.get_or_create(
+                        student=sp,
+                        course=cs101,
+                        term=term,
+                        defaults={"status": "ENROLLED"}
+                    )
+
+            # Create CS101 Exam for the marks workflow
+            cs101_exam = Exam.objects.filter(course=cs101, term=term).first()
+            if not cs101_exam:
+                cs101_exam = Exam.objects.create(
+                    course=cs101,
+                    term=term,
+                    name="CS101 Final Exam",
+                    exam_type=Exam.Type.FINAL,
+                    date=date(2026, 6, 15),
+                    start_time=time(9, 0),
+                    end_time=time(12, 0),
+                    total_marks=Decimal("70.0"),
+                    pass_marks=Decimal("28.0"),
+                    status=Exam.Status.DRAFT,
+                )
+
+            # Ensure student results exist for marks capture
+            if student_sp:
+                Result.objects.get_or_create(
+                    exam=cs101_exam,
+                    student=student_sp,
+                    defaults={
+                        "cat_marks": Decimal("24.0"),
+                        "exam_marks_ie": Decimal("52.0"),
+                        "exam_marks": Decimal("52.0"),
+                        "marks_obtained": Decimal("76.0"),
+                        "attendance": "PRESENT",
+                    }
+                )
+            if aarav_sp:
+                Result.objects.get_or_create(
+                    exam=cs101_exam,
+                    student=aarav_sp,
+                    defaults={
+                        "cat_marks": Decimal("22.0"),
+                        "exam_marks_ie": Decimal("48.0"),
+                        "exam_marks": Decimal("48.0"),
+                        "marks_obtained": Decimal("70.0"),
+                        "attendance": "PRESENT",
+                    }
+                )
+
+            self.stdout.write(self.style.SUCCESS(
+                f"Configured end-to-end workflow: Course CS101 -> Lecturer Dr. Leonard Mutua -> Dept Computer Science (HoD Dr. Hassan Omar) -> School of Computing (Dean Prof. Daniel Otieno)."
+            ))
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"Note on course/exam linkage: {e}"))
 
         self.stdout.write(self.style.SUCCESS(
             f"\nDone! Seeded {len(demo_accounts)} demo accounts ({created_count} created, {updated_count} updated)."

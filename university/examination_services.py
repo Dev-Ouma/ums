@@ -29,24 +29,24 @@ def can_create_exams(user):
     if StaffRoleAssignment.objects.filter(
         user=user,
         is_active=True,
-        role__code__in=['hod', 'dean', 'academic_registrar', 'exam_officer']
+        role__code__in=['hod', 'dean', 'academic_registrar', 'exam_officer', 'vc', 'dvcaa']
     ).exists():
         return True
     try:
-        from .permissions_services import user_has_permission
-        if user_has_permission(user, 'exams.create_exam'):
+        from .permissions_services import has_user_permission
+        if has_user_permission(user, 'exams.create_exam'):
             return True
     except Exception:
         pass
     faculty = getattr(user, 'faculty_profile', None)
     if faculty:
         desig = (faculty.designation or '').lower()
-        if any(k in desig for k in ['dean', 'hod', 'head of department', 'chair', 'registrar', 'director']):
+        if any(k in desig for k in ['dean', 'hod', 'head of department', 'chair', 'registrar', 'director', 'vice chancellor', 'dvc']):
             return True
     sig = getattr(user, 'signature', None)
     if sig:
         title = (sig.title or '').lower()
-        if any(k in title for k in ['dean', 'hod', 'head of department', 'chair', 'registrar', 'director']):
+        if any(k in title for k in ['dean', 'hod', 'head of department', 'chair', 'registrar', 'director', 'vice chancellor', 'dvc']):
             return True
     return False
 
@@ -63,7 +63,7 @@ def staff_scope(user):
 
     from .models import StaffRoleAssignment
     roles = set(StaffRoleAssignment.objects.filter(user=user, is_active=True).values_list('role__code', flat=True))
-    if any(r in roles for r in ['dean', 'academic_registrar', 'exam_officer']):
+    if any(r in roles for r in ['dean', 'academic_registrar', 'exam_officer', 'vc', 'dvcaa']):
         return qs
 
     if 'hod' in roles:
@@ -133,12 +133,12 @@ def get_user_exam_role(user, exam):
         return 'admin'
     from .models import StaffRoleAssignment
     roles = set(StaffRoleAssignment.objects.filter(user=user, is_active=True).values_list('role__code', flat=True))
-    if any(r in roles for r in ['dean', 'academic_registrar', 'exam_officer']):
+    if any(r in roles for r in ['dean', 'academic_registrar', 'exam_officer', 'vc', 'dvcaa']):
         return 'dean'
     faculty = getattr(user, 'faculty_profile', None)
     if faculty:
         desig = (faculty.designation or '').lower()
-        if any(k in desig for k in ['dean', 'director', 'registrar']):
+        if any(k in desig for k in ['dean', 'director', 'registrar', 'vice chancellor', 'dvc']):
             return 'dean'
     dept_id = exam.course.department_id if (exam.course_id and hasattr(exam.course, 'department_id')) else None
     if 'hod' in roles:
@@ -190,22 +190,26 @@ def can_hod_approve(user, exam):
 
 
 def can_dean_publish(user, exam):
-    """Check whether user can publish marks (Dean, Registrar, Exam Officer, Admin)."""
+    """Check whether user can publish marks (Dean, Registrar, Exam Officer, VC, DVCAA, Admin)."""
     if not user or not user.is_authenticated:
         return False
     if is_admin(user):
         return True
-    if not getattr(user, 'is_faculty', False):
-        return False
     from .models import StaffRoleAssignment
     if StaffRoleAssignment.objects.filter(
-        user=user, is_active=True, role__code__in=['dean', 'academic_registrar', 'exam_officer']
+        user=user, is_active=True, role__code__in=['dean', 'academic_registrar', 'exam_officer', 'vc', 'dvcaa']
     ).exists():
         return True
+    try:
+        from .permissions_services import has_user_permission
+        if has_user_permission(user, 'exams.publish_results'):
+            return True
+    except Exception:
+        pass
     faculty = getattr(user, 'faculty_profile', None)
     if faculty:
         desig = (faculty.designation or '').lower()
-        if any(k in desig for k in ['dean', 'director', 'registrar']):
+        if any(k in desig for k in ['dean', 'director', 'registrar', 'vice chancellor', 'dvc']):
             return True
     return False
 

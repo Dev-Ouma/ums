@@ -334,6 +334,16 @@ def has_user_permission(user, permission_code):
     if has_role_perm:
         return True
 
+    # Check User Groups permissions
+    if hasattr(user, 'group_memberships'):
+        has_group_perm = user.group_memberships.filter(
+            group__roles__permissions__code=permission_code
+        ).exists() or user.group_memberships.filter(
+            group__permissions__code=permission_code
+        ).exists()
+        if has_group_perm:
+            return True
+
     # Security controls require explicit grants; ordinary admin labels never bypass.
     if permission_code.startswith("control."):
         return False
@@ -354,6 +364,9 @@ def has_user_permission(user, permission_code):
             return True
 
     return False
+
+
+user_has_permission = has_user_permission
 
 
 def get_user_effective_permissions(user):
