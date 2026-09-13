@@ -1246,17 +1246,18 @@ class Application(models.Model):
 
     application_number = models.CharField(max_length=40, unique=True, db_index=True)
     applicant_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="admission_applications")
+    session_key = models.CharField(max_length=64, blank=True, default="", db_index=True)
     intake = models.ForeignKey(Intake, on_delete=models.SET_NULL, null=True, blank=True, related_name="applications")
-    program = models.ForeignKey(Program, on_delete=models.CASCADE, related_name="applications")
+    program = models.ForeignKey(Program, on_delete=models.CASCADE, null=True, blank=True, related_name="applications")
 
-    # Personal details
-    first_name = models.CharField(max_length=80)
-    last_name = models.CharField(max_length=80)
-    email = models.EmailField()
-    phone = models.CharField(max_length=30)
-    date_of_birth = models.DateField()
-    gender = models.CharField(max_length=20, choices=[("MALE", "Male"), ("FEMALE", "Female"), ("OTHER", "Other")])
-    national_id = models.CharField(max_length=50, verbose_name="National ID / Passport No.")
+    # Personal details (soft validation on drafts)
+    first_name = models.CharField(max_length=80, blank=True, default="")
+    last_name = models.CharField(max_length=80, blank=True, default="")
+    email = models.EmailField(blank=True, default="")
+    phone = models.CharField(max_length=30, blank=True, default="")
+    date_of_birth = models.DateField(null=True, blank=True)
+    gender = models.CharField(max_length=20, blank=True, default="MALE", choices=[("MALE", "Male"), ("FEMALE", "Female"), ("OTHER", "Other")])
+    national_id = models.CharField(max_length=50, blank=True, default="", verbose_name="National ID / Passport No.")
     address = models.TextField(blank=True, default="")
 
     # Guardian & Emergency Contact details
@@ -1277,6 +1278,11 @@ class Application(models.Model):
     kcse_mean_grade = models.CharField(max_length=10, blank=True, default="C+")
     kcse_year = models.PositiveIntegerField(default=2025)
 
+    # Draft & Auto-Save State Tracking
+    draft_version = models.PositiveIntegerField(default=1, verbose_name="Draft State Version")
+    draft_step = models.PositiveSmallIntegerField(default=1, verbose_name="Last Active Form Step")
+    draft_data = models.JSONField(default=dict, blank=True, verbose_name="Dynamic / Extra Draft Payload")
+
     status = models.CharField(max_length=30, choices=Status.choices, default=Status.SUBMITTED, db_index=True)
     admitted_reg_no = models.CharField(max_length=50, blank=True, default="")
     reporting_date = models.DateField(null=True, blank=True)
@@ -1291,11 +1297,18 @@ class Application(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.application_number} · {self.first_name} {self.last_name} ({self.program.code})"
+        prog_code = self.program.code if self.program else "Draft"
+        name = f"{self.first_name} {self.last_name}".strip() or "Unnamed Applicant"
+        return f"{self.application_number} · {name} ({prog_code})"
 
     @property
     def full_name(self):
-        return f"{self.first_name} {self.last_name}"
+        name = f"{self.first_name} {self.last_name}".strip()
+        return name if name else "Draft Applicant"
+
+    @property
+    def is_draft(self):
+        return self.status in (self.Status.DRAFT, self.Status.IN_PROGRESS)
 
     @property
     def fee_paid(self):

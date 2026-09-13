@@ -4,31 +4,66 @@
 {% block title %}Apply for Admission | University Management System{% endblock %}
 
 {% block content %}
-<div class="container py-5">
+<div class="container py-4 py-md-5">
   <div class="row justify-content-center">
     <div class="col-lg-10">
       
-      <!-- Admissions Header Banner -->
+      <!-- Admissions Header Banner with Live Auto-Save Indicator -->
       <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4" style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: white;">
         <div class="card-body p-4 p-md-5">
           <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
             <div>
-              <span class="badge bg-white text-primary px-3 py-2 rounded-pill fw-semibold mb-2">
-                <i class="fa-solid fa-calendar-check me-1"></i> {{ intake.name }}
-              </span>
+              <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <span class="badge bg-white text-primary px-3 py-1.5 rounded-pill fw-semibold">
+                  <i class="fa-solid fa-calendar-check me-1"></i> {{ intake.name }}
+                </span>
+                <span class="badge bg-white/20 text-white px-3 py-1.5 rounded-pill fw-normal" id="applicationNumberBadge" style="background-color: rgba(255,255,255,0.2);">
+                  <i class="fa-solid fa-hashtag me-1"></i> Draft: <span class="fw-bold font-monospace">{{ draft_application.application_number }}</span>
+                </span>
+              </div>
               <h2 class="fw-bold mb-1">Online Application Portal</h2>
-              <p class="mb-0 opacity-75">Join our diverse community of scholars. Fill in the form below to submit your application.</p>
+              <p class="mb-0 opacity-75">Your progress is automatically saved to the cloud as you type.</p>
             </div>
-            <a href="{% url 'university:admissions_status' %}" class="btn btn-outline-light rounded-pill px-4 py-2">
-              <i class="fa-solid fa-magnifying-glass me-1"></i> Check Status
-            </a>
+            <div class="d-flex flex-column align-items-md-end gap-2">
+              <a href="{% url 'university:admissions_status' %}" class="btn btn-outline-light rounded-pill px-4 py-2">
+                <i class="fa-solid fa-magnifying-glass me-1"></i> Check Status
+              </a>
+            </div>
           </div>
+
+          <!-- Live Progress & Save Status Strip -->
+          <div class="mt-4 pt-3 border-top border-white/20">
+            <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
+              <!-- Live Auto-Save Status Badge -->
+              <div id="autoSaveIndicator" class="d-flex align-items-center gap-2">
+                <span class="badge rounded-pill px-3 py-2 bg-success text-white d-inline-flex align-items-center gap-1.5 shadow-sm" id="saveBadge">
+                  <i class="fa-solid fa-circle-check"></i>
+                  <span id="saveStatusText">All changes saved</span>
+                  <span class="opacity-75 ms-1 small text-nowrap" id="saveTimestamp"></span>
+                </span>
+                <button type="button" id="manualRetryBtn" class="btn btn-sm btn-light text-danger rounded-pill px-2.5 py-1 d-none fw-semibold shadow-sm">
+                  <i class="fa-solid fa-arrow-rotate-right me-1"></i> Retry Save
+                </button>
+              </div>
+
+              <!-- Completion Progress Bar -->
+              <div class="d-flex align-items-center gap-3" style="min-width: 240px;">
+                <div class="flex-grow-1">
+                  <div class="progress rounded-pill bg-white/25" style="height: 10px; background-color: rgba(255,255,255,0.25);">
+                    <div id="completionProgressBar" class="progress-bar bg-warning rounded-pill progress-bar-striped progress-bar-animated" role="progressbar" style="width: {{ completion_percentage }}%;" aria-valuenow="{{ completion_percentage }}" aria-valuemin="0" aria-valuemax="100"></div>
+                  </div>
+                </div>
+                <span class="small fw-bold text-nowrap" id="completionPercentageText">{{ completion_percentage }}% Completed</span>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 
       {% if messages %}
         {% for message in messages %}
-          <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-4" role="alert">
+          <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-4 shadow-sm" role="alert">
             {{ message }}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
           </div>
@@ -38,11 +73,11 @@
       <!-- Application Form -->
       <div class="card border-0 shadow-sm rounded-4">
         <div class="card-body p-4 p-md-5">
-          <form method="post" action="{% url 'university:admissions_apply' %}" enctype="multipart/form-data">
+          <form id="admissionsApplicationForm" method="post" action="{% url 'university:admissions_apply' %}" enctype="multipart/form-data">
             {% csrf_token %}
 
             <!-- SECTION 1: Programme Selection -->
-            <div class="mb-5">
+            <div class="mb-5 form-section" data-step="1">
               <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
                 <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">1</div>
                 <h5 class="fw-bold mb-0 text-dark">Programme of Study</h5>
@@ -50,8 +85,8 @@
               <div class="row g-3">
                 <div class="col-md-8">
                   <label class="form-label fw-semibold">Select Degree / Diploma Programme <span class="text-danger">*</span></label>
-                  <select name="program" class="form-select form-select-lg rounded-3" required>
-                    <option value="" disabled selected>-- Choose Programme --</option>
+                  <select name="program" id="field_program" class="form-select form-select-lg rounded-3" required>
+                    <option value="" disabled {% if not data.program %}selected{% endif %}>-- Choose Programme --</option>
                     {% for p in programs %}
                       <option value="{{ p.id }}" {% if data.program == p.id|stringformat:"s" %}selected{% endif %}>
                         {{ p.code }} — {{ p.name }} ({{ p.department.name }})
@@ -67,7 +102,7 @@
             </div>
 
             <!-- SECTION 2: Personal Bio-Data -->
-            <div class="mb-5">
+            <div class="mb-5 form-section" data-step="2">
               <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
                 <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">2</div>
                 <h5 class="fw-bold mb-0 text-dark">Applicant Personal Information</h5>
@@ -75,27 +110,27 @@
               <div class="row g-3">
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">First Name <span class="text-danger">*</span></label>
-                  <input type="text" name="first_name" class="form-control rounded-3" placeholder="e.g. Kelvin" value="{{ data.first_name|default:'' }}" required>
+                  <input type="text" name="first_name" id="field_first_name" class="form-control rounded-3" placeholder="e.g. Kelvin" value="{{ data.first_name|default:'' }}" required>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Last / Family Name <span class="text-danger">*</span></label>
-                  <input type="text" name="last_name" class="form-control rounded-3" placeholder="e.g. Ochieng" value="{{ data.last_name|default:'' }}" required>
+                  <input type="text" name="last_name" id="field_last_name" class="form-control rounded-3" placeholder="e.g. Ochieng" value="{{ data.last_name|default:'' }}" required>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Email Address <span class="text-danger">*</span></label>
-                  <input type="email" name="email" class="form-control rounded-3" placeholder="name@example.com" value="{{ data.email|default:'' }}" required>
+                  <input type="email" name="email" id="field_email" class="form-control rounded-3" placeholder="name@example.com" value="{{ data.email|default:'' }}" required>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Mobile Phone Number <span class="text-danger">*</span></label>
-                  <input type="tel" name="phone" class="form-control rounded-3" placeholder="+254 712 345 678" value="{{ data.phone|default:'' }}" required>
+                  <input type="tel" name="phone" id="field_phone" class="form-control rounded-3" placeholder="+254 712 345 678" value="{{ data.phone|default:'' }}" required>
                 </div>
                 <div class="col-md-4">
                   <label class="form-label fw-semibold">Date of Birth <span class="text-danger">*</span></label>
-                  <input type="date" name="date_of_birth" class="form-control rounded-3" value="{{ data.date_of_birth|default:'' }}" required>
+                  <input type="date" name="date_of_birth" id="field_date_of_birth" class="form-control rounded-3" value="{{ data.date_of_birth|default:'' }}" required>
                 </div>
                 <div class="col-md-4">
                   <label class="form-label fw-semibold">Gender <span class="text-danger">*</span></label>
-                  <select name="gender" class="form-select rounded-3" required>
+                  <select name="gender" id="field_gender" class="form-select rounded-3" required>
                     <option value="MALE" {% if data.gender == "MALE" %}selected{% endif %}>Male</option>
                     <option value="FEMALE" {% if data.gender == "FEMALE" %}selected{% endif %}>Female</option>
                     <option value="OTHER" {% if data.gender == "OTHER" %}selected{% endif %}>Other</option>
@@ -103,17 +138,17 @@
                 </div>
                 <div class="col-md-4">
                   <label class="form-label fw-semibold">National ID / Passport No. <span class="text-danger">*</span></label>
-                  <input type="text" name="national_id" class="form-control rounded-3" placeholder="e.g. 34567890" value="{{ data.national_id|default:'' }}" required>
+                  <input type="text" name="national_id" id="field_national_id" class="form-control rounded-3" placeholder="e.g. 34567890" value="{{ data.national_id|default:'' }}" required>
                 </div>
                 <div class="col-12">
                   <label class="form-label fw-semibold">Postal / Home Address</label>
-                  <input type="text" name="address" class="form-control rounded-3" placeholder="e.g. P.O. Box 1234 - 00100, Nairobi" value="{{ data.address|default:'' }}">
+                  <input type="text" name="address" id="field_address" class="form-control rounded-3" placeholder="e.g. P.O. Box 1234 - 00100, Nairobi" value="{{ data.address|default:'' }}">
                 </div>
               </div>
             </div>
 
             <!-- SECTION 3: Parent / Guardian & Emergency Contact -->
-            <div class="mb-5">
+            <div class="mb-5 form-section" data-step="3">
               <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
                 <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">3</div>
                 <h5 class="fw-bold mb-0 text-dark">Parent / Guardian &amp; Emergency Contact</h5>
@@ -121,11 +156,11 @@
               <div class="row g-3">
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Guardian Full Name <span class="text-danger">*</span></label>
-                  <input type="text" name="guardian_name" class="form-control rounded-3" placeholder="e.g. Mary Jane Wabs" value="{{ data.guardian_name|default:'' }}" required>
+                  <input type="text" name="guardian_name" id="field_guardian_name" class="form-control rounded-3" placeholder="e.g. Mary Jane Wabs" value="{{ data.guardian_name|default:'' }}" required>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Relationship to Applicant <span class="text-danger">*</span></label>
-                  <select name="guardian_relationship" class="form-select rounded-3" required>
+                  <select name="guardian_relationship" id="field_guardian_relationship" class="form-select rounded-3" required>
                     {% for val, lbl in guardian_relationships %}
                       <option value="{{ val }}" {% if data.guardian_relationship == val or not data.guardian_relationship and val == 'Parent' %}selected{% endif %}>{{ lbl }}</option>
                     {% endfor %}
@@ -133,31 +168,31 @@
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Primary Contact Phone <span class="text-danger">*</span></label>
-                  <input type="tel" name="guardian_phone" class="form-control rounded-3" placeholder="+254 712 345 678" value="{{ data.guardian_phone|default:'' }}" required>
+                  <input type="tel" name="guardian_phone" id="field_guardian_phone" class="form-control rounded-3" placeholder="+254 712 345 678" value="{{ data.guardian_phone|default:'' }}" required>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Alternative Phone Number</label>
-                  <input type="tel" name="guardian_alternative_phone" class="form-control rounded-3" placeholder="Optional alternative phone" value="{{ data.guardian_alternative_phone|default:'' }}">
+                  <input type="tel" name="guardian_alternative_phone" id="field_guardian_alternative_phone" class="form-control rounded-3" placeholder="Optional alternative phone" value="{{ data.guardian_alternative_phone|default:'' }}">
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Email Address</label>
-                  <input type="email" name="guardian_email" class="form-control rounded-3" placeholder="guardian@example.com" value="{{ data.guardian_email|default:'' }}">
+                  <input type="email" name="guardian_email" id="field_guardian_email" class="form-control rounded-3" placeholder="guardian@example.com" value="{{ data.guardian_email|default:'' }}">
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Country of Residence</label>
-                  <input type="text" name="guardian_country" class="form-control rounded-3" value="{{ data.guardian_country|default:'Kenya' }}">
+                  <input type="text" name="guardian_country" id="field_guardian_country" class="form-control rounded-3" value="{{ data.guardian_country|default:'Kenya' }}">
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Occupation</label>
-                  <input type="text" name="guardian_occupation" class="form-control rounded-3" placeholder="e.g. Teacher, Civil Servant, Business" value="{{ data.guardian_occupation|default:'' }}">
+                  <input type="text" name="guardian_occupation" id="field_guardian_occupation" class="form-control rounded-3" placeholder="e.g. Teacher, Civil Servant, Business" value="{{ data.guardian_occupation|default:'' }}">
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Employer / Organization</label>
-                  <input type="text" name="guardian_employer" class="form-control rounded-3" placeholder="e.g. Ministry of Education, Self-employed" value="{{ data.guardian_employer|default:'' }}">
+                  <input type="text" name="guardian_employer" id="field_guardian_employer" class="form-control rounded-3" placeholder="e.g. Ministry of Education, Self-employed" value="{{ data.guardian_employer|default:'' }}">
                 </div>
                 <div class="col-12">
                   <label class="form-label fw-semibold">Guardian Physical / Postal Address</label>
-                  <input type="text" name="guardian_address" class="form-control rounded-3" placeholder="e.g. P.O Box 4567, Kisumu / Kilimani, Nairobi" value="{{ data.guardian_address|default:'' }}">
+                  <input type="text" name="guardian_address" id="field_guardian_address" class="form-control rounded-3" placeholder="e.g. P.O Box 4567, Kisumu / Kilimani, Nairobi" value="{{ data.guardian_address|default:'' }}">
                 </div>
                 <div class="col-12">
                   <div class="form-check p-3 bg-light rounded-3 border">
@@ -171,7 +206,7 @@
             </div>
 
             <!-- SECTION 4: Academic Qualifications -->
-            <div class="mb-5">
+            <div class="mb-5 form-section" data-step="4">
               <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
                 <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">4</div>
                 <h5 class="fw-bold mb-0 text-dark">Secondary Education Qualifications</h5>
@@ -179,15 +214,15 @@
               <div class="row g-3">
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Secondary School Attended</label>
-                  <input type="text" name="secondary_school" class="form-control rounded-3" placeholder="e.g. Alliance High School" value="{{ data.secondary_school|default:'' }}">
+                  <input type="text" name="secondary_school" id="field_secondary_school" class="form-control rounded-3" placeholder="e.g. Alliance High School" value="{{ data.secondary_school|default:'' }}">
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">KCSE Index Number</label>
-                  <input type="text" name="kcse_index_number" class="form-control rounded-3" placeholder="e.g. 12345678001" value="{{ data.kcse_index_number|default:'' }}">
+                  <input type="text" name="kcse_index_number" id="field_kcse_index_number" class="form-control rounded-3" placeholder="e.g. 12345678001" value="{{ data.kcse_index_number|default:'' }}">
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">KCSE Mean Grade</label>
-                  <select name="kcse_mean_grade" class="form-select rounded-3">
+                  <select name="kcse_mean_grade" id="field_kcse_mean_grade" class="form-select rounded-3">
                     <option value="A" {% if data.kcse_mean_grade == "A" %}selected{% endif %}>A (Plain)</option>
                     <option value="A-" {% if data.kcse_mean_grade == "A-" %}selected{% endif %}>A- (Minus)</option>
                     <option value="B+" {% if data.kcse_mean_grade == "B+" %}selected{% endif %}>B+ (Plus)</option>
@@ -202,14 +237,14 @@
                 </div>
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">Year of Exam Completion</label>
-                  <input type="number" name="kcse_year" class="form-control rounded-3" value="{{ data.kcse_year|default:'2025' }}" min="1990" max="2026">
+                  <input type="number" name="kcse_year" id="field_kcse_year" class="form-control rounded-3" value="{{ data.kcse_year|default:'2025' }}" min="1990" max="2026">
                 </div>
               </div>
             </div>
 
             {% if custom_fields %}
             <!-- SECTION 5: Additional Information -->
-            <div class="mb-5">
+            <div class="mb-5 form-section" data-step="5">
               <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
                 <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">5</div>
                 <h5 class="fw-bold mb-0 text-dark">Additional Institutional Information</h5>
@@ -219,18 +254,18 @@
                   <div class="col-md-6">
                     <label class="form-label fw-semibold">{{ cf.label }} {% if cf.is_required %}<span class="text-danger">*</span>{% endif %}</label>
                     {% if cf.field_type == "SELECT" %}
-                      <select name="custom_{{ cf.name }}" class="form-select rounded-3" {% if cf.is_required %}required{% endif %}>
+                      <select name="custom_{{ cf.name }}" id="field_custom_{{ cf.name }}" class="form-select rounded-3" {% if cf.is_required %}required{% endif %}>
                         <option value="" selected disabled>-- Select {{ cf.label }} --</option>
                         {% for choice in cf.get_choices %}
                           <option value="{{ choice }}">{{ choice }}</option>
                         {% endfor %}
                       </select>
                     {% elif cf.field_type == "TEXTAREA" %}
-                      <textarea name="custom_{{ cf.name }}" class="form-control rounded-3" rows="2" placeholder="{{ cf.help_text }}" {% if cf.is_required %}required{% endif %}></textarea>
+                      <textarea name="custom_{{ cf.name }}" id="field_custom_{{ cf.name }}" class="form-control rounded-3" rows="2" placeholder="{{ cf.help_text }}" {% if cf.is_required %}required{% endif %}></textarea>
                     {% elif cf.field_type == "NUMBER" %}
-                      <input type="number" name="custom_{{ cf.name }}" class="form-control rounded-3" placeholder="{{ cf.help_text }}" {% if cf.is_required %}required{% endif %}>
+                      <input type="number" name="custom_{{ cf.name }}" id="field_custom_{{ cf.name }}" class="form-control rounded-3" placeholder="{{ cf.help_text }}" {% if cf.is_required %}required{% endif %}>
                     {% else %}
-                      <input type="text" name="custom_{{ cf.name }}" class="form-control rounded-3" placeholder="{{ cf.help_text }}" {% if cf.is_required %}required{% endif %}>
+                      <input type="text" name="custom_{{ cf.name }}" id="field_custom_{{ cf.name }}" class="form-control rounded-3" placeholder="{{ cf.help_text }}" {% if cf.is_required %}required{% endif %}>
                     {% endif %}
                     {% if cf.help_text %}<div class="form-text text-muted">{{ cf.help_text }}</div>{% endif %}
                   </div>
@@ -240,7 +275,7 @@
             {% endif %}
 
             <!-- SECTION {% if custom_fields %}6{% else %}5{% endif %}: Document Attachments -->
-            <div class="mb-5">
+            <div class="mb-5 form-section" data-step="{% if custom_fields %}6{% else %}5{% endif %}">
               <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
                 <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">{% if custom_fields %}6{% else %}5{% endif %}</div>
                 <h5 class="fw-bold mb-0 text-dark">Required Supporting Documents</h5>
@@ -249,7 +284,7 @@
               <div class="alert alert-info border-0 rounded-3 py-2 px-3 mb-4 d-flex align-items-center gap-2 small">
                 <i class="fa-solid fa-circle-info text-primary flex-shrink-0"></i>
                 <div>
-                  Accepted formats: <strong class="text-dark">PDF (.pdf)</strong> and <strong class="text-dark">PNG (.png)</strong> (or JPG for photos). Maximum size: <strong class="text-dark">5 MB</strong> per file. All uploads are strictly scanned and verified before saving.
+                  Accepted formats: <strong class="text-dark">PDF (.pdf)</strong> and <strong class="text-dark">PNG (.png)</strong> (or JPG for photos). Maximum size: <strong class="text-dark">5 MB</strong> per file. Uploaded documents are saved immediately to your cloud application draft.
                 </div>
               </div>
 
@@ -291,7 +326,7 @@
                           <div class="d-flex align-items-center gap-2 overflow-hidden">
                             <i class="fa-solid fa-circle-check text-success fs-5 flex-shrink-0"></i>
                             <div class="overflow-hidden">
-                              <p class="mb-0 fw-bold text-dark text-truncate file-name-display small" style="max-width: 180px;">{{ draft_documents.kcse_document.original_name|default:'kcse_document.pdf' }}</p>
+                              <p class="mb-0 fw-bold text-dark text-truncate file-name-display small" style="max-width: 180px;">{{ draft_documents.kcse_document.file_name|default:'kcse_document.pdf' }}</p>
                               <span class="badge bg-success text-white" style="font-size: 0.68rem;">✓ Saved to Application (<span class="file-size-display">{{ draft_documents.kcse_document.file_size_formatted|default:'' }}</span>)</span>
                             </div>
                           </div>
@@ -302,7 +337,7 @@
                       </div>
                     </div>
 
-                    <!-- Client-side / Server-side Validation Error -->
+                    <!-- Validation Error -->
                     <div class="error-msg alert alert-danger py-1 px-2 mt-2 mb-0 small rounded-2 d-none"></div>
                   </div>
                 </div>
@@ -344,7 +379,7 @@
                           <div class="d-flex align-items-center gap-2 overflow-hidden">
                             <i class="fa-solid fa-circle-check text-success fs-5 flex-shrink-0"></i>
                             <div class="overflow-hidden">
-                              <p class="mb-0 fw-bold text-dark text-truncate file-name-display small" style="max-width: 180px;">{{ draft_documents.id_document.original_name|default:'id_document.pdf' }}</p>
+                              <p class="mb-0 fw-bold text-dark text-truncate file-name-display small" style="max-width: 180px;">{{ draft_documents.id_document.file_name|default:'id_document.pdf' }}</p>
                               <span class="badge bg-success text-white" style="font-size: 0.68rem;">✓ Saved to Application (<span class="file-size-display">{{ draft_documents.id_document.file_size_formatted|default:'' }}</span>)</span>
                             </div>
                           </div>
@@ -397,7 +432,7 @@
                           <div class="d-flex align-items-center gap-2 overflow-hidden">
                             <i class="fa-solid fa-circle-check text-success fs-5 flex-shrink-0"></i>
                             <div class="overflow-hidden">
-                              <p class="mb-0 fw-bold text-dark text-truncate file-name-display small" style="max-width: 180px;">{{ draft_documents.passport_photo.original_name|default:'photo.png' }}</p>
+                              <p class="mb-0 fw-bold text-dark text-truncate file-name-display small" style="max-width: 180px;">{{ draft_documents.passport_photo.file_name|default:'photo.png' }}</p>
                               <span class="badge bg-success text-white" style="font-size: 0.68rem;">✓ Saved to Application (<span class="file-size-display">{{ draft_documents.passport_photo.file_size_formatted|default:'' }}</span>)</span>
                             </div>
                           </div>
@@ -450,7 +485,7 @@
                           <div class="d-flex align-items-center gap-2 overflow-hidden">
                             <i class="fa-solid fa-circle-check text-success fs-5 flex-shrink-0"></i>
                             <div class="overflow-hidden">
-                              <p class="mb-0 fw-bold text-dark text-truncate file-name-display small" style="max-width: 180px;">{{ draft_documents.other_document.original_name|default:'other_doc.pdf' }}</p>
+                              <p class="mb-0 fw-bold text-dark text-truncate file-name-display small" style="max-width: 180px;">{{ draft_documents.other_document.file_name|default:'other_doc.pdf' }}</p>
                               <span class="badge bg-success text-white" style="font-size: 0.68rem;">✓ Saved to Application (<span class="file-size-display">{{ draft_documents.other_document.file_size_formatted|default:'' }}</span>)</span>
                             </div>
                           </div>
@@ -483,7 +518,7 @@
                 <i class="fa-solid fa-arrow-left me-1"></i> Back to Home
               </a>
               <button type="submit" id="submitApplicationBtn" class="btn btn-primary px-5 py-2.5 rounded-pill fw-semibold shadow-sm">
-                Save Application &amp; Continue <i class="fa-solid fa-arrow-right ms-1"></i>
+                Submit Application &amp; Continue <i class="fa-solid fa-arrow-right ms-1"></i>
               </button>
             </div>
 
@@ -495,19 +530,55 @@
   </div>
 </div>
 
+<!-- Initial Serialized Draft State for Zero-Latency Hydration -->
+<script id="initialDraftState" type="application/json">{{ draft_state_json|safe }}</script>
+
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    // Configuration & Endpoints
     const ALLOWED_EXTENSIONS = ['.pdf', '.png', '.jpg', '.jpeg'];
     const ALLOWED_MIMES = ['application/pdf', 'image/png', 'image/jpeg', 'image/pjpeg'];
     const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
-    const submitBtn = document.getElementById('submitApplicationBtn');
-    const documentCards = document.querySelectorAll('.document-card');
+    const autoSaveUrl = "{% url 'university:admissions_api_save_draft' %}";
+    const getDraftUrl = "{% url 'university:admissions_api_get_draft' %}";
+    const submitUrl = "{% url 'university:admissions_api_submit' %}";
     const uploadUrl = "{% url 'university:admissions_upload_document' %}";
     const removeUrl = "{% url 'university:admissions_remove_document' %}";
     const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
 
+    // UI Elements
+    const form = document.getElementById('admissionsApplicationForm');
+    const submitBtn = document.getElementById('submitApplicationBtn');
+    const saveBadge = document.getElementById('saveBadge');
+    const saveStatusText = document.getElementById('saveStatusText');
+    const saveTimestamp = document.getElementById('saveTimestamp');
+    const manualRetryBtn = document.getElementById('manualRetryBtn');
+    const progressBar = document.getElementById('completionProgressBar');
+    const progressText = document.getElementById('completionPercentageText');
+    const documentCards = document.querySelectorAll('.document-card');
+
+    // Engine State
+    let isHydrating = true;
+    let autoSaveTimer = null;
+    let pendingSaveController = null;
     let activeUploadsCount = 0;
+    let offlineQueue = null;
+    let currentVersion = {{ draft_version|default:1 }};
+    let currentStep = {{ draft_step|default:1 }};
+
+    // Parse initial server-injected state
+    let draftData = {};
+    try {
+        const rawJson = document.getElementById('initialDraftState')?.textContent;
+        if (rawJson) {
+            draftData = JSON.parse(rawJson);
+            currentVersion = draftData.version || currentVersion;
+            currentStep = draftData.step || currentStep;
+        }
+    } catch (e) {
+        console.warn('Could not parse initial draft JSON:', e);
+    }
 
     function formatBytes(bytes) {
         if (!bytes || bytes < 0) return '0 B';
@@ -516,6 +587,243 @@ document.addEventListener('DOMContentLoaded', () => {
         return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
     }
 
+    function formatTime(dateObj = new Date()) {
+        return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // Update Status Badge UI
+    function setBadgeState(state, customMsg = '', extra = {}) {
+        if (!saveBadge || !saveStatusText) return;
+
+        saveBadge.classList.remove('bg-success', 'bg-warning', 'bg-danger', 'bg-info', 'bg-primary', 'text-dark', 'text-white');
+        if (manualRetryBtn) manualRetryBtn.classList.add('d-none');
+
+        if (state === 'saving') {
+            saveBadge.classList.add('bg-light', 'text-primary', 'border');
+            saveStatusText.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Auto-saving…';
+            if (saveTimestamp) saveTimestamp.textContent = '';
+        } else if (state === 'saved') {
+            saveBadge.classList.add('bg-success', 'text-white');
+            saveStatusText.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i> All changes saved';
+            if (saveTimestamp) saveTimestamp.textContent = '(' + (extra.time || formatTime()) + ')';
+        } else if (state === 'offline') {
+            saveBadge.classList.add('bg-warning', 'text-dark');
+            saveStatusText.innerHTML = '<i class="fa-solid fa-wifi-slash me-1"></i> Offline • Queued';
+            if (saveTimestamp) saveTimestamp.textContent = '';
+        } else if (state === 'failed') {
+            saveBadge.classList.add('bg-danger', 'text-white');
+            saveStatusText.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-1"></i> ' + (customMsg || 'Save failed');
+            if (saveTimestamp) saveTimestamp.textContent = '';
+            if (manualRetryBtn) manualRetryBtn.classList.remove('d-none');
+        } else if (state === 'active') {
+            saveBadge.classList.add('bg-success', 'text-white');
+            saveStatusText.innerHTML = '<i class="fa-solid fa-cloud me-1"></i> Auto-save active';
+            if (saveTimestamp) saveTimestamp.textContent = '';
+        }
+    }
+
+    function updateProgress(percentage) {
+        if (percentage !== undefined && progressBar && progressText) {
+            const p = Math.max(0, Math.min(100, parseInt(percentage, 10)));
+            progressBar.style.width = p + '%';
+            progressBar.setAttribute('aria-valuenow', p);
+            progressText.textContent = p + '% Completed';
+        }
+    }
+
+    // Collect all form values safely without destroying server data with blanks
+    function collectFormData() {
+        const formData = new FormData(form);
+        const payload = {};
+        for (let [key, val] of formData.entries()) {
+            if (key === 'csrfmiddlewaretoken' || key.endsWith('_document') || key === 'file') continue;
+            payload[key] = typeof val === 'string' ? val.trim() : val;
+        }
+        // Handle checkbox
+        const emergencyCb = document.getElementById('is_guardian_emergency_contact');
+        if (emergencyCb) {
+            payload['is_guardian_emergency_contact'] = emergencyCb.checked;
+        }
+        return payload;
+    }
+
+    // Hydrate form inputs from server draft state
+    function hydrateForm(state) {
+        if (!state || !state.fields) return;
+        isHydrating = true;
+        const fields = state.fields;
+
+        for (const [key, val] of Object.entries(fields)) {
+            if (val === null || val === undefined) continue;
+            const input = form.elements[key] || document.getElementById('field_' + key);
+            if (input) {
+                if (input.type === 'checkbox') {
+                    input.checked = Boolean(val);
+                } else if (input.type === 'radio') {
+                    const r = form.querySelector(`input[name="${key}"][value="${val}"]`);
+                    if (r) r.checked = true;
+                } else if (input.tagName === 'SELECT') {
+                    input.value = String(val);
+                } else {
+                    input.value = String(val);
+                }
+            }
+        }
+
+        // Hydrate uploaded documents
+        if (state.documents) {
+            for (const [docKey, docInfo] of Object.entries(state.documents)) {
+                if (docInfo && docInfo.uploaded) {
+                    const card = document.querySelector(`.document-card[data-type="${docKey}"]`);
+                    if (card) {
+                        card.classList.add('is-uploaded');
+                        const idleState = card.querySelector('.idle-state');
+                        const savedState = card.querySelector('.saved-state');
+                        const nameDisp = card.querySelector('.file-name-display');
+                        const sizeDisp = card.querySelector('.file-size-display');
+                        if (idleState) idleState.classList.add('d-none');
+                        if (savedState) savedState.classList.remove('d-none');
+                        if (nameDisp) nameDisp.textContent = docInfo.file_name || 'document.pdf';
+                        if (sizeDisp) sizeDisp.textContent = docInfo.file_size_formatted || '';
+                    }
+                }
+            }
+        }
+
+        updateProgress(state.completion_percentage);
+        setBadgeState('saved', '', { time: formatTime() });
+
+        setTimeout(() => {
+            isHydrating = false;
+        }, 150);
+    }
+
+    // Auto-Save Execution Engine
+    async function executeAutoSave(step = currentStep) {
+        if (isHydrating) return;
+
+        if (!navigator.onLine) {
+            offlineQueue = { data: collectFormData(), step: step, version: currentVersion };
+            setBadgeState('offline');
+            return;
+        }
+
+        // Abort previous in-flight save request if newer changes occurred
+        if (pendingSaveController) {
+            pendingSaveController.abort();
+        }
+        pendingSaveController = new AbortController();
+
+        setBadgeState('saving');
+        const payloadData = collectFormData();
+
+        try {
+            const response = await fetch(autoSaveUrl, {
+                method: 'POST',
+                body: JSON.stringify({
+                    step: step,
+                    version: currentVersion,
+                    data: payloadData,
+                }),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                signal: pendingSaveController.signal,
+            });
+
+            const resData = await response.json();
+
+            if (response.status === 409 && resData.conflict) {
+                // Optimistic lock conflict: reconcile with newest server version
+                console.warn('Draft conflict resolved with server state:', resData);
+                currentVersion = resData.server_version || (currentVersion + 1);
+                if (resData.current_state) {
+                    hydrateForm(resData.current_state);
+                }
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(resData.error || 'Server rejected auto-save update.');
+            }
+
+            // Success
+            currentVersion = resData.version || (currentVersion + 1);
+            if (resData.step) currentStep = resData.step;
+            updateProgress(resData.completion_percentage);
+            setBadgeState('saved', '', { time: formatTime() });
+            offlineQueue = null;
+
+        } catch (err) {
+            if (err.name === 'AbortError') {
+                // Ignore aborted requests because a newer request replaced it
+                return;
+            }
+            console.error('Auto-save error:', err);
+            if (!navigator.onLine) {
+                offlineQueue = { data: payloadData, step: step, version: currentVersion };
+                setBadgeState('offline');
+            } else {
+                setBadgeState('failed', err.message || 'Auto-save failed');
+            }
+        } finally {
+            pendingSaveController = null;
+        }
+    }
+
+    // Trigger debounced auto-save (700ms for text inputs)
+    function scheduleAutoSave(immediate = false) {
+        if (isHydrating) return;
+        if (autoSaveTimer) clearTimeout(autoSaveTimer);
+
+        if (immediate) {
+            executeAutoSave();
+        } else {
+            setBadgeState('saving');
+            autoSaveTimer = setTimeout(() => {
+                executeAutoSave();
+            }, 700);
+        }
+    }
+
+    // Attach form input listeners
+    const textInputs = form.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"], input[type="number"], textarea');
+    textInputs.forEach(input => {
+        input.addEventListener('input', () => scheduleAutoSave(false));
+        input.addEventListener('blur', () => scheduleAutoSave(true));
+    });
+
+    const choiceInputs = form.querySelectorAll('select, input[type="date"], input[type="checkbox"], input[type="radio"]');
+    choiceInputs.forEach(input => {
+        input.addEventListener('change', () => scheduleAutoSave(true));
+    });
+
+    // Manual Retry Button
+    if (manualRetryBtn) {
+        manualRetryBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            executeAutoSave();
+        });
+    }
+
+    // Offline / Online Network Listeners
+    window.addEventListener('online', () => {
+        if (offlineQueue) {
+            setBadgeState('saving');
+            executeAutoSave(offlineQueue.step || currentStep);
+        } else {
+            setBadgeState('saved', '', { time: formatTime() });
+        }
+    });
+
+    window.addEventListener('offline', () => {
+        offlineQueue = { data: collectFormData(), step: currentStep, version: currentVersion };
+        setBadgeState('offline');
+    });
+
+    // Document Upload & Persistence Logic
     function checkUploadsState() {
         if (activeUploadsCount > 0) {
             if (submitBtn) {
@@ -525,7 +833,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             if (submitBtn) {
                 submitBtn.disabled = false;
-                submitBtn.innerHTML = 'Submit Application <i class="fa-solid fa-paper-plane ms-1"></i>';
+                submitBtn.innerHTML = 'Submit Application &amp; Continue <i class="fa-solid fa-arrow-right ms-1"></i>';
             }
         }
     }
@@ -543,62 +851,63 @@ document.addEventListener('DOMContentLoaded', () => {
         const replaceBtn = card.querySelector('.btn-replace');
         const docType = card.getAttribute('data-type');
 
-        // Drag & drop highlight
         ['dragenter', 'dragover'].forEach(eventName => {
-            dropZone.addEventListener(eventName, (e) => {
+            dropZone?.addEventListener(eventName, (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 dropZone.classList.add('border-primary', 'bg-primary-subtle');
             });
         });
         ['dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, (e) => {
+            dropZone?.addEventListener(eventName, (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 dropZone.classList.remove('border-primary', 'bg-primary-subtle');
             });
         });
 
-        dropZone.addEventListener('drop', (e) => {
+        dropZone?.addEventListener('drop', (e) => {
             const dt = e.dataTransfer;
             if (dt && dt.files && dt.files.length > 0) {
                 handleFile(dt.files[0]);
             }
         });
 
-        // Trigger file select
-        dropZone.addEventListener('click', (e) => {
+        dropZone?.addEventListener('click', (e) => {
             if (!e.target.closest('.btn-replace')) {
                 fileInput.click();
             }
         });
 
-        fileInput.addEventListener('change', () => {
+        fileInput?.addEventListener('change', () => {
             if (fileInput.files.length > 0) {
                 handleFile(fileInput.files[0]);
             }
         });
 
         function showError(msg) {
-            errorMsg.textContent = msg;
-            errorMsg.classList.remove('d-none');
-            idleState.classList.remove('d-none');
-            processingState.classList.add('d-none');
-            savedState.classList.add('d-none');
+            if (errorMsg) {
+                errorMsg.textContent = msg;
+                errorMsg.classList.remove('d-none');
+            }
+            if (idleState) idleState.classList.remove('d-none');
+            if (processingState) processingState.classList.add('d-none');
+            if (savedState) savedState.classList.add('d-none');
             card.classList.remove('is-uploaded');
             activeUploadsCount = Math.max(0, activeUploadsCount - 1);
             checkUploadsState();
         }
 
         function clearError() {
-            errorMsg.textContent = '';
-            errorMsg.classList.add('d-none');
+            if (errorMsg) {
+                errorMsg.textContent = '';
+                errorMsg.classList.add('d-none');
+            }
         }
 
         function handleFile(file) {
             clearError();
 
-            // 1. Strict Size Check (5MB)
             if (file.size > MAX_FILE_SIZE_BYTES) {
                 showError('File exceeds 5MB limit (' + formatBytes(file.size) + '). Please compress or choose a smaller file.');
                 return;
@@ -608,26 +917,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // 2. Strict Extension Check (.pdf, .png, .jpg, .jpeg)
             const ext = '.' + file.name.split('.').pop().toLowerCase();
             if (!ALLOWED_EXTENSIONS.includes(ext)) {
                 showError('Invalid file type (' + ext + '). Only standard PDF (.pdf) and PNG (.png) documents are permitted.');
                 return;
             }
 
-            // 3. Strict MIME Check
             if (file.type && !ALLOWED_MIMES.includes(file.type.toLowerCase())) {
                 showError('Invalid content type (' + file.type + '). Ensure you upload a genuine PDF or PNG document.');
                 return;
             }
 
-            // 4. Multi-Stage Visual Flow (Selecting -> Uploading -> Processing -> Saving -> Saved)
             activeUploadsCount++;
             checkUploadsState();
 
-            idleState.classList.add('d-none');
-            savedState.classList.add('d-none');
-            processingState.classList.remove('d-none');
+            if (idleState) idleState.classList.add('d-none');
+            if (savedState) savedState.classList.add('d-none');
+            if (processingState) processingState.classList.remove('d-none');
             if (statusText) statusText.textContent = 'Uploading ' + file.name + '…';
 
             const formData = new FormData();
@@ -637,7 +943,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             setTimeout(() => {
                 if (statusText) statusText.textContent = 'Processing & Verifying file…';
-            }, 350);
+            }, 300);
 
             fetch(uploadUrl, {
                 method: 'POST',
@@ -656,27 +962,28 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(data => {
                 if (statusText) statusText.textContent = 'Saving document…';
                 setTimeout(() => {
-                    processingState.classList.add('d-none');
-                    savedState.classList.remove('d-none');
+                    if (processingState) processingState.classList.add('d-none');
+                    if (savedState) savedState.classList.remove('d-none');
                     if (fileNameDisplay) fileNameDisplay.textContent = data.file_name || file.name;
                     if (fileSizeDisplay) fileSizeDisplay.textContent = data.file_size_formatted || formatBytes(file.size);
                     card.classList.add('is-uploaded');
                     activeUploadsCount = Math.max(0, activeUploadsCount - 1);
                     checkUploadsState();
-                }, 250);
+                    if (data.version) currentVersion = data.version;
+                    if (data.completion_percentage !== undefined) updateProgress(data.completion_percentage);
+                    setBadgeState('saved', '', { time: formatTime() });
+                }, 200);
             })
             .catch(err => {
                 showError(err.message || 'Error uploading file.');
             });
         }
 
-        // Replace Button
         if (replaceBtn) {
             replaceBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                fileInput.value = '';
+                if (fileInput) fileInput.value = '';
                 
-                // Call remove endpoint
                 const formData = new FormData();
                 formData.append('document_type', docType);
                 formData.append('csrfmiddlewaretoken', csrfToken);
@@ -684,16 +991,59 @@ document.addEventListener('DOMContentLoaded', () => {
                     method: 'POST',
                     body: formData,
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                }).catch(() => {});
+                })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.version) currentVersion = d.version;
+                    if (d.completion_percentage !== undefined) updateProgress(d.completion_percentage);
+                })
+                .catch(() => {});
 
-                savedState.classList.add('d-none');
-                idleState.classList.remove('d-none');
+                if (savedState) savedState.classList.add('d-none');
+                if (idleState) idleState.classList.remove('d-none');
                 card.classList.remove('is-uploaded');
                 clearError();
                 checkUploadsState();
             });
         }
     });
+
+    // Form Submission Intercept
+    form.addEventListener('submit', async (e) => {
+        if (activeUploadsCount > 0) {
+            e.preventDefault();
+            alert('Please wait for document uploads to complete before submitting.');
+            return;
+        }
+
+        const declaration = document.getElementById('declaration');
+        if (declaration && !declaration.checked) {
+            e.preventDefault();
+            alert('Please accept the certification declaration before submitting your application.');
+            declaration.focus();
+            return;
+        }
+    });
+
+    // Initial Hydration Execution
+    if (draftData && draftData.fields) {
+        hydrateForm(draftData);
+    } else {
+        // Fallback fetch
+        fetch(getDraftUrl, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.success && res.draft) {
+                hydrateForm(res.draft);
+            }
+        })
+        .catch(err => console.warn('Draft hydration fetch error:', err))
+        .finally(() => {
+            isHydrating = false;
+        });
+    }
 });
 </script>
 {% endblock %}
