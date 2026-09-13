@@ -29,6 +29,7 @@ from . import monitoring_views
 from . import job_views
 from . import security_testing_views
 from . import signature_config_views
+from . import institution_domain_views
 
 app_name = "university"
 
@@ -367,8 +368,11 @@ urlpatterns = [
     path("system-admin/go-live/issues/<int:pk>/delete/", golive_views.golive_issue_delete, name="golive_issue_delete"),
     path("system-admin/security-compliance/", security_compliance_views.security_compliance_dashboard, name="security_compliance_dashboard"),
 
-    # System Administration — Admin Setups
+    # System Administration — Admin Setups & Institutional Identity
     path("manage/setups/", setups_views.admin_setups_dashboard, name="admin_setups_dashboard"),
+    path("manage/setups/institution/", institution_domain_views.institution_domain_settings, name="admin_institution_settings"),
+    path("manage/setups/institution/preview/", institution_domain_views.api_preview_domain_migration, name="api_preview_domain_migration"),
+    path("manage/setups/institution/migrate/", institution_domain_views.execute_domain_migration_view, name="execute_domain_migration"),
     path("manage/setups/<str:category>/update/", setups_views.admin_setups_update, name="admin_setups_update"),
 
     # Granular Roles, Permissions & Staff User Overrides

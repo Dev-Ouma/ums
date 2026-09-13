@@ -42,13 +42,20 @@ def theme_and_notifications(request):
     )
     registry = get_cached_module_registry()
 
+    from university.institution_domain_services import get_institution_settings
+    inst_settings = get_institution_settings()
+
     return {
         "theme": theme,
         "notice_count": unread,
         "ROLE_THEMES": ROLE_THEMES,
         "Role": Role,
-        "brand_name": "University Management System",
-        "brand_short": "UMS",
+        "brand_name": inst_settings.get("institution_name", "University Management System"),
+        "brand_short": inst_settings.get("institution_short_name", "UMS"),
+        "institution_settings": inst_settings,
+        "primary_domain": inst_settings.get("primary_domain", "ums.ac.ke"),
+        "staff_email_domain": inst_settings.get("staff_email_domain", "ums.ac.ke"),
+        "student_email_domain": inst_settings.get("student_email_domain", "students.ums.ac.ke"),
         "asset_version": _asset_version() if settings.DEBUG else _STATIC_ASSET_VERSION,
         "active_modules": registry["active_module_codes"],
         "active_submodules": registry["active_submodule_codes"],

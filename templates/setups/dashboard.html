@@ -52,6 +52,7 @@
       <div class="card border-0 shadow-sm rounded-4 p-3 bg-light">
         <h6 class="fw-bold small text-muted text-uppercase mb-2">Entity Catalogs</h6>
         <div class="d-flex flex-column gap-1 small">
+          <a href="{% url 'university:admin_institution_settings' %}" class="text-decoration-none text-dark py-1 fw-bold"><i class="fa-solid fa-globe text-primary me-2"></i>University Identity & Domains</a>
           <a href="{% url 'university:staff_permissions_dashboard' %}" class="text-decoration-none text-dark py-1 fw-bold"><i class="fa-solid fa-user-shield text-primary me-2"></i>Staff Roles & Overrides</a>
           <a href="{% url 'university:admin_departments' %}" class="text-decoration-none text-dark py-1"><i class="fa-solid fa-building-columns text-primary me-2"></i>Departments & Programmes</a>
           <a href="{% url 'university:admin_courses' %}" class="text-decoration-none text-dark py-1"><i class="fa-solid fa-book text-primary me-2"></i>Course Catalog</a>

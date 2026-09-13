@@ -12,6 +12,7 @@ from accounts.models import Role
 from university.models import Application, Intake, Program, ApplicationFeePayment, AuditLog
 from university.audit_services import log_activity
 from university.settings_services import get_setting
+from university.institution_domain_services import get_institution_settings
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -108,7 +109,7 @@ def _send_applicant_otp_email(email: str, name: str, otp_code: str):
         send_mail(
             subject=subject,
             message=message,
-            from_email=settings.DEFAULT_FROM_EMAIL or "admissions@ums.ac.ke",
+            from_email=settings.DEFAULT_FROM_EMAIL or get_institution_settings().get("admissions_email", "admissions@ums.ac.ke"),
             recipient_list=[email],
             fail_silently=True,
         )
