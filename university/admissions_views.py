@@ -13,6 +13,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from decimal import Decimal, InvalidOperation
+import json
 import re
 import os
 import uuid
@@ -32,6 +33,14 @@ from university.applicant_auth_services import (
     register_applicant,
     verify_applicant_otp,
     get_applicant_active_application,
+)
+from university.admissions_draft_services import (
+    get_or_create_applicant_draft,
+    update_applicant_draft,
+    calculate_completion_percentage,
+    serialize_draft_state,
+    validate_and_submit_application,
+    get_draft_documents_metadata,
 )
 from university.models import (
     AcademicYear, Application, ApplicationAttachment,
@@ -89,8 +98,8 @@ def format_file_size(size_bytes):
 @require_POST
 def upload_admission_document(request):
     """
-    Asynchronously uploads, strictly validates (PDF, PNG, JPG), and temporarily saves
-    an admission supporting document into the applicant's session draft storage.
+    Asynchronously uploads, strictly validates (PDF, PNG, JPG), and saves
+    an admission supporting document into the applicant's draft storage and DB attachment.
     """
     doc_type = request.POST.get("document_type", "").strip()
     valid_doc_types = {
@@ -129,6 +138,9 @@ def upload_admission_document(request):
         request.session.save()
     session_key = request.session.session_key
 
+    # Get active draft Application
+    draft = get_or_create_applicant_draft(request)
+
     # Store file in draft storage
     ext = os.path.splitext(uploaded.name)[1].lower()
     safe_name = f"{doc_type}_{uuid.uuid4().hex[:10]}{ext}"
@@ -157,6 +169,38 @@ def upload_admission_document(request):
     request.session["draft_application_documents"] = draft_docs
     request.session.modified = True
 
+    # Persist directly to draft ApplicationAttachment
+    doc_type_mapping = {
+        "kcse_document": ApplicationAttachment.DocType.KCSE_CERTIFICATE,
+        "id_document": ApplicationAttachment.DocType.NATIONAL_ID,
+        "passport_photo": ApplicationAttachment.DocType.PASSPORT_PHOTO,
+        "other_document": ApplicationAttachment.DocType.OTHER,
+    }
+    model_doc_type = doc_type_mapping.get(doc_type)
+    if model_doc_type and draft:
+        existing_att = draft.attachments.filter(document_type=model_doc_type).first()
+        uploaded.seek(0)
+        if existing_att:
+            existing_att.file = uploaded
+            existing_att.file_name = uploaded.name
+            existing_att.file_size = uploaded.size
+            existing_att.mime_type = uploaded.content_type or "application/octet-stream"
+            existing_att.save()
+        else:
+            ApplicationAttachment.objects.create(
+                application=draft,
+                document_type=model_doc_type,
+                name=valid_doc_types[doc_type],
+                file=uploaded,
+                file_name=uploaded.name,
+                file_size=uploaded.size,
+                mime_type=uploaded.content_type or "application/octet-stream",
+                verification_status=ApplicationAttachment.VerificationStatus.PENDING,
+                is_visible_to_student=True,
+            )
+        draft.draft_version += 1
+        draft.save(update_fields=["draft_version", "updated_at"])
+
     return JsonResponse({
         "success": True,
         "message": f"{valid_doc_types[doc_type]} uploaded and verified successfully.",
@@ -164,12 +208,14 @@ def upload_admission_document(request):
         "file_name": uploaded.name,
         "file_size": uploaded.size,
         "file_size_formatted": format_file_size(uploaded.size),
+        "version": draft.draft_version if draft else 1,
+        "completion_percentage": calculate_completion_percentage(draft, request) if draft else 0,
     })
 
 
 @require_POST
 def remove_admission_document(request):
-    """Removes a previously saved draft document from the session and storage."""
+    """Removes a previously saved draft document from the session, storage, and draft attachments."""
     doc_type = request.POST.get("document_type", "").strip()
     draft_docs = request.session.get("draft_application_documents", {})
     if doc_type in draft_docs:
@@ -183,7 +229,116 @@ def remove_admission_document(request):
         del draft_docs[doc_type]
         request.session["draft_application_documents"] = draft_docs
         request.session.modified = True
-    return JsonResponse({"success": True, "message": "Document removed successfully."})
+
+    draft = get_or_create_applicant_draft(request)
+    doc_type_mapping = {
+        "kcse_document": ApplicationAttachment.DocType.KCSE_CERTIFICATE,
+        "id_document": ApplicationAttachment.DocType.NATIONAL_ID,
+        "passport_photo": ApplicationAttachment.DocType.PASSPORT_PHOTO,
+        "other_document": ApplicationAttachment.DocType.OTHER,
+    }
+    model_doc_type = doc_type_mapping.get(doc_type)
+    if model_doc_type and draft:
+        draft.attachments.filter(document_type=model_doc_type).delete()
+        draft.draft_version += 1
+        draft.save(update_fields=["draft_version", "updated_at"])
+
+    return JsonResponse({
+        "success": True,
+        "message": "Document removed successfully.",
+        "document_type": doc_type,
+        "version": draft.draft_version if draft else 1,
+        "completion_percentage": calculate_completion_percentage(draft, request) if draft else 0,
+    })
+
+
+def api_get_draft(request):
+    """
+    GET /api/admissions/draft/ or /admissions/api/draft/
+    Returns the active application draft, saved step, completion percentage,
+    and metadata for already uploaded documents.
+    """
+    draft = get_or_create_applicant_draft(request)
+    state = serialize_draft_state(draft, request=request)
+    return JsonResponse({"success": True, "draft": state})
+
+
+@require_POST
+def api_save_draft(request):
+    """
+    PATCH/POST /api/admissions/draft/ or /admissions/api/draft/
+    Accepts partial field updates with optimistic locking and tenant isolation.
+    """
+    draft = get_or_create_applicant_draft(request)
+
+    payload = {}
+    step = None
+    client_version = None
+
+    if request.content_type == "application/json" or (request.body and not request.POST):
+        try:
+            body_data = json.loads(request.body.decode("utf-8"))
+            if isinstance(body_data, dict):
+                step = body_data.get("step")
+                client_version = body_data.get("version")
+                payload = body_data.get("data") if "data" in body_data else body_data
+        except (ValueError, UnicodeDecodeError):
+            payload = request.POST.dict()
+    else:
+        payload = request.POST.dict()
+        step = request.POST.get("step")
+        client_version = request.POST.get("version")
+
+    if isinstance(payload, dict):
+        if "step" in payload and step is None:
+            step = payload.pop("step", None)
+        if "version" in payload and client_version is None:
+            client_version = payload.pop("version", None)
+
+    success, res = update_applicant_draft(
+        application=draft,
+        data=payload if isinstance(payload, dict) else {},
+        step=step,
+        client_version=client_version,
+        request=request,
+    )
+
+    if not success:
+        status_code = 409 if res.get("conflict") else 400
+        return JsonResponse(res, status=status_code)
+
+    return JsonResponse(res)
+
+
+@require_POST
+def api_submit_application(request):
+    """
+    POST /api/admissions/submit/ or /admissions/api/submit/
+    Runs strict validation across all sections and transitions status to READY_FOR_PAYMENT.
+    """
+    draft = get_or_create_applicant_draft(request)
+
+    payload = {}
+    if request.content_type == "application/json" or (request.body and not request.POST):
+        try:
+            body_data = json.loads(request.body.decode("utf-8"))
+            if isinstance(body_data, dict):
+                payload = body_data.get("data", body_data)
+        except Exception:
+            payload = request.POST.dict()
+    else:
+        payload = request.POST.dict()
+
+    success, res = validate_and_submit_application(
+        application=draft,
+        payload=payload if isinstance(payload, dict) else {},
+        request=request,
+    )
+
+    if not success:
+        return JsonResponse(res, status=400)
+
+    return JsonResponse(res)
 
 
 def applicant_register(request):
@@ -283,251 +438,77 @@ def applicant_dashboard(request):
 
 
 def apply(request):
-    """Prospective student application form with Guardian Details & authenticated applicant support."""
+    """
+    Prospective student application form with real-time draft auto-save & state recovery.
+    Hydrates existing draft data on load and delegates strict validation on submission.
+    """
     active_intake = Intake.objects.filter(is_active=True).first()
     programs = Program.objects.filter(status=Program.Status.ACTIVE).select_related("department")
     custom_fields = ApplicationCustomField.objects.filter(is_active=True)
-    draft_docs = request.session.get("draft_application_documents", {})
-
-    # Prepopulate for authenticated applicant
-    initial_data = {}
-    if request.user.is_authenticated:
-        initial_data = {
-            "first_name": request.user.first_name,
-            "last_name": request.user.last_name,
-            "email": request.user.email,
-            "phone": request.user.phone if request.user.phone != "0000" else "",
-        }
 
     if request.method == "POST":
-        errors = []
-        program_id = request.POST.get("program")
-        program = Program.objects.filter(pk=program_id, status=Program.Status.ACTIVE).first()
-        if not program:
-            errors.append("Please select a valid programme of study.")
+        user = request.user if request.user.is_authenticated else None
+        session_key = request.session.session_key
+        draft = None
+        if user and getattr(user, "role", "") in (Role.APPLICANT, Role.STUDENT, ""):
+            draft = Application.objects.filter(applicant_user=user, status__in=[Application.Status.DRAFT, Application.Status.IN_PROGRESS]).first()
+        elif session_key:
+            draft = Application.objects.filter(session_key=session_key, status__in=[Application.Status.DRAFT, Application.Status.IN_PROGRESS]).first()
 
-        first_name = request.POST.get("first_name", "").strip()
-        last_name = request.POST.get("last_name", "").strip()
-        email = request.POST.get("email", "").strip().lower()
-        phone = request.POST.get("phone", "").strip()
-        dob = request.POST.get("date_of_birth", "").strip()
-        gender = request.POST.get("gender", "").strip()
-        national_id = request.POST.get("national_id", "").strip()
-        address = request.POST.get("address", "").strip()
+        created_in_this_request = False
+        if not draft:
+            draft = get_or_create_applicant_draft(request)
+            created_in_this_request = True
 
-        # Guardian Details
-        guardian_name = request.POST.get("guardian_name", "").strip()
-        guardian_relationship = request.POST.get("guardian_relationship", "Parent").strip()
-        guardian_phone = request.POST.get("guardian_phone", "").strip()
-        guardian_alternative_phone = request.POST.get("guardian_alternative_phone", "").strip()
-        guardian_email = request.POST.get("guardian_email", "").strip().lower()
-        guardian_address = request.POST.get("guardian_address", "").strip()
-        guardian_country = request.POST.get("guardian_country", "Kenya").strip()
-        guardian_occupation = request.POST.get("guardian_occupation", "").strip()
-        guardian_employer = request.POST.get("guardian_employer", "").strip()
-        is_guardian_emergency = request.POST.get("is_guardian_emergency_contact") in ("on", "true", "1", True)
-
-        try:
-            parsed_dob = date.fromisoformat(dob)
-        except ValueError:
-            parsed_dob = None
-            errors.append("Enter a valid date of birth.")
-        try:
-            from django.forms import EmailField
-            EmailField().clean(email)
-        except ValidationError:
-            errors.append("Enter a valid email address.")
-        if gender not in {choice[0] for choice in Application._meta.get_field("gender").choices}:
-            errors.append("Please select a valid gender.")
-
-        # Guardian Validation
-        if "guardian_name" in request.POST or "guardian_phone" in request.POST:
-            if not guardian_name:
-                errors.append("Please provide the full name of your parent, guardian, or sponsor.")
-            if not guardian_phone:
-                errors.append("Please provide the primary contact phone number for your guardian.")
-            elif len(re.sub(r"[^0-9+]", "", guardian_phone)) < 7:
-                errors.append("Please enter a valid primary phone number for your guardian (at least 7 digits).")
+        success, res = validate_and_submit_application(
+            application=draft,
+            payload=request.POST.dict(),
+            request=request,
+        )
+        if success:
+            messages.success(
+                request,
+                f"Application saved successfully! Reference Number: {draft.application_number}. "
+                f"Please proceed to pay the application processing fee."
+            )
+            return redirect(res["redirect_url"])
         else:
-            if not guardian_name:
-                guardian_name = f"Parent of {first_name}" if first_name else "Parent / Guardian"
-            if not guardian_phone:
-                guardian_phone = phone
-
-        if guardian_email:
-            try:
-                from django.forms import EmailField
-                EmailField().clean(guardian_email)
-            except ValidationError:
-                errors.append("Enter a valid email address for your guardian.")
-
-        secondary_school = request.POST.get("secondary_school", "").strip()
-        kcse_index = request.POST.get("kcse_index_number", "").strip()
-        kcse_grade = request.POST.get("kcse_mean_grade", "C+").strip()
-        kcse_year = request.POST.get("kcse_year", "2025").strip()
-
-        if not (first_name and last_name and email and phone and dob and national_id):
-            errors.insert(0, "Please fill in all mandatory personal details.")
-
-        file_mappings = [
-            ("kcse_document", ApplicationAttachment.DocType.KCSE_CERTIFICATE, "KCSE Result Slip / Certificate"),
-            ("id_document", ApplicationAttachment.DocType.NATIONAL_ID, "National ID / Birth Certificate / Passport"),
-            ("passport_photo", ApplicationAttachment.DocType.PASSPORT_PHOTO, "Passport Size Photograph"),
-            ("other_document", ApplicationAttachment.DocType.OTHER, "Other Supporting Document"),
-        ]
-
-        # Check for any directly uploaded files that might fail validation
-        for input_name, doc_type, display_title in file_mappings:
-            uploaded = request.FILES.get(input_name)
-            if uploaded:
-                try:
-                    validate_uploaded_file(
-                        uploaded,
-                        extensions={".pdf", ".png", ".jpg", ".jpeg"},
-                        mime_types={"application/pdf", "image/png", "image/jpeg", "image/pjpeg"},
-                        max_bytes=5 * 1024 * 1024,
-                    )
-                except ValidationError as error:
-                    err_text = error.message if hasattr(error, "message") else str(error)
-                    errors.append(f"{display_title}: {err_text}")
-
-        if errors:
-            for error in errors:
+            if created_in_this_request:
+                draft.delete()
+                draft = None
+            for error in res.get("errors", []):
                 messages.error(request, error)
+            
+            session_docs = request.session.get("draft_application_documents", {})
             return render(request, "admissions/apply.html", {
                 "programs": programs,
                 "intake": active_intake,
                 "custom_fields": custom_fields,
-                "data": request.POST,
-                "draft_documents": draft_docs,
+                "draft_application": draft,
+                "draft_state_json": json.dumps({"fields": request.POST.dict(), "documents": session_docs}),
+                "draft_documents": session_docs,
                 "guardian_relationships": Application.GUARDIAN_RELATIONSHIPS,
+                "data": request.POST.dict(),
+                "draft_step": 1,
+                "completion_percentage": 0,
+                "draft_version": 1,
             })
 
-        applicant_user = request.user if request.user.is_authenticated and getattr(request.user, "role", "") in (Role.APPLICANT, Role.STUDENT) else None
-        app_num = generate_application_number(active_intake)
-        application = Application.objects.create(
-            application_number=app_num,
-            applicant_user=applicant_user,
-            intake=active_intake,
-            program=program,
-            first_name=first_name,
-            last_name=last_name,
-            email=email,
-            phone=phone,
-            date_of_birth=parsed_dob,
-            gender=gender,
-            national_id=national_id,
-            address=address,
-            guardian_name=guardian_name,
-            guardian_relationship=guardian_relationship,
-            guardian_phone=guardian_phone,
-            guardian_alternative_phone=guardian_alternative_phone,
-            guardian_email=guardian_email,
-            guardian_address=guardian_address,
-            guardian_country=guardian_country,
-            guardian_occupation=guardian_occupation,
-            guardian_employer=guardian_employer,
-            is_guardian_emergency_contact=is_guardian_emergency,
-            secondary_school=secondary_school,
-            kcse_index_number=kcse_index,
-            kcse_mean_grade=kcse_grade,
-            kcse_year=int(kcse_year) if kcse_year.isdigit() else 2025,
-            status=Application.Status.READY_FOR_PAYMENT,
-        )
-
-        # Save Custom Field Values
-        for cf in custom_fields:
-            cf_val = request.POST.get(f"custom_{cf.name}", "").strip()
-            if cf_val:
-                ApplicationCustomFieldValue.objects.create(
-                    application=application,
-                    field=cf,
-                    value=cf_val
-                )
-
-        # Process Application Attachments (from direct uploads or saved session draft documents)
-        for input_name, doc_type, display_title in file_mappings:
-            uploaded = request.FILES.get(input_name)
-            if uploaded:
-                try:
-                    validate_uploaded_file(
-                        uploaded,
-                        extensions={".pdf", ".png", ".jpg", ".jpeg"},
-                        mime_types={"application/pdf", "image/png", "image/jpeg", "image/pjpeg"},
-                        max_bytes=5 * 1024 * 1024,
-                    )
-                    ApplicationAttachment.objects.create(
-                        application=application,
-                        document_type=doc_type,
-                        name=display_title,
-                        file=uploaded,
-                        file_name=uploaded.name,
-                        file_size=uploaded.size,
-                        mime_type=uploaded.content_type or "application/octet-stream",
-                        verification_status=ApplicationAttachment.VerificationStatus.PENDING,
-                        is_visible_to_student=True,
-                    )
-                except ValidationError:
-                    pass
-            elif input_name in draft_docs:
-                d_info = draft_docs[input_name]
-                stored_path = d_info.get("file_path")
-                if stored_path and default_storage.exists(stored_path):
-                    try:
-                        with default_storage.open(stored_path, "rb") as f:
-                            content = f.read()
-                        attachment = ApplicationAttachment(
-                            application=application,
-                            document_type=doc_type,
-                            name=display_title,
-                            file_name=d_info.get("original_name", os.path.basename(stored_path)),
-                            file_size=d_info.get("file_size", len(content)),
-                            mime_type=d_info.get("mime_type", "application/pdf"),
-                            verification_status=ApplicationAttachment.VerificationStatus.PENDING,
-                            is_visible_to_student=True,
-                        )
-                        attachment.file.save(d_info.get("original_name", os.path.basename(stored_path)), ContentFile(content), save=True)
-                        try:
-                            default_storage.delete(stored_path)
-                        except Exception:
-                            pass
-                    except Exception as e:
-                        logger.error("Failed to migrate draft document %s: %s", input_name, e)
-
-        # Clear session draft documents
-        request.session.pop("draft_application_documents", None)
-        request.session.modified = True
-
-        log_activity(
-            request=request,
-            user=request.user if request.user.is_authenticated else None,
-            action=AuditLog.Action.CREATE,
-            module=AuditLog.Module.ACADEMICS,
-            entity="Application",
-            entity_id=application.pk,
-            description=f"Application {application.application_number} created with complete Guardian Details.",
-        )
-
-        messages.success(
-            request,
-            f"Application saved successfully! Reference Number: {application.application_number}. "
-            f"Please proceed to pay the application processing fee."
-        )
-
-        if request.user.is_authenticated and getattr(request.user, "role", "") in (Role.APPLICANT, Role.STUDENT):
-            return redirect(f"{reverse('university:pay_application_fee', args=[application.pk])}?access={application_access_token(application)}")
-
-        return redirect(
-            f"{reverse('university:pay_application_fee', args=[application.pk])}"
-            f"?access={application_access_token(application)}")
+    draft = get_or_create_applicant_draft(request)
+    state = serialize_draft_state(draft, request=request)
 
     return render(request, "admissions/apply.html", {
         "programs": programs,
         "intake": active_intake,
         "custom_fields": custom_fields,
-        "draft_documents": draft_docs,
+        "draft_application": draft,
+        "draft_state_json": json.dumps(state),
+        "draft_documents": state["documents"],
         "guardian_relationships": Application.GUARDIAN_RELATIONSHIPS,
-        "data": initial_data,
+        "data": state["fields"],
+        "draft_step": draft.draft_step,
+        "completion_percentage": state["completion_percentage"],
+        "draft_version": draft.draft_version,
     })
 
 
