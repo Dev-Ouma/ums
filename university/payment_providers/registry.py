@@ -9,7 +9,7 @@ def get_payment_adapter(fee_account) -> BasePaymentProviderAdapter:
     Factory function returning the provider adapter instance for a given FeeAccount.
     """
     acc_type = getattr(fee_account, "account_type", "")
-    if acc_type in ["MPESA_PAYBILL", "MPESA_TILL"]:
+    if acc_type in ["MPESA_PAYBILL", "MPESA_TILL", "POCHI_LA_BIASHARA"]:
         return MpesaProviderAdapter(fee_account)
     elif acc_type == "CARD_GATEWAY":
         return CardGatewayAdapter(fee_account)

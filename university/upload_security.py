@@ -17,15 +17,42 @@ SIGNATURES = {
 }
 
 
+DANGEROUS_EXTENSIONS = {
+    ".exe", ".bat", ".cmd", ".sh", ".bash", ".bin", ".elf", ".com", ".scr", ".msi",
+    ".php", ".php3", ".php4", ".php5", ".phtml", ".phar", ".py", ".pyw", ".rb",
+    ".pl", ".cgi", ".asp", ".aspx", ".jsp", ".jspx", ".js", ".vbs", ".wsf", ".jar",
+    ".svg", ".html", ".htm", ".xhtml", ".shtml",
+}
+
+
 def validate_uploaded_file(upload, *, extensions, mime_types=None, max_bytes=DEFAULT_MAX_BYTES):
     """Reject oversized, misleading, or executable-looking uploads."""
     if not upload:
         return
-    extension = os.path.splitext(upload.name or "")[1].lower()
+    filename = upload.name or ""
+
+    # Check for null bytes or path traversal in upload name
+    if "\x00" in filename or "/" in filename or "\\" in filename:
+        raise ValidationError("Invalid filename. Path separators and null bytes are not permitted.")
+
+    base_name, extension = os.path.splitext(filename)
+    extension = extension.lower()
     allowed_extensions = {value.lower() for value in extensions}
+
+    # Verify primary extension is allowed
     if extension not in allowed_extensions:
         ext_list = ", ".join(sorted(allowed_extensions))
         raise ValidationError(f"Unsupported file type. Only {ext_list} files are allowed.")
+
+    # Guard against double-extension exploits (e.g., shell.php.pdf, payload.exe.jpg)
+    name_parts = base_name.lower().split(".")
+    for part in name_parts:
+        candidate_ext = f".{part}"
+        if candidate_ext in DANGEROUS_EXTENSIONS:
+            raise ValidationError(
+                f"Suspicious file name detected. Files containing executable extensions like '{candidate_ext}' are prohibited."
+            )
+
     if upload.size > max_bytes:
         limit_mb = max_bytes / (1024 * 1024)
         actual_mb = upload.size / (1024 * 1024)

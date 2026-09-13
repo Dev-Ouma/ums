@@ -148,6 +148,18 @@ class FeeAccountIntegrationTestBase(TestCase):
             is_default=True,
             status=FeeAccount.Status.ACTIVE,
         )
+        cls.pochi = FeeAccount.objects.create(
+            name="Pochi la Biashara",
+            account_type=FeeAccount.AccountType.POCHI_LA_BIASHARA,
+            provider=FeeAccount.Provider.SAFARICOM,
+            account_identifier="0113636154",
+            account_name="UMS POCHI COLLECTION",
+            currency="KES",
+            environment=FeeAccount.Environment.SANDBOX,
+            is_default=True,
+            status=FeeAccount.Status.ACTIVE,
+            description="Pochi la Biashara account for direct M-Pesa fee payments.",
+        )
 
 
 class FeeAccountAdminTests(FeeAccountIntegrationTestBase):
@@ -159,6 +171,8 @@ class FeeAccountAdminTests(FeeAccountIntegrationTestBase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Main Tuition Paybill")
         self.assertContains(resp, "Online Card Portal")
+        self.assertContains(resp, "Pochi la Biashara")
+        self.assertContains(resp, "0113636154")
         self.assertContains(resp, "522123")
 
     def test_create_fee_account(self):
@@ -245,6 +259,8 @@ class StudentPayFeesViewTests(FeeAccountIntegrationTestBase):
         self.assertContains(resp, "50,000")
         self.assertContains(resp, "Main Tuition Paybill")
         self.assertContains(resp, "Online Card Portal")
+        self.assertContains(resp, "Pochi la Biashara")
+        self.assertContains(resp, "0113636154")
         self.assertContains(resp, "522123")
 
     def test_deactivated_fee_account_disappears_from_student_pay_fees(self):
@@ -275,6 +291,22 @@ class StudentPayFeesViewTests(FeeAccountIntegrationTestBase):
         self.assertEqual(payment.fee_account, self.paybill)
         self.assertEqual(payment.payer_phone, "254712345678")
         self.assertTrue(payment.internal_reference.startswith("PAY-"))
+
+    def test_student_initiates_pochi_payment(self):
+        url = reverse("university:student_initiate_payment")
+        post_data = {
+            "amount": "12000.00",
+            "fee_account_id": str(self.pochi.pk),
+            "phone": "0712345678",
+        }
+        resp = self.client.post(url, post_data)
+        self.assertEqual(resp.status_code, 302)
+
+        payment = Payment.objects.filter(student=self.student, amount=Decimal("12000.00")).first()
+        self.assertIsNotNone(payment)
+        self.assertEqual(payment.status, Payment.Status.PENDING)
+        self.assertEqual(payment.fee_account, self.pochi)
+        self.assertEqual(payment.method, "Pochi la Biashara")
 
     def test_student_payment_rejection_on_invalid_amount(self):
         url = reverse("university:student_initiate_payment")
@@ -669,5 +701,3 @@ class AdminFinanceOperationsTests(FeeAccountIntegrationTestBase):
         # 4. Student accessing /finance/ routes to student fees portal
         res_fin_student = self.client.get(reverse("university:finance"))
         self.assertRedirects(res_fin_student, reverse("university:student_fees"))
-
-

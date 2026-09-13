@@ -98,13 +98,15 @@ class AdmissionsAndFinancialTests(TestCase):
             "kcse_index_number": "12345678001",
             "kcse_mean_grade": "A-",
             "kcse_year": "2025",
+            "guardian_name": "John Doe",
+            "guardian_phone": "+254711223344",
         })
         self.assertEqual(response.status_code, 302)
 
         app = Application.objects.filter(email="kelvin@example.com").first()
         self.assertIsNotNone(app)
         self.assertTrue(app.application_number.startswith("APP-"))
-        self.assertEqual(app.status, Application.Status.SUBMITTED)
+        self.assertEqual(app.status, Application.Status.READY_FOR_PAYMENT)
 
     def test_admission_letter_generation(self):
         app = Application.objects.create(

@@ -841,8 +841,10 @@ class FeeAccount(models.Model):
     class AccountType(models.TextChoices):
         MPESA_PAYBILL = "MPESA_PAYBILL", "M-Pesa Paybill"
         MPESA_TILL = "MPESA_TILL", "M-Pesa Buy Goods / Till"
+        POCHI_LA_BIASHARA = "POCHI_LA_BIASHARA", "Pochi la Biashara"
         CARD_GATEWAY = "CARD_GATEWAY", "Card Payment Gateway"
         BANK_ACCOUNT = "BANK_ACCOUNT", "Bank Account Transfer"
+        ECITIZEN = "ECITIZEN", "eCitizen / Government Gateway"
         OTHER = "OTHER", "Other Payment Channel"
 
     class Provider(models.TextChoices):
@@ -853,6 +855,7 @@ class FeeAccount(models.Model):
         KCB = "KCB", "KCB Bank"
         COOP = "COOP", "Co-operative Bank"
         STANDARD_CHARTERED = "STANDARD_CHARTERED", "Standard Chartered"
+        ECITIZEN = "ECITIZEN", "eCitizen"
         GENERIC = "GENERIC", "Generic Payment Gateway"
 
     class Status(models.TextChoices):
@@ -1330,12 +1333,32 @@ class Application(models.Model):
     def verified_attachments_count(self):
         return self.attachments.filter(verification_status="VERIFIED").count()
 
+    @property
+    def national_id_masked(self):
+        """Return partially masked national ID for public display (e.g. '345***90')."""
+        nid = self.national_id or ""
+        if len(nid) <= 4:
+            return "*" * len(nid) if nid else ""
+        return nid[:3] + "*" * (len(nid) - 5) + nid[-2:]
+
+    @property
+    def email_masked(self):
+        """Return partially masked email for public display (e.g. 'a***@example.com')."""
+        email = self.email or ""
+        if "@" not in email:
+            return email
+        local, domain = email.rsplit("@", 1)
+        if not local:
+            return f"***@{domain}"
+        return f"{local[0]}***@{domain}"
+
 
 class ApplicationFeePayment(models.Model):
     """Records payment of the non-refundable application processing fee."""
 
     class Method(models.TextChoices):
         MPESA = "MPESA", "M-Pesa"
+        POCHI_LA_BIASHARA = "POCHI_LA_BIASHARA", "Pochi la Biashara"
         CARD = "CARD", "Debit / Credit Card"
         BANK = "BANK", "Bank Transfer"
         ECITIZEN = "ECITIZEN", "eCitizen / Government Gateway"
@@ -1349,7 +1372,7 @@ class ApplicationFeePayment(models.Model):
     applicant_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="application_fee_payments")
     receipt_number = models.CharField(max_length=60, unique=True, null=True, blank=True, db_index=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    method = models.CharField(max_length=15, choices=Method.choices, default=Method.MPESA)
+    method = models.CharField(max_length=30, choices=Method.choices, default=Method.MPESA)
     reference = models.CharField(max_length=60, help_text="Transaction / reference number from the payment channel")
     status = models.CharField(max_length=15, choices=Status.choices, default=Status.PENDING, db_index=True)
     paid_at = models.DateTimeField(default=timezone.now)
@@ -1357,6 +1380,12 @@ class ApplicationFeePayment(models.Model):
 
     class Meta:
         ordering = ["-paid_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["reference"],
+                name="unique_app_fee_payment_reference",
+            )
+        ]
 
     def __str__(self):
         return f"{self.application.application_number} · KES {self.amount} ({self.get_status_display()})"
@@ -1507,6 +1536,7 @@ class AuditLog(models.Model):
         FAILED_LOGIN = "FAILED_LOGIN", "Failed Login Attempt"
         CREATE = "CREATE", "Record Created"
         UPDATE = "UPDATE", "Record Updated"
+        EMAIL_MUTATED = "EMAIL_MUTATED", "Email Address Mutated"
         DELETE = "DELETE", "Record Deleted (Soft Delete)"
         RESTORE = "RESTORE", "Record Restored"
         PERMANENT_DELETE = "PERMANENT_DELETE", "Record Permanently Purged"

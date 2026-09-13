@@ -111,6 +111,7 @@ def logout_view(request):
     return response
 
 
+@rate_limit("signup", limit=10, window_seconds=10 * 60)
 def signup(request):
     if request.user.is_authenticated:
         return redirect("university:dashboard")
@@ -219,13 +220,24 @@ def profile_settings(request):
     active_tab = requested if requested in {"profile", "avatar", "signature", "password", "activity"} else "profile"
 
     if form_type == "profile":
+        original_email = user.email
         profile_form = ProfileForm(request.POST, instance=user, prefix="profile")
         details_form = _details_form_for(user, request.POST)
         forms_ok = profile_form.is_valid()
         if details_form is not None:
             forms_ok = details_form.is_valid() and forms_ok
         if forms_ok:
+            new_email = profile_form.cleaned_data.get("email")
             profile_form.save()
+            if original_email != new_email:
+                from university.audit_services import log_activity
+                from university.models import AuditLog
+                log_activity(
+                    request=request, user=user, action=AuditLog.Action.EMAIL_MUTATED,
+                    module=AuditLog.Module.AUTH, entity="User", entity_id=user.pk,
+                    description=f"User email updated from '{original_email}' to '{new_email}'.",
+                    new_state={"previous_email": original_email, "new_email": new_email}
+                )
             if details_form is not None:
                 details_form.save()
             messages.success(request, "Your profile has been updated.")
@@ -383,6 +395,9 @@ def password_reset_request(request):
             | Q(institutional_emails__address__iexact=identifier)
         ).distinct().first()
 
+        # Always send the same response regardless of whether the account
+        # exists — this prevents email/username enumeration. Tokens are only
+        # issued when an account with a known email is found.
         if user is not None and user.email:
             raw_token, _record = issue_reset_token(
                 user, purpose=PasswordResetToken.Purpose.RESET, request=request)

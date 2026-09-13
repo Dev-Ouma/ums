@@ -291,6 +291,62 @@ def resolve_student_from_bill_ref(bill_ref: str, fee_account=None, phone: str = 
 
 
 @csrf_exempt
+def resolve_application_from_bill_ref(bill_ref: str, phone: str = ""):
+    """
+    Resolves an Application record from an M-Pesa BillRefNumber (Account Number).
+    Handles:
+    1. Exact application number match (e.g. 'APP-2026-00001')
+    2. Normalized alphanumeric match (e.g. 'APP202600001' or '202600001')
+    3. National ID match fallback
+    4. Applicant user phone number match fallback (if pending fee payment exists)
+    """
+    from university.models import Application
+
+    if not bill_ref and not phone:
+        return None
+
+    raw = (bill_ref or "").strip()
+    if raw:
+        # 1. Exact match
+        app = Application.objects.filter(application_number__iexact=raw).first()
+        if app:
+            return app
+
+        # 2. Match with dashes normalized
+        clean_raw = re.sub(r"[^A-Za-z0-9]", "", raw).upper()
+        if clean_raw:
+            for candidate in Application.objects.filter(
+                status__in=[
+                    Application.Status.READY_FOR_PAYMENT,
+                    Application.Status.PAYMENT_PENDING,
+                    Application.Status.DRAFT,
+                    Application.Status.IN_PROGRESS,
+                ]
+            ).only("id", "application_number", "national_id"):
+                c_clean = re.sub(r"[^A-Za-z0-9]", "", candidate.application_number or "").upper()
+                if c_clean and c_clean == clean_raw:
+                    return candidate
+                if candidate.national_id and candidate.national_id.strip().upper() == clean_raw:
+                    return candidate
+
+    if phone:
+        digits = re.sub(r"[^0-9]", "", phone)
+        suffix = digits[-9:] if len(digits) >= 9 else digits
+        if suffix:
+            app = Application.objects.filter(
+                Q(phone__icontains=suffix) | Q(applicant_user__phone__icontains=suffix),
+                status__in=[
+                    Application.Status.READY_FOR_PAYMENT,
+                    Application.Status.PAYMENT_PENDING,
+                ],
+            ).order_by("-updated_at").first()
+            if app:
+                return app
+
+    return None
+
+
+@csrf_exempt
 @require_POST
 def mpesa_validation(request):
     """
@@ -440,7 +496,65 @@ def mpesa_callback(request):
             raw_payload=payload,
             request=request,
         )
-        logger.info(f"Direct C2B Paybill payment successfully credited to student {student.roll_no}. Receipt generated.")
+        return JsonResponse({"ResultCode": 0, "ResultDesc": "Accepted"})
+
+    # Check if BillRef matches a prospective student Application (Application Processing Fee)
+    application = resolve_application_from_bill_ref(bill_ref, phone=phone)
+    if application and amount > 0:
+        from university.models import Application, ApplicationFeePayment, AuditLog
+        from university.audit_services import log_activity
+        from university.settings_services import get_setting
+
+        expected_fee = get_setting("application_fee_default", default=Decimal("1000.00"))
+        receipt_no = f"APPFEE-{timezone.now().year}-{trans_id}"
+
+        # Idempotently get or create ApplicationFeePayment
+        app_fee_payment = ApplicationFeePayment.objects.filter(reference=trans_id).first()
+        if not app_fee_payment:
+            app_fee_payment = ApplicationFeePayment.objects.create(
+                application=application,
+                applicant_user=application.applicant_user,
+                receipt_number=receipt_no,
+                amount=amount,
+                method=ApplicationFeePayment.Method.MPESA,
+                reference=trans_id,
+                status=ApplicationFeePayment.Status.CONFIRMED if amount >= expected_fee else ApplicationFeePayment.Status.PENDING,
+                confirmed_at=timezone.now() if amount >= expected_fee else None,
+            )
+        else:
+            if amount >= expected_fee and app_fee_payment.status != ApplicationFeePayment.Status.CONFIRMED:
+                app_fee_payment.status = ApplicationFeePayment.Status.CONFIRMED
+                app_fee_payment.confirmed_at = timezone.now()
+                if not app_fee_payment.receipt_number:
+                    app_fee_payment.receipt_number = receipt_no
+                app_fee_payment.save(update_fields=["status", "confirmed_at", "receipt_number"])
+
+        if amount >= expected_fee:
+            if application.status in [
+                Application.Status.READY_FOR_PAYMENT,
+                Application.Status.PAYMENT_PENDING,
+                Application.Status.DRAFT,
+                Application.Status.IN_PROGRESS,
+            ]:
+                application.status = Application.Status.READY_FOR_SUBMISSION
+                application.save(update_fields=["status", "updated_at"])
+
+            log_activity(
+                request=request,
+                user=application.applicant_user,
+                action=AuditLog.Action.UPDATE,
+                module=AuditLog.Module.FEES,
+                entity="ApplicationFeePayment",
+                entity_id=app_fee_payment.pk,
+                description=(
+                    f"Direct C2B M-Pesa application fee payment confirmed for {application.application_number}. "
+                    f"TransID: {trans_id}, Amount: KES {amount:,.2f}, Receipt: {app_fee_payment.receipt_number}."
+                ),
+            )
+            logger.info(
+                f"Application fee confirmed for {application.application_number} via M-Pesa C2B callback. "
+                f"TransID: {trans_id}, Receipt: {app_fee_payment.receipt_number}"
+            )
         return JsonResponse({"ResultCode": 0, "ResultDesc": "Accepted"})
 
     # If student could not be matched, record in PaymentReconciliation for finance staff matching

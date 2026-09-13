@@ -7,9 +7,44 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Automatically load local .env if present (without overriding system env)
+_env_path = BASE_DIR / ".env"
+if _env_path.is_file():
+    try:
+        with open(_env_path, "r", encoding="utf-8") as _f:
+            for _line in _f:
+                _line = _line.strip()
+                if not _line or _line.startswith("#") or "=" not in _line:
+                    continue
+                _k, _v = _line.split("=", 1)
+                _k = _k.strip()
+                _v = _v.strip().strip("'\"")
+                if _k not in os.environ:
+                    os.environ[_k] = _v
+    except OSError:
+        pass
+
 # SECURITY -----------------------------------------------------------------
 DEBUG = os.environ.get("DJANGO_DEBUG", "true").lower() in {"1", "true", "yes", "on"}
 configured_secret_key = os.environ.get("DJANGO_SECRET_KEY", "")
+
+# In development, persist a generated secret key so server reloads and restarts
+# do not invalidate signed session cookies and unexpectedly log users out.
+if not configured_secret_key and DEBUG:
+    _secret_file = BASE_DIR / ".secret_key"
+    if _secret_file.is_file():
+        try:
+            configured_secret_key = _secret_file.read_text(encoding="utf-8").strip()
+        except OSError:
+            pass
+    if not configured_secret_key:
+        configured_secret_key = f"dev-{secrets.token_urlsafe(48)}"
+        try:
+            _secret_file.write_text(configured_secret_key, encoding="utf-8")
+            _secret_file.chmod(0o600)
+        except OSError:
+            pass
+
 SECRET_KEY = configured_secret_key or (f"dev-{secrets.token_urlsafe(48)}" if DEBUG else "")
 configured_hosts = os.environ.get("DJANGO_ALLOWED_HOSTS", "")
 ALLOWED_HOSTS = [host.strip() for host in (configured_hosts or "127.0.0.1,localhost").split(",") if host.strip()]

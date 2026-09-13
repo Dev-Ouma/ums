@@ -135,6 +135,30 @@ class AdmissionsUploadValidationTests(TestCase):
         self.assertFalse(data.get("success"))
         self.assertIn("Invalid document type", data.get("error"))
 
+    def test_upload_malicious_filename_is_sanitized(self):
+        file = SimpleUploadedFile("../../../../evil.pdf", self.valid_pdf_content, content_type="application/pdf")
+        response = self.client.post(self.upload_url, {
+            "document_type": "kcse_document",
+            "file": file,
+        })
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get("success"))
+        self.assertEqual(data.get("file_name"), "evil.pdf")
+
+        session = self.client.session
+        stored_path = session["draft_application_documents"]["kcse_document"]["file_path"]
+        self.assertIn("applications/draft_attachments/", stored_path)
+        self.assertNotIn("..", stored_path)
+
+        application = Application.objects.get(
+            session_key=self.client.session.session_key,
+            status=Application.Status.DRAFT,
+        )
+        attachment = application.attachments.get(document_type=ApplicationAttachment.DocType.KCSE_CERTIFICATE)
+        self.assertEqual(attachment.file_name, "evil.pdf")
+        self.assertNotIn("..", attachment.file.name)
+
     def test_remove_admission_document(self):
         # 1. Upload first
         file = SimpleUploadedFile("id_scan.pdf", self.valid_pdf_content, content_type="application/pdf")
@@ -183,6 +207,8 @@ class AdmissionsUploadValidationTests(TestCase):
             "kcse_index_number": "12345678/001",
             "kcse_mean_grade": "A-",
             "kcse_year": "2024",
+            "guardian_name": "Mr Ouma",
+            "guardian_phone": "+254711223355",
         }
         response = self.client.post(self.apply_url, form_data)
         # Should redirect to fee payment

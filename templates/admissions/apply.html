@@ -460,21 +460,25 @@
               <div class="row g-3">
                 {% for cf in custom_fields %}
                   <div class="col-md-6">
-                    <label class="form-label fw-semibold">{{ cf.name }} {% if cf.is_required %}<span class="text-danger">*</span>{% endif %}</label>
-                    {% if cf.field_type == 'text' %}
-                      <input type="text" name="custom_{{ cf.id }}" id="field_custom_{{ cf.id }}" class="form-control rounded-3" value="{{ data|default_if_none:'' }}">
-                    {% elif cf.field_type == 'select' %}
-                      <select name="custom_{{ cf.id }}" id="field_custom_{{ cf.id }}" class="form-select rounded-3">
+                    <label class="form-label fw-semibold">{{ cf.label }} {% if cf.is_required %}<span class="text-danger">*</span>{% endif %}</label>
+                    {% if cf.field_type == 'TEXT' or cf.field_type == 'text' %}
+                      <input type="text" name="custom_{{ cf.name }}" id="field_custom_{{ cf.name }}" class="form-control rounded-3" value="{{ data|default_if_none:'' }}">
+                    {% elif cf.field_type == 'TEXTAREA' or cf.field_type == 'textarea' %}
+                      <textarea name="custom_{{ cf.name }}" id="field_custom_{{ cf.name }}" class="form-control rounded-3" rows="2">{{ data|default_if_none:'' }}</textarea>
+                    {% elif cf.field_type == 'SELECT' or cf.field_type == 'select' %}
+                      <select name="custom_{{ cf.name }}" id="field_custom_{{ cf.name }}" class="form-select rounded-3">
                         <option value="">-- Select --</option>
-                        {% for opt in cf.get_options_list %}
+                        {% for opt in cf.get_choices %}
                           <option value="{{ opt }}">{{ opt }}</option>
                         {% endfor %}
                       </select>
-                    {% elif cf.field_type == 'checkbox' %}
+                    {% elif cf.field_type == 'CHECKBOX' or cf.field_type == 'checkbox' %}
                       <div class="form-check mt-2">
-                        <input class="form-check-input" type="checkbox" name="custom_{{ cf.id }}" id="field_custom_{{ cf.id }}">
-                        <label class="form-check-label" for="field_custom_{{ cf.id }}">{{ cf.name }}</label>
+                        <input class="form-check-input" type="checkbox" name="custom_{{ cf.name }}" id="field_custom_{{ cf.name }}">
+                        <label class="form-check-label" for="field_custom_{{ cf.name }}">{{ cf.label }}</label>
                       </div>
+                    {% elif cf.field_type == 'NUMBER' or cf.field_type == 'number' %}
+                      <input type="number" name="custom_{{ cf.name }}" id="field_custom_{{ cf.name }}" class="form-control rounded-3" value="{{ data|default_if_none:'' }}">
                     {% endif %}
                   </div>
                 {% endfor %}
@@ -747,8 +751,8 @@
   </div>
 </div>
 
-<!-- Initial Serialized Draft State for Zero-Latency Hydration -->
-<script id="initialDraftState" type="application/json">{{ draft_state_json|safe }}</script>
+<!-- Initial Serialized Draft State for Zero-Latency Hydration (XSS-safe json_script) -->
+{{ draft_state|json_script:"initialDraftState" }}
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {

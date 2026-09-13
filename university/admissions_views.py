@@ -5,13 +5,14 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core import signing
 from django.core.paginator import Paginator
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from university.security_decorators import rate_limit
 from decimal import Decimal, InvalidOperation
 import json
 import re
@@ -28,6 +29,10 @@ from university.admissions_services import (
     generate_admission_letter_pdf,
     generate_application_number,
     matriculate_applicant,
+)
+from university.admission_document_services import (
+    SignatureAuthorizationError,
+    SignatureRequiredError,
 )
 from university.applicant_auth_services import (
     register_applicant,
@@ -99,12 +104,36 @@ def format_file_size(size_bytes):
         return f"{size_bytes / (1024 * 1024):.2f} MB"
 
 
+@rate_limit("app-doc-upload", limit=30, window_seconds=60)
 @require_POST
 def upload_admission_document(request):
     """
     Asynchronously uploads, strictly validates (PDF, PNG, JPG), and saves
     an admission supporting document into the applicant's draft storage and DB attachment.
+    Enforces document immutability once application is submitted.
     """
+    if request.user.is_authenticated:
+        if Application.objects.filter(
+            applicant_user=request.user,
+            status__in=[
+                Application.Status.SUBMITTED,
+                Application.Status.UNDER_REVIEW,
+                Application.Status.ACCEPTED,
+                Application.Status.ENROLLED,
+            ],
+        ).exists():
+            return JsonResponse({
+                "success": False,
+                "error": "Application documents cannot be modified after application submission.",
+            }, status=403)
+
+    draft = get_or_create_applicant_draft(request)
+    if draft and draft.status not in [Application.Status.DRAFT, Application.Status.IN_PROGRESS]:
+        return JsonResponse({
+            "success": False,
+            "error": "Application documents cannot be modified after application submission.",
+        }, status=403)
+
     doc_type = request.POST.get("document_type", "").strip()
     valid_doc_types = {
         "kcse_document": "KCSE Result Slip / Certificate",
@@ -142,11 +171,9 @@ def upload_admission_document(request):
         request.session.save()
     session_key = request.session.session_key
 
-    # Get active draft Application
-    draft = get_or_create_applicant_draft(request)
-
     # Store file in draft storage
-    ext = os.path.splitext(uploaded.name)[1].lower()
+    original_name = os.path.basename(uploaded.name or "")
+    ext = os.path.splitext(original_name)[1].lower()
     safe_name = f"{doc_type}_{uuid.uuid4().hex[:10]}{ext}"
     sub_dir = f"applications/draft_attachments/{session_key}"
     stored_path = default_storage.save(f"{sub_dir}/{safe_name}", uploaded)
@@ -163,7 +190,7 @@ def upload_admission_document(request):
 
     draft_docs[doc_type] = {
         "file_path": stored_path,
-        "original_name": uploaded.name,
+        "original_name": original_name,
         "file_size": uploaded.size,
         "file_size_formatted": format_file_size(uploaded.size),
         "mime_type": uploaded.content_type or "application/octet-stream",
@@ -185,23 +212,23 @@ def upload_admission_document(request):
         existing_att = draft.attachments.filter(document_type=model_doc_type).first()
         uploaded.seek(0)
         if existing_att:
-            existing_att.file = uploaded
-            existing_att.file_name = uploaded.name
+            existing_att.file.save(safe_name, uploaded, save=False)
+            existing_att.file_name = original_name
             existing_att.file_size = uploaded.size
             existing_att.mime_type = uploaded.content_type or "application/octet-stream"
             existing_att.save()
         else:
-            ApplicationAttachment.objects.create(
+            attachment = ApplicationAttachment(
                 application=draft,
                 document_type=model_doc_type,
                 name=valid_doc_types[doc_type],
-                file=uploaded,
-                file_name=uploaded.name,
+                file_name=original_name,
                 file_size=uploaded.size,
                 mime_type=uploaded.content_type or "application/octet-stream",
                 verification_status=ApplicationAttachment.VerificationStatus.PENDING,
                 is_visible_to_student=True,
             )
+            attachment.file.save(safe_name, uploaded, save=True)
         draft.draft_version += 1
         draft.save(update_fields=["draft_version", "updated_at"])
 
@@ -209,7 +236,7 @@ def upload_admission_document(request):
         "success": True,
         "message": f"{valid_doc_types[doc_type]} uploaded and verified successfully.",
         "document_type": doc_type,
-        "file_name": uploaded.name,
+        "file_name": original_name,
         "file_size": uploaded.size,
         "file_size_formatted": format_file_size(uploaded.size),
         "version": draft.draft_version if draft else 1,
@@ -217,9 +244,32 @@ def upload_admission_document(request):
     })
 
 
+@rate_limit("app-doc-remove", limit=30, window_seconds=60)
 @require_POST
 def remove_admission_document(request):
     """Removes a previously saved draft document from the session, storage, and draft attachments."""
+    if request.user.is_authenticated:
+        if Application.objects.filter(
+            applicant_user=request.user,
+            status__in=[
+                Application.Status.SUBMITTED,
+                Application.Status.UNDER_REVIEW,
+                Application.Status.ACCEPTED,
+                Application.Status.ENROLLED,
+            ],
+        ).exists():
+            return JsonResponse({
+                "success": False,
+                "error": "Application documents cannot be modified after application submission.",
+            }, status=403)
+
+    draft = get_or_create_applicant_draft(request)
+    if draft and draft.status not in [Application.Status.DRAFT, Application.Status.IN_PROGRESS]:
+        return JsonResponse({
+            "success": False,
+            "error": "Application documents cannot be modified after application submission.",
+        }, status=403)
+
     doc_type = request.POST.get("document_type", "").strip()
     draft_docs = request.session.get("draft_application_documents", {})
     if doc_type in draft_docs:
@@ -233,8 +283,6 @@ def remove_admission_document(request):
         del draft_docs[doc_type]
         request.session["draft_application_documents"] = draft_docs
         request.session.modified = True
-
-    draft = get_or_create_applicant_draft(request)
     doc_type_mapping = {
         "kcse_document": ApplicationAttachment.DocType.KCSE_CERTIFICATE,
         "id_document": ApplicationAttachment.DocType.NATIONAL_ID,
@@ -290,6 +338,7 @@ def api_get_draft(request):
     return JsonResponse({"success": True, "draft": state})
 
 
+@rate_limit("app-draft-save", limit=60, window_seconds=60)
 @require_POST
 def api_save_draft(request):
     """
@@ -337,6 +386,7 @@ def api_save_draft(request):
     return JsonResponse(res)
 
 
+@rate_limit("app-submit-api", limit=10, window_seconds=60)
 @require_POST
 def api_submit_application(request):
     """
@@ -368,6 +418,7 @@ def api_submit_application(request):
     return JsonResponse(res)
 
 
+@rate_limit("applicant-register", limit=10, window_seconds=300)
 def applicant_register(request):
     """Applicant account creation / express interest view."""
     if request.user.is_authenticated and getattr(request.user, "role", "") == Role.APPLICANT:
@@ -390,6 +441,7 @@ def applicant_register(request):
     return render(request, "admissions/applicant_register.html")
 
 
+@rate_limit("applicant-verify-otp", limit=10, window_seconds=300)
 def applicant_verify_otp(request):
     """OTP Verification view for newly registered applicants."""
     email = request.GET.get("email", "").strip().lower() or request.POST.get("email", "").strip().lower()
@@ -404,7 +456,7 @@ def applicant_verify_otp(request):
         except ValidationError as e:
             messages.error(request, e.message if hasattr(e, "message") else str(e))
 
-    demo_otp = pending.get("otp_code") if pending.get("email") == email else ""
+    demo_otp = pending.get("otp_code") if (settings.DEBUG and pending.get("email") == email) else ""
 
     return render(request, "admissions/applicant_verify_otp.html", {
         "email": email,
@@ -412,6 +464,7 @@ def applicant_verify_otp(request):
     })
 
 
+@rate_limit("applicant-login", limit=10, window_seconds=300)
 def applicant_login(request):
     """Applicant sign in."""
     if request.user.is_authenticated:
@@ -433,6 +486,17 @@ def applicant_login(request):
 
         if user:
             login(request, user)
+            from university.identity_services import enforce_concurrent_session_policy
+            enforce_concurrent_session_policy(user, keep_session_key=request.session.session_key)
+            log_activity(
+                request=request,
+                user=user,
+                action=AuditLog.Action.LOGIN,
+                module=AuditLog.Module.AUTH,
+                entity="ApplicantUser",
+                entity_id=user.pk,
+                description=f"Applicant {user.username} signed in to portal.",
+            )
             messages.success(request, f"Welcome back, {user.get_full_name() or user.username}!")
             if user.role == Role.APPLICANT:
                 return redirect("university:applicant_dashboard")
@@ -464,6 +528,7 @@ def applicant_dashboard(request):
     })
 
 
+@rate_limit("admissions-apply", limit=30, window_seconds=60)
 def apply(request):
     """
     Prospective student application form with real-time draft auto-save & state recovery.
@@ -509,6 +574,7 @@ def apply(request):
             
             session_docs = request.session.get("draft_application_documents", {})
             post_fields = request.POST.dict()
+            error_state = {"fields": post_fields, "documents": session_docs, "intakes_data": intakes_data}
             return render(request, "admissions/apply.html", {
                 "programs": programs,
                 "intake": active_intake,
@@ -518,7 +584,8 @@ def apply(request):
                 "kenyan_counties": KENYAN_COUNTIES,
                 "custom_fields": custom_fields,
                 "draft_application": draft,
-                "draft_state_json": json.dumps({"fields": post_fields, "documents": session_docs, "intakes_data": intakes_data}),
+                "draft_state": error_state,
+                "draft_state_json": json.dumps(error_state),
                 "draft_documents": session_docs,
                 "guardian_relationships": Application.GUARDIAN_RELATIONSHIPS,
                 "data": post_fields,
@@ -540,6 +607,7 @@ def apply(request):
         "kenyan_counties": KENYAN_COUNTIES,
         "custom_fields": custom_fields,
         "draft_application": draft,
+        "draft_state": state,
         "draft_state_json": json.dumps(state),
         "draft_documents": state["documents"],
         "guardian_relationships": Application.GUARDIAN_RELATIONSHIPS,
@@ -550,6 +618,7 @@ def apply(request):
     })
 
 
+@rate_limit("app-fee-pay", limit=15, window_seconds=60)
 def pay_application_fee(request, pk):
     """Pay the application processing fee with server-side validation and receipt generation."""
     application = get_object_or_404(Application, pk=pk)
@@ -563,13 +632,39 @@ def pay_application_fee(request, pk):
         request.user.is_staff or request.user.is_superuser or getattr(request.user, "role", "") in (Role.ADMIN, "ADMIN")
     )
     if not (token_valid or is_owner or is_staff):
+        if request.user.is_authenticated:
+            return HttpResponseForbidden("Access denied. You do not have permission to access this application fee payment.")
         messages.error(request, "Please log in to access this application payment.")
         return redirect("university:applicant_login")
 
     fee_amount = get_setting("application_fee_default", default=Decimal("1000.00"))
 
+    # Dynamically retrieve active centralized payment channels (Pochi la Biashara and M-Pesa Paybill)
+    from university.models import FeeAccount
+    pochi_account = FeeAccount.objects.filter(
+        account_type=FeeAccount.AccountType.POCHI_LA_BIASHARA,
+        status=FeeAccount.Status.ACTIVE,
+    ).first()
+    pochi_number = pochi_account.account_identifier if pochi_account else "0113636154"
+
+    paybill_account = FeeAccount.objects.filter(
+        account_type=FeeAccount.AccountType.MPESA_PAYBILL,
+        status=FeeAccount.Status.ACTIVE,
+    ).first()
+    paybill_number = paybill_account.account_identifier if paybill_account else "222111"
+
     if application.fee_paid:
         messages.info(request, "The application fee has already been paid and verified.")
+        if request.user.is_authenticated and getattr(request.user, "role", "") == Role.APPLICANT:
+            return redirect("university:applicant_dashboard")
+        return redirect(f"{reverse('university:admissions_status')}?access={application_access_token(application)}")
+
+    # Applications that are under active board review, accepted, or enrolled cannot submit new payments.
+    # Similarly, fully submitted applications with confirmed fee payment cannot submit duplicate payments.
+    if application.status in [Application.Status.UNDER_REVIEW, Application.Status.ACCEPTED, Application.Status.ENROLLED] or (
+        application.status == Application.Status.SUBMITTED and application.fee_paid
+    ):
+        messages.info(request, f"Application {application.application_number} has already been submitted for review.")
         if request.user.is_authenticated and getattr(request.user, "role", "") == Role.APPLICANT:
             return redirect("university:applicant_dashboard")
         return redirect(f"{reverse('university:admissions_status')}?access={application_access_token(application)}")
@@ -587,36 +682,68 @@ def pay_application_fee(request, pk):
         elif ApplicationFeePayment.objects.filter(reference__iexact=reference).exists():
             messages.error(request, "That payment reference has already been recorded. Check the reference or contact Admissions.")
         else:
-            receipt_no = f"PAY-{timezone.now().year}-{ApplicationFeePayment.objects.count() + 10001:06d}"
-            payment = ApplicationFeePayment.objects.create(
-                application=application,
-                applicant_user=request.user if request.user.is_authenticated else application.applicant_user,
-                receipt_number=receipt_no,
-                amount=fee_amount,
-                method=method,
-                reference=reference,
-                status=ApplicationFeePayment.Status.CONFIRMED,
-                confirmed_at=timezone.now(),
-            )
-            # Update status to READY_FOR_SUBMISSION
-            application.status = Application.Status.READY_FOR_SUBMISSION
-            application.save(update_fields=["status"])
+            from django.db import IntegrityError, transaction
+            from django.db.models import Q
+            from university.models import Payment
 
-            log_activity(
-                request=request,
-                user=request.user if request.user.is_authenticated else None,
-                action=AuditLog.Action.CREATE,
-                module=AuditLog.Module.FEES,
-                entity="ApplicationFeePayment",
-                entity_id=payment.pk,
-                description=f"Application fee of KES {fee_amount} paid for application {application.application_number}. Receipt: {receipt_no}",
-            )
+            # Check if reference already exists as a confirmed provider transaction in Payment
+            verified_provider_payment = Payment.objects.filter(
+                Q(provider_reference__iexact=reference) | Q(reference__iexact=reference),
+                status=Payment.Status.SUCCESSFUL,
+                invoice__isnull=True,
+            ).first()
 
-            messages.success(
-                request,
-                f"Payment of KES {fee_amount:,.2f} confirmed! Receipt: {receipt_no}. "
-                f"Your application is now ready for final submission."
-            )
+            try:
+                with transaction.atomic():
+                    if verified_provider_payment and verified_provider_payment.amount >= fee_amount:
+                        receipt_no = f"APPFEE-{timezone.now().year}-{reference}"
+                        payment = ApplicationFeePayment.objects.create(
+                            application=application,
+                            applicant_user=request.user if request.user.is_authenticated else application.applicant_user,
+                            receipt_number=receipt_no,
+                            amount=fee_amount,
+                            method=method,
+                            reference=reference,
+                            status=ApplicationFeePayment.Status.CONFIRMED,
+                            confirmed_at=timezone.now(),
+                        )
+                        application.status = Application.Status.READY_FOR_SUBMISSION
+                        application.save(update_fields=["status", "updated_at"])
+                        messages.success(request, f"Payment verified successfully! Receipt number: {receipt_no}. You may now submit your application.")
+                    else:
+                        payment = ApplicationFeePayment.objects.create(
+                            application=application,
+                            applicant_user=request.user if request.user.is_authenticated else application.applicant_user,
+                            receipt_number=None,
+                            amount=fee_amount,
+                            method=method,
+                            reference=reference,
+                            status=ApplicationFeePayment.Status.PENDING,
+                        )
+                        application.status = Application.Status.PAYMENT_PENDING
+                        application.save(update_fields=["status", "updated_at"])
+                        messages.success(
+                            request,
+                            f"Payment reference submitted for verification. Amount expected: KES {fee_amount:,.2f}. "
+                            "Your application will be ready for final submission after Finance or Admissions confirms the transaction."
+                        )
+
+                    log_activity(
+                        request=request,
+                        user=request.user if request.user.is_authenticated else None,
+                        action=AuditLog.Action.CREATE,
+                        module=AuditLog.Module.FEES,
+                        entity="ApplicationFeePayment",
+                        entity_id=payment.pk,
+                        description=(
+                            f"Application fee reference submitted for verification for application "
+                            f"{application.application_number}. Method: {payment.get_method_display()}, Ref: {reference}."
+                        ),
+                    )
+            except IntegrityError:
+                messages.error(request, "That payment reference has already been recorded. Check the reference or contact Admissions.")
+                return redirect("university:pay_application_fee", pk=application.pk)
+
             if request.user.is_authenticated and getattr(request.user, "role", "") == Role.APPLICANT:
                 return redirect("university:applicant_dashboard")
             return redirect(f"{reverse('university:admissions_status')}?access={application_access_token(application)}")
@@ -624,11 +751,14 @@ def pay_application_fee(request, pk):
     return render(request, "admissions/pay_fee.html", {
         "application": application,
         "fee_amount": fee_amount,
+        "pochi_number": pochi_number,
+        "paybill_number": paybill_number,
         "methods": ApplicationFeePayment.Method.choices,
         "application_access_token": access_token or application_access_token(application),
     })
 
 
+@rate_limit("app-submit-final", limit=10, window_seconds=60)
 @require_POST
 def submit_application(request, pk):
     """Explicit final submission of an application after payment is confirmed."""
@@ -644,6 +774,8 @@ def submit_application(request, pk):
     )
 
     if not (token_valid or is_owner or is_staff):
+        if request.user.is_authenticated:
+            return HttpResponseForbidden("Access denied. You do not have permission to submit this application.")
         messages.error(request, "Access denied to submit this application.")
         return redirect("university:applicant_login")
 
@@ -672,6 +804,7 @@ def submit_application(request, pk):
     return redirect(f"{reverse('university:admissions_status')}?access={application_access_token(application)}")
 
 
+@rate_limit("app-status-query", limit=30, window_seconds=60)
 def application_status(request):
     """Public portal: Check application decision and download admission letter."""
     ref = request.GET.get("ref", "").strip()
@@ -739,8 +872,31 @@ def _serve_admission_letter(request, pk, as_attachment=False):
     from university.admission_document_services import generate_admission_document, build_admission_letter_pdf_bytes
     doc = getattr(app, "active_admission_document", None) or app.issued_documents.filter(is_current_version=True).first()
     if not doc:
+        revoked_doc = app.issued_documents.filter(status="REVOKED").first()
+        if revoked_doc and not is_staff:
+            messages.error(
+                request,
+                "Your admission letter has been revoked by the university admissions office. "
+                "Please contact the Registrar's Office for assistance."
+            )
+            return redirect(
+                f"{reverse('university:admissions_status')}?access={application_access_token(app)}"
+            )
         user = request.user if request.user.is_authenticated else None
-        doc = generate_admission_document(app, user=user, reason="Generated on applicant letter request")
+        try:
+            doc = generate_admission_document(app, user=user, reason="Generated on applicant letter request")
+        except (SignatureRequiredError, SignatureAuthorizationError) as exc:
+            if is_staff:
+                messages.error(request, f"Admission letter cannot be issued yet: {exc}")
+                return redirect("university:admin_admission_document_detail", pk=app.pk)
+            messages.error(
+                request,
+                "Your admission letter is being finalized by the admissions office. "
+                "Please check again after the official signatory has been configured.",
+            )
+            return redirect(
+                f"{reverse('university:admissions_status')}?access={application_access_token(app)}"
+            )
 
     if not doc.pdf_file:
         pdf_data = build_admission_letter_pdf_bytes(doc)
@@ -769,8 +925,7 @@ def applicant_accept_offer(request, pk):
         pk=pk
     )
     if app.applicant_user != request.user and not (request.user.is_staff or request.user.is_superuser or getattr(request.user, "role", "") in (Role.ADMIN, "ADMIN")):
-        messages.error(request, "Access denied. You do not have permission to accept this admission offer.")
-        return redirect("university:applicant_dashboard")
+        return HttpResponseForbidden("Access denied. You do not have permission to accept this admission offer.")
 
     if app.status != Application.Status.ACCEPTED:
         messages.warning(request, f"Application is currently in '{app.get_status_display()}' state. Offer acceptance is applicable only for Accepted offers.")
@@ -798,6 +953,46 @@ def applicant_accept_offer(request, pk):
         f"🎉 Congratulations {app.first_name}! You have formally accepted your admission offer for {app.program.name if app.program else 'your degree programme'}. "
         f"Please download your official Admission Letter and proceed with reporting/registration preparations."
     )
+    return redirect("university:applicant_dashboard")
+
+
+@login_required
+@require_POST
+def applicant_decline_offer(request, pk):
+    """Applicant action to decline an official admission offer."""
+    app = get_object_or_404(
+        Application.objects.select_related("program", "intake", "student"),
+        pk=pk
+    )
+    if app.applicant_user != request.user and not (request.user.is_staff or request.user.is_superuser or getattr(request.user, "role", "") in (Role.ADMIN, "ADMIN")):
+        return HttpResponseForbidden("Access denied. You do not have permission to decline this admission offer.")
+
+    if app.status != Application.Status.ACCEPTED:
+        messages.warning(request, f"Application is currently in '{app.get_status_display()}' state. Only active accepted offers can be declined.")
+        return redirect("university:applicant_dashboard")
+
+    reason = request.POST.get("reason", "").strip() or "Declined by applicant"
+    app.review_notes = (app.review_notes or "") + f"\n[Offer Declined by Applicant on {timezone.now():%Y-%m-%d %H:%M UTC}. Reason: {reason}]"
+    app.status = Application.Status.REJECTED
+    app.save(update_fields=["status", "review_notes", "updated_at"])
+
+    log_activity(
+        request=request,
+        user=request.user,
+        action=AuditLog.Action.UPDATE,
+        module=AuditLog.Module.ADMISSIONS,
+        entity="Application",
+        entity_id=app.id,
+        description=f"Applicant {app.full_name} ({app.application_number}) declined admission offer for {app.program.name if app.program else 'Degree Programme'}. Reason: {reason}",
+        new_state={
+            "application_number": app.application_number,
+            "declined_at": str(timezone.now()),
+            "status": app.status,
+            "reason": reason,
+        }
+    )
+
+    messages.info(request, "You have declined the admission offer. Your decision has been recorded.")
     return redirect("university:applicant_dashboard")
 
 
@@ -878,10 +1073,90 @@ def admin_admission_detail(request, pk):
         review_notes = request.POST.get("review_notes", "").strip()
         reporting_date = request.POST.get("reporting_date", "").strip()
 
-        if action not in {"under_review", "accept", "reject"}:
+        if action not in {"under_review", "accept", "reject", "confirm_payment"}:
             messages.error(request, "Select a valid admissions review action.")
             return redirect("university:admin_admission_detail", pk=app.pk)
 
+        # ── State machine guards ────────────────────────────────────
+        # An ENROLLED application already has a student profile, user
+        # account, and semester registration. Changing its status to
+        # anything else would orphan those records.  Formal student
+        # withdrawal / deferment must be used instead.
+        if app.status == Application.Status.ENROLLED and action in {"under_review", "accept", "reject"}:
+            messages.error(
+                request,
+                "This applicant is already enrolled as an active student. "
+                "Status changes must be processed through Student Withdrawal "
+                "or Deferment, not through the admissions review workflow."
+            )
+            return redirect("university:admin_admission_detail", pk=app.pk)
+
+        # Only SUBMITTED or UNDER_REVIEW applications can be moved to
+        # under_review or accepted.  Draft / In-Progress / Payment-stage
+        # applications have not completed their submission process.
+        REVIEWABLE_STATUSES = {
+            Application.Status.SUBMITTED,
+            Application.Status.UNDER_REVIEW,
+        }
+        if action in {"under_review", "accept"} and app.status not in REVIEWABLE_STATUSES:
+            messages.error(
+                request,
+                f"Cannot mark application as "
+                f"'{'Under Review' if action == 'under_review' else 'Accepted'}' "
+                f"because it is currently in '{app.get_status_display()}' status. "
+                f"The application must be fully submitted first."
+            )
+            return redirect("university:admin_admission_detail", pk=app.pk)
+
+        # Only SUBMITTED / UNDER_REVIEW / ACCEPTED applications can be rejected.
+        REJECTABLE_STATUSES = {
+            Application.Status.SUBMITTED,
+            Application.Status.UNDER_REVIEW,
+            Application.Status.ACCEPTED,
+        }
+        if action == "reject" and app.status not in REJECTABLE_STATUSES:
+            messages.error(
+                request,
+                f"Cannot reject an application in '{app.get_status_display()}' status."
+            )
+            return redirect("university:admin_admission_detail", pk=app.pk)
+
+        # ── Confirm payment (separate workflow) ─────────────────────
+        if action == "confirm_payment":
+            payment_id = request.POST.get("payment_id")
+            pending_payment = app.fee_payments.filter(
+                pk=payment_id,
+                status=ApplicationFeePayment.Status.PENDING,
+            ).first()
+            if not pending_payment:
+                messages.error(request, "Select a pending application-fee payment to confirm.")
+                return redirect("university:admin_admission_detail", pk=app.pk)
+
+            pending_payment.status = ApplicationFeePayment.Status.CONFIRMED
+            pending_payment.confirmed_at = timezone.now()
+            pending_payment.receipt_number = f"APPFEE-{timezone.now().year}-{pending_payment.pk:06d}"
+            pending_payment.save(update_fields=["status", "confirmed_at", "receipt_number"])
+
+            if app.status in [Application.Status.READY_FOR_PAYMENT, Application.Status.PAYMENT_PENDING, Application.Status.PAID]:
+                app.status = Application.Status.READY_FOR_SUBMISSION
+                app.save(update_fields=["status", "updated_at"])
+
+            log_activity(
+                request=request,
+                user=request.user,
+                action=AuditLog.Action.UPDATE,
+                module=AuditLog.Module.FEES,
+                entity="ApplicationFeePayment",
+                entity_id=pending_payment.pk,
+                description=(
+                    f"Confirmed application fee payment {pending_payment.reference} "
+                    f"for application {app.application_number}."
+                ),
+            )
+            messages.success(request, f"Application fee confirmed. Receipt: {pending_payment.receipt_number}.")
+            return redirect("university:admin_admission_detail", pk=app.pk)
+
+        # ── Review metadata ─────────────────────────────────────────
         app.review_notes = review_notes
         app.reviewed_by = request.user
         app.reviewed_at = timezone.now()
@@ -931,6 +1206,7 @@ def admin_admission_detail(request, pk):
 
     return render(request, "admissions/admin_detail.html", {
         "app": app,
+        "pending_fee_payment": app.fee_payments.filter(status=ApplicationFeePayment.Status.PENDING).first(),
     })
 
 
@@ -946,13 +1222,25 @@ def admin_admission_matriculate(request, pk):
         messages.error(request, "Only accepted applicants can be registered and enrolled.")
         return redirect("university:admin_admission_detail", pk=app.pk)
 
-    student_profile, user, _ = matriculate_applicant(app, created_by=request.user)
-    messages.success(
-        request,
-        f"Student registration and enrollment completed. Student profile {student_profile.roll_no} created with the "
-        f"username '{user.username}'. An activation link has been emailed so the student sets "
-        f"their own password; resend it from User Management if it does not arrive."
-    )
+    try:
+        student_profile, user, _ = matriculate_applicant(app, created_by=request.user)
+    except (SignatureRequiredError, SignatureAuthorizationError) as exc:
+        messages.error(request, f"Student enrollment could not be completed because the admission letter cannot be issued: {exc}")
+        return redirect("university:admin_admission_detail", pk=app.pk)
+
+    if app.issued_documents.filter(is_current_version=True).exists():
+        messages.success(
+            request,
+            f"Student registration and enrollment completed. Student profile {student_profile.roll_no} created with the "
+            f"username '{user.username}'. An activation link has been emailed so the student sets "
+            f"their own password; resend it from User Management if it does not arrive."
+        )
+    else:
+        messages.warning(
+            request,
+            f"Student registration and enrollment completed for {student_profile.roll_no}, but the admission letter is still pending signature configuration. "
+            "Configure an active official signature, then issue the letter from Admission Documents."
+        )
     return redirect("university:student_detail", pk=student_profile.pk)
 
 

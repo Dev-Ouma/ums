@@ -1,6 +1,6 @@
-import random
 import logging
-from datetime import timedelta
+import secrets
+from datetime import datetime, timedelta
 from decimal import Decimal
 from django.conf import settings
 from django.contrib.auth import get_user_model, login
@@ -13,14 +13,16 @@ from university.models import Application, Intake, Program, ApplicationFeePaymen
 from university.audit_services import log_activity
 from university.settings_services import get_setting
 from university.institution_domain_services import get_institution_settings
+from accounts.email_identity_service import EmailIdentityService
+from university.identity_services import enforce_concurrent_session_policy
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
 def generate_otp_code() -> str:
-    """Generate a secure 6-digit numeric OTP."""
-    return f"{random.randint(100000, 999999)}"
+    """Generate a cryptographically secure 6-digit numeric OTP."""
+    return f"{secrets.randbelow(900000) + 100000}"
 
 
 def register_applicant(request, first_name: str, last_name: str, email: str, phone: str, password: str):
@@ -35,17 +37,34 @@ def register_applicant(request, first_name: str, last_name: str, email: str, pho
     if not (first_name and last_name and email and password):
         raise ValidationError("Please provide first name, last name, email, and a secure password.")
 
-    if User.objects.filter(email__iexact=email).exists():
+    if not EmailIdentityService.is_available(email):
         existing_user = User.objects.filter(email__iexact=email).first()
-        if existing_user.role != Role.APPLICANT:
-            raise ValidationError("An institutional user account already exists with this email. Please log in.")
-        # Re-send OTP for incomplete applicant verification
+        if existing_user and existing_user.role != Role.APPLICANT:
+            raise ValidationError("This email is already registered in the system. Please log in to continue your application.")
+
+        # If user is already active with prior login or non-draft applications, force password login
+        if existing_user and (
+            existing_user.last_login is not None or
+            Application.objects.filter(
+                applicant_user=existing_user,
+                status__in=[
+                    Application.Status.SUBMITTED,
+                    Application.Status.UNDER_REVIEW,
+                    Application.Status.ACCEPTED,
+                    Application.Status.ENROLLED,
+                ],
+            ).exists()
+        ):
+            raise ValidationError("An account with this email address already exists. Please sign in with your email and password.")
+
+        # Re-send OTP for unverified applicant registration
         otp_code = generate_otp_code()
         request.session["applicant_pending_verification"] = {
             "email": email,
             "user_id": existing_user.id,
             "otp_code": otp_code,
             "generated_at": timezone.now().isoformat(),
+            "attempts": 0,
         }
         request.session.modified = True
         _send_applicant_otp_email(email, first_name, otp_code)
@@ -76,6 +95,7 @@ def register_applicant(request, first_name: str, last_name: str, email: str, pho
         "user_id": user.id,
         "otp_code": otp_code,
         "generated_at": timezone.now().isoformat(),
+        "attempts": 0,
     }
     request.session.modified = True
 
@@ -120,13 +140,39 @@ def _send_applicant_otp_email(email: str, name: str, otp_code: str):
 def verify_applicant_otp(request, email: str, entered_otp: str):
     """
     Verifies the pending OTP for an applicant and authenticates them into the session.
+    Enforces 15-minute expiration, max 5 attempts, and constant-time string comparison.
     """
     pending = request.session.get("applicant_pending_verification")
     if not pending or pending.get("email") != email.strip().lower():
         raise ValidationError("No pending verification found for this email. Please register again.")
 
+    # Expiration check (15 minutes)
+    gen_time_str = pending.get("generated_at")
+    if gen_time_str:
+        try:
+            gen_time = datetime.fromisoformat(gen_time_str)
+            if timezone.is_naive(gen_time):
+                gen_time = timezone.make_aware(gen_time)
+            if timezone.now() - gen_time > timedelta(minutes=15):
+                request.session.pop("applicant_pending_verification", None)
+                request.session.modified = True
+                raise ValidationError("Verification code has expired. Please register or request a new code.")
+        except ValidationError:
+            raise
+        except Exception:
+            pass
+
+    # Brute-force throttling (max 5 attempts)
+    attempts = pending.get("attempts", 0) + 1
+    pending["attempts"] = attempts
+    request.session.modified = True
+    if attempts > 5:
+        request.session.pop("applicant_pending_verification", None)
+        request.session.modified = True
+        raise ValidationError("Too many incorrect verification attempts. Please register again.")
+
     stored_otp = str(pending.get("otp_code", "")).strip()
-    if not stored_otp or stored_otp != str(entered_otp).strip():
+    if not stored_otp or not secrets.compare_digest(stored_otp, str(entered_otp).strip()):
         raise ValidationError("Invalid verification code. Please check your email and enter the correct 6-digit code.")
 
     user = User.objects.filter(pk=pending.get("user_id")).first()
@@ -139,6 +185,7 @@ def verify_applicant_otp(request, email: str, entered_otp: str):
 
     # Log in user
     login(request, user)
+    enforce_concurrent_session_policy(user, keep_session_key=request.session.session_key)
     return user
 
 

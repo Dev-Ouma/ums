@@ -172,10 +172,11 @@ class ProfileForm(forms.ModelForm):
         email = (self.cleaned_data.get("email") or "").strip()
         if not email:
             raise forms.ValidationError("An email address is required.")
-        clash = User.objects.filter(email__iexact=email).exclude(pk=self.instance.pk)
-        if clash.exists():
-            raise forms.ValidationError("That email address is already in use by another account.")
-        return email
+        from accounts.email_identity_service import EmailIdentityService
+        if not EmailIdentityService.is_available(email, ignore_user_id=self.instance.pk):
+            conflict = EmailIdentityService.get_conflict_response(email, getattr(self.instance, 'email', None))
+            raise forms.ValidationError(conflict["error"])
+        return EmailIdentityService.normalize(email)
 
 
 class AvatarForm(forms.ModelForm):

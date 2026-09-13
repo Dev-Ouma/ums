@@ -64,6 +64,9 @@ class ApplicationFeeViewTests(ApplicationFeeTestBase):
             "program": self.program.pk, "first_name": "New", "last_name": "Applicant",
             "email": "new@example.com", "phone": "0711111111", "date_of_birth": "2005-05-05",
             "gender": "MALE", "national_id": "99999999", "address": "Nairobi",
+            "intake_id": self.intake.pk,
+            "guardian_name": "John Doe", "guardian_phone": "0722000000",
+            "guardian_relationship": "Parent", "country": "Kenya",
         })
         new_app = Application.objects.get(email="new@example.com")
         self.assertEqual(resp.status_code, 302)
@@ -76,11 +79,14 @@ class ApplicationFeeViewTests(ApplicationFeeTestBase):
             "program": self.program.pk, "first_name": "New", "last_name": "Applicant",
             "email": "not-an-email", "phone": "0711111111", "date_of_birth": "not-a-date",
             "gender": "INVALID", "national_id": "99999999", "address": "Nairobi",
+            "intake_id": self.intake.pk,
+            "guardian_name": "John Doe", "guardian_phone": "0722000000",
+            "guardian_relationship": "Parent", "country": "Kenya",
         })
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(Application.objects.count(), before)
-        self.assertContains(resp, "Enter a valid date of birth.")
-        self.assertContains(resp, "Enter a valid email address.")
+        self.assertContains(resp, "Please enter a valid date of birth (YYYY-MM-DD).")
+        self.assertContains(resp, "Please enter a valid email address.")
         self.assertContains(resp, "Please select a valid gender.")
 
     def test_pay_fee_page_loads(self):
@@ -88,17 +94,43 @@ class ApplicationFeeViewTests(ApplicationFeeTestBase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "1,000.00")
 
-    def test_pay_fee_submission_confirms_payment(self):
+    def test_pay_fee_submission_records_pending_payment_evidence(self):
         resp = self.client.post(self.application_url(), {
             "method": "MPESA", "reference": "QWE123RTY",
             "access": application_access_token(self.application),
         }, follow=True)
         self.assertEqual(resp.status_code, 200)
         self.application.refresh_from_db()
-        self.assertTrue(self.application.fee_paid)
+        self.assertFalse(self.application.fee_paid)
+        self.assertEqual(self.application.status, Application.Status.PAYMENT_PENDING)
         payment = self.application.fee_payments.first()
-        self.assertEqual(payment.status, ApplicationFeePayment.Status.CONFIRMED)
+        self.assertEqual(payment.status, ApplicationFeePayment.Status.PENDING)
         self.assertEqual(payment.reference, "QWE123RTY")
+        self.assertIsNone(payment.receipt_number)
+
+    def test_admin_confirms_pending_application_fee_payment(self):
+        payment = ApplicationFeePayment.objects.create(
+            application=self.application,
+            amount=Decimal("1000.00"),
+            method=ApplicationFeePayment.Method.MPESA,
+            reference="PENDING-REF-001",
+            status=ApplicationFeePayment.Status.PENDING,
+        )
+        self.application.status = Application.Status.PAYMENT_PENDING
+        self.application.save(update_fields=["status"])
+
+        self.client.force_login(self.admin)
+        resp = self.client.post(reverse("university:admin_admission_detail", args=[self.application.pk]), {
+            "action": "confirm_payment",
+            "payment_id": payment.pk,
+        }, follow=True)
+        self.assertEqual(resp.status_code, 200)
+        self.application.refresh_from_db()
+        payment.refresh_from_db()
+        self.assertTrue(self.application.fee_paid)
+        self.assertEqual(self.application.status, Application.Status.READY_FOR_SUBMISSION)
+        self.assertEqual(payment.status, ApplicationFeePayment.Status.CONFIRMED)
+        self.assertTrue(payment.receipt_number.startswith("APPFEE-"))
 
     def test_pay_fee_requires_reference(self):
         resp = self.client.post(self.application_url(), {

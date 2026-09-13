@@ -49,6 +49,7 @@
         <div class="small text-muted mt-2 d-flex flex-wrap gap-2">
           <span><i class="fa-solid fa-mobile-screen me-1 text-success"></i>{{ stats.paybill_count }} Paybill</span> &bull;
           <span><i class="fa-solid fa-store me-1 text-info"></i>{{ stats.till_count }} Till</span> &bull;
+          <span><i class="fa-solid fa-wallet me-1 text-success"></i>{{ stats.pochi_count }} Pochi</span> &bull;
           <span><i class="fa-solid fa-credit-card me-1 text-primary"></i>{{ stats.card_count }} Card</span> &bull;
           <span><i class="fa-solid fa-landmark me-1 text-secondary"></i>{{ stats.bank_count }} Bank</span>
         </div>
@@ -135,8 +136,8 @@
             <!-- Account & Channel -->
             <td class="ps-4">
               <div class="d-flex align-items-center gap-3">
-                <div class="rounded-3 p-2 text-center" style="width: 44px; height: 44px; background: {% if acc.account_type == 'MPESA_PAYBILL' %}#ecfdf5; color: #059669;{% elif acc.account_type == 'MPESA_TILL' %}#eff6ff; color: #2563eb;{% elif acc.account_type == 'CARD_GATEWAY' %}#f5f3ff; color: #7c3aed;{% else %}#f8fafc; color: #475569;{% endif %}">
-                  <i class="fa-solid {% if acc.account_type == 'MPESA_PAYBILL' %}fa-mobile-screen-button{% elif acc.account_type == 'MPESA_TILL' %}fa-store{% elif acc.account_type == 'CARD_GATEWAY' %}fa-credit-card{% else %}fa-landmark{% endif %} fa-lg"></i>
+                <div class="rounded-3 p-2 text-center" style="width: 44px; height: 44px; background: {% if acc.account_type == 'MPESA_PAYBILL' or acc.account_type == 'POCHI_LA_BIASHARA' %}#ecfdf5; color: #059669;{% elif acc.account_type == 'MPESA_TILL' %}#eff6ff; color: #2563eb;{% elif acc.account_type == 'CARD_GATEWAY' %}#f5f3ff; color: #7c3aed;{% else %}#f8fafc; color: #475569;{% endif %}">
+                  <i class="fa-solid {% if acc.account_type == 'MPESA_PAYBILL' %}fa-mobile-screen-button{% elif acc.account_type == 'POCHI_LA_BIASHARA' %}fa-wallet{% elif acc.account_type == 'MPESA_TILL' %}fa-store{% elif acc.account_type == 'CARD_GATEWAY' %}fa-credit-card{% else %}fa-landmark{% endif %} fa-lg"></i>
                 </div>
                 <div>
                   <div class="d-flex align-items-center gap-2">
@@ -169,6 +170,11 @@
               {% elif acc.account_type == 'MPESA_TILL' %}
                 <div class="d-flex align-items-baseline gap-1">
                   <span class="text-muted small">Till No:</span>
+                  <code class="fw-bold fs-6 text-dark">{{ acc.account_identifier }}</code>
+                </div>
+              {% elif acc.account_type == 'POCHI_LA_BIASHARA' %}
+                <div class="d-flex align-items-baseline gap-1">
+                  <span class="text-muted small">Pochi No:</span>
                   <code class="fw-bold fs-6 text-dark">{{ acc.account_identifier }}</code>
                 </div>
               {% else %}

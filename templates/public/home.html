@@ -4,16 +4,32 @@
 {% block content %}
 
 <!-- HERO -->
-<section class="pub-hero">
+<section class="pub-hero pub-hero-v2">
   <div class="container">
-    <div class="welcome">Welcome To UMS</div>
-    <h1>University<br>
-      <span class="bold"><span class="cap"><i class="fa-solid fa-graduation-cap"></i></span>Management</span>
-    </h1>
-    <p class="lead-sub">One smart platform to run admissions, academics, attendance, exams,
-      fees and campus life — with role-based portals and built-in AI insights.</p>
-    <a href="{% if user.is_authenticated %}{% url 'university:dashboard' %}{% else %}{% url 'accounts:signup' %}{% endif %}" class="hero-btn">
-      Get Started <i class="fa-solid fa-arrow-right-long"></i></a>
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <div class="welcome">Kenya-ready campus operations</div>
+        <h1>Run your university from admission to graduation.</h1>
+        <p class="lead-sub">UMS brings applications, fees, coursework, exams, transcripts, student life and system controls into one polished command center for modern institutions.</p>
+        <div class="hero-actions">
+          <a href="{% if user.is_authenticated %}{% url 'university:dashboard' %}{% else %}{% url 'accounts:signup' %}{% endif %}" class="hero-btn">
+            Launch Portal <i class="fa-solid fa-arrow-right-long"></i></a>
+          <a href="{% url 'university:courses_public' %}" class="hero-link">
+            Explore Courses <i class="fa-solid fa-book-open"></i></a>
+        </div>
+        <div class="hero-proof" aria-label="Platform highlights">
+          <span><b>{{ stats.students|intcomma }}+</b> students</span>
+          <span><b>{{ stats.courses|intcomma }}+</b> courses</span>
+          <span><b>{{ stats.departments|intcomma }}+</b> departments</span>
+        </div>
+      </div>
+      <div class="hero-panel" aria-label="Operational highlights">
+        <span class="panel-kicker">Live campus stack</span>
+        <div class="panel-row"><i class="fa-solid fa-file-signature"></i><span>Admissions and document issuing</span></div>
+        <div class="panel-row"><i class="fa-solid fa-wallet"></i><span>Fee accounts, payments and receipts</span></div>
+        <div class="panel-row"><i class="fa-solid fa-shield-halved"></i><span>Identity, audit and go-live controls</span></div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -51,7 +67,7 @@
 </section>
 
 <!-- STATS -->
-<section class="container pt-5" style="position:relative;z-index:5">
+<section class="container pt-5 public-section" style="position:relative;z-index:5">
   <div class="row g-3">
     {% with s=stats %}
     <div class="col-6 col-lg-3"><div class="card stat-tile" style="background:linear-gradient(135deg,#7b6cf6,#5a4bd6)">
@@ -71,11 +87,11 @@
 </section>
 
 <!-- FEATURES -->
-<section class="container py-5 mt-4">
-  <div class="text-center mb-5">
-    <span class="badge-soft badge rounded-pill px-3 py-2">Everything you need</span>
-    <h2 class="fw-bold mt-2">One platform, three tailored experiences</h2>
-    <p class="text-muted">Each role gets a dedicated, colour-themed portal designed around their daily work.</p>
+<section class="container py-5 mt-4 public-section">
+  <div class="section-heading">
+    <span class="badge-soft badge rounded-pill px-3 py-2">Operational cockpit</span>
+    <h2 class="fw-bold mt-2">Three portals. One source of truth.</h2>
+    <p class="text-muted">Purpose-built workflows for the people who keep a campus moving every day.</p>
   </div>
   <div class="row g-4">
     {% for f in "x"|make_list %}{% endfor %}
@@ -110,7 +126,7 @@
 </section>
 
 <!-- DEPARTMENTS -->
-<section class="container py-5">
+<section class="container py-5 public-section">
   <div class="d-flex justify-content-between align-items-end mb-4">
     <div><span class="badge-soft badge rounded-pill px-3 py-2">Explore</span>
       <h2 class="fw-bold mt-2 mb-0">Popular Departments</h2></div>
@@ -130,8 +146,8 @@
 </section>
 
 <!-- FEATURED COURSES -->
-<section class="container py-5">
-  <div class="text-center mb-5">
+<section class="container py-5 public-section">
+  <div class="section-heading mb-5">
     <span class="badge-soft badge rounded-pill px-3 py-2">Catalog</span>
     <h2 class="fw-bold mt-2">Featured Courses</h2>
   </div>
@@ -139,8 +155,13 @@
     {% for c in featured_courses %}
     <div class="col-md-6 col-lg-4">
       <div class="card course-card card-ums h-100 overflow-hidden">
-        <img src="{{ c.image_url|default:'' }}" class="w-100" style="height:170px;object-fit:cover"
-             onerror="this.src='https://picsum.photos/seed/c{{ c.id }}/600/400'" alt="{{ c.title }}">
+        {% if c.image_url %}
+        <img src="{{ c.image_url }}" class="w-100" style="height:170px;object-fit:cover" alt="{{ c.title }}">
+        {% else %}
+        <div class="w-100 d-flex align-items-center justify-content-center text-white" style="height:170px;background:{{ c.department.color|default:'#2563eb' }}">
+          <i class="fa-solid fa-book-open fa-3x opacity-50"></i>
+        </div>
+        {% endif %}
         <div class="card-body">
           <span class="badge rounded-pill" style="background:{{ c.department.color }}">{{ c.department.code }}</span>
           <h6 class="fw-bold mt-2">{{ c.title }}</h6>
@@ -157,10 +178,10 @@
 </section>
 
 <!-- CTA -->
-<section class="container py-5">
-  <div class="card border-0 rounded-4 text-white p-5 text-center" style="background:var(--gradient)">
-    <h2 class="fw-bold">Ready to modernise your campus?</h2>
-    <p class="opacity-75 mb-4">Join thousands of students and faculty already using UMS every day.</p>
+<section class="container py-5 public-section">
+  <div class="pub-final-cta text-white">
+    <h2 class="fw-bold">A serious campus system, ready for real work.</h2>
+    <p class="opacity-75 mb-4">Start in the public portal, then move straight into role-based operations.</p>
     <div class="d-flex justify-content-center gap-3">
       <a href="{% url 'accounts:signup' %}" class="btn btn-light btn-lg rounded-pill px-4 fw-semibold text-primary">Create free account</a>
       <a href="{% url 'university:contact' %}" class="btn btn-outline-light btn-lg rounded-pill px-4 fw-semibold">Talk to us</a>

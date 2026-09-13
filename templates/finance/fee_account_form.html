@@ -21,7 +21,7 @@
         <i class="fa-solid {% if is_edit %}fa-pen-to-square{% else %}fa-plus-circle{% endif %} me-2 text-primary"></i>
         {% if is_edit %}Configure Fee Account: {{ account.name }}{% else %}Add Payment Gateway / Account{% endif %}
       </h2>
-      <p class="text-muted small mb-0">Set up Paybill (Business No &amp; Account No), Till, Card Gateways, or Bank accounts with secure credential isolation.</p>
+      <p class="text-muted small mb-0">Set up Paybill, Till, Pochi la Biashara, Card Gateways, or Bank accounts with secure credential isolation.</p>
     </div>
     <a href="{% url 'university:fee_accounts_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
       <i class="fa-solid fa-arrow-left me-1"></i> Back to Accounts
@@ -113,11 +113,11 @@
           <span class="badge bg-success rounded-pill px-3 py-1.5 fs-6">
             <i class="fa-solid fa-mobile-screen-button me-1"></i> Kenya M-Pesa Paybill Setup
           </span>
-          <span class="text-muted small">In Kenya, Paybill transactions require both a <b>Business No.</b> and an <b>Account No.</b></span>
+          <span class="text-muted small" id="mpesaCardSummary">In Kenya, Paybill transactions require both a <b>Business No.</b> and an <b>Account No.</b></span>
         </div>
 
         <div class="row g-3">
-          <div class="col-md-6">
+          <div class="col-md-6" id="accountRefRuleContainer">
             <label class="form-label fw-semibold text-dark small">
               Account Number (Account Reference) Rule <span class="text-danger">*</span>
             </label>
@@ -185,14 +185,14 @@
                 <span class="badge bg-success rounded-pill px-2.5 py-1 text-uppercase" style="font-size: 0.72rem;">
                   <i class="fa-solid fa-mobile-screen me-1"></i> Live Kenyan M-Pesa 5-Step Instructions
                 </span>
-                <span class="text-white-50 small">Standard Lipa na M-Pesa Paybill payment flow</span>
+                <span class="text-white-50 small" id="previewFlowLabel">Standard Lipa na M-Pesa Paybill payment flow</span>
               </div>
               <div class="font-monospace small p-3 rounded-3" style="background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.12); line-height: 1.8;">
                 <div class="text-light">&bull; 1. Open M-Pesa on your mobile phone</div>
-                <div class="text-light">&bull; 2. Select Lipa na M-Pesa &rarr; Paybill</div>
-                <div class="text-success">&bull; 3. Enter Business Number: <b id="previewBusinessNo">{{ account.account_identifier|default:'522123' }}</b></div>
-                <div class="text-warning">&bull; 4. Enter Account Number: <b id="previewAccountNo">{{ account.paybill_account_number_display|default:'BT-CSE/001/2027' }}</b></div>
-                <div class="text-info">&bull; 5. Enter Amount: <b>KES 55,500.00</b></div>
+                <div class="text-light">&bull; 2. Select <span id="previewMenuPath">Lipa na M-Pesa &rarr; Paybill</span></div>
+                <div class="text-success">&bull; 3. Enter <span id="previewIdentifierLabel">Business Number</span>: <b id="previewBusinessNo">{{ account.account_identifier|default:'522123' }}</b></div>
+                <div class="text-warning" id="previewAccountNoLine">&bull; 4. Enter Account Number: <b id="previewAccountNo">{{ account.paybill_account_number_display|default:'BT-CSE/001/2027' }}</b></div>
+                <div class="text-info">&bull; <span id="previewAmountStep">5</span>. Enter Amount: <b>KES 55,500.00</b></div>
               </div>
             </div>
           </div>
@@ -293,6 +293,8 @@
     const label = document.getElementById('identifierLabel');
     const help = document.getElementById('identifierHelp');
     const idInput = document.getElementById('identifierInput');
+    const mpesaSummary = document.getElementById('mpesaCardSummary');
+    const accountRefRuleContainer = document.getElementById('accountRefRuleContainer');
 
     const refSelect = document.getElementById('paybillAccountRefSelect');
     const fixedContainer = document.getElementById('fixedAccountContainer');
@@ -304,11 +306,18 @@
 
     const previewBusinessNo = document.getElementById('previewBusinessNo');
     const previewAccountNo = document.getElementById('previewAccountNo');
+    const previewFlowLabel = document.getElementById('previewFlowLabel');
+    const previewMenuPath = document.getElementById('previewMenuPath');
+    const previewIdentifierLabel = document.getElementById('previewIdentifierLabel');
+    const previewAccountNoLine = document.getElementById('previewAccountNoLine');
+    const previewAmountStep = document.getElementById('previewAmountStep');
 
     function updateFields() {
       const val = select ? select.value : '{{ account.account_type|default:"MPESA_PAYBILL" }}';
 
-      if (mpesaCard) mpesaCard.style.display = (val === 'MPESA_PAYBILL' || val === 'MPESA_TILL') ? 'block' : 'none';
+      const isMpesaChannel = (val === 'MPESA_PAYBILL' || val === 'MPESA_TILL' || val === 'POCHI_LA_BIASHARA');
+      if (mpesaCard) mpesaCard.style.display = isMpesaChannel ? 'block' : 'none';
+      if (accountRefRuleContainer) accountRefRuleContainer.style.display = (val === 'MPESA_PAYBILL') ? 'block' : 'none';
       if (bankFields) bankFields.style.display = (val === 'BANK_ACCOUNT') ? 'flex' : 'none';
       if (cardFields) cardFields.style.display = (val === 'CARD_GATEWAY') ? 'flex' : 'none';
 
@@ -321,6 +330,10 @@
           label.innerHTML = 'Buy Goods / Till Number <span class="text-danger">*</span>';
           help.textContent = 'The Safaricom Till Number for Buy Goods & Services.';
           idInput.placeholder = 'e.g. 889900';
+        } else if (val === 'POCHI_LA_BIASHARA') {
+          label.innerHTML = 'Pochi la Biashara Number <span class="text-danger">*</span>';
+          help.textContent = 'The Safaricom Pochi la Biashara phone or business collection number.';
+          idInput.placeholder = 'e.g. 0113636154';
         } else if (val === 'BANK_ACCOUNT') {
           label.innerHTML = 'Bank Account Number <span class="text-danger">*</span>';
           help.textContent = 'The primary bank account number for fee deposits.';
@@ -332,6 +345,15 @@
         } else {
           label.innerHTML = 'Account Identifier <span class="text-danger">*</span>';
           help.textContent = 'Unique identifier for this channel.';
+        }
+      }
+      if (mpesaSummary) {
+        if (val === 'MPESA_PAYBILL') {
+          mpesaSummary.innerHTML = 'In Kenya, Paybill transactions require both a <b>Business No.</b> and an <b>Account No.</b>';
+        } else if (val === 'POCHI_LA_BIASHARA') {
+          mpesaSummary.innerHTML = 'Pochi la Biashara uses the recipient Pochi number and amount. No Paybill Account No. is required.';
+        } else {
+          mpesaSummary.innerHTML = 'Buy Goods / Till payments use the Safaricom Till Number and amount. No Paybill Account No. is required.';
         }
       }
       updatePreview();
@@ -361,8 +383,33 @@
 
     function updatePreview() {
       if (previewBusinessNo && idInput) {
-        previewBusinessNo.textContent = idInput.value || '522123';
+        const currentType = select ? select.value : '{{ account.account_type|default:"MPESA_PAYBILL" }}';
+        previewBusinessNo.textContent = idInput.value || (currentType === 'POCHI_LA_BIASHARA' ? '0113636154' : currentType === 'MPESA_TILL' ? '889900' : '522123');
       }
+      const accountType = select ? select.value : '{{ account.account_type|default:"MPESA_PAYBILL" }}';
+      if (previewFlowLabel) {
+        previewFlowLabel.textContent = accountType === 'POCHI_LA_BIASHARA'
+          ? 'Standard M-Pesa Pochi la Biashara payment flow'
+          : accountType === 'MPESA_TILL'
+            ? 'Standard Lipa na M-Pesa Buy Goods payment flow'
+            : 'Standard Lipa na M-Pesa Paybill payment flow';
+      }
+      if (previewMenuPath) {
+        previewMenuPath.innerHTML = accountType === 'POCHI_LA_BIASHARA'
+          ? 'Lipa na M-Pesa &rarr; Pochi la Biashara'
+          : accountType === 'MPESA_TILL'
+            ? 'Lipa na M-Pesa &rarr; Buy Goods and Services'
+            : 'Lipa na M-Pesa &rarr; Paybill';
+      }
+      if (previewIdentifierLabel) {
+        previewIdentifierLabel.textContent = accountType === 'POCHI_LA_BIASHARA'
+          ? 'Pochi Number'
+          : accountType === 'MPESA_TILL'
+            ? 'Till Number'
+            : 'Business Number';
+      }
+      if (previewAccountNoLine) previewAccountNoLine.style.display = accountType === 'MPESA_PAYBILL' ? 'block' : 'none';
+      if (previewAmountStep) previewAmountStep.textContent = accountType === 'MPESA_PAYBILL' ? '5' : '4';
       if (previewAccountNo && refSelect) {
         const refVal = refSelect.value;
         if (refVal === 'FIXED_ACCOUNT') {

@@ -72,6 +72,7 @@ def fee_accounts_dashboard(request):
         "inactive_accounts": accounts.exclude(status=FeeAccount.Status.ACTIVE).count(),
         "paybill_count": accounts.filter(account_type=FeeAccount.AccountType.MPESA_PAYBILL).count(),
         "till_count": accounts.filter(account_type=FeeAccount.AccountType.MPESA_TILL).count(),
+        "pochi_count": accounts.filter(account_type=FeeAccount.AccountType.POCHI_LA_BIASHARA).count(),
         "card_count": accounts.filter(account_type=FeeAccount.AccountType.CARD_GATEWAY).count(),
         "bank_count": accounts.filter(account_type=FeeAccount.AccountType.BANK_ACCOUNT).count(),
         "today_successful_amount": today_payments.filter(status=Payment.Status.SUCCESSFUL).aggregate(s=Sum("amount"))["s"] or Decimal("0.00"),
@@ -115,12 +116,13 @@ def fee_account_create(request):
 
         # Additional configurations per account type
         config = {}
-        if account_type in [FeeAccount.AccountType.MPESA_PAYBILL, FeeAccount.AccountType.MPESA_TILL]:
+        if account_type in [FeeAccount.AccountType.MPESA_PAYBILL, FeeAccount.AccountType.MPESA_TILL, FeeAccount.AccountType.POCHI_LA_BIASHARA]:
             config["callback_url"] = request.POST.get("callback_url", "/api/payments/callback/mpesa/").strip()
             config["validation_url"] = request.POST.get("validation_url", "").strip()
-            config["account_ref_format"] = request.POST.get("account_ref_format", "STUDENT_REG_NO").strip()
-            config["fixed_account_number"] = request.POST.get("fixed_account_number", "").strip()
-            config["account_ref_prefix"] = request.POST.get("account_ref_prefix", "").strip()
+            if account_type == FeeAccount.AccountType.MPESA_PAYBILL:
+                config["account_ref_format"] = request.POST.get("account_ref_format", "STUDENT_REG_NO").strip()
+                config["fixed_account_number"] = request.POST.get("fixed_account_number", "").strip()
+                config["account_ref_prefix"] = request.POST.get("account_ref_prefix", "").strip()
             if request.POST.get("consumer_key", "").strip() or request.POST.get("passkey", "").strip():
                 config["credentials_configured"] = True
         elif account_type == FeeAccount.AccountType.CARD_GATEWAY:
@@ -210,12 +212,13 @@ def fee_account_edit(request, pk):
 
         # Update configuration
         config = account.configuration or {}
-        if account.account_type in [FeeAccount.AccountType.MPESA_PAYBILL, FeeAccount.AccountType.MPESA_TILL]:
+        if account.account_type in [FeeAccount.AccountType.MPESA_PAYBILL, FeeAccount.AccountType.MPESA_TILL, FeeAccount.AccountType.POCHI_LA_BIASHARA]:
             config["callback_url"] = request.POST.get("callback_url", config.get("callback_url", "")).strip()
             config["validation_url"] = request.POST.get("validation_url", config.get("validation_url", "")).strip()
-            config["account_ref_format"] = request.POST.get("account_ref_format", "STUDENT_REG_NO").strip()
-            config["fixed_account_number"] = request.POST.get("fixed_account_number", "").strip()
-            config["account_ref_prefix"] = request.POST.get("account_ref_prefix", "").strip()
+            if account.account_type == FeeAccount.AccountType.MPESA_PAYBILL:
+                config["account_ref_format"] = request.POST.get("account_ref_format", "STUDENT_REG_NO").strip()
+                config["fixed_account_number"] = request.POST.get("fixed_account_number", "").strip()
+                config["account_ref_prefix"] = request.POST.get("account_ref_prefix", "").strip()
             if (request.POST.get("consumer_key", "").strip()
                     or request.POST.get("passkey", "").strip()):
                 config["credentials_configured"] = True

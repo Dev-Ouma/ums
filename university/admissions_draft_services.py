@@ -538,6 +538,13 @@ def update_applicant_draft(
     """
     Applies partial form updates with optimistic locking and strict normalization/validation.
     """
+    if application.status not in [Application.Status.DRAFT, Application.Status.IN_PROGRESS]:
+        return False, {
+            "success": False,
+            "message": "Application cannot be modified after submission.",
+            "errors": ["Application cannot be modified after submission."],
+        }
+
     # Optimistic locking check
     if client_version is not None:
         try:
@@ -567,6 +574,8 @@ def update_applicant_draft(
             itk = Intake.objects.filter(pk=raw_intake_id, is_active=True).first()
             if not itk:
                 errors["intake_id"] = "The selected intake cycle is not currently available for applications."
+            elif itk.end_date and itk.end_date < timezone.now().date():
+                errors["intake_id"] = "The selected academic intake has closed and is no longer accepting applications."
             else:
                 application.intake = itk
 
@@ -805,8 +814,18 @@ def validate_and_submit_application(
     Transitions status from DRAFT / IN_PROGRESS to READY_FOR_PAYMENT.
     Migrates any session draft documents to ApplicationAttachment models.
     """
+    from accounts.email_identity_service import EmailIdentityService
+
     if not application:
         return False, {"errors": ["Application record not found."], "field_errors": {}}
+
+    if application.status not in [Application.Status.DRAFT, Application.Status.IN_PROGRESS]:
+        return False, {
+            "success": False,
+            "errors": [f"Application is currently in '{application.get_status_display()}' state and cannot be resubmitted."],
+            "message": f"Application is currently in '{application.get_status_display()}' state and cannot be resubmitted.",
+            "field_errors": {},
+        }
 
     errors = []
     field_errors = {}
@@ -817,18 +836,27 @@ def validate_and_submit_application(
     intake_obj = None
     if intake_id:
         intake_obj = Intake.objects.filter(pk=intake_id, is_active=True).first()
-    if not intake_obj and not application.intake:
+    else:
+        intake_obj = application.intake if (application.intake and application.intake.is_active) else None
+
+    if not intake_obj:
         errors.append("Please select a valid academic intake.")
         field_errors["intake"] = "Please select an available intake."
+    elif intake_obj.end_date and intake_obj.end_date < timezone.now().date():
+        errors.append(f"The selected intake '{intake_obj.name}' has closed and is no longer accepting submissions.")
+        field_errors["intake"] = "This intake has closed."
 
     # 2. Programme Selection
     prog_id = p.get("program") or (application.program_id if application.program else None)
     program_obj = None
     if prog_id:
         program_obj = Program.objects.filter(pk=prog_id, status=Program.Status.ACTIVE).first()
-    if not program_obj and not application.program:
-        errors.append("Please select a valid programme of study.")
-        field_errors["program"] = "Please select a programme."
+    else:
+        program_obj = application.program if (application.program and application.program.status == Program.Status.ACTIVE) else None
+
+    if not program_obj:
+        errors.append("Please select a valid active programme of study.")
+        field_errors["program"] = "Please select an active programme."
 
     # 3. Personal Information
     first_name_raw = p.get("first_name", application.first_name or "").strip()
@@ -867,6 +895,12 @@ def validate_and_submit_application(
     if not valid_em:
         errors.append(em_err)
         field_errors["email"] = em_err
+    else:
+        ignore_id = application.applicant_user.id if application.applicant_user else None
+        if not EmailIdentityService.is_available(email, ignore_user_id=ignore_id):
+            conflict = EmailIdentityService.get_conflict_response(email)
+            errors.append(conflict["error"])
+            field_errors["email"] = conflict["error"]
 
     # Mobile Phone
     valid_ph, phone, ph_err = normalize_and_validate_phone(phone_raw)
@@ -1001,16 +1035,23 @@ def validate_and_submit_application(
     application.kcse_mean_grade = kcse_grade
     application.kcse_year = kcse_year
 
-    # Custom fields in payload
-    for k, v in p.items():
-        if k.startswith("custom_"):
+    # Custom fields in payload — prefetch once to avoid N+1 queries.
+    # Cap the number of accepted custom_ keys to prevent query flooding.
+    MAX_CUSTOM_FIELDS = 50
+    custom_keys = [k for k in p if k.startswith("custom_")][:MAX_CUSTOM_FIELDS]
+    if custom_keys:
+        active_custom_fields = {
+            cf.name: cf
+            for cf in ApplicationCustomField.objects.filter(is_active=True)
+        }
+        for k in custom_keys:
             cf_name = k.replace("custom_", "", 1)
-            cf = ApplicationCustomField.objects.filter(name=cf_name, is_active=True).first()
+            cf = active_custom_fields.get(cf_name)
             if cf:
                 ApplicationCustomFieldValue.objects.update_or_create(
                     application=application,
                     field=cf,
-                    defaults={"value": str(v).strip()},
+                    defaults={"value": str(p[k]).strip()},
                 )
 
     # Migrate session documents to ApplicationAttachment if any

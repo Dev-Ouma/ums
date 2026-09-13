@@ -18,8 +18,8 @@
   <!-- Header & Actions -->
   <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
     <div class="d-flex align-items-center gap-3">
-      <div class="rounded-4 p-3 text-center" style="width: 58px; height: 58px; background: {% if account.account_type == 'MPESA_PAYBILL' %}#ecfdf5; color: #059669;{% elif account.account_type == 'MPESA_TILL' %}#eff6ff; color: #2563eb;{% elif account.account_type == 'CARD_GATEWAY' %}#f5f3ff; color: #7c3aed;{% else %}#f8fafc; color: #475569;{% endif %}">
-        <i class="fa-solid {% if account.account_type == 'MPESA_PAYBILL' %}fa-mobile-screen-button{% elif account.account_type == 'MPESA_TILL' %}fa-store{% elif account.account_type == 'CARD_GATEWAY' %}fa-credit-card{% else %}fa-landmark{% endif %} fa-2x"></i>
+      <div class="rounded-4 p-3 text-center" style="width: 58px; height: 58px; background: {% if account.account_type == 'MPESA_PAYBILL' or account.account_type == 'POCHI_LA_BIASHARA' %}#ecfdf5; color: #059669;{% elif account.account_type == 'MPESA_TILL' %}#eff6ff; color: #2563eb;{% elif account.account_type == 'CARD_GATEWAY' %}#f5f3ff; color: #7c3aed;{% else %}#f8fafc; color: #475569;{% endif %}">
+        <i class="fa-solid {% if account.account_type == 'MPESA_PAYBILL' %}fa-mobile-screen-button{% elif account.account_type == 'POCHI_LA_BIASHARA' %}fa-wallet{% elif account.account_type == 'MPESA_TILL' %}fa-store{% elif account.account_type == 'CARD_GATEWAY' %}fa-credit-card{% else %}fa-landmark{% endif %} fa-2x"></i>
       </div>
       <div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -132,7 +132,7 @@
     <div class="col-sm-6 col-lg-3">
       <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
         <span class="text-muted small fw-semibold text-uppercase">
-          {% if account.account_type == 'MPESA_PAYBILL' %}Paybill / Business No{% elif account.account_type == 'MPESA_TILL' %}Till Number{% else %}Identifier / Account No{% endif %}
+          {% if account.account_type == 'MPESA_PAYBILL' %}Paybill / Business No{% elif account.account_type == 'MPESA_TILL' %}Till Number{% elif account.account_type == 'POCHI_LA_BIASHARA' %}Pochi la Biashara No{% else %}Identifier / Account No{% endif %}
         </span>
         <div class="display-6 fw-bold text-dark mt-2 font-monospace">
           {{ account.account_identifier }}
@@ -277,6 +277,24 @@
         </div>
       </div>
       {% else %}
+      {% if account.account_type == 'POCHI_LA_BIASHARA' %}
+      <div class="col-12">
+        <div class="p-3.5 rounded-4 border shadow-sm" style="background: linear-gradient(135deg, #0b1523 0%, #172a45 100%); color: #fff;">
+          <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom border-secondary border-opacity-25 flex-wrap gap-2">
+            <span class="badge bg-success rounded-pill px-3 py-1 text-uppercase" style="font-size: 0.75rem;">
+              <i class="fa-solid fa-wallet me-1"></i> Pochi la Biashara Instructions Flow
+            </span>
+            <span class="text-white-50 small">Displayed to students and parents during fee payment</span>
+          </div>
+          <div class="font-monospace small p-3 rounded-3" style="background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.12); line-height: 1.9;">
+            <div class="text-light">&bull; 1. Open M-Pesa on your mobile phone</div>
+            <div class="text-light">&bull; 2. Select Lipa na M-Pesa &rarr; Pochi la Biashara</div>
+            <div class="text-success">&bull; 3. Enter Pochi Number: <b class="text-white">{{ account.account_identifier }}</b></div>
+            <div class="text-info">&bull; 4. Enter Amount: <b class="text-white">KES 55,500.00</b> <span class="text-white-50">(or required student amount)</span></div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
       <div class="col-md-4">
         <div class="p-3 bg-light rounded-3">
           <small class="text-muted text-uppercase fw-semibold d-block mb-1" style="font-size: 0.72rem;">Identifier / Account Number</small>

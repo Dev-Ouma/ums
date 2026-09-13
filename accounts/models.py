@@ -60,6 +60,8 @@ ROLE_THEMES = {
 }
 
 
+from accounts.email_identity_service import EmailIdentityService
+
 class User(AbstractUser):
     role = models.CharField(max_length=15, choices=Role.choices, default=Role.STUDENT)
     phone = models.CharField(max_length=20, blank=True, default="0000")
@@ -127,6 +129,19 @@ class User(AbstractUser):
     def __str__(self):
         return f"{self.display_name} ({self.get_role_display()})"
 
+    def save(self, *args, **kwargs):
+        if self.email:
+            self.email = EmailIdentityService.normalize(self.email)
+        super().save(*args, **kwargs)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                models.functions.Lower('email'),
+                condition=~models.Q(email=''),
+                name='unique_lower_email'
+            )
+        ]
 
 class StudentProfile(models.Model):
     class Status(models.TextChoices):

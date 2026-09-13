@@ -3,14 +3,18 @@ Public Credential & Academic Document Verification Portal.
 Permits employers, embassies, universities, and regulatory authorities to verify
 the authentic certification status of academic transcripts and degree documents.
 """
+import re
+from django.db.models import Q
 from django.shortcuts import render
 from django.utils import timezone
 from accounts.models import StudentProfile
 from university.models import AuditLog
 from university.transcript_io import build_transcript_context
 from university.audit_services import log_activity, get_client_ip, detect_device_type
+from university.security_decorators import rate_limit
 
 
+@rate_limit("public-verify", limit=30, window_seconds=60)
 def public_verify_document(request, reference_no=None):
     """
     Publicly accessible verification endpoint for transcripts and academic documents.
@@ -74,11 +78,19 @@ def public_verify_document(request, reference_no=None):
         }
     else:
         student = None
-        # Search for matching student by matching roll number within the reference
-        for sp in StudentProfile.objects.select_related("user", "program", "program__department").all():
-            if sp.roll_no in clean_ref:
-                student = sp
-                break
+        # Extract roll number from UMS/TR/<YEAR>/<ROLL_NO>-<DIGEST> or query directly
+        match = re.search(r"UMS/TR/\d{4}/(.+?)(?:-[0-9a-fA-F]{8,64})?$", clean_ref)
+        if match:
+            candidate_roll = match.group(1).replace("-", "/")
+            student = StudentProfile.objects.filter(
+                Q(roll_no__iexact=candidate_roll) | Q(roll_no__iexact=match.group(1))
+            ).select_related("user", "program", "program__department").first()
+
+        if not student:
+            candidate = clean_ref.split("/")[-1].split("-")[0] if "/" in clean_ref else clean_ref
+            student = StudentProfile.objects.filter(
+                Q(roll_no__iexact=clean_ref) | Q(roll_no__iexact=candidate)
+            ).select_related("user", "program", "program__department").first()
 
         if student:
             try:

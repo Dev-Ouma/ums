@@ -510,8 +510,12 @@ def validate_faculty_import_rows(raw_rows):
     and return structured result for admin preview before commit.
     """
     existing_eids = set(FacultyProfile.objects.values_list("employee_id", flat=True))
-    existing_usernames = set(User.objects.values_list("username", flat=True))
-    existing_emails = set(User.objects.values_list("email", flat=True))
+    existing_usernames = set(u.lower() for u in User.objects.values_list("username", flat=True) if u)
+    
+    from accounts.email_identity_service import EmailIdentityService
+    from university.models import InstitutionalEmail
+    existing_emails = set(e.lower() for e in User.objects.exclude(email='').values_list("email", flat=True) if e)
+    existing_emails.update(e.lower() for e in InstitutionalEmail.objects.exclude(address='').values_list("address", flat=True) if e)
 
     depts_by_code = {d.code.upper(): d for d in Department.objects.all() if d.code}
     depts_by_name = {d.name.strip().lower(): d for d in Department.objects.all() if d.name}
@@ -576,15 +580,17 @@ def validate_faculty_import_rows(raw_rows):
                 dup_reasons.append(f"Employee ID '{employee_id}' already registered in database")
 
         if username:
-            if username in seen_usernames:
+            username_lower = username.lower()
+            if username_lower in seen_usernames:
                 dup_reasons.append(f"Duplicate Username '{username}' in this file")
-            elif username in existing_usernames:
+            elif username_lower in existing_usernames:
                 dup_reasons.append(f"Username '{username}' already taken in database")
 
         if email:
-            if email in seen_emails:
+            email_lower = EmailIdentityService.normalize(email)
+            if email_lower in seen_emails:
                 dup_reasons.append(f"Duplicate Email '{email}' in this file")
-            elif email in existing_emails:
+            elif email_lower in existing_emails:
                 dup_reasons.append(f"Email '{email}' already exists in database")
 
         has_validation_errors = bool(errors)
@@ -595,9 +601,9 @@ def validate_faculty_import_rows(raw_rows):
         if employee_id:
             seen_eids.add(employee_id)
         if username:
-            seen_usernames.add(username)
+            seen_usernames.add(username.lower())
         if email:
-            seen_emails.add(email)
+            seen_emails.add(EmailIdentityService.normalize(email))
 
         if has_validation_errors:
             status = "error"

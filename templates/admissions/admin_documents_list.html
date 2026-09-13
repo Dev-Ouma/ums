@@ -183,7 +183,9 @@
             <td>
               <span class="font-monospace text-dark fw-semibold small">{{ app.application_number }}</span>
               {% if app.admitted_reg_no or app.student.roll_no %}
-                <div class="small text-primary fw-bold">{{ app.admitted_reg_no|default:app.student.roll_no }}</div>
+                <div class="small text-primary fw-bold">
+                  {% if app.admitted_reg_no %}{{ app.admitted_reg_no }}{% else %}{{ app.student.roll_no }}{% endif %}
+                </div>
               {% else %}
                 <div class="small text-muted">Reg No Unassigned</div>
               {% endif %}

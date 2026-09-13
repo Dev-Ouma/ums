@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class MpesaProviderAdapter(BasePaymentProviderAdapter):
     """
     Safaricom M-Pesa Payment Provider Adapter.
-    Supports M-Pesa Express (STK Push), C2B Paybill, and Buy Goods / Till numbers.
+    Supports M-Pesa Express (STK Push), C2B Paybill, Buy Goods / Till, and Pochi la Biashara numbers.
     """
 
     def initiate_payment(self, payment, request, extra_data: Optional[Dict[str, Any]] = None) -> PaymentResult:
@@ -27,7 +27,9 @@ class MpesaProviderAdapter(BasePaymentProviderAdapter):
         payment.payer_phone = cleaned_phone
         payment.save(update_fields=["payer_phone"])
 
-        is_paybill = self.fee_account.account_type == "MPESA_PAYBILL"
+        account_type = self.fee_account.account_type
+        is_paybill = account_type == "MPESA_PAYBILL"
+        is_pochi = account_type == "POCHI_LA_BIASHARA"
         shortcode = self.fee_account.account_identifier
 
         # Resolve Kenyan Paybill Account Number (Account Reference) via FeeAccount rule
@@ -40,8 +42,14 @@ class MpesaProviderAdapter(BasePaymentProviderAdapter):
         else:
             account_ref = payment.student.roll_no if payment.student else payment.internal_reference
 
+        channel_label = "Pochi la Biashara" if is_pochi else ("M-Pesa Paybill" if is_paybill else "M-Pesa Buy Goods / Till")
+        step_two = "Lipa na M-Pesa &rarr; Pochi la Biashara" if is_pochi else (
+            "Lipa na M-Pesa &rarr; Paybill" if is_paybill else "Lipa na M-Pesa &rarr; Buy Goods and Services"
+        )
+        identifier_label = "Pochi Number" if is_pochi else ("Business Number" if is_paybill else "Till Number")
+
         instructions = {
-            "type": "M-Pesa Paybill" if is_paybill else "M-Pesa Buy Goods / Till",
+            "type": channel_label,
             "business_number": shortcode,
             "account_number": account_ref if is_paybill else None,
             "amount": str(payment.amount),
@@ -49,8 +57,8 @@ class MpesaProviderAdapter(BasePaymentProviderAdapter):
             "phone_prompted": cleaned_phone,
             "steps": [
                 "1. Open M-Pesa on your mobile phone",
-                f"2. Select {'Lipa na M-Pesa &rarr; Paybill' if is_paybill else 'Lipa na M-Pesa &rarr; Buy Goods and Services'}",
-                f"3. Enter {'Business Number' if is_paybill else 'Till Number'}: <b>{shortcode}</b>",
+                f"2. Select {step_two}",
+                f"3. Enter {identifier_label}: <b>{shortcode}</b>",
                 f"4. Enter Account Number: <b>{account_ref}</b>" if is_paybill else None,
                 f"5. Enter Amount: <b>{payment.currency} {payment.amount:,.2f}</b>",
                 "6. Enter your M-Pesa PIN and press OK",
@@ -71,7 +79,7 @@ class MpesaProviderAdapter(BasePaymentProviderAdapter):
             transaction_reference=payment.internal_reference,
             provider_reference=checkout_id,
             instructions=instructions,
-            message=f"Payment request initiated. A prompt has been sent to your phone {cleaned_phone or ''} or use Paybill {shortcode}.",
+            message=f"Payment request initiated. A prompt has been sent to your phone {cleaned_phone or ''} or use {channel_label} {shortcode}.",
             raw_response={"CheckoutRequestID": checkout_id, "MerchantRequestID": f"MR_{payment.id}"}
         )
 

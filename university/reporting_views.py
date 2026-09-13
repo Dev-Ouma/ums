@@ -395,10 +395,14 @@ def student_view_admission_document(request, doc_id):
 
     is_owner = (
         (student and (doc.student == student or doc.application.student == student)) or
+        (doc.application.applicant_user_id == request.user.id) or
         (doc.application.email and doc.application.email.lower() == request.user.email.lower())
     )
     if not is_owner and not (request.user.is_admin_role or request.user.is_superuser):
         return HttpResponseForbidden("You are not authorized to view this document.")
+
+    if doc.status == IssuedAdmissionDocument.Status.REVOKED and not (request.user.is_admin_role or request.user.is_superuser):
+        return HttpResponseForbidden("This admission document has been revoked by the University Admissions Directorate.")
 
     from university.admission_document_services import build_admission_letter_pdf_bytes
     if not doc.pdf_file:
@@ -428,10 +432,14 @@ def student_download_admission_document(request, doc_id):
 
     is_owner = (
         (student and (doc.student == student or doc.application.student == student)) or
+        (doc.application.applicant_user_id == request.user.id) or
         (doc.application.email and doc.application.email.lower() == request.user.email.lower())
     )
     if not is_owner and not (request.user.is_admin_role or request.user.is_superuser):
         return HttpResponseForbidden("You are not authorized to download this document.")
+
+    if doc.status == IssuedAdmissionDocument.Status.REVOKED and not (request.user.is_admin_role or request.user.is_superuser):
+        return HttpResponseForbidden("This admission document has been revoked by the University Admissions Directorate.")
 
     from university.admission_document_services import build_admission_letter_pdf_bytes
     if not doc.pdf_file:
@@ -456,6 +464,7 @@ def student_download_attachment(request, attachment_id):
 
     is_owner = (
         (student and (att.application.student == student)) or
+        (att.application.applicant_user_id == request.user.id) or
         (att.application.email and att.application.email.lower() == request.user.email.lower())
     )
     if not is_owner and not (request.user.is_admin_role or request.user.is_superuser):
@@ -464,13 +473,17 @@ def student_download_attachment(request, attachment_id):
     if not att.is_visible_to_student and not (request.user.is_admin_role or request.user.is_superuser):
         return HttpResponseForbidden("This document attachment is currently restricted.")
 
-    if not att.file or not os.path.exists(att.file.path):
+    if not att.file:
         raise Http404("Document file does not exist on storage.")
 
     import mimetypes
     from django.http import FileResponse
     mime = att.mime_type or mimetypes.guess_type(att.file_name)[0] or "application/octet-stream"
-    response = FileResponse(open(att.file.path, "rb"), content_type=mime)
+    try:
+        f = att.file.open("rb")
+    except Exception:
+        raise Http404("Document file does not exist on storage.")
+    response = FileResponse(f, content_type=mime)
     response["Content-Disposition"] = f'attachment; filename="{att.file_name or os.path.basename(att.file.name)}"'
     return response
 

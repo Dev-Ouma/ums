@@ -55,7 +55,7 @@
             <span class="text-muted fw-semibold">Application Processing Fee</span>
             <span class="fs-3 fw-bold text-primary">KES {{ fee_amount|intcomma }}</span>
           </div>
-          <p class="text-muted small mb-0 mt-2">This fee is verified server-side and recorded immediately against your application ID.</p>
+          <p class="text-muted small mb-0 mt-2">This fee is verified server-side against your application ID before your application can be submitted.</p>
         </div>
       </div>
 
@@ -64,15 +64,59 @@
         <div class="card-body p-4">
           <h5 class="fw-bold mb-3 text-dark"><i class="fa-solid fa-shield-halved me-2 text-primary"></i>Secure Payment Checkout</h5>
           
-          <div class="alert alert-light border rounded-3 p-3 mb-4">
-            <div class="d-flex align-items-center gap-2 mb-2">
-              <i class="fa-solid fa-mobile-screen-button text-success fs-5"></i>
-              <strong class="text-dark">M-Pesa Paybill Instructions:</strong>
+          <div id="payment-instructions" class="alert alert-light border rounded-3 p-3 mb-4">
+            <!-- M-Pesa -->
+            <div id="instruction-MPESA" class="payment-instruction">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="fa-solid fa-mobile-screen-button text-success fs-5"></i>
+                <strong class="text-dark">M-Pesa Paybill Instructions:</strong>
+              </div>
+              <div class="row g-2 small text-muted">
+                <div class="col-sm-6">Business No: <strong class="text-dark font-monospace">{{ paybill_number }}</strong></div>
+                <div class="col-sm-6">Account No: <strong class="text-dark font-monospace">{{ application.application_number }}</strong></div>
+                <div class="col-12">Amount: <strong class="text-dark font-monospace">KES {{ fee_amount|intcomma }}</strong></div>
+              </div>
             </div>
-            <div class="row g-2 small text-muted">
-              <div class="col-sm-6">Business No: <strong class="text-dark font-monospace">222111</strong></div>
-              <div class="col-sm-6">Account No: <strong class="text-dark font-monospace">{{ application.application_number }}</strong></div>
-              <div class="col-12">Amount: <strong class="text-dark font-monospace">KES {{ fee_amount|intcomma }}</strong></div>
+            
+            <!-- Pochi la Biashara -->
+            <div id="instruction-POCHI_LA_BIASHARA" class="payment-instruction" style="display:none;">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="fa-solid fa-mobile-screen-button text-success fs-5"></i>
+                <strong class="text-dark">Pochi la Biashara:</strong>
+              </div>
+              <div class="row g-2 small text-muted">
+                <div class="col-sm-12 mb-1">
+                   Pay using M-Pesa → Lipa na M-Pesa → Pochi la Biashara, then enter <strong class="text-dark font-monospace">{{ pochi_number }}</strong> as the business number.
+                </div>
+                <div class="col-sm-12 d-flex align-items-center gap-2">
+                  <span>Till / Business No: <strong class="text-dark font-monospace" id="pochi-number">{{ pochi_number }}</strong></span>
+                  <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 rounded-1" onclick="navigator.clipboard.writeText('{{ pochi_number }}')"><i class="fa-regular fa-copy"></i> Copy</button>
+                </div>
+                <div class="col-12 mt-1">Amount: <strong class="text-dark font-monospace">KES {{ fee_amount|intcomma }}</strong></div>
+              </div>
+            </div>
+
+            <!-- Card / eCitizen / Bank -->
+            <div id="instruction-CARD" class="payment-instruction" style="display:none;">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="fa-regular fa-credit-card text-primary fs-5"></i>
+                <strong class="text-dark">Debit / Credit Card:</strong>
+              </div>
+              <div class="small text-muted">Please proceed to checkout via our secure card portal. You will receive an authorization reference to enter below.</div>
+            </div>
+            <div id="instruction-BANK" class="payment-instruction" style="display:none;">
+               <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="fa-solid fa-building-columns text-secondary fs-5"></i>
+                <strong class="text-dark">Bank Transfer:</strong>
+              </div>
+              <div class="small text-muted">Deposit KES {{ fee_amount|intcomma }} into the University Bank Account. Enter the deposit slip reference number below.</div>
+            </div>
+            <div id="instruction-ECITIZEN" class="payment-instruction" style="display:none;">
+               <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="fa-solid fa-landmark text-primary fs-5"></i>
+                <strong class="text-dark">eCitizen / Government Gateway:</strong>
+              </div>
+              <div class="small text-muted">Pay via eCitizen and enter the eCitizen reference number (e.g. EC-1234) below.</div>
             </div>
           </div>
 
@@ -96,7 +140,7 @@
             </div>
 
             <button type="submit" class="btn btn-primary btn-lg w-100 rounded-pill fw-semibold shadow-sm">
-              <i class="fa-solid fa-check me-1"></i> Verify &amp; Confirm Payment
+              <i class="fa-solid fa-shield-halved me-1"></i> Submit Reference for Verification
             </button>
           </form>
 
@@ -106,4 +150,29 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const methodSelect = document.querySelector('select[name="method"]');
+    const instructions = document.querySelectorAll('.payment-instruction');
+    
+    function updateInstructions() {
+      const selected = methodSelect.value;
+      instructions.forEach(el => {
+        if (el.id === 'instruction-' + selected) {
+          el.style.display = 'block';
+        } else {
+          el.style.display = 'none';
+        }
+      });
+    }
+    
+    if(methodSelect) {
+      methodSelect.addEventListener('change', updateInstructions);
+      updateInstructions();
+    }
+  });
+</script>
 {% endblock %}

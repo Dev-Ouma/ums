@@ -263,13 +263,8 @@ def generate_email_address(user, user_type=None, commit=False, created_by=None):
 
 
 def _address_taken(address, exclude_user=None):
-    from accounts.models import User
-    email_qs = InstitutionalEmail.objects.filter(address__iexact=address)
-    user_qs = User.objects.filter(email__iexact=address)
-    if exclude_user is not None:
-        email_qs = email_qs.exclude(user=exclude_user)
-        user_qs = user_qs.exclude(pk=exclude_user.pk)
-    return email_qs.exists() or user_qs.exists()
+    from accounts.email_identity_service import EmailIdentityService
+    return not EmailIdentityService.is_available(address, ignore_user_id=exclude_user.pk if exclude_user else None)
 
 
 def resolve_user_type(user):

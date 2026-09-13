@@ -535,8 +535,12 @@ def validate_import_rows(raw_rows):
     and return structured result for user preview before commit.
     """
     existing_rolls = set(StudentProfile.objects.values_list("roll_no", flat=True))
-    existing_usernames = set(User.objects.values_list("username", flat=True))
-    existing_emails = set(User.objects.values_list("email", flat=True))
+    existing_usernames = set(u.lower() for u in User.objects.values_list("username", flat=True) if u)
+    
+    from accounts.email_identity_service import EmailIdentityService
+    from university.models import InstitutionalEmail
+    existing_emails = set(e.lower() for e in User.objects.exclude(email='').values_list("email", flat=True) if e)
+    existing_emails.update(e.lower() for e in InstitutionalEmail.objects.exclude(address='').values_list("address", flat=True) if e)
 
     programs_by_code = {p.code.upper(): p for p in Program.objects.all() if p.code}
     programs_by_name = {p.name.strip().lower(): p for p in Program.objects.all() if p.name}
@@ -621,15 +625,17 @@ def validate_import_rows(raw_rows):
                 dup_reasons.append(f"Roll No '{roll_no}' already exists in database")
 
         if username:
-            if username in seen_usernames:
+            username_lower = username.lower()
+            if username_lower in seen_usernames:
                 dup_reasons.append(f"Duplicate Username '{username}' in this file")
-            elif username in existing_usernames:
+            elif username_lower in existing_usernames:
                 dup_reasons.append(f"Username '{username}' already taken in database")
 
         if email:
-            if email in seen_emails:
+            email_lower = EmailIdentityService.normalize(email)
+            if email_lower in seen_emails:
                 dup_reasons.append(f"Duplicate Email '{email}' in this file")
-            elif email in existing_emails:
+            elif email_lower in existing_emails:
                 dup_reasons.append(f"Email '{email}' already registered in database")
 
         if dup_reasons:
@@ -640,9 +646,9 @@ def validate_import_rows(raw_rows):
         if roll_no:
             seen_rolls.add(roll_no)
         if username:
-            seen_usernames.add(username)
+            seen_usernames.add(username.lower())
         if email:
-            seen_emails.add(email)
+            seen_emails.add(EmailIdentityService.normalize(email))
 
         # Determine Row Status
         if errors and not is_duplicate:

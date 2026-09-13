@@ -272,6 +272,7 @@ urlpatterns = [
     path("admissions/<int:pk>/letter/", admissions_views.download_admission_letter, name="download_admission_letter"),
     path("admissions/<int:pk>/view-letter/", admissions_views.view_admission_letter, name="view_admission_letter"),
     path("admissions/<int:pk>/accept-offer/", admissions_views.applicant_accept_offer, name="applicant_accept_offer"),
+    path("admissions/<int:pk>/decline-offer/", admissions_views.applicant_decline_offer, name="applicant_decline_offer"),
     path("manage/admissions/", admissions_views.admin_admissions_list, name="admin_admissions"),
     path("manage/admissions/<int:pk>/", admissions_views.admin_admission_detail, name="admin_admission_detail"),
     path("manage/admissions/<int:pk>/matriculate/", admissions_views.admin_admission_matriculate, name="admin_admission_matriculate"),

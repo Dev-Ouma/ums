@@ -141,7 +141,7 @@ class StudentObjectAuthorizationTests(TestCase):
             Client().get(
                 reverse("university:pay_application_fee", args=[self.application_b.pk])
             ).status_code,
-            403,
+            302,
         )
         self.assertEqual(
             Client().get(

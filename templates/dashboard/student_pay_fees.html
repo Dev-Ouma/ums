@@ -169,6 +169,8 @@
                     </div>
                   {% elif acc.account_type == 'MPESA_TILL' %}
                     <i class="fa-solid fa-store text-success me-1"></i> Till No: <b>{{ acc.account_identifier }}</b>
+                  {% elif acc.account_type == 'POCHI_LA_BIASHARA' %}
+                    <i class="fa-solid fa-store text-success me-1"></i> Pochi la Biashara No: <b>{{ acc.account_identifier }}</b>
                   {% elif acc.account_type == 'CARD_GATEWAY' %}
                     <i class="fa-solid fa-credit-card text-primary me-1"></i> Visa &bull; Mastercard &bull; Amex
                   {% elif acc.account_type == 'BANK_ACCOUNT' %}
@@ -197,7 +199,7 @@
       </div>
 
       <!-- 5-Step M-Pesa Instructions Card (Prominently rendered for Paybill) -->
-      <div id="mpesaStepsCard" class="mb-4 rounded-4 p-4 shadow-sm border" style="background: linear-gradient(135deg, #0b1523 0%, #172a45 100%); color: #fff;">
+      <div id="mpesaStepsCard" class="mb-4 rounded-4 p-4 shadow-sm border step-instruction-card" style="display:none; background: linear-gradient(135deg, #0b1523 0%, #172a45 100%); color: #fff;">
         <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom border-secondary border-opacity-25 flex-wrap gap-2">
           <span class="badge bg-success rounded-pill px-3 py-1.5 text-uppercase fw-bold" style="font-size: 0.75rem;">
             <i class="fa-solid fa-mobile-screen-button me-1"></i> How to Pay via M-Pesa (5 Easy Steps)
@@ -230,9 +232,44 @@
           </div>
           <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 text-info">
             <div>
-              <span class="text-info fw-bold me-1">&bull; 5.</span> Enter Amount: <b class="text-white fs-6" id="mpesaStepAmount">{{ balance.currency }} {% if balance.balance > 0 %}{{ balance.balance|floatformat:2|intcomma }}{% else %}55,500.00{% endif %}</b>
+              <span class="text-info fw-bold me-1">&bull; 5.</span> Enter Amount: <b class="text-white fs-6 mpesa-step-amount" id="mpesaStepAmount">{{ balance.currency }} {% if balance.balance > 0 %}{{ balance.balance|floatformat:2|intcomma }}{% else %}55,500.00{% endif %}</b>
             </div>
             <button type="button" class="btn btn-sm btn-outline-light rounded-pill py-0 px-2" style="font-size: 0.75rem;" onclick="copyStepText('mpesaStepAmount', 'Amount')">
+              <i class="fa-solid fa-copy me-1"></i> Copy
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Pochi la Biashara Instructions Card -->
+      <div id="pochiStepsCard" class="mb-4 rounded-4 p-4 shadow-sm border step-instruction-card" style="display:none; background: linear-gradient(135deg, #0b1523 0%, #172a45 100%); color: #fff;">
+        <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom border-secondary border-opacity-25 flex-wrap gap-2">
+          <span class="badge bg-success rounded-pill px-3 py-1.5 text-uppercase fw-bold" style="font-size: 0.75rem;">
+            <i class="fa-solid fa-mobile-screen-button me-1"></i> How to Pay via Pochi la Biashara
+          </span>
+          <span class="text-white-50 small">Automatic instant receipt upon completion</span>
+        </div>
+
+        <div class="font-monospace p-3 rounded-3" style="background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.12); font-size: 0.92rem; line-height: 2.1;">
+          <div class="text-light">
+            <span class="text-success fw-bold me-1">&bull; 1.</span> Open <b>M-Pesa</b> on your mobile phone
+          </div>
+          <div class="text-light">
+            <span class="text-success fw-bold me-1">&bull; 2.</span> Select <b>Lipa na M-Pesa &rarr; Pochi la Biashara</b>
+          </div>
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 text-success">
+            <div>
+              <span class="text-success fw-bold me-1">&bull; 3.</span> Enter Business Number: <b class="text-white fs-6" id="pochiStepBusinessNo">0113636154</b>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-light rounded-pill py-0 px-2" style="font-size: 0.75rem;" onclick="copyStepText('pochiStepBusinessNo', 'Business Number')">
+              <i class="fa-solid fa-copy me-1"></i> Copy
+            </button>
+          </div>
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 text-info">
+            <div>
+              <span class="text-info fw-bold me-1">&bull; 4.</span> Enter Amount: <b class="text-white fs-6 mpesa-step-amount" id="pochiStepAmount">{{ balance.currency }} {% if balance.balance > 0 %}{{ balance.balance|floatformat:2|intcomma }}{% else %}55,500.00{% endif %}</b>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-light rounded-pill py-0 px-2" style="font-size: 0.75rem;" onclick="copyStepText('pochiStepAmount', 'Amount')">
               <i class="fa-solid fa-copy me-1"></i> Copy
             </button>
           </div>
@@ -309,14 +346,16 @@
   }
 
   function updateMpesaStepAmount(val) {
-    const el = document.getElementById('mpesaStepAmount');
-    if (!el) return;
+    const els = document.querySelectorAll('.mpesa-step-amount');
+    if (els.length === 0) return;
     const num = parseFloat(val);
-    if (!isNaN(num) && num > 0) {
-      el.textContent = '{{ balance.currency }} ' + num.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-    } else {
-      el.textContent = '{{ balance.currency }} 55,500.00';
-    }
+    els.forEach(el => {
+      if (!isNaN(num) && num > 0) {
+        el.textContent = '{{ balance.currency }} ' + num.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      } else {
+        el.textContent = '{{ balance.currency }} 55,500.00';
+      }
+    });
   }
 
   function copyStepText(elemId, label) {
@@ -337,21 +376,29 @@
     const accountNo = radio.getAttribute('data-account-no');
 
     const phoneContainer = document.getElementById('phonePromptContainer');
+    
+    // Hide all step cards first
+    document.querySelectorAll('.step-instruction-card').forEach(el => el.style.display = 'none');
+    
     const mpesaStepsCard = document.getElementById('mpesaStepsCard');
+    const pochiStepsCard = document.getElementById('pochiStepsCard');
     const stepBusinessNo = document.getElementById('mpesaStepBusinessNo');
     const stepAccountNo = document.getElementById('mpesaStepAccountNo');
+    const pochiBusinessNo = document.getElementById('pochiStepBusinessNo');
 
     if (type === 'MPESA_PAYBILL') {
       if (phoneContainer) phoneContainer.style.display = 'block';
       if (mpesaStepsCard) mpesaStepsCard.style.display = 'block';
       if (stepBusinessNo) stepBusinessNo.textContent = identifier || '522123';
       if (stepAccountNo) stepAccountNo.textContent = accountNo || '{{ student.roll_no }}';
+    } else if (type === 'POCHI_LA_BIASHARA') {
+      if (phoneContainer) phoneContainer.style.display = 'block';
+      if (pochiStepsCard) pochiStepsCard.style.display = 'block';
+      if (pochiBusinessNo) pochiBusinessNo.textContent = identifier || '0113636154';
     } else if (type === 'MPESA_TILL') {
       if (phoneContainer) phoneContainer.style.display = 'block';
-      if (mpesaStepsCard) mpesaStepsCard.style.display = 'none';
     } else {
       if (phoneContainer) phoneContainer.style.display = 'none';
-      if (mpesaStepsCard) mpesaStepsCard.style.display = 'none';
     }
   }
 

@@ -1,5 +1,6 @@
 from xml.sax.saxutils import escape
 import io
+import logging
 import os
 from datetime import timedelta
 from decimal import Decimal
@@ -26,6 +27,7 @@ from university.academic_calendar_services import get_current_academic_year, get
 from university.student_numbering_services import generate_student_registration_number
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 def generate_application_number(intake=None):
@@ -41,7 +43,12 @@ def generate_application_number(intake=None):
             new_seq = Application.objects.count() + 1
     else:
         new_seq = 1
-    return f"{prefix}{new_seq:04d}"
+
+    candidate = f"{prefix}{new_seq:04d}"
+    while Application.objects.filter(application_number=candidate).exists():
+        new_seq += 1
+        candidate = f"{prefix}{new_seq:04d}"
+    return candidate
 
 
 def assign_admitted_reg_no(application):
@@ -78,7 +85,9 @@ def matriculate_applicant(application, created_by=None):
     - Updates application.status to ENROLLED
     - Automatically creates initial FeeInvoice from FeeStructure, tied to the active term
     """
-    if application.student:
+    # Lock row to prevent race conditions during concurrent matriculation
+    application = Application.objects.select_for_update().get(pk=application.pk)
+    if application.student or application.status == Application.Status.ENROLLED:
         return application.student, application.student.user, None
 
     # Active academic calendar context, per Admin Academic Year/Semester Setup — never hard-coded.
@@ -183,10 +192,21 @@ def matriculate_applicant(application, created_by=None):
     application.save()
 
     # Ensure admission document exists and links to student_profile
-    from university.admission_document_services import generate_admission_document
+    from university.admission_document_services import (
+        SignatureAuthorizationError,
+        SignatureRequiredError,
+        generate_admission_document,
+    )
     doc = application.issued_documents.filter(is_current_version=True).first()
     if not doc:
-        generate_admission_document(application, user=created_by, reason="Auto-generated on matriculation")
+        try:
+            generate_admission_document(application, user=created_by, reason="Auto-generated on matriculation")
+        except (SignatureRequiredError, SignatureAuthorizationError):
+            logger.warning(
+                "Admission document generation deferred during matriculation for application %s",
+                application.pk,
+                exc_info=True,
+            )
     else:
         if not doc.student:
             doc.student = student_profile
