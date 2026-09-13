@@ -274,7 +274,7 @@ class AdmissionsValidationAndIntakesTests(TestCase):
 
         v3, n3, _ = validate_name_field("o'connor")
         self.assertTrue(v3)
-        self.assertEqual(n3, "O'connor")
+        self.assertEqual(n3, "O'Connor")
 
         for bad in ["Kelvin123", "K", "!@#$%"]:
             v, n, _ = validate_name_field(bad)

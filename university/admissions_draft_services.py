@@ -745,6 +745,7 @@ def update_applicant_draft(
         return False, {
             "success": False,
             "errors": errors,
+            "field_errors": errors,
             "error": next(iter(errors.values())),
             "message": "Validation failed for one or more fields.",
         }
