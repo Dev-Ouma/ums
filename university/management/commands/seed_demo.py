@@ -9,6 +9,7 @@ Usage:
     python manage.py seed_demo          # seed (wipes previous demo data)
     python manage.py seed_demo --keep   # seed without wiping
 """
+import os
 import random
 from collections import defaultdict
 from datetime import date, time, timedelta
@@ -28,7 +29,7 @@ from university.models import (
 User = get_user_model()
 random.seed(42)
 
-PASSWORD = "demo1234"
+PASSWORD = os.environ.get("DEMO_ACCOUNTS_PASSWORD", "demo1234")
 EMAIL_DOMAIN = "example.com"
 PHONE = "0000"
 
@@ -167,7 +168,7 @@ class Command(BaseCommand):
         admin.is_staff = True
         admin.is_superuser = True
         admin.save()
-        self.stdout.write(self.style.SUCCESS("Admin login:  admin / demo1234"))
+        self.stdout.write(self.style.SUCCESS(f"Admin login:  admin / {PASSWORD}"))
 
         # --- Faculty --------------------------------------------------------
         designations = ["Professor", "Associate Professor", "Assistant Professor"]
@@ -190,7 +191,7 @@ class Command(BaseCommand):
                 joining_date=date(year - random.randint(1, 12), random.randint(1, 12),
                                   random.randint(1, 28)))
             faculty_list.append(fp)
-        self.stdout.write(self.style.SUCCESS("Faculty login: prof.rao / demo1234"))
+        self.stdout.write(self.style.SUCCESS(f"Faculty login: prof.rao / {PASSWORD}"))
 
         # --- Courses --------------------------------------------------------
         course_list = []
@@ -225,7 +226,7 @@ class Command(BaseCommand):
                 admission_date=date(year, random.randint(1, 8), random.randint(1, 28)),
                 guardian_name=f"{random.choice(FIRST_NAMES)} {ln}")
             student_list.append(sp)
-        self.stdout.write(self.style.SUCCESS("Student login: stu.aarav / demo1234"))
+        self.stdout.write(self.style.SUCCESS(f"Student login: stu.aarav / {PASSWORD}"))
 
         # --- Enrollments (spread across months for trend chart) -------------
         enrollments = []
@@ -399,7 +400,7 @@ class Command(BaseCommand):
             f"{Enrollment.objects.count()} enrollments, "
             f"{Attendance.objects.count()} attendance records."))
         self.stdout.write(self.style.WARNING(
-            "\nDemo logins (password: demo1234)\n"
+            f"\nDemo logins (password: {PASSWORD})\n"
             "  Admin   -> admin\n  Faculty -> prof.rao\n  Student -> stu.aarav"))
 
     # -- helpers ------------------------------------------------------------

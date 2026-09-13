@@ -68,7 +68,7 @@ python -m venv .venv
 source .venv/bin/activate
 
 # install dependencies
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 
 # apply database migrations
 python manage.py migrate
@@ -87,18 +87,19 @@ Now open **http://127.0.0.1:8000/** 🎉
 
 ---
 
-## 🔑 Demo logins
+## 🔑 Demo accounts
 
-All demo accounts use the password **`demo1234`**.
+Demo user accounts created by `python manage.py seed_demo`:
 
-| Role | Username | Password |
-|------|----------|----------|
-| 🛡️ Admin | `admin` | `demo1234` |
-| 🧑‍🏫 Faculty | `prof.rao` | `demo1234` |
-| 🎓 Student | `stu.aarav` | `demo1234` |
+| Role | Username | Description |
+|------|----------|-------------|
+| 🛡️ Admin | `admin` | System Administrator (also a Django superuser, accessible at `/django-admin/`) |
+| 🧑‍🏫 Faculty | `prof.rao` | Faculty / Teaching staff portal |
+| 🎓 Student | `stu.aarav` | Student portal & academics |
 
 After logging in you're routed to the dashboard for that role automatically.
-(`admin` is also a Django superuser, so `/django-admin/` works too.)
+
+> **Security Note:** Default passwords are never published in documentation. Demo account passwords can be set during seeding (e.g. via `DEMO_ACCOUNTS_PASSWORD` environment variable) or configured locally using `python manage.py changepassword <username>`.
 
 ---
 
