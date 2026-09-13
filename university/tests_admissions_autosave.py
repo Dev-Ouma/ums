@@ -83,41 +83,35 @@ class AdmissionsAutoSaveTests(TestCase):
         self.upload_doc_url = reverse("university:admissions_upload_document")
         self.remove_doc_url = reverse("university:admissions_remove_document")
 
-    def test_get_or_create_draft_idempotency_for_authenticated_applicant(self):
-        """Authenticated applicant should get a single, idempotent active draft Application."""
+    def test_draft_reads_are_side_effect_free_for_authenticated_applicant(self):
+        """Viewing a draft must not allocate a reference before the first save."""
         self.client.force_login(self.applicant_user)
         resp1 = self.client.get(self.get_draft_url)
         self.assertEqual(resp1.status_code, 200)
-        data1 = resp1.json()
-        self.assertTrue(data1.get("success"))
-        draft_num1 = data1["draft"]["application_number"]
-
-        # Call again
         resp2 = self.client.get(self.get_draft_url)
         self.assertEqual(resp2.status_code, 200)
-        data2 = resp2.json()
-        draft_num2 = data2["draft"]["application_number"]
+        self.assertIsNone(resp1.json()["draft"])
+        self.assertIsNone(resp2.json()["draft"])
+        self.assertFalse(Application.objects.filter(applicant_user=self.applicant_user).exists())
 
-        self.assertEqual(draft_num1, draft_num2)
-        self.assertEqual(
-            Application.objects.filter(applicant_user=self.applicant_user, status=Application.Status.DRAFT).count(),
-            1,
-        )
-
-    def test_anonymous_session_draft_creation_and_recovery(self):
-        """Anonymous user gets a session-bound draft and recovers it on subsequent requests."""
+    def test_draft_reads_are_side_effect_free_for_anonymous_applicant(self):
+        """Anonymous form loads must not create a session draft or consume a reference."""
         resp1 = self.client.get(self.get_draft_url)
         self.assertEqual(resp1.status_code, 200)
-        data1 = resp1.json()
-        app_num1 = data1["draft"]["application_number"]
-
-        # Next request in same session
         resp2 = self.client.get(self.get_draft_url)
         self.assertEqual(resp2.status_code, 200)
-        data2 = resp2.json()
-        app_num2 = data2["draft"]["application_number"]
+        self.assertIsNone(resp1.json()["draft"])
+        self.assertIsNone(resp2.json()["draft"])
+        self.assertFalse(Application.objects.exists())
 
-        self.assertEqual(app_num1, app_num2)
+    def test_apply_page_does_not_create_a_draft(self):
+        """Refreshing the public application form must be read-only."""
+        resp1 = self.client.get(self.apply_url)
+        resp2 = self.client.get(self.apply_url)
+        self.assertEqual(resp1.status_code, 200)
+        self.assertEqual(resp2.status_code, 200)
+        self.assertContains(resp1, "Draft: <span class=\"fw-bold font-monospace\">Not started</span>")
+        self.assertFalse(Application.objects.exists())
 
     def test_patch_draft_partial_field_updates_without_strict_validation(self):
         """Saving partial draft fields should succeed without requiring all mandatory submission fields."""
@@ -198,14 +192,14 @@ class AdmissionsAutoSaveTests(TestCase):
         """User A must not be able to mutate or inspect User B's draft."""
         # Create draft for applicant A
         self.client.force_login(self.applicant_user)
-        resp_a = self.client.get(self.get_draft_url)
-        app_num_a = resp_a.json()["draft"]["application_number"]
+        get_or_create_applicant_draft(self.client.request().wsgi_request)
+        app_num_a = Application.objects.get(applicant_user=self.applicant_user).application_number
         self.client.logout()
 
         # Login as applicant B
         self.client.force_login(self.other_applicant)
-        resp_b = self.client.get(self.get_draft_url)
-        app_num_b = resp_b.json()["draft"]["application_number"]
+        get_or_create_applicant_draft(self.client.request().wsgi_request)
+        app_num_b = Application.objects.get(applicant_user=self.other_applicant).application_number
 
         # Ensure different drafts
         self.assertNotEqual(app_num_a, app_num_b)

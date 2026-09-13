@@ -74,6 +74,87 @@ def get_default_active_intake() -> Optional[Intake]:
     return Intake.objects.filter(is_active=True).order_by("-start_date").first()
 
 
+def get_active_applicant_draft(request) -> Optional[Application]:
+    """Return the caller's current draft without creating or modifying one."""
+    draft_statuses = [Application.Status.DRAFT, Application.Status.IN_PROGRESS]
+    user = request.user if request.user.is_authenticated else None
+    session_key = request.session.session_key
+
+    if user and getattr(user, "role", "") in (Role.APPLICANT, Role.STUDENT, ""):
+        draft = (
+            Application.objects.filter(applicant_user=user, status__in=draft_statuses)
+            .order_by("-updated_at")
+            .first()
+        )
+        if draft:
+            return draft
+
+    if session_key:
+        filters = {"session_key": session_key, "status__in": draft_statuses}
+        if user:
+            filters["applicant_user__isnull"] = True
+        return (
+            Application.objects.filter(**filters)
+            .order_by("-updated_at")
+            .first()
+        )
+    return None
+
+
+def empty_draft_state() -> Dict[str, Any]:
+    """Build form defaults without allocating an application reference."""
+    intakes_data = get_available_intakes_data()
+    return {
+        "application_id": None,
+        "application_number": "",
+        "status": Application.Status.DRAFT,
+        "is_draft": True,
+        "version": 1,
+        "step": 1,
+        "completion_percentage": 0,
+        "updated_at": timezone.now().isoformat(),
+        "fields": {
+            "intake": str(intakes_data.get("default_intake_id") or ""),
+            "intake_id": intakes_data.get("default_intake_id"),
+            "program": "",
+            "first_name": "",
+            "middle_name": "",
+            "last_name": "",
+            "email": "",
+            "phone": "",
+            "date_of_birth": "",
+            "gender": "MALE",
+            "national_id": "",
+            "country": "Kenya",
+            "county": "Nairobi",
+            "nationality": "Kenyan",
+            "address": "",
+            "guardian_name": "",
+            "guardian_relationship": "Parent",
+            "guardian_phone": "",
+            "guardian_alternative_phone": "",
+            "guardian_email": "",
+            "guardian_address": "",
+            "guardian_country": "Kenya",
+            "guardian_occupation": "",
+            "guardian_employer": "",
+            "is_guardian_emergency_contact": True,
+            "secondary_school": "",
+            "kcse_index_number": "",
+            "kcse_mean_grade": "C+",
+            "kcse_year": 2025,
+        },
+        "documents": {},
+        "intakes_data": intakes_data,
+        "locations": {
+            "countries": COUNTRIES_LIST,
+            "counties": KENYAN_COUNTIES,
+            "default_country": "Kenya",
+            "default_county": "Nairobi",
+        },
+    }
+
+
 def get_available_intakes_data() -> Dict[str, Any]:
     """
     Returns structured list of all available intakes with status flags and default active ID.

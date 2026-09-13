@@ -15,6 +15,7 @@ from django.urls import reverse
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_safe
+from university.security_utils import safe_redirect
 
 from accounts.models import Role, StudentProfile
 from university.models import (
@@ -315,7 +316,7 @@ def fee_account_toggle_status(request, pk):
         description=f"Toggled fee account status: {account.name} -> {account.status}.",
     )
 
-    return redirect(request.META.get("HTTP_REFERER") or "university:fee_accounts_dashboard")
+    return safe_redirect(request, request.META.get("HTTP_REFERER"), "university:fee_accounts_dashboard")
 
 
 @login_required
@@ -331,7 +332,7 @@ def fee_account_set_default(request, pk):
     account.save(update_fields=["is_default"])
 
     messages.success(request, f"'{account.name}' set as the default {account.get_account_type_display()} account.")
-    return redirect(request.META.get("HTTP_REFERER") or "university:fee_accounts_dashboard")
+    return safe_redirect(request, request.META.get("HTTP_REFERER"), "university:fee_accounts_dashboard")
 
 
 @login_required
@@ -349,7 +350,11 @@ def fee_account_test(request, pk):
     else:
         messages.error(request, f"Connection Test Failed: {message}")
 
-    return redirect(request.META.get("HTTP_REFERER") or reverse("university:fee_account_detail", kwargs={"pk": account.pk}))
+    return safe_redirect(
+        request,
+        request.META.get("HTTP_REFERER"),
+        reverse("university:fee_account_detail", kwargs={"pk": account.pk}),
+    )
 
 
 @login_required

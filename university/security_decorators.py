@@ -17,8 +17,8 @@ def _client_address(request):
     return request.META.get("REMOTE_ADDR", "unknown")
 
 
-def rate_limit(scope, limit, window_seconds):
-    """Throttle POST abuse using a shared Django cache in production.
+def rate_limit(scope, limit, window_seconds, methods=("POST",)):
+    """Throttle selected HTTP methods using a shared Django cache in production.
 
     ``SECURITY_RATE_LIMIT_ENABLED`` defaults to production-only so local
     development and the test suite remain deterministic. Deployments should
@@ -28,7 +28,7 @@ def rate_limit(scope, limit, window_seconds):
     def decorator(view):
         @wraps(view)
         def wrapped(request, *args, **kwargs):
-            if (request.method != "POST"
+            if (request.method not in methods
                     or not getattr(settings, "SECURITY_RATE_LIMIT_ENABLED", not settings.DEBUG)):
                 return view(request, *args, **kwargs)
 

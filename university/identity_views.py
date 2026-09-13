@@ -14,6 +14,7 @@ from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -39,6 +40,7 @@ from university.identity_services import (active_sessions_for, assign_group,
                                           unlock_account, validate_import_rows)
 from university.models import AuditLog, Department, Program, StaffRole, StaffRoleAssignment
 from university.settings_services import get_setting, set_setting
+from university.security_utils import safe_redirect
 from university.document_views import present_pdf
 from university.views import _pdf_disposition
 
@@ -489,8 +491,11 @@ def user_action(request, pk, action):
                      description=f"Assigned role '{role.name}' to '{user.username}'.")
         messages.success(request, f"Role '{role.name}' assigned.")
 
-    next_url = request.POST.get("next")
-    return redirect(next_url) if next_url else redirect("university:user_detail", pk=user.pk)
+    return safe_redirect(
+        request,
+        request.POST.get("next"),
+        reverse("university:user_detail", kwargs={"pk": user.pk}),
+    )
 
 
 # ==============================================================================
@@ -995,7 +1000,7 @@ def bulk_user_action(request):
     else:
         messages.error(request, "Unknown bulk operation.")
 
-    return redirect(request.POST.get("next") or "university:user_list")
+    return safe_redirect(request, request.POST.get("next"), "university:user_list")
 
 
 # ==============================================================================

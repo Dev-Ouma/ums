@@ -14,7 +14,7 @@ from university.audit_services import log_activity, get_client_ip, detect_device
 from university.security_decorators import rate_limit
 
 
-@rate_limit("public-verify", limit=30, window_seconds=60)
+@rate_limit("public-verify", limit=30, window_seconds=60, methods=("GET",))
 def public_verify_document(request, reference_no=None):
     """
     Publicly accessible verification endpoint for transcripts and academic documents.
@@ -98,17 +98,17 @@ def public_verify_document(request, reference_no=None):
                 actual_ref = ctx.get("reference_no", "")
                 actual_digest = ctx.get("digest", "")
                 
-                context["student"] = student
-                context["ctx"] = ctx
-
                 if clean_ref == actual_ref or (actual_digest and actual_digest in clean_ref):
                     context["is_verified"] = True
                     context["status"] = "VALID"
                     context["status_label"] = "Certified Authentic Academic Record"
+                    context["student"] = student
+                    context["ctx"] = ctx
                 else:
-                    context["is_verified"] = False
-                    context["status"] = "AMENDED"
-                    context["status_label"] = "Superseded or Inactive Digest (Academic Record Amended)"
+                    # Do not reveal whether a guessed roll number belongs to a
+                    # real student when the supplied document digest is invalid.
+                    context["status"] = "NOT_FOUND"
+                    context["status_label"] = "Unverified / Record Not Found"
             except Exception:
                 context["status"] = "ERROR"
                 context["status_label"] = "Verification check encountered a system error"

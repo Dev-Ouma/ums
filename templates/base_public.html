@@ -6,7 +6,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}University Management System{% endblock %}</title>
-  <link rel="icon" type="image/png" href="{% static 'images/logo.png' %}">
+  <link rel="icon" type="image/png" href="{% static 'img/branding/ums-lion-academy.png' %}">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
@@ -38,7 +38,7 @@
   <header class="pub-header">
     <div class="container pub-header-inner">
       <a class="pub-brand d-flex align-items-center gap-2 text-decoration-none" href="{% url 'university:home' %}">
-        <img src="{% static 'images/logo.png' %}" alt="UMS Logo" class="rounded-3 shadow-sm" style="width:40px;height:40px;object-fit:contain;background:#fff;padding:2px;">
+        <img src="{% static 'img/branding/ums-lion-academy.png' %}" alt="UMS Lion Academy logo" class="rounded-3 shadow-sm" style="width:40px;height:40px;object-fit:contain;background:#fff;padding:2px;">
         <div class="d-flex flex-column lh-1">
           <small class="text-uppercase fw-bold text-muted" style="font-size:0.68rem;letter-spacing:1px;">University</small>
           <b class="text-primary fw-bold fs-5">{{ site.site_short_name|default:'UMS' }}</b>
@@ -128,8 +128,8 @@
         </div>
       </div>
       <hr class="border-secondary">
-      <p class="text-center small mb-0">© {% now "Y" %} University Management System · Built with Django · Powered by
-        StackGee</p>
+      <p class="text-center small mb-0 d-flex align-items-center justify-content-center gap-2 flex-wrap">© {% now "Y" %} University Management System · Built with Django · Powered by
+        StackGee <img src="{% static 'img/branding/stackgee-logo.jpg' %}" alt="StackGee Technologies" style="height:32px;width:auto;vertical-align:middle;border-radius:4px"></p>
     </div>
   </footer>
   {% endwith %}

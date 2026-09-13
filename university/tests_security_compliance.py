@@ -1,11 +1,12 @@
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from accounts.models import Role
 from university.golive_models import GoLiveCategory, IssueSeverity, IssueStatus, ReadinessStatus
 from university.models import GoLiveIssue, GoLiveReadiness
 from university.security_compliance_services import build_security_compliance_summary
+from university.security_utils import safe_redirect
 
 
 User = get_user_model()
@@ -149,3 +150,22 @@ class SecurityComplianceTests(TestCase):
         upload = SimpleUploadedFile("statement.pdf", b"not a pdf", content_type="application/pdf")
         with self.assertRaises(ValidationError):
             validate_uploaded_file(upload, extensions={".pdf"}, mime_types={"application/pdf"})
+
+    def test_direct_upload_validator_rejects_missing_mime_type(self):
+        from django.core.exceptions import ValidationError
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from university.upload_security import validate_uploaded_file
+
+        upload = SimpleUploadedFile("statement.pdf", b"%PDF-1.7", content_type="")
+        with self.assertRaises(ValidationError):
+            validate_uploaded_file(upload, extensions={".pdf"}, mime_types={"application/pdf"})
+
+    def test_safe_redirect_rejects_external_target(self):
+        request = RequestFactory().get("/accounts/login/", HTTP_HOST="testserver")
+        response = safe_redirect(request, "https://attacker.example/phish", "accounts:login")
+        self.assertEqual(response.url, reverse("accounts:login"))
+
+    def test_safe_redirect_allows_same_host_path(self):
+        request = RequestFactory().get("/accounts/login/", HTTP_HOST="testserver")
+        response = safe_redirect(request, "/accounts/login/?reason=expired", "accounts:login")
+        self.assertEqual(response.url, "/accounts/login/?reason=expired")

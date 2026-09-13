@@ -248,7 +248,7 @@ _CSP_DIRECTIVES = [
     "object-src 'none'",
     "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
     "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com",
-    "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:",
+    "font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.gstatic.com data:",
     "img-src 'self' data: https:",
     "frame-src 'self'",
     "connect-src 'self'",

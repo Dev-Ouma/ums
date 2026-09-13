@@ -108,7 +108,7 @@ def document(request, student_id, kind):
         return render(request,'transcripts/viewer.html',dict(student=student,title=TITLES[kind],pdf_url=pdf_url))
 
     branding = SiteSettings.objects.first()
-    logo = Path(settings.BASE_DIR)/'static/img/ums-logo.png'
+    logo = Path(settings.BASE_DIR)/'static/img/branding/ums-lion-academy.png'
     if branding and branding.logo:
         try:
             logo = branding.logo.path

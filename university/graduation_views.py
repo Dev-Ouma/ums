@@ -6,6 +6,7 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from accounts.models import Role, StudentProfile
@@ -14,6 +15,7 @@ from university.graduation_services import (
     generate_clearance_certificate_pdf, generate_degree_certificate_pdf,
     initiate_student_clearance, process_department_clearance
 )
+from university.security_utils import safe_redirect
 from university.models import (
     DepartmentClearance, GraduationApplication, GraduationCeremony
 )
@@ -257,9 +259,11 @@ def admin_clearance_action(request, pk):
 
     messages.success(request, f"Updated {dc.get_department_display()} clearance for {dc.application.student.roll_no} to {dc.status}.")
     next_url = request.POST.get("next")
-    if next_url:
-        return redirect(next_url)
-    return redirect("university:admin_clearance_queue", department=dc.department.lower())
+    return safe_redirect(
+        request,
+        next_url,
+        reverse("university:admin_clearance_queue", kwargs={"department": dc.department.lower()}),
+    )
 
 
 @login_required

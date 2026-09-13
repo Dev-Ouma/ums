@@ -57,8 +57,11 @@ def validate_uploaded_file(upload, *, extensions, mime_types=None, max_bytes=DEF
         limit_mb = max_bytes / (1024 * 1024)
         actual_mb = upload.size / (1024 * 1024)
         raise ValidationError(f"The file size ({actual_mb:.1f}MB) exceeds the maximum limit of {limit_mb:.0f}MB.")
-    if mime_types and upload.content_type and upload.content_type.lower() not in {value.lower() for value in mime_types}:
-        raise ValidationError("The file format is invalid. Ensure you are uploading a genuine document.")
+    if mime_types:
+        content_type = (upload.content_type or "").lower()
+        allowed_mimes = {value.lower() for value in mime_types}
+        if not content_type or content_type not in allowed_mimes:
+            raise ValidationError("The file format is invalid. Ensure you are uploading a genuine document.")
 
     signatures = SIGNATURES.get(extension)
     if signatures:

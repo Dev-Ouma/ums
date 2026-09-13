@@ -92,7 +92,7 @@ def get_branding():
     with safe fallbacks so every report renders even before Setup is configured."""
     site_name = "University Management System"
     contact_address = contact_email = contact_phone = ""
-    logo_path = os.path.join(settings.BASE_DIR, "static", "img", "ums-logo.png")
+    logo_path = os.path.join(settings.BASE_DIR, "static", "img", "branding", "ums-lion-academy.png")
 
     try:
         from university.models import SystemSetting
@@ -135,9 +135,9 @@ def get_branding():
 
 
 def _generate_fallback_logo():
-    logo_dir = os.path.join(settings.BASE_DIR, "static", "img")
+    logo_dir = os.path.join(settings.BASE_DIR, "static", "img", "branding")
     os.makedirs(logo_dir, exist_ok=True)
-    logo_file = os.path.join(logo_dir, "ums-logo.png")
+    logo_file = os.path.join(logo_dir, "ums-lion-academy.png")
     if os.path.isfile(logo_file) and os.path.getsize(logo_file) > 100:
         return logo_file
     try:
@@ -491,4 +491,3 @@ def make_qr_drawing(url: str, size: float = 50.0):
         return d
     except Exception:
         return None
-

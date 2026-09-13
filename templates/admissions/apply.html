@@ -155,7 +155,7 @@
                   <i class="fa-solid fa-calendar-check me-1"></i> {{ intake.name|default:"Admissions Open" }}
                 </span>
                 <span class="badge bg-white/20 text-white px-3 py-1.5 rounded-pill fw-normal" id="applicationNumberBadge" style="background-color: rgba(255,255,255,0.2);">
-                  <i class="fa-solid fa-hashtag me-1"></i> Draft: <span class="fw-bold font-monospace">{{ draft_application.application_number }}</span>
+                  <i class="fa-solid fa-hashtag me-1"></i> Draft: <span class="fw-bold font-monospace">{{ draft_application.application_number|default:"Not started" }}</span>
                 </span>
               </div>
               <h2 class="fw-bold mb-1">Online Application Portal</h2>
@@ -173,9 +173,9 @@
             <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
               <!-- Live Auto-Save Status Badge -->
               <div id="autoSaveIndicator" class="d-flex align-items-center gap-2">
-                <span class="badge rounded-pill px-3 py-2 bg-success text-white d-inline-flex align-items-center gap-1.5 shadow-sm" id="saveBadge">
-                  <i class="fa-solid fa-circle-check"></i>
-                  <span id="saveStatusText">All changes saved</span>
+                <span class="badge rounded-pill px-3 py-2 {% if draft_application %}bg-success{% else %}bg-secondary{% endif %} text-white d-inline-flex align-items-center gap-1.5 shadow-sm" id="saveBadge">
+                  <i class="fa-solid {% if draft_application %}fa-circle-check{% else %}fa-pen-to-square{% endif %}"></i>
+                  <span id="saveStatusText">{% if draft_application %}All changes saved{% else %}Ready to save{% endif %}</span>
                   <span class="opacity-75 ms-1 small text-nowrap" id="saveTimestamp"></span>
                 </span>
                 <button type="button" id="manualRetryBtn" class="btn btn-sm btn-light text-danger rounded-pill px-2.5 py-1 d-none fw-semibold shadow-sm">
@@ -762,7 +762,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
     const autoSaveUrl = "{% url 'university:admissions_api_save_draft' %}";
-    const getDraftUrl = "{% url 'university:admissions_api_get_draft' %}";
     const submitUrl = "{% url 'university:admissions_api_submit' %}";
     const uploadUrl = "{% url 'university:admissions_upload_document' %}";
     const removeUrl = "{% url 'university:admissions_remove_document' %}";
@@ -1265,6 +1264,10 @@ document.addEventListener('DOMContentLoaded', () => {
             saveBadge.classList.add('bg-success', 'text-white');
             saveStatusText.innerHTML = '<i class="fa-solid fa-cloud me-1"></i> Auto-save active';
             if (saveTimestamp) saveTimestamp.textContent = '';
+        } else if (state === 'ready') {
+            saveBadge.classList.add('bg-secondary', 'text-white');
+            saveStatusText.innerHTML = '<i class="fa-solid fa-pen-to-square me-1"></i> Ready to save';
+            if (saveTimestamp) saveTimestamp.textContent = '';
         }
     }
 
@@ -1355,7 +1358,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         updateProgress(state.completion_percentage);
-        setBadgeState('saved', '', { time: formatTime() });
+        setBadgeState(state.application_id ? 'saved' : 'ready', '', { time: formatTime() });
 
         setTimeout(() => {
             isHydrating = false;
@@ -1732,23 +1735,8 @@ document.addEventListener('DOMContentLoaded', () => {
     syncCountryCountyCascading();
 
     // Initial Hydration Execution
-    if (draftData && draftData.fields) {
-        hydrateForm(draftData);
-    } else {
-        fetch(getDraftUrl, {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(r => r.json())
-        .then(res => {
-            if (res.success && res.draft) {
-                hydrateForm(res.draft);
-            }
-        })
-        .catch(err => console.warn('Draft hydration fetch error:', err))
-        .finally(() => {
-            isHydrating = false;
-        });
-    }
+    if (draftData && draftData.fields) hydrateForm(draftData);
+    isHydrating = false;
 });
 </script>
 {% endblock %}

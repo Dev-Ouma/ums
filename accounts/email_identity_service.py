@@ -72,5 +72,5 @@ class EmailIdentityService:
             
         return {
             "success": False,
-            "error": "This email is already associated with another UMS account."
+            "error": "This email is already in use by another UMS account."
         }

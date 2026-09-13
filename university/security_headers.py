@@ -26,7 +26,8 @@ class SecurityHeadersMiddleware:
             # Reset URLs contain a short-lived bearer token. Never send that
             # token in a Referer header to another page or external service.
             response["Referrer-Policy"] = "no-referrer"
-        if request.path.startswith("/accounts/") or getattr(request.user, "is_authenticated", False):
+        user = getattr(request, "user", None)
+        if request.path.startswith("/accounts/") or getattr(user, "is_authenticated", False):
             # Prevent sensitive UMS pages and account responses being replayed
             # from a shared browser/proxy cache after logout or role changes.
             response["Cache-Control"] = "no-store, max-age=0"

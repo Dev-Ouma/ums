@@ -10,7 +10,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_safe
 
 from university.security_decorators import rate_limit
 from decimal import Decimal, InvalidOperation
@@ -41,6 +41,8 @@ from university.applicant_auth_services import (
 )
 from university.admissions_draft_services import (
     get_or_create_applicant_draft,
+    get_active_applicant_draft,
+    empty_draft_state,
     update_applicant_draft,
     calculate_completion_percentage,
     serialize_draft_state,
@@ -327,14 +329,15 @@ def api_locations(request):
     })
 
 
+@require_safe
 def api_get_draft(request):
     """
     GET /api/admissions/draft/ or /admissions/api/draft/
     Returns the active application draft, saved step, completion percentage,
     and metadata for already uploaded documents.
     """
-    draft = get_or_create_applicant_draft(request)
-    state = serialize_draft_state(draft, request=request)
+    draft = get_active_applicant_draft(request)
+    state = serialize_draft_state(draft, request=request) if draft else None
     return JsonResponse({"success": True, "draft": state})
 
 
@@ -595,12 +598,12 @@ def apply(request):
                 "draft_version": 1,
             })
 
-    draft = get_or_create_applicant_draft(request)
-    state = serialize_draft_state(draft, request=request)
+    draft = get_active_applicant_draft(request)
+    state = serialize_draft_state(draft, request=request) if draft else empty_draft_state()
 
     return render(request, "admissions/apply.html", {
         "programs": programs,
-        "intake": draft.intake or active_intake,
+        "intake": (draft.intake if draft else None) or active_intake,
         "intakes_data": intakes_data,
         "available_intakes": intakes_data.get("intakes", []),
         "countries": COUNTRIES_LIST,
@@ -612,9 +615,9 @@ def apply(request):
         "draft_documents": state["documents"],
         "guardian_relationships": Application.GUARDIAN_RELATIONSHIPS,
         "data": state["fields"],
-        "draft_step": draft.draft_step,
+        "draft_step": draft.draft_step if draft else state["step"],
         "completion_percentage": state["completion_percentage"],
-        "draft_version": draft.draft_version,
+        "draft_version": draft.draft_version if draft else state["version"],
     })
 
 
@@ -804,7 +807,7 @@ def submit_application(request, pk):
     return redirect(f"{reverse('university:admissions_status')}?access={application_access_token(application)}")
 
 
-@rate_limit("app-status-query", limit=30, window_seconds=60)
+@rate_limit("app-status-query", limit=30, window_seconds=60, methods=("GET",))
 def application_status(request):
     """Public portal: Check application decision and download admission letter."""
     ref = request.GET.get("ref", "").strip()

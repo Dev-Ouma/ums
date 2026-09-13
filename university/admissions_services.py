@@ -85,6 +85,7 @@ def matriculate_applicant(application, created_by=None):
     - Updates application.status to ENROLLED
     - Automatically creates initial FeeInvoice from FeeStructure, tied to the active term
     """
+    requested_application = application
     # Lock row to prevent race conditions during concurrent matriculation
     application = Application.objects.select_for_update().get(pk=application.pk)
     if application.student or application.status == Application.Status.ENROLLED:
@@ -190,6 +191,13 @@ def matriculate_applicant(application, created_by=None):
     application.reviewed_by = created_by or application.reviewed_by
     application.reviewed_at = timezone.now()
     application.save()
+    if requested_application is not application:
+        requested_application.student = application.student
+        requested_application.status = application.status
+        requested_application.admitted_reg_no = application.admitted_reg_no
+        requested_application.reviewed_by = application.reviewed_by
+        requested_application.reviewed_at = application.reviewed_at
+        requested_application.updated_at = application.updated_at
 
     # Ensure admission document exists and links to student_profile
     from university.admission_document_services import (

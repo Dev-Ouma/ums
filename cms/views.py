@@ -10,6 +10,7 @@ from django.views.decorators.http import require_POST
 
 from accounts.models import Role
 from university.decorators import role_required
+from university.security_utils import safe_redirect
 
 from . import services
 from .forms import (BlockForm, MediaAssetForm, MenuItemForm, PageForm,
@@ -126,7 +127,7 @@ def page_toggle_status(request, pk):
     obj.updated_by = request.user
     obj.save(update_fields=["status", "updated_by", "updated_at"])
     messages.success(request, f"“{obj.title}” is now {obj.get_status_display().lower()}.")
-    return redirect(request.POST.get("next") or "cms:page_list")
+    return safe_redirect(request, request.POST.get("next"), "cms:page_list")
 
 
 # ==========================================================================

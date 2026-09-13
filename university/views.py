@@ -21,6 +21,7 @@ from accounts.models import FacultyProfile, Role, StudentProfile
 
 from . import ai, course_io, faculty_io, fee_io, program_io, services, student_io, timetable_io
 from .decorators import role_required
+from .security_utils import safe_redirect
 from .document_design import get_branding
 from .financial_services import (
     check_financial_clearance, generate_fee_receipt_pdf, generate_student_statement_pdf
@@ -2124,10 +2125,11 @@ def class_schedule_publish(request, pk):
                        else ClassSchedule.Status.PUBLISHED)
     schedule.save(update_fields=["status"])
     messages.success(request, f"{schedule} is now {schedule.get_status_display().lower()}.")
-    referer = request.META.get("HTTP_REFERER")
-    if referer and request.get_host() in referer:
-        return redirect(referer)
-    return redirect("university:admin_timetable")
+    return safe_redirect(
+        request,
+        request.META.get("HTTP_REFERER"),
+        "university:admin_timetable",
+    )
 
 
 @role_required(Role.ADMIN)

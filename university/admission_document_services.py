@@ -629,7 +629,7 @@ def build_admission_letter_pdf_bytes(issued_document):
     tmpl = issued_document.template
 
     # 1. Official Crest
-    crest_path = os.path.join(settings.BASE_DIR, "static", "img", "ums-crest.jpg")
+    crest_path = os.path.join(settings.BASE_DIR, "static", "img", "branding", "ums-lion-academy.png")
     if not os.path.exists(crest_path):
         crest_path = get_branding()["logo_path"]
     if crest_path and os.path.exists(crest_path):

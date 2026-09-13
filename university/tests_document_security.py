@@ -1,6 +1,6 @@
 from datetime import timedelta
 from decimal import Decimal
-from django.test import TestCase, Client
+from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -168,6 +168,28 @@ class DocumentSecurityAndControlTests(TestCase):
         self.assertFalse(fake_response.context["is_verified"])
         self.assertEqual(fake_response.context["status"], "NOT_FOUND")
         self.assertContains(fake_response, "Record Not Found")
+
+        mismatched = client.get(
+            reverse("university:verify_document", kwargs={
+                "reference_no": f"UMS/TR/2026/{self.student.roll_no}-invaliddigest",
+            })
+        )
+        self.assertEqual(mismatched.context["status"], "NOT_FOUND")
+        self.assertIsNone(mismatched.context["student"])
+        self.assertNotContains(mismatched, self.student.user.display_name)
+
+    @override_settings(SECURITY_RATE_LIMIT_ENABLED=True)
+    def test_public_verification_get_is_rate_limited(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        client = Client()
+        url = reverse("university:verify_document_query")
+        for _ in range(30):
+            self.assertEqual(client.get(url, {"ref": "invalid"}).status_code, 200)
+        response = client.get(url, {"ref": "invalid"})
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response["Retry-After"], "60")
 
     def test_admin_document_controls_dashboard(self):
         client = Client()

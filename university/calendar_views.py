@@ -17,6 +17,7 @@ from university.forms import AcademicYearForm, SemesterForm
 from university.recycle_bin_services import move_to_recycle_bin
 from university.audit_services import log_activity
 from university.settings_services import get_setting, set_setting
+from university.security_utils import safe_redirect
 from university.academic_calendar_services import (
     get_current_academic_year, get_current_semester, get_active_academic_context,
     set_current_academic_year, set_current_semester,
@@ -240,7 +241,11 @@ def academic_year_action(request, pk, action):
     except ValidationError as e:
         messages.error(request, str(e.message if hasattr(e, "message") else e))
 
-    return redirect(request.POST.get("next") or reverse("university:academic_year_detail", args=[ay.pk]))
+    return safe_redirect(
+        request,
+        request.POST.get("next"),
+        reverse("university:academic_year_detail", args=[ay.pk]),
+    )
 
 
 # ==============================================================================
@@ -476,7 +481,7 @@ def semester_action(request, pk, action):
     except ValidationError as e:
         messages.error(request, str(e.message if hasattr(e, "message") else e))
 
-    return redirect(request.POST.get("next") or back_url)
+    return safe_redirect(request, request.POST.get("next"), back_url)
 
 
 # ==============================================================================
@@ -519,4 +524,8 @@ def admin_save_numbering_config(request):
         set_setting("student_id_separator", separator, user=request.user, request=request)
 
     messages.success(request, "Student registration numbering configuration updated.")
-    return redirect(request.META.get("HTTP_REFERER") or reverse("university:admin_academic_years"))
+    return safe_redirect(
+        request,
+        request.META.get("HTTP_REFERER"),
+        reverse("university:admin_academic_years"),
+    )
