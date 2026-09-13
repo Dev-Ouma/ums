@@ -200,9 +200,9 @@ def build_admission_document_context(application, document=None, template=None, 
         sig_ver = str(document.signature_version or 1)
     elif document and document.signatory:
         sig_name = document.signatory.get_full_name() or document.signatory.username
-        sig_title = getattr(document.signatory, "user_signature", None) and document.signatory.user_signature.title or (template.signatory_title if template else "Registrar, Academic Affairs")
-        sig_office = getattr(document.signatory, "user_signature", None) and document.signatory.user_signature.department_or_office or "Directorate of Academic Affairs"
-        sig_ver = str(getattr(document.signatory, "user_signature", None) and document.signatory.user_signature.version or 1)
+        sig_title = getattr(document.signatory, "signature", None) and document.signatory.signature.title or (template.signatory_title if template else "Registrar, Academic Affairs")
+        sig_office = getattr(document.signatory, "signature", None) and document.signatory.signature.department_or_office or "Directorate of Academic Affairs"
+        sig_ver = str(getattr(document.signatory, "signature", None) and document.signatory.signature.version or 1)
     elif template:
         sig_name = template.signatory_name or "Dr. Margaret Omolo, PhD"
         sig_title = template.signatory_title or "Registrar, Academic Affairs"
@@ -835,8 +835,8 @@ def generate_admission_document(
             allowed_roles = sig_config.get_authorized_roles_list()
             signatory_user = User.objects.filter(
                 role__in=allowed_roles,
-                user_signature__status="ACTIVE"
-            ).exclude(user_signature__signature_image="").first()
+                signature__status="ACTIVE"
+            ).exclude(signature__signature_image="").first()
             if not signatory_user:
                 signatory_user = User.objects.filter(role__in=allowed_roles).first()
 
