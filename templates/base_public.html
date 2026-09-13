@@ -46,13 +46,15 @@
       <nav class="pub-menu" id="pubMenu">
         {% if site_menus.header %}
           {% for item in site_menus.header %}
-            <a href="{{ item.resolved_url }}" class="{% if item.resolved_url == request.path %}active{% endif %}">{{ item.label }}</a>
+            <a href="{{ item.href|default:item.url }}" class="{% if item.href == request.path or item.url == request.path %}active{% endif %} {% if 'apply' in item.href or 'apply' in item.url or 'Apply' in item.label %}pub-nav-cta{% endif %}">{{ item.label }}</a>
           {% endfor %}
         {% else %}
           <a href="{% url 'university:home' %}" class="{% if url_name == 'home' %}active{% endif %}">Home</a>
           <a href="{% url 'university:about' %}" class="{% if url_name == 'about' %}active{% endif %}">About Us</a>
           <a href="{% url 'university:courses_public' %}"
             class="{% if url_name == 'courses_public' %}active{% endif %}">Courses</a>
+          <a href="{% url 'university:admissions_apply' %}"
+            class="pub-nav-cta {% if url_name == 'admissions_apply' or request.path == '/admissions/apply/' %}active{% endif %}">Apply Now</a>
           <a href="{% url 'university:contact' %}" class="{% if url_name == 'contact' %}active{% endif %}">Contact</a>
           {% if not user.is_authenticated %}<a href="{% url 'accounts:signup' %}">Sign Up</a>{% endif %}
         {% endif %}
@@ -105,6 +107,7 @@
           <h6 class="text-white">Explore</h6>
           <a class="d-block small mb-1" href="{% url 'university:home' %}">Home</a>
           <a class="d-block small mb-1" href="{% url 'university:courses_public' %}">Courses</a>
+          <a class="d-block small mb-1" href="{% url 'university:admissions_apply' %}">Apply Now</a>
           <a class="d-block small mb-1" href="{% url 'university:about' %}">About</a>
           <a class="d-block small mb-1" href="{% url 'university:contact' %}">Contact</a>
           <a class="d-block small mb-1" href="{% url 'university:privacy' %}">Privacy &amp; data protection</a>

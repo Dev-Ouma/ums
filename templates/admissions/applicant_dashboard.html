@@ -170,14 +170,41 @@
 
             <!-- Admission Letter Action if Admitted -->
             {% if application.status == "ACCEPTED" or application.status == "ENROLLED" %}
-              <div class="alert alert-success border-0 rounded-4 p-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
-                <div>
-                  <h5 class="fw-bold text-success mb-1"><i class="fa-solid fa-award me-1"></i> Congratulations! You Have Been Admitted</h5>
-                  <p class="mb-0 text-success small">Your official Admission Letter is ready for download. Please present it during registration.</p>
+              <div class="alert alert-success border-0 rounded-4 p-4 shadow-sm mb-4">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+                  <div>
+                    <span class="badge bg-success px-3 py-1.5 text-uppercase fw-bold mb-1" style="letter-spacing:0.5px;">
+                      <i class="fa-solid fa-award me-1"></i> Admission Offer Ready
+                    </span>
+                    <h5 class="fw-bold text-success-emphasis mb-1">Congratulations! You Have Been Admitted</h5>
+                    <p class="mb-0 text-muted small">
+                      Your official Letter of Offer is ready. Assigned Registration No: <strong class="text-dark font-monospace">{{ application.admitted_reg_no|default:"Assigned" }}</strong>.
+                    </p>
+                  </div>
+                  <div class="d-flex gap-2 flex-wrap">
+                    <a href="{% url 'university:view_admission_letter' application.pk %}?access={{ application_access_token }}" target="_blank" class="btn btn-outline-success rounded-pill px-3 py-2 fw-semibold">
+                      <i class="fa-solid fa-eye me-1"></i> View Letter
+                    </a>
+                    <a href="{% url 'university:download_admission_letter' application.pk %}?download=1&access={{ application_access_token }}" class="btn btn-success rounded-pill px-4 py-2 fw-semibold shadow-sm">
+                      <i class="fa-solid fa-file-arrow-down me-1"></i> Download PDF
+                    </a>
+                  </div>
                 </div>
-                <a href="{% url 'university:download_admission_letter' application.pk %}?access={{ application_access_token }}" class="btn btn-success rounded-pill px-4 py-2.5 fw-semibold shadow-sm">
-                  <i class="fa-solid fa-file-pdf me-1"></i> Download Admission Letter
-                </a>
+
+                {% if application.status == "ACCEPTED" %}
+                  <div class="p-3 bg-white bg-opacity-75 rounded-3 border border-success-subtle d-flex justify-content-between align-items-center flex-wrap gap-3">
+                    <div>
+                      <strong class="text-dark d-block mb-0">Accept Your Offer of Admission</strong>
+                      <small class="text-muted">Confirm your placement for the upcoming academic intake to proceed with student onboarding.</small>
+                    </div>
+                    <form method="post" action="{% url 'university:applicant_accept_offer' application.pk %}">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-primary rounded-pill px-4 py-2 fw-bold shadow-sm">
+                        <i class="fa-solid fa-circle-check me-1"></i> Accept Offer
+                      </button>
+                    </form>
+                  </div>
+                {% endif %}
               </div>
             {% endif %}
 
@@ -307,10 +334,33 @@
               </button>
             </form>
           </div>
-        {% else %}
+        {% elif application.status == "ACCEPTED" %}
           <div class="card border-success border-2 shadow-sm rounded-4 p-4 text-center bg-success-subtle">
-            <i class="fa-solid fa-circle-check text-success fs-2 mb-2"></i>
-            <h6 class="fw-bold text-success mb-1">Application Submitted</h6>
+            <i class="fa-solid fa-award text-success fs-2 mb-2"></i>
+            <h5 class="fw-bold text-success-emphasis mb-1">Admission Offer</h5>
+            <p class="small text-muted mb-3">You have been offered admission! View your letter and accept the offer to secure your place.</p>
+            <div class="d-grid gap-2">
+              <a href="{% url 'university:view_admission_letter' application.pk %}?access={{ application_access_token }}" target="_blank" class="btn btn-outline-success rounded-pill fw-semibold">
+                <i class="fa-solid fa-eye me-1"></i> View Letter
+              </a>
+              <a href="{% url 'university:download_admission_letter' application.pk %}?download=1&access={{ application_access_token }}" class="btn btn-success rounded-pill fw-bold shadow-sm">
+                <i class="fa-solid fa-download me-1"></i> Download PDF
+              </a>
+            </div>
+          </div>
+        {% elif application.status == "ENROLLED" %}
+          <div class="card border-success border-2 shadow-sm rounded-4 p-4 text-center bg-success-subtle">
+            <i class="fa-solid fa-user-graduate text-success fs-2 mb-2"></i>
+            <h5 class="fw-bold text-success-emphasis mb-1">Enrolled Student</h5>
+            <p class="small text-muted mb-3">Your admission and student enrollment are complete. Access your admission documents anytime.</p>
+            <a href="{% url 'university:download_admission_letter' application.pk %}?download=1&access={{ application_access_token }}" class="btn btn-success rounded-pill fw-bold shadow-sm">
+              <i class="fa-solid fa-download me-1"></i> Download Letter
+            </a>
+          </div>
+        {% else %}
+          <div class="card border-info border-2 shadow-sm rounded-4 p-4 text-center bg-info-subtle">
+            <i class="fa-solid fa-circle-check text-info-emphasis fs-2 mb-2"></i>
+            <h6 class="fw-bold text-dark mb-1">Application Submitted</h6>
             <p class="small text-muted mb-0">Your application is undergoing formal review by the Admissions Committee.</p>
           </div>
         {% endif %}

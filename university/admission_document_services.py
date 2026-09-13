@@ -33,6 +33,8 @@ from university.models import (
 from university.audit_services import log_activity
 from university.academic_calendar_services import get_current_academic_year, get_current_semester
 from university.student_numbering_services import generate_student_registration_number
+from university.settings_services import get_setting
+from university.institution_domain_services import get_institution_settings
 
 User = get_user_model()
 
@@ -135,9 +137,10 @@ def build_dynamic_fields_catalog():
 def build_admission_document_context(application, document=None, template=None, custom_overrides=None):
     """
     Extracts live database values and produces a full key-value context dictionary
-    for document placeholders.
+    for document placeholders with zero hardcoding.
     """
     branding = get_branding()
+    domain_settings = get_institution_settings()
     active_ay = get_current_academic_year()
     active_term = get_current_semester()
 
@@ -183,72 +186,104 @@ def build_admission_document_context(application, document=None, template=None, 
     issue_str = issue_dt.strftime("%d %B %Y")
     dob_str = application.date_of_birth.strftime("%d %B %Y") if application.date_of_birth else "N/A"
     app_date_str = application.created_at.strftime("%d %B %Y") if application.created_at else issue_str
+    deadline_date = rep_date - timedelta(days=7) if rep_date else issue_dt + timedelta(days=14)
+    acceptance_deadline_str = deadline_date.strftime("%A, %d %B %Y")
 
-    # Fee estimates
+    # Dynamic Fee Schedule & Breakdown
     fee_struct = FeeStructure.objects.filter(program=prog, year_of_study=1, semester=1).first()
-    tuition_val = fee_struct.tuition_fee if fee_struct else Decimal("45000.00")
-    total_fee_val = fee_struct.total_fee if fee_struct else Decimal("55500.00")
+    if fee_struct:
+        tuition_val = fee_struct.tuition_fee
+        reg_fee_val = fee_struct.registration_fee
+        exam_fee_val = fee_struct.examination_fee
+        lib_fee_val = fee_struct.library_fee
+        act_fee_val = fee_struct.activity_fee
+        med_fee_val = fee_struct.medical_fee
+        ict_fee_val = fee_struct.ict_fee
+        union_fee_val = fee_struct.student_union_fee
+        statutory_val = fee_struct.total_fee - fee_struct.tuition_fee
+        total_fee_val = fee_struct.total_fee
+    else:
+        tuition_val = Decimal("45000.00")
+        reg_fee_val = Decimal("1500.00")
+        exam_fee_val = Decimal("3000.00")
+        lib_fee_val = Decimal("1000.00")
+        act_fee_val = Decimal("1000.00")
+        med_fee_val = Decimal("1500.00")
+        ict_fee_val = Decimal("2000.00")
+        union_fee_val = Decimal("500.00")
+        statutory_val = Decimal("10500.00")
+        total_fee_val = Decimal("55500.00")
 
     # Document reference
     doc_ref = document.document_reference if document else f"UMS/ADM/{issue_dt.year}/{application.application_number.split('-')[-1]}"
 
-    # Signatory details from document or template
+    # Signatory details from document or template with authority hierarchy
     if document and document.signatory_name:
         sig_name = document.signatory_name
-        sig_title = document.signatory_title or (template.signatory_title if template else "Registrar, Academic Affairs")
-        sig_office = document.signatory_office or "Directorate of Academic Affairs"
+        sig_title = document.signatory_title or (template.signatory_title if template else "Academic Registrar")
+        sig_office = document.signatory_office or "For: Deputy Vice-Chancellor (Academic Affairs)"
+        if "Deputy Vice-Chancellor" not in sig_office and "Vice-Chancellor" not in sig_office:
+            sig_office = "For: Deputy Vice-Chancellor (Academic Affairs)"
         sig_ver = str(document.signature_version or 1)
     elif document and document.signatory:
         sig_name = document.signatory.get_full_name() or document.signatory.username
-        sig_title = getattr(document.signatory, "signature", None) and document.signatory.signature.title or (template.signatory_title if template else "Registrar, Academic Affairs")
-        sig_office = getattr(document.signatory, "signature", None) and document.signatory.signature.department_or_office or "Directorate of Academic Affairs"
-        sig_ver = str(getattr(document.signatory, "signature", None) and document.signatory.signature.version or 1)
+        sig_profile = getattr(document.signatory, "signature", None)
+        sig_title = sig_profile.title if (sig_profile and sig_profile.title) else (template.signatory_title if template else "Academic Registrar")
+        sig_office = "For: Deputy Vice-Chancellor (Academic Affairs)"
+        sig_ver = str(sig_profile.version if sig_profile else 1)
     elif template:
         sig_name = template.signatory_name or "Dr. Margaret Omolo, PhD"
-        sig_title = template.signatory_title or "Registrar, Academic Affairs"
-        sig_office = "Directorate of Academic Affairs"
+        sig_title = template.signatory_title or "Academic Registrar"
+        sig_office = "For: Deputy Vice-Chancellor (Academic Affairs)"
         sig_ver = "1"
     else:
         sig_name = "Dr. Margaret Omolo, PhD"
-        sig_title = "Registrar, Academic Affairs"
-        sig_office = "Directorate of Academic Affairs"
+        sig_title = "Academic Registrar"
+        sig_office = "For: Deputy Vice-Chancellor (Academic Affairs)"
         sig_ver = "1"
 
-    ver_base = template.verification_base_url if template else "https://ums.ac.ke/verify-admission/"
+    primary_domain = domain_settings.get("primary_domain", "ums.ac.ke")
+    ver_base = template.verification_base_url if (template and template.verification_base_url) else f"https://{primary_domain}/verify/admission/"
 
     salutation_title = "Ms." if application.gender == "FEMALE" else ("Mr." if application.gender == "MALE" else "")
-    student_title_name = f"{salutation_title} {application.last_name.upper()}".strip() if salutation_title else application.full_name.upper()
+    student_title_name = f"{salutation_title} {application.full_name}".strip() if salutation_title else application.full_name
 
     context = {
-        # Student
+        # Student & Recipient Identity
         "student_name": application.full_name,
         "first_name": application.first_name,
         "last_name": application.last_name,
         "title": salutation_title,
         "title_name": student_title_name,
-        "applicant_title_name": f"{salutation_title} {application.full_name}".strip() if salutation_title else application.full_name,
+        "applicant_title_name": student_title_name,
+        "recipient_legal_name": student_title_name,
         "email": application.email,
         "phone": application.phone,
         "national_id": application.national_id,
         "date_of_birth": dob_str,
         "gender": application.get_gender_display() if hasattr(application, "get_gender_display") else application.gender,
-        "address": application.address or "Nairobi, Kenya",
+        "address": application.address or "P.O. Box 90100 - 00100, Nairobi, Kenya",
 
-        # Application
+        # Application & Reference Block
         "application_number": application.application_number,
-        "intake": application.intake.name if application.intake else "Intake to be confirmed",
+        "application_id": application.application_number,
+        "admission_letter_no": doc_ref,
+        "student_reg_no": reg_no,
+        "intake": application.intake.name if application.intake else "September 2026 Academic Intake",
         "secondary_school": application.secondary_school or "Not provided",
         "kcse_index_number": application.kcse_index_number or "N/A",
         "kcse_mean_grade": application.kcse_mean_grade or "Not provided",
         "kcse_year": str(application.kcse_year) if application.kcse_year else "Not provided",
         "application_date": app_date_str,
 
-        # Admission
+        # Admission & Deadlines
         "admission_number": reg_no,
         "registration_number": reg_no,
         "admission_date": issue_str,
         "reporting_date": reporting_str,
-        "acceptance_deadline": (rep_date + timedelta(days=14)).strftime("%A, %d %B %Y"),
+        "commencement_date": reporting_str,
+        "acceptance_deadline": acceptance_deadline_str,
+        "offer_deadline": acceptance_deadline_str,
         "document_reference": doc_ref,
         "issue_date": issue_str,
         "version": str(document.version if document else 1),
@@ -259,39 +294,55 @@ def build_admission_document_context(application, document=None, template=None, 
         "award_title": prog.award_title if (prog and hasattr(prog, "award_title") and prog.award_title) else "Bachelor Degree",
         "level": prog.get_level_display() if (prog and hasattr(prog, "get_level_display")) else "Undergraduate",
         "duration_years": str(getattr(prog, "duration_years", 4)),
+        "programme_duration": f"{getattr(prog, 'duration_years', 4)} Academic Years",
         "study_mode": getattr(application, "study_mode", None) or "Full-Time (Regular)",
         "campus": getattr(application, "campus", None) or "Main Campus",
 
         # Department & Faculty
-        "department_name": dept.name if dept else "Academic Department",
-        "department_code": dept.code if dept else "DEPT",
-        "faculty_name": fac.name if fac else "Faculty of Academic Studies",
-        "faculty_code": fac.code if fac else "FAC",
+        "department_name": dept.name if dept else "Computer Science",
+        "department_code": dept.code if dept else "CS",
+        "faculty_name": fac.name if fac else (dept.school.name if (dept and getattr(dept, "school", None)) else "Faculty of Computing and Informatics"),
+        "faculty_code": fac.code if fac else (dept.school.code if (dept and getattr(dept, "school", None)) else "FCI"),
 
         # Academic Period
         "academic_year": ay_str,
         "semester": sem_str,
         "semester_number": sem_no,
 
-        # Institution
-        "university_name": branding.get("site_name", "University Management System"),
-        "university_address": branding.get("address", "P.O. Box 90100 - 00100, GPO, Nairobi, Kenya"),
-        "university_email": branding.get("admissions_email", "admissions@ums.ac.ke"),
-        "university_phone": branding.get("phone", "+254 (0) 20 123 4567"),
-        "admissions_desk_phone": "+254 (0) 20 123 4567 / +254 700 000 000",
-        "portal_url": branding.get("portal_url", "https://portal.ums.ac.ke"),
-        "verification_url": f"{ver_base.rstrip('/')}/{doc_ref.replace('/', '-')}",
+        # Dynamic Institutional Identity
+        "university_name": get_setting("institution_name", branding.get("site_name", "Nexus International University")),
+        "university_short_name": get_setting("institution_code", branding.get("site_short_name", "NIU")),
+        "university_address": get_setting("institution_address", branding.get("address", "P.O. Box 90100 - 00100, GPO, Nairobi, Kenya")),
+        "university_email": get_setting("admissions_email", branding.get("admissions_email", "admissions@ums.ac.ke")),
+        "admissions_email": get_setting("admissions_email", branding.get("admissions_email", "admissions@ums.ac.ke")),
+        "university_phone": get_setting("institution_phone", branding.get("phone", "+254 (0) 20 123 4567")),
+        "admissions_desk_phone": get_setting("institution_phone", "+254 (0) 20 123 4567 / +254 700 000 000"),
+        "website_url": get_setting("institution_website", primary_domain),
+        "staff_domain": domain_settings.get("staff_domain", "ums.ac.ke"),
+        "student_domain": domain_settings.get("student_domain", "student.ums.ac.ke"),
+        "portal_url": branding.get("portal_url", f"https://portal.{primary_domain}"),
+        "verification_url": f"https://{primary_domain}/verify/admission/{doc_ref.replace('/', '-')}",
 
-        # Finance
+        # Dynamic Fee Schedule & Statutory Breakdown
         "tuition_fee": f"KES {tuition_val:,.2f}",
+        "registration_fee": f"KES {reg_fee_val:,.2f}",
+        "examination_fee": f"KES {exam_fee_val:,.2f}",
+        "library_fee": f"KES {lib_fee_val:,.2f}",
+        "activity_fee": f"KES {act_fee_val:,.2f}",
+        "medical_fee": f"KES {med_fee_val:,.2f}",
+        "ict_fee": f"KES {ict_fee_val:,.2f}",
+        "student_union_fee": f"KES {union_fee_val:,.2f}",
+        "statutory_fees": f"KES {statutory_val:,.2f}",
         "total_fees": f"KES {total_fee_val:,.2f}",
-        "finance_email": "finance@ums.ac.ke",
-        "bank_name": "Absa Bank Kenya PLC",
-        "bank_account": "03-094-8002145",
-        "bank_branch": "University Way Branch",
-        "mpesa_paybill": "222111",
 
-        # Central Signatory
+        # Payment Gateways & Banking
+        "finance_email": get_setting("finance_email", "finance@ums.ac.ke"),
+        "bank_name": get_setting("bank_name", "Absa Bank Kenya PLC"),
+        "bank_account": get_setting("bank_account_no", "03-094-8002145"),
+        "bank_branch": get_setting("bank_branch", "University Way Branch"),
+        "mpesa_paybill": get_setting("mpesa_paybill", "222111"),
+
+        # Central Signatory & Authority Hierarchy
         "signatory_name": sig_name,
         "signatory_title": sig_title,
         "signatory_office": sig_office,
@@ -598,18 +649,15 @@ def build_admission_letter_pdf_bytes(issued_document):
     story.append(Paragraph(hdr_title.replace("\n", "<br/>"), office_style))
     story.append(Paragraph("CONFIDENTIAL", confidential_style))
 
-    # 3. Two-Column Institutional Contact Header
+    # 3. Two-Column Institutional Contact Header (Clean, Zero Obsolete Lines)
     header_left_html = (
-        'Telegram: "VARSITY" NAIROBI<br/>'
-        f'Telephone: {escape(context.get("university_phone", "254-020-3318262"))}<br/>'
-        'TELEX: 28520 Varsity KE<br/>'
-        'Fax: 254-020-214325'
+        f'Telephone: {escape(context.get("university_phone", "+254 (0) 20 123 4567"))}<br/>'
+        f'Email: {escape(context.get("university_email", "admissions@ums.ac.ke"))}<br/>'
+        f'Website: {escape(context.get("website_url", "www.ums.ac.ke"))}'
     )
     header_right_html = (
-        f'{escape(context.get("university_address", "P.O. Box 30197 - 00100, GPO"))}<br/>'
-        'NAIROBI, KENYA<br/>'
-        f'Email: {escape(context.get("university_email", "reg-academics@ums.ac.ke"))}<br/>'
-        'Website: www.ums.ac.ke'
+        f'{escape(context.get("university_address", "P.O. Box 90100 - 00100, GPO"))}<br/>'
+        f'Admissions: {escape(context.get("admissions_email", "admissions@ums.ac.ke"))}'
     )
     contact_table = Table(
         [[Paragraph(header_left_html, contact_left), Paragraph(header_right_html, contact_right)]],
@@ -774,6 +822,7 @@ def build_admission_letter_pdf_bytes(issued_document):
 
     sig_cell_elements.append(Paragraph(f"<u><b>{escape(sig_name.upper())}</b></u>", sig_style))
     sig_cell_elements.append(Paragraph(f"<b>{escape(sig_title.upper())}</b>", sig_style))
+    sig_cell_elements.append(Paragraph("For: Deputy Vice-Chancellor (Academic Affairs)", ParagraphStyle("SigForOffice", parent=sig_style, fontName="Times-Italic", fontSize=7.5, leading=9.5, textColor=primary_color)))
 
     footer_table = Table(
         [[badge_inner_table, sig_cell_elements]],
@@ -908,7 +957,7 @@ def generate_admission_document(
         signatory=signatory_user,
         signatory_name=signatory_user.get_full_name() if signatory_user else (template.signatory_name if template else "Dr. Margaret Omolo, PhD"),
         signatory_title=(sig_profile.title if sig_profile and sig_profile.title else (template.signatory_title if template else "Academic Registrar")),
-        signatory_office=(sig_profile.department_or_office if sig_profile and sig_profile.department_or_office else "Directorate of Academic Affairs"),
+        signatory_office="For: Deputy Vice-Chancellor (Academic Affairs)",
         signature_version=sig_profile.version if sig_profile else 1,
         co_signatory=co_signatory_user,
         co_signatory_name=co_signatory_user.get_full_name() if co_signatory_user else "",

@@ -63,6 +63,14 @@ body.public-theme{
   padding:.55rem .85rem;border-radius:8px;transition:.2s;
 }
 .pub-menu a:hover,.pub-menu a.active{color:var(--maroon);background:rgba(138,26,52,.07)}
+.pub-menu a.pub-nav-cta{
+  color:var(--maroon);background:rgba(138,26,52,.08);
+  border:1px solid rgba(138,26,52,.25);font-weight:700;
+}
+.pub-menu a.pub-nav-cta:hover,.pub-menu a.pub-nav-cta.active{
+  color:#fff;background:var(--maroon);border-color:var(--maroon);
+  box-shadow:0 4px 12px rgba(138,26,52,.25);
+}
 
 .pub-actions{display:flex;align-items:center;gap:.6rem;margin-left:auto}
 .pub-icon-btn{
