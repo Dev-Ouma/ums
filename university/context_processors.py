@@ -27,12 +27,34 @@ def theme_and_notifications(request):
     user = getattr(request, "user", None)
     theme = None
     unread = 0
+    user_roles = set()
+    is_hod = False
+    is_dean = False
+    is_exam_officer = False
+    is_registrar = False
+    is_finance_officer = False
+    is_admissions_officer = False
+    is_identity_admin = False
+    is_auditor = False
+    is_vc_or_dvc = False
+
     if user is not None and user.is_authenticated:
         theme = user.theme
         from .control_services import active_messages
-        from .models import MessageDelivery
+        from .models import MessageDelivery, StaffRoleAssignment
         read_ids = set(MessageDelivery.objects.filter(recipient=user, read_at__isnull=False).values_list('message_id', flat=True))
         unread = sum(n.pk not in read_ids for n in active_messages(user))
+
+        user_roles = set(StaffRoleAssignment.objects.filter(user=user, is_active=True).values_list('role__code', flat=True))
+        is_hod = 'hod' in user_roles or user.username == 'hod'
+        is_dean = 'dean' in user_roles or user.username == 'dean'
+        is_exam_officer = 'exam_officer' in user_roles or user.username == 'examofficer'
+        is_registrar = 'academic_registrar' in user_roles or user.username == 'registrar'
+        is_finance_officer = 'finance_officer' in user_roles or user.username == 'finance'
+        is_admissions_officer = 'admissions_officer' in user_roles or user.username == 'admissions'
+        is_identity_admin = 'identity_admin' in user_roles or user.username in ('ictdirector', 'admin', 'superadmin') or user.is_superuser
+        is_auditor = 'auditor' in user_roles or user.username == 'auditor'
+        is_vc_or_dvc = bool(user_roles & {'vc', 'dvcaa'}) or user.username in ('vc', 'dvcaa')
 
     from university.module_services import (
         get_cached_module_registry,
@@ -50,6 +72,16 @@ def theme_and_notifications(request):
         "notice_count": unread,
         "ROLE_THEMES": ROLE_THEMES,
         "Role": Role,
+        "user_roles": user_roles,
+        "is_hod": is_hod,
+        "is_dean": is_dean,
+        "is_exam_officer": is_exam_officer,
+        "is_registrar": is_registrar,
+        "is_finance_officer": is_finance_officer,
+        "is_admissions_officer": is_admissions_officer,
+        "is_identity_admin": is_identity_admin,
+        "is_auditor": is_auditor,
+        "is_vc_or_dvc": is_vc_or_dvc,
         "brand_name": inst_settings.get("institution_name", "University Management System"),
         "brand_short": inst_settings.get("institution_short_name", "UMS"),
         "institution_settings": inst_settings,

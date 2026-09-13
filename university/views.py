@@ -172,18 +172,128 @@ def public_status(request):
 @login_required
 def dashboard(request):
     user = request.user
+    from .models import StaffRoleAssignment
+    roles = set(StaffRoleAssignment.objects.filter(user=user, is_active=True).values_list('role__code', flat=True))
+
+    # 1. Specialized Admin Roles routing to their primary operational desks
+    if user.username == 'finance' or 'finance_officer' in roles:
+        return redirect("university:fee_accounts_dashboard")
+
+    if user.username == 'admissions' or 'admissions_officer' in roles:
+        return redirect("university:admin_admissions")
+
+    if user.username == 'ictdirector' or (user.role == Role.ADMIN and 'identity_admin' in roles and not user.is_superuser and user.username != 'admin'):
+        return redirect("university:user_dashboard")
+
+    if user.username == 'examofficer' or 'exam_officer' in roles:
+        return redirect("examinations:index")
+
+    if user.username == 'auditor' or 'auditor' in roles:
+        return redirect("university:audit_dashboard")
+
+    # 2. Academic Leadership specialized dashboards
+    if 'dean' in roles or user.username == 'dean':
+        return dean_dashboard(request)
+
+    if 'hod' in roles or user.username == 'hod':
+        return hod_dashboard(request)
+
+    # 3. Base Administrator / Superuser dashboard
     if user.is_admin_role or user.is_superuser:
         return render(request, "dashboard/admin_dashboard.html", services.admin_dashboard())
+
+    # 4. Teaching Faculty dashboard
     if user.is_faculty:
         fp = get_object_or_404(FacultyProfile, user=user)
         ctx = services.faculty_dashboard(fp)
         ctx["faculty"] = fp
         return render(request, "dashboard/faculty_dashboard.html", ctx)
+
+    # 5. Student self-service dashboard
     sp = get_object_or_404(StudentProfile, user=user)
     ctx = services.student_dashboard(sp)
     ctx["student"] = sp
     ctx["prediction"] = ai.student_prediction(sp)
     return render(request, "dashboard/student_dashboard.html", ctx)
+
+
+@login_required
+def hod_dashboard(request):
+    user = request.user
+    from .models import StaffRoleAssignment, Department, Exam, Course
+    from accounts.models import FacultyProfile, StudentProfile
+
+    assignment = StaffRoleAssignment.objects.filter(user=user, is_active=True, role__code='hod').first()
+    dept = assignment.department if (assignment and assignment.department) else None
+    if not dept:
+        fp = getattr(user, 'faculty_profile', None)
+        dept = fp.department if fp else None
+    if not dept:
+        dept = Department.objects.filter(code='CSE').first() or Department.objects.first()
+
+    dept_courses = Course.objects.filter(department=dept).select_related('faculty__user')
+    course_count = dept_courses.count()
+    faculty_count = FacultyProfile.objects.filter(department=dept).count()
+    student_count = StudentProfile.objects.filter(program__department=dept).count()
+
+    pending_exams = Exam.objects.filter(
+        course__department=dept,
+        status=Exam.Status.SUBMITTED
+    ).select_related('course', 'submitted_by', 'term').order_by('-submitted_at', '-id')
+
+    approved_exams = Exam.objects.filter(
+        course__department=dept,
+        status__in=[Exam.Status.HOD_APPROVED, Exam.Status.PUBLISHED]
+    ).select_related('course', 'term').order_by('-hod_approved_at', '-id')[:5]
+
+    ctx = {
+        "department": dept,
+        "course_count": course_count,
+        "faculty_count": faculty_count,
+        "student_count": student_count,
+        "pending_exams": pending_exams,
+        "pending_count": pending_exams.count(),
+        "approved_exams": approved_exams,
+        "courses": dept_courses[:8],
+    }
+    return render(request, "dashboard/hod_dashboard.html", ctx)
+
+
+@login_required
+def dean_dashboard(request):
+    user = request.user
+    from .models import School, Department, Exam, Course
+    from accounts.models import FacultyProfile, StudentProfile
+
+    school = School.objects.filter(code='SCIS').first() or School.objects.first()
+    departments = Department.objects.filter(school=school) if school else Department.objects.all()
+    dept_ids = list(departments.values_list('id', flat=True))
+
+    course_count = Course.objects.filter(department_id__in=dept_ids).count()
+    faculty_count = FacultyProfile.objects.filter(department_id__in=dept_ids).count()
+    student_count = StudentProfile.objects.filter(program__department_id__in=dept_ids).count()
+
+    pending_publish = Exam.objects.filter(
+        course__department_id__in=dept_ids,
+        status=Exam.Status.HOD_APPROVED
+    ).select_related('course', 'hod_approved_by', 'term').order_by('-hod_approved_at', '-id')
+
+    published_exams = Exam.objects.filter(
+        course__department_id__in=dept_ids,
+        status=Exam.Status.PUBLISHED
+    ).select_related('course', 'dean_published_by', 'term').order_by('-published_at', '-id')[:6]
+
+    ctx = {
+        "school": school,
+        "departments": departments,
+        "course_count": course_count,
+        "faculty_count": faculty_count,
+        "student_count": student_count,
+        "pending_publish": pending_publish,
+        "pending_count": pending_publish.count(),
+        "published_exams": published_exams,
+    }
+    return render(request, "dashboard/dean_dashboard.html", ctx)
 
 
 @login_required

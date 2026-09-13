@@ -71,15 +71,15 @@
       {% if 'admissions' in active_modules %}
       <!-- Admissions Collapsible -->
       <div class="nav-group">
-        <div class="item item-toggle {% if url_name == 'admin_admissions' or url_name == 'admin_admission_detail' or url_name == 'admin_intakes' or url_name == 'admin_admission_documents_list' or url_name == 'admin_admission_document_detail' or url_name == 'admin_templates_list' or url_name == 'admin_template_editor' %}active{% endif %}"
+        <div class="item item-toggle {% if is_admissions_officer or url_name == 'admin_admissions' or url_name == 'admin_admission_detail' or url_name == 'admin_intakes' or url_name == 'admin_admission_documents_list' or url_name == 'admin_admission_document_detail' or url_name == 'admin_templates_list' or url_name == 'admin_template_editor' %}active{% endif %}"
              data-bs-toggle="collapse" data-bs-target="#adminAdmissionsSubmenu" role="button"
-             aria-expanded="{% if url_name == 'admin_admissions' or url_name == 'admin_admission_detail' or url_name == 'admin_intakes' or url_name == 'admin_admission_documents_list' or url_name == 'admin_admission_document_detail' or url_name == 'admin_templates_list' or url_name == 'admin_template_editor' %}true{% else %}false{% endif %}"
+             aria-expanded="{% if is_admissions_officer or url_name == 'admin_admissions' or url_name == 'admin_admission_detail' or url_name == 'admin_intakes' or url_name == 'admin_admission_documents_list' or url_name == 'admin_admission_document_detail' or url_name == 'admin_templates_list' or url_name == 'admin_template_editor' %}true{% else %}false{% endif %}"
              aria-controls="adminAdmissionsSubmenu">
           <i class="fa-solid fa-id-card-clip"></i>
           <span class="item-label">Admissions</span>
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
-        <div class="collapse submenu {% if url_name == 'admin_admissions' or url_name == 'admin_admission_detail' or url_name == 'admin_intakes' or url_name == 'admin_admission_documents_list' or url_name == 'admin_admission_document_detail' or url_name == 'admin_templates_list' or url_name == 'admin_template_editor' %}show{% endif %}" id="adminAdmissionsSubmenu" data-bs-parent="#appSidebar">
+        <div class="collapse submenu {% if is_admissions_officer or url_name == 'admin_admissions' or url_name == 'admin_admission_detail' or url_name == 'admin_intakes' or url_name == 'admin_admission_documents_list' or url_name == 'admin_admission_document_detail' or url_name == 'admin_templates_list' or url_name == 'admin_template_editor' %}show{% endif %}" id="adminAdmissionsSubmenu" data-bs-parent="#appSidebar">
           <a class="item sub-item {% if url_name == 'admin_admissions' or url_name == 'admin_admission_detail' %}active{% endif %}" href="{% url 'university:admin_admissions' %}">
             <i class="fa-solid fa-users-rectangle"></i> <span class="item-label">Applications</span>
           </a>
@@ -102,9 +102,9 @@
       {% if 'academics' in active_modules or 'examinations' in active_modules %}
       <!-- Academics Collapsible -->
       <div class="nav-group">
-        <div class="item item-toggle {% if url_name == 'admin_unit_registrations' or url_name == 'admin_unit_registration_detail' or url_name == 'admin_student_requests' or url_name == 'admin_student_request_detail' or url_name == 'admin_supplementary_list' or url_name == 'admin_exam_nominal_rolls' or url_name == 'admin_provisional_transcripts' or url_name == 'admin_academic_transcripts' or url_name == 'admin_progressive_reports' or url_name == 'progressive_report_detail' or url_name == 'admin_graduation_dashboard' or url_name == 'admin_clearance_queue' or url_name == 'admin_attachment_dashboard' or url_name == 'admin_evaluation_dashboard' or url_name == 'admin_evaluation_course_detail' or url_name == 'admin_reports_dashboard' or url_name == 'report_view' or url_name == 'admin_document_controls' or request.resolver_match.namespace == 'examinations' %}active{% endif %}"
+        <div class="item item-toggle {% if is_exam_officer or is_registrar or url_name == 'admin_unit_registrations' or url_name == 'admin_unit_registration_detail' or url_name == 'admin_student_requests' or url_name == 'admin_student_request_detail' or url_name == 'admin_supplementary_list' or url_name == 'admin_exam_nominal_rolls' or url_name == 'admin_provisional_transcripts' or url_name == 'admin_academic_transcripts' or url_name == 'admin_progressive_reports' or url_name == 'progressive_report_detail' or url_name == 'admin_graduation_dashboard' or url_name == 'admin_clearance_queue' or url_name == 'admin_attachment_dashboard' or url_name == 'admin_evaluation_dashboard' or url_name == 'admin_evaluation_course_detail' or url_name == 'admin_reports_dashboard' or url_name == 'report_view' or url_name == 'admin_document_controls' or request.resolver_match.namespace == 'examinations' %}active{% endif %}"
              data-bs-toggle="collapse" data-bs-target="#adminAcademicsSubmenu" role="button"
-             aria-expanded="{% if url_name == 'admin_unit_registrations' or url_name == 'admin_unit_registration_detail' or url_name == 'admin_student_requests' or url_name == 'admin_student_request_detail' or url_name == 'admin_supplementary_list' or url_name == 'admin_exam_nominal_rolls' or url_name == 'admin_provisional_transcripts' or url_name == 'admin_academic_transcripts' or url_name == 'admin_progressive_reports' or url_name == 'progressive_report_detail' or url_name == 'admin_graduation_dashboard' or url_name == 'admin_clearance_queue' or url_name == 'admin_attachment_dashboard' or url_name == 'admin_evaluation_dashboard' or url_name == 'admin_evaluation_course_detail' or url_name == 'admin_reports_dashboard' or url_name == 'report_view' or url_name == 'admin_document_controls' or request.resolver_match.namespace == 'examinations' %}true{% else %}false{% endif %}"
+             aria-expanded="{% if is_exam_officer or is_registrar or url_name == 'admin_unit_registrations' or url_name == 'admin_unit_registration_detail' or url_name == 'admin_student_requests' or url_name == 'admin_student_request_detail' or url_name == 'admin_supplementary_list' or url_name == 'admin_exam_nominal_rolls' or url_name == 'admin_provisional_transcripts' or url_name == 'admin_academic_transcripts' or url_name == 'admin_progressive_reports' or url_name == 'progressive_report_detail' or url_name == 'admin_graduation_dashboard' or url_name == 'admin_clearance_queue' or url_name == 'admin_attachment_dashboard' or url_name == 'admin_evaluation_dashboard' or url_name == 'admin_evaluation_course_detail' or url_name == 'admin_reports_dashboard' or url_name == 'report_view' or url_name == 'admin_document_controls' or request.resolver_match.namespace == 'examinations' %}true{% else %}false{% endif %}"
              aria-controls="adminAcademicsSubmenu">
           <i class="fa-solid fa-graduation-cap"></i>
           <span class="item-label">Academics</span>
@@ -180,15 +180,15 @@
       {% if 'finance' in active_modules %}
       <!-- Finance Collapsible -->
       <div class="nav-group">
-        <div class="item item-toggle {% if url_name == 'finance' or url_name == 'admin_fees' or url_name == 'fee_preview' or url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' or url_name == 'fee_accounts_dashboard' or url_name == 'fee_account_create' or url_name == 'fee_account_detail' or url_name == 'fee_account_edit' or url_name == 'admin_payments_list' or url_name == 'admin_payment_detail' or url_name == 'fee_reconciliation_dashboard' or url_name == 'payment_go_live_certification' %}active{% endif %}"
+        <div class="item item-toggle {% if is_finance_officer or url_name == 'finance' or url_name == 'admin_fees' or url_name == 'fee_preview' or url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' or url_name == 'fee_accounts_dashboard' or url_name == 'fee_account_create' or url_name == 'fee_account_detail' or url_name == 'fee_account_edit' or url_name == 'admin_payments_list' or url_name == 'admin_payment_detail' or url_name == 'fee_reconciliation_dashboard' or url_name == 'payment_go_live_certification' %}active{% endif %}"
              data-bs-toggle="collapse" data-bs-target="#adminFinanceSubmenu" role="button"
-             aria-expanded="{% if url_name == 'finance' or url_name == 'admin_fees' or url_name == 'fee_preview' or url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' or url_name == 'fee_accounts_dashboard' or url_name == 'fee_account_create' or url_name == 'fee_account_detail' or url_name == 'fee_account_edit' or url_name == 'admin_payments_list' or url_name == 'admin_payment_detail' or url_name == 'fee_reconciliation_dashboard' or url_name == 'payment_go_live_certification' %}true{% else %}false{% endif %}"
+             aria-expanded="{% if is_finance_officer or url_name == 'finance' or url_name == 'admin_fees' or url_name == 'fee_preview' or url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' or url_name == 'fee_accounts_dashboard' or url_name == 'fee_account_create' or url_name == 'fee_account_detail' or url_name == 'fee_account_edit' or url_name == 'admin_payments_list' or url_name == 'admin_payment_detail' or url_name == 'fee_reconciliation_dashboard' or url_name == 'payment_go_live_certification' %}true{% else %}false{% endif %}"
              aria-controls="adminFinanceSubmenu">
           <i class="fa-solid fa-wallet"></i>
           <span class="item-label">Finance &amp; Fees</span>
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
-        <div class="collapse submenu {% if url_name == 'finance' or url_name == 'admin_fees' or url_name == 'fee_preview' or url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' or url_name == 'fee_accounts_dashboard' or url_name == 'fee_account_create' or url_name == 'fee_account_detail' or url_name == 'fee_account_edit' or url_name == 'admin_payments_list' or url_name == 'admin_payment_detail' or url_name == 'fee_reconciliation_dashboard' or url_name == 'payment_go_live_certification' %}show{% endif %}" id="adminFinanceSubmenu" data-bs-parent="#appSidebar">
+        <div class="collapse submenu {% if is_finance_officer or url_name == 'finance' or url_name == 'admin_fees' or url_name == 'fee_preview' or url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' or url_name == 'fee_accounts_dashboard' or url_name == 'fee_account_create' or url_name == 'fee_account_detail' or url_name == 'fee_account_edit' or url_name == 'admin_payments_list' or url_name == 'admin_payment_detail' or url_name == 'fee_reconciliation_dashboard' or url_name == 'payment_go_live_certification' %}show{% endif %}" id="adminFinanceSubmenu" data-bs-parent="#appSidebar">
           <a class="item sub-item {% if url_name == 'fee_accounts_dashboard' or url_name == 'fee_account_create' or url_name == 'fee_account_detail' or url_name == 'fee_account_edit' or url_name == 'payment_go_live_certification' %}active{% endif %}" href="{% url 'university:fee_accounts_dashboard' %}">
             <i class="fa-solid fa-building-columns"></i> <span class="item-label">Fee Accounts</span>
           </a>
@@ -290,15 +290,15 @@
       <!-- User Management & Identity Collapsible -->
       {% if 'user_management' in active_modules %}
       <div class="nav-group">
-        <div class="item item-toggle {% if '/system-admin/users/' in request.path %}active{% endif %}"
+        <div class="item item-toggle {% if is_identity_admin and not user.is_superuser and user.username != 'admin' or '/system-admin/users/' in request.path %}active{% endif %}"
              data-bs-toggle="collapse" data-bs-target="#adminUsersSubmenu" role="button"
-             aria-expanded="{% if '/system-admin/users/' in request.path %}true{% else %}false{% endif %}"
+             aria-expanded="{% if is_identity_admin and not user.is_superuser and user.username != 'admin' or '/system-admin/users/' in request.path %}true{% else %}false{% endif %}"
              aria-controls="adminUsersSubmenu">
           <i class="fa-solid fa-users-gear"></i>
           <span class="item-label">User Management</span>
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
-        <div class="collapse submenu {% if '/system-admin/users/' in request.path %}show{% endif %}" id="adminUsersSubmenu" data-bs-parent="#appSidebar">
+        <div class="collapse submenu {% if is_identity_admin and not user.is_superuser and user.username != 'admin' or '/system-admin/users/' in request.path %}show{% endif %}" id="adminUsersSubmenu" data-bs-parent="#appSidebar">
           <a class="item sub-item {% if url_name == 'user_dashboard' %}active{% endif %}" href="{% url 'university:user_dashboard' %}">
             <i class="fa-solid fa-gauge-high"></i> <span class="item-label">User Dashboard</span>
           </a>
@@ -353,15 +353,15 @@
 
       <!-- System Administration Collapsible -->
       <div class="nav-group">
-        <div class="item item-toggle {% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or url_name == 'golive_dashboard' or url_name == 'security_compliance_dashboard' or request.resolver_match.namespace == 'control' %}active{% endif %}"
+        <div class="item item-toggle {% if is_auditor or url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or url_name == 'golive_dashboard' or url_name == 'security_compliance_dashboard' or request.resolver_match.namespace == 'control' %}active{% endif %}"
              data-bs-toggle="collapse" data-bs-target="#adminSystemSubmenu" role="button"
-             aria-expanded="{% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or url_name == 'golive_dashboard' or url_name == 'security_compliance_dashboard' or request.resolver_match.namespace == 'control' %}true{% else %}false{% endif %}"
+             aria-expanded="{% if is_auditor or url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or url_name == 'golive_dashboard' or url_name == 'security_compliance_dashboard' or request.resolver_match.namespace == 'control' %}true{% else %}false{% endif %}"
              aria-controls="adminSystemSubmenu">
           <i class="fa-solid fa-shield-halved"></i>
           <span class="item-label">System Admin</span>
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
-        <div class="collapse submenu {% if url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'staff_permissions_dashboard' or url_name == 'staff_user_access_detail' or url_name == 'role_create' or url_name == 'role_edit' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or url_name == 'golive_dashboard' or url_name == 'security_compliance_dashboard' or request.resolver_match.namespace == 'control' %}show{% endif %}" id="adminSystemSubmenu" data-bs-parent="#appSidebar">
+        <div class="collapse submenu {% if is_auditor or url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'staff_permissions_dashboard' or url_name == 'staff_user_access_detail' or url_name == 'role_create' or url_name == 'role_edit' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or url_name == 'golive_dashboard' or url_name == 'security_compliance_dashboard' or request.resolver_match.namespace == 'control' %}show{% endif %}" id="adminSystemSubmenu" data-bs-parent="#appSidebar">
           <a class="item sub-item {% if url_name == 'admin_modules' %}active{% endif %}" href="{% url 'university:admin_modules' %}">
             <i class="fa-solid fa-cubes-stacked"></i> <span class="item-label">Module Management</span>
           </a>
@@ -439,6 +439,63 @@
       {% endif %}
 
     {% elif user.is_faculty %}
+      {% if is_dean %}
+      <div class="menu-label">Dean's Office</div>
+      <div class="nav-group">
+        <div class="item item-toggle {% if url_name == 'admin_departments' or url_name == 'admin_faculty' or url_name == 'admin_courses' or url_name == 'admin_reports_dashboard' %}active{% endif %}"
+             data-bs-toggle="collapse" data-bs-target="#deanOfficeSubmenu" role="button"
+             aria-expanded="true" aria-controls="deanOfficeSubmenu">
+          <i class="fa-solid fa-landmark"></i>
+          <span class="item-label">Faculty / School</span>
+          <i class="fa-solid fa-chevron-right chevron item-label"></i>
+        </div>
+        <div class="collapse submenu show" id="deanOfficeSubmenu" data-bs-parent="#appSidebar">
+          <a class="item sub-item {% if url_name == 'dashboard' %}active{% endif %}" href="{% url 'university:dashboard' %}">
+            <i class="fa-solid fa-gauge-high"></i> <span class="item-label">Dean Dashboard</span>
+          </a>
+          <a class="item sub-item" href="{% url 'examinations:index' %}?status=HOD_APPROVED">
+            <i class="fa-solid fa-stamp"></i> <span class="item-label">Publish Marks</span>
+          </a>
+          <a class="item sub-item" href="{% url 'university:admin_departments' %}">
+            <i class="fa-solid fa-building-columns"></i> <span class="item-label">School Departments</span>
+          </a>
+          <a class="item sub-item" href="{% url 'university:admin_courses' %}">
+            <i class="fa-solid fa-layer-group"></i> <span class="item-label">School Curricula</span>
+          </a>
+          <a class="item sub-item" href="{% url 'university:admin_reports_dashboard' %}">
+            <i class="fa-solid fa-chart-pie"></i> <span class="item-label">Senate Reports</span>
+          </a>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if is_hod %}
+      <div class="menu-label">Department Desk</div>
+      <div class="nav-group">
+        <div class="item item-toggle {% if url_name == 'admin_courses' or url_name == 'admin_exam_nominal_rolls' %}active{% endif %}"
+             data-bs-toggle="collapse" data-bs-target="#hodDeskSubmenu" role="button"
+             aria-expanded="true" aria-controls="hodDeskSubmenu">
+          <i class="fa-solid fa-sitemap"></i>
+          <span class="item-label">Department (HoD)</span>
+          <i class="fa-solid fa-chevron-right chevron item-label"></i>
+        </div>
+        <div class="collapse submenu show" id="hodDeskSubmenu" data-bs-parent="#appSidebar">
+          <a class="item sub-item {% if url_name == 'dashboard' %}active{% endif %}" href="{% url 'university:dashboard' %}">
+            <i class="fa-solid fa-gauge-high"></i> <span class="item-label">HoD Dashboard</span>
+          </a>
+          <a class="item sub-item" href="{% url 'examinations:index' %}?status=SUBMITTED">
+            <i class="fa-solid fa-inbox"></i> <span class="item-label">Review Lecturer Marks</span>
+          </a>
+          <a class="item sub-item" href="{% url 'university:admin_courses' %}">
+            <i class="fa-solid fa-layer-group"></i> <span class="item-label">Department Courses</span>
+          </a>
+          <a class="item sub-item" href="{% url 'university:admin_exam_nominal_rolls' %}">
+            <i class="fa-solid fa-users-viewfinder"></i> <span class="item-label">Nominal Rolls</span>
+          </a>
+        </div>
+      </div>
+      {% endif %}
+
       <div class="menu-label">Teaching Staff &amp; Academics</div>
       <div class="nav-group">
         <div class="item item-toggle {% if url_name == 'faculty_courses' or url_name == 'admin_exam_nominal_rolls' or url_name == 'faculty_assignments' or url_name == 'faculty_timetable' or url_name == 'admin_courses' or url_name == 'student_library_portal' or url_name == 'faculty_attachment_dashboard' or url_name == 'faculty_evaluation_dashboard' or url_name == 'faculty_reports' or request.resolver_match.namespace == 'examinations' %}active{% endif %}"

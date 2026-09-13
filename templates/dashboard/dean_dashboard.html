@@ -1,0 +1,200 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Dean of Faculty / School Dashboard · UMS{% endblock %}
+{% block content %}
+<div class="page-head d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+  <div>
+    <h4 class="mb-1 text-primary"><i class="fa-solid fa-landmark me-2"></i>Dean's Office Dashboard</h4>
+    <small class="text-muted fw-semibold">{{ school.name }} ({{ school.code }}) · Dean: {{ school.dean_name|default:request.user.display_name }}</small>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'university:admin_reports_dashboard' %}" class="btn btn-outline-secondary rounded-pill btn-sm">
+      <i class="fa-solid fa-chart-pie me-1"></i>School Reports
+    </a>
+    <div class="breadcrumb-chip">
+      <i class="fa-solid fa-house me-1"></i> Home <i class="fa-solid fa-angle-right mx-1"></i> Dean's Desk
+    </div>
+  </div>
+</div>
+
+<!-- KPI Metric Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="card card-ums p-3 border-0 shadow-sm">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small text-uppercase fw-bold">Academic Departments</div>
+          <div class="fs-3 fw-bold text-dark mt-1">{{ departments.count }}</div>
+          <small class="text-muted">Departments in School</small>
+        </div>
+        <div class="rounded-circle p-3 bg-primary bg-opacity-10 text-primary">
+          <i class="fa-solid fa-building-columns fs-4"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-xl-3">
+    <div class="card card-ums p-3 border-0 shadow-sm">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small text-uppercase fw-bold">School Courses</div>
+          <div class="fs-3 fw-bold text-dark mt-1">{{ course_count }}</div>
+          <small class="text-muted">Degree &amp; diploma units</small>
+        </div>
+        <div class="rounded-circle p-3 bg-success bg-opacity-10 text-success">
+          <i class="fa-solid fa-graduation-cap fs-4"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-xl-3">
+    <div class="card card-ums p-3 border-0 shadow-sm">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small text-uppercase fw-bold">Faculty Members</div>
+          <div class="fs-3 fw-bold text-dark mt-1">{{ faculty_count }}</div>
+          <small class="text-muted">Professors &amp; lecturers</small>
+        </div>
+        <div class="rounded-circle p-3 bg-info bg-opacity-10 text-info">
+          <i class="fa-solid fa-chalkboard-user fs-4"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-xl-3">
+    <div class="card card-ums p-3 border-0 shadow-sm {% if pending_count > 0 %}border border-warning{% endif %}">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small text-uppercase fw-bold">Awaiting Dean Publishing</div>
+          <div class="fs-3 fw-bold text-warning mt-1">{{ pending_count }}</div>
+          <small class="text-muted">HoD-approved exams ready for release</small>
+        </div>
+        <div class="rounded-circle p-3 bg-warning bg-opacity-10 text-warning">
+          <i class="fa-solid fa-bullhorn fs-4"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Pending Publishing Queue (Dean & Senate Release Queue) -->
+<div class="card card-ums mb-4 border-0 shadow-sm">
+  <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+    <div class="fw-bold fs-6">
+      <i class="fa-solid fa-stamp text-warning me-2"></i>HoD-Approved Marks Awaiting Dean Publishing &amp; Senate Release
+    </div>
+    <span class="badge {% if pending_count > 0 %}bg-warning text-dark{% else %}bg-secondary{% endif %} rounded-pill px-3 py-2">
+      {{ pending_count }} Ready to Publish
+    </span>
+  </div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0 table-hover">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3">Course Unit</th>
+          <th>Assessment / Exam</th>
+          <th>Department</th>
+          <th>Term</th>
+          <th>Approved By (HoD)</th>
+          <th>Approval Date</th>
+          <th class="text-end pe-3">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for exam in pending_publish %}
+        <tr>
+          <td class="ps-3">
+            <span class="badge bg-light text-dark border me-1">{{ exam.course.code }}</span>
+            <strong>{{ exam.course.title }}</strong>
+          </td>
+          <td>{{ exam.name }}</td>
+          <td><span class="badge bg-primary-subtle text-primary">{{ exam.course.department.code }}</span></td>
+          <td><small class="text-muted">{{ exam.term.name|default:"Current Term" }}</small></td>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <i class="fa-solid fa-user-check text-success"></i>
+              <span>{{ exam.hod_approved_by.display_name|default:"Department HoD" }}</span>
+            </div>
+          </td>
+          <td><small class="text-muted">{{ exam.hod_approved_at|date:"M d, Y H:i"|default:exam.date|date:"M d, Y" }}</small></td>
+          <td class="text-end pe-3">
+            <a href="{% url 'examinations:marks' exam.id %}" class="btn btn-sm btn-success rounded-pill px-3">
+              <i class="fa-solid fa-stamp me-1"></i>Review &amp; Publish
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="text-center py-4 text-muted">
+            <i class="fa-solid fa-circle-check text-success fs-3 mb-2 d-block"></i>
+            All departmental examination results for this school are published and released to Senate and students.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Departments in School Overview -->
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card card-ums h-100 border-0 shadow-sm">
+      <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <div class="fw-bold"><i class="fa-solid fa-sitemap text-primary me-2"></i>Departments under {{ school.name }}</div>
+        <a href="{% url 'university:admin_departments' %}" class="small text-decoration-none">View All Departments <i class="fa-solid fa-arrow-right ms-1"></i></a>
+      </div>
+      <div class="p-3">
+        <div class="row g-3">
+          {% for d in departments %}
+          <div class="col-md-6">
+            <div class="border rounded p-3 bg-light bg-opacity-50 h-100">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="badge" style="background-color:{{ d.color }}; color:#fff;">{{ d.code }}</span>
+                <a href="{% url 'university:department_detail' d.id %}" class="btn btn-sm btn-outline-secondary rounded-pill py-0 px-2">View</a>
+              </div>
+              <div class="fw-bold fs-6 text-dark">{{ d.name }}</div>
+              <p class="small text-muted mb-2">{{ d.description|default:"Active academic department delivering undergraduate and graduate programs."|truncatechars:70 }}</p>
+              <div class="d-flex justify-content-between small text-muted pt-2 border-top">
+                <span><i class="fa-solid fa-book me-1"></i>Courses</span>
+                <span class="fw-bold text-dark">{{ d.courses.count }}</span>
+              </div>
+            </div>
+          </div>
+          {% empty %}
+          <div class="col-12 text-muted text-center p-4">No departments assigned to this school.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card card-ums h-100 border-0 shadow-sm">
+      <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <div class="fw-bold"><i class="fa-solid fa-circle-check text-success me-2"></i>Recently Published Examinations</div>
+        <a href="{% url 'examinations:index' %}" class="small text-decoration-none">All Exams <i class="fa-solid fa-arrow-right ms-1"></i></a>
+      </div>
+      <div class="list-group list-group-flush">
+        {% for ex in published_exams %}
+        <div class="list-group-item d-flex align-items-center justify-content-between py-3">
+          <div>
+            <div class="fw-semibold">{{ ex.course.code }} — {{ ex.name }}</div>
+            <small class="text-muted">Published by {{ ex.dean_published_by.display_name|default:"Dean" }} · {{ ex.published_at|date:"M d, Y"|default:ex.date|date:"M d, Y" }}</small>
+          </div>
+          <div>
+            <a href="{% url 'examinations:marks' ex.id %}" class="btn btn-sm btn-light border rounded-circle" title="View Grade Sheet">
+              <i class="fa-solid fa-file-lines text-primary"></i>
+            </a>
+          </div>
+        </div>
+        {% empty %}
+        <div class="p-4 text-center text-muted">No published examination results yet.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
