@@ -44,11 +44,12 @@ def snapshot(obj):
     return json.loads(json.dumps(data, cls=DjangoJSONEncoder))
 
 
-def audit(obj, action, user=None, request=None, before=None):
+def audit(obj, action, user=None, request=None, before=None, custom_description=None):
     from .audit_services import log_activity
+    desc = custom_description or f'{action}: {obj}'
     log_activity(request=request, user=user, action=action, module=AuditLog.Module.CONFIG,
                  entity=obj.__class__.__name__, entity_id=obj.pk,
-                 description=f'{action}: {obj}', previous_state=before, new_state=snapshot(obj))
+                 description=desc, previous_state=before, new_state=snapshot(obj))
 
 
 def restrictions_at(now=None):
@@ -136,6 +137,24 @@ def current_status():
 
     active_msg = rows[0].public_message if rows and rows[0].public_message else ""
 
+    active_maint = next((r for r in rows if 'MAINTENANCE' in r.kind), None)
+    active_maint_data = None
+    if active_maint:
+        rem_secs = max(0, int((active_maint.ends_at - now).total_seconds())) if active_maint.ends_at else None
+        starter_name = getattr(active_maint.activated_by, 'display_name', None) or (active_maint.activated_by.username if active_maint.activated_by else "System Administrator")
+        active_maint_data = {
+            'id': active_maint.pk,
+            'title': active_maint.title,
+            'reason': active_maint.reason,
+            'starts_at': active_maint.starts_at.isoformat(),
+            'ends_at': active_maint.ends_at.isoformat() if active_maint.ends_at else None,
+            'remaining_seconds': rem_secs,
+            'started_by': starter_name,
+            'status': "Maintenance in progress",
+            'scope': "Entire System" if not active_maint.modules.exists() and not active_maint.roles else "Custom Scope",
+            'message': active_maint.public_message,
+        }
+
     return {
         'status': status,
         'maintenance': bool(kinds & {'MAINTENANCE','EMERGENCY_MAINTENANCE'}),
@@ -144,6 +163,7 @@ def current_status():
         'upcoming': upcoming_data,
         'active_message': active_msg,
         'message': active_msg,
+        'active_maintenance': active_maint_data,
     }
 
 
@@ -166,6 +186,8 @@ def transition(pk, action, user=None, request=None, phrase='', notes='', automat
     if action not in allowed or r.status not in allowed[action]:
         raise ValidationError('This transition is no longer available. Refresh and try again.')
     now = timezone.now()
+    custom_desc = None
+    log_action = action.upper()
     if action == 'schedule':
         if r.starts_at <= now or not r.ends_at:
             raise ValidationError('A schedule needs a future start and an end.')
@@ -175,11 +197,37 @@ def transition(pk, action, user=None, request=None, phrase='', notes='', automat
         if not automatic:
             r.starts_at = now
         r.affected_user_count = get_user_model().objects.filter(is_active=True).filter(Q(role__in=r.roles) if r.roles else Q()).count()
+        if 'MAINTENANCE' in r.kind:
+            dur_mins = round((r.ends_at - r.starts_at).total_seconds() / 60) if r.ends_at else 2
+            starter = getattr(user, 'display_name', None) or (user.username if user else 'System Administrator')
+            custom_desc = (
+                f"System Maintenance Started\n"
+                f"Duration: {dur_mins} minutes\n"
+                f"Started By: {starter}\n"
+                f"Start Time: {r.starts_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"Expected End: {r.ends_at.strftime('%Y-%m-%d %H:%M:%S') if r.ends_at else 'Indefinite'}"
+            )
+            log_action = 'MAINTENANCE_START'
     else:
         r.status = 'COMPLETED' if action == 'complete' else 'CANCELLED'
         r.completed_by = user; r.completed_at = now; r.completion_notes = notes
+        if action == 'complete' and 'MAINTENANCE' in r.kind:
+            if automatic:
+                custom_desc = (
+                    f"System Maintenance Automatically Completed\n"
+                    f"Status: Operational\n"
+                    f"Actual Resume Time: {now.strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+                log_action = 'MAINTENANCE_AUTO_COMPLETE'
+            else:
+                custom_desc = (
+                    f"System Maintenance Manually Completed\n"
+                    f"Status: Operational\n"
+                    f"Resume Time: {now.strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+                log_action = 'MAINTENANCE_COMPLETE'
     r.full_clean(); r.save()
-    audit(r,action.upper(),user,request,before)
+    audit(r, log_action, user, request, before, custom_description=custom_desc)
     notify_restriction(r, action)
     if action == 'activate' and r.session_policy == 'LOGOUT':
         terminate_sessions(r)
@@ -284,16 +332,35 @@ def render_fields(value,user=None,restriction=None):
 @transaction.atomic
 def tick():
     """Idempotent lifecycle reconciliation; policy evaluates dates even if scheduler is late."""
-    now=timezone.now()
+    now = timezone.now()
     for r in SystemRestriction.objects.filter(status__in=['SCHEDULED','ACTIVE']):
-        if r.ends_at and r.ends_at <= now:
-            transition(r.pk,'complete',automatic=True)
-        elif r.status=='SCHEDULED' and r.starts_at<=now:
-            transition(r.pk,'activate',automatic=True)
-        elif r.status=='SCHEDULED':
-            for minutes in r.warning_minutes:
-                if r.starts_at-timedelta(minutes=minutes)<=now:
-                    notify_restriction(r,f'warning:{minutes}')
+        try:
+            if r.ends_at and r.ends_at <= now:
+                transition(r.pk, 'complete', automatic=True)
+            elif r.status == 'SCHEDULED' and r.starts_at <= now:
+                transition(r.pk, 'activate', automatic=True)
+            elif r.status == 'SCHEDULED':
+                for minutes in r.warning_minutes:
+                    if r.starts_at - timedelta(minutes=minutes) <= now:
+                        notify_restriction(r, f'warning:{minutes}')
+        except Exception as error:
+            if r.status == 'ACTIVE' and r.ends_at and r.ends_at <= now:
+                from .audit_services import log_activity
+                log_activity(
+                    user=None, action='MAINTENANCE_AUTO_EXPIRY_FAILURE', module=AuditLog.Module.CONFIG,
+                    entity=r.__class__.__name__, entity_id=r.pk,
+                    description=f"Maintenance Auto-Expiry Failure for {r.title} (ID {r.pk}): {error}"
+                )
+                try:
+                    Notice.objects.create(
+                        title="Maintenance Auto-Expiry Failure",
+                        body=f"Critical system alert: Maintenance '{r.title}' failed to auto-terminate: {error}",
+                        message_type='EMERGENCY', priority='CRITICAL', status='PUBLISHED',
+                        starts_at=now, locations=['BANNER', 'IN_APP']
+                    )
+                except Exception:
+                    pass
+
     for n in Notice.objects.select_for_update().filter(status__in=['SCHEDULED','PUBLISHED']):
         old=n.status
         if n.ends_at and n.ends_at<=now:
@@ -309,6 +376,42 @@ def tick():
         backup_tick()
     except Exception:
         pass
+
+
+@transaction.atomic
+def start_maintenance_mode(duration_minutes=2, user=None, reason=None, public_message=None, notification_message=None):
+    """
+    Authoritative server-level activation of system-wide maintenance mode for specified duration (default: 2 minutes).
+    Enforces server-authoritative timestamps and sets up automatic resume.
+    """
+    now = timezone.now()
+    ends_at = now + timedelta(minutes=duration_minutes)
+
+    # Complete any currently active conflicting maintenance
+    for active_r in SystemRestriction.objects.filter(status='ACTIVE', kind=SystemRestriction.Kind.MAINTENANCE):
+        transition(active_r.pk, 'complete', user=user, notes="Superseded by new maintenance window", automatic=True)
+
+    default_msg = "We're performing a short system maintenance operation to improve system reliability and performance. Please wait a moment while we complete the process."
+    default_notice = "🔧 SYSTEM MAINTENANCE — UMS will temporarily be unavailable while maintenance is in progress. Normal operations will automatically resume shortly."
+    default_reason = f"System maintenance operation to improve system reliability and performance ({duration_minutes} minutes window)."
+
+    r = SystemRestriction.objects.create(
+        title="System Under Maintenance",
+        description=f"Controlled {duration_minutes}-minute system maintenance window.",
+        kind=SystemRestriction.Kind.MAINTENANCE,
+        reason=reason or default_reason,
+        public_message=public_message or default_msg,
+        notification_message=notification_message or default_notice,
+        status=SystemRestriction.Status.DRAFT,
+        starts_at=now,
+        ends_at=ends_at,
+        allow_bypass=True,
+        session_policy='BLOCK',
+        created_by=user,
+    )
+    # Activate with server authoritative time
+    r = transition(r.pk, 'activate', user=user, automatic=True)
+    return r
 
 
 def deliver_messages():

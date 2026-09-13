@@ -15,4 +15,5 @@ urlpatterns=[
     path('templates/',v.templates,name='templates'),path('templates/new/',v.template_edit,name='template_create'),
     path('templates/<int:pk>/edit/',v.template_edit,name='template_edit'),path('health/',v.health,name='health'),
     path('backups/create/',v.backup_create,name='backup_create'),
+    path('maintenance/start/',v.quick_maintenance,name='quick_maintenance'),
 ]

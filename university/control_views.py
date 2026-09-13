@@ -297,3 +297,26 @@ def backup_create(request):
     messages.success(request, f"Pre-maintenance database snapshot created: {backup_filename} ({size_mb} MB).")
 
     return redirect("control:health")
+
+
+@login_required
+@require_POST
+def quick_maintenance(request):
+    """Initiates a controlled 2-minute (or specified duration) maintenance mode window."""
+    if not (request.user.is_superuser or permitted(request.user, 'maintenance.activate')):
+        require_permission(request.user, 'maintenance.activate')
+
+    try:
+        duration = int(request.POST.get('duration', 2))
+    except (ValueError, TypeError):
+        duration = 2
+
+    reason = request.POST.get('reason', '').strip() or f"Controlled {duration}-minute maintenance operation to improve system reliability."
+    from .control_services import start_maintenance_mode
+    restriction = start_maintenance_mode(
+        duration_minutes=duration,
+        user=request.user,
+        reason=reason,
+    )
+    messages.warning(request, f"System maintenance mode activated for {duration} minutes. Auto-resume scheduled for {restriction.ends_at.strftime('%H:%M:%S')}.")
+    return redirect("control:dashboard")

@@ -10,7 +10,7 @@
     {% elif 'LOCKDOWN' in availability.status or 'EMERGENCY' in availability.status %}
       System Lockdown &bull; {{ site.site_name|default:"University Management System" }}
     {% else %}
-      System Maintenance &bull; {{ site.site_name|default:"University Management System" }}
+      System Under Maintenance &bull; {{ site.site_name|default:"University Management System" }}
     {% endif %}
   </title>
   
@@ -26,7 +26,7 @@
     body {
       margin: 0;
       font-family: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f8fafc;
+      background: #f1f5f9;
       color: #1e293b;
       min-height: 100vh;
       display: grid;
@@ -34,104 +34,174 @@
       padding: 24px;
     }
     .status-card {
-      max-width: 640px;
+      max-width: 680px;
       width: 100%;
       background: #ffffff;
       border: 1px solid #e2e8f0;
-      border-radius: 24px;
-      padding: 44px 40px;
-      box-shadow: 0 20px 60px -15px rgba(0, 0, 0, 0.07);
+      border-radius: 28px;
+      padding: 48px 42px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08);
       text-align: center;
       position: relative;
       overflow: hidden;
+      transition: all 0.3s ease;
     }
     .status-card::before {
       content: '';
       position: absolute;
       top: 0; left: 0; right: 0;
       height: 6px;
-      background: {% if availability.status == 'READ_ONLY' %}#0ea5e9{% elif 'LOCKDOWN' in availability.status or 'EMERGENCY' in availability.status %}#ef4444{% else %}#f59e0b{% endif %};
+      background: {% if availability.status == 'READ_ONLY' %}#0ea5e9{% elif 'LOCKDOWN' in availability.status or 'EMERGENCY' in availability.status %}#ef4444{% else %}linear-gradient(90deg, #f59e0b 0%, #d97706 100%){% endif %};
+      transition: background 0.4s ease;
+    }
+    .status-card.restored::before {
+      background: linear-gradient(90deg, #10b981 0%, #059669 100%);
     }
     .icon-badge {
-      width: 92px;
-      height: 92px;
+      width: 96px;
+      height: 96px;
       border-radius: 50%;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 2.5rem;
+      font-size: 2.75rem;
       margin-bottom: 24px;
-      background: {% if availability.status == 'READ_ONLY' %}rgba(14, 165, 233, 0.12){% elif 'LOCKDOWN' in availability.status or 'EMERGENCY' in availability.status %}rgba(239, 68, 68, 0.12){% else %}rgba(245, 158, 11, 0.12){% endif %};
+      background: {% if availability.status == 'READ_ONLY' %}rgba(14, 165, 233, 0.12){% elif 'LOCKDOWN' in availability.status or 'EMERGENCY' in availability.status %}rgba(239, 68, 68, 0.12){% else %}rgba(245, 158, 11, 0.14){% endif %};
       color: {% if availability.status == 'READ_ONLY' %}#0284c7{% elif 'LOCKDOWN' in availability.status or 'EMERGENCY' in availability.status %}#dc2626{% else %}#d97706{% endif %};
+      position: relative;
     }
-    .notice-box {
+    .icon-spinner-ring {
+      position: absolute;
+      inset: -6px;
+      border: 3px dashed rgba(245, 158, 11, 0.4);
+      border-radius: 50%;
+      animation: spinRing 12s linear infinite;
+    }
+    @keyframes spinRing {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .countdown-display {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
-      border-radius: 14px;
-      padding: 16px 20px;
-      margin: 24px 0;
-      text-align: left;
+      border-radius: 20px;
+      padding: 24px 20px;
+      margin: 28px 0;
+    }
+    .countdown-timer-value {
+      font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+      font-size: 3.25rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      color: #0f172a;
+      line-height: 1;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .status-pill .pulse-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #f59e0b;
+      box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+      animation: pulseDot 1.8s infinite;
+    }
+    @keyframes pulseDot {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+    }
+    .restored-pill {
+      background: #d1fae5 !important;
+      color: #065f46 !important;
+    }
+    .restored-pill .pulse-dot {
+      background: #10b981 !important;
+      animation: none !important;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .icon-spinner-ring, .pulse-dot { animation: none !important; }
     }
   </style>
 </head>
 <body>
-  <main class="status-card">
-    <div class="mb-3 text-uppercase fw-bold text-muted" style="font-size: 0.78rem; letter-spacing: 0.12em;">
-      {{ site.site_name|default:"University Management System" }}
+  <main class="status-card" id="statusCard">
+    <!-- University Branding Header -->
+    <div class="d-flex align-items-center justify-content-center gap-2 mb-3 text-muted fw-bold" style="font-size: 0.85rem; letter-spacing: 0.12em; text-transform: uppercase;">
+      <i class="fa-solid fa-graduation-cap text-primary fs-5"></i>
+      <span>{{ brand_name|default:site.site_name|default:"University Management System" }}</span>
     </div>
 
-    <div class="icon-badge">
+    <!-- Maintenance / Status Icon -->
+    <div class="icon-badge" id="iconBadge">
+      <div class="icon-spinner-ring" id="spinnerRing"></div>
       {% if availability.status == 'READ_ONLY' %}
-        <i class="fa-solid fa-database"></i>
+        <i class="fa-solid fa-database" id="statusIcon"></i>
       {% elif 'LOCKDOWN' in availability.status or 'EMERGENCY' in availability.status %}
-        <i class="fa-solid fa-shield-halved"></i>
+        <i class="fa-solid fa-shield-halved" id="statusIcon"></i>
       {% else %}
-        <i class="fa-solid fa-screwdriver-wrench"></i>
+        <i class="fa-solid fa-screwdriver-wrench" id="statusIcon"></i>
       {% endif %}
     </div>
 
-    <h1 class="h3 fw-bold text-dark mb-2">
+    <!-- Headings -->
+    <h1 class="h3 fw-bold text-dark mb-2" id="mainHeading">
       {% if availability.status == 'READ_ONLY' %}
         System in Read-Only Mode
       {% elif 'LOCKDOWN' in availability.status or 'EMERGENCY' in availability.status %}
         System Temporarily Locked Down
       {% else %}
-        System Temporarily Unavailable
+        System Under Maintenance
       {% endif %}
     </h1>
+    <div class="text-muted small fw-semibold mb-2">System Temporarily Unavailable</div>
 
-    <p class="text-secondary mb-4" style="line-height: 1.65; white-space: pre-wrap;">
-      {{ availability.message|default:"The university system is temporarily undergoing maintenance." }}
+    <p class="text-secondary mb-3 px-lg-3" id="mainMessage" style="font-size: 1.05rem; line-height: 1.65;">
+      {{ availability.message|default:"We're performing a short system maintenance operation to improve system reliability and performance. Please wait a moment while we complete the process." }}
     </p>
 
-    <!-- Restoration & Details Box -->
-    <div class="notice-box">
-      <div class="d-flex justify-content-between align-items-center mb-1">
-        <span class="text-uppercase fw-bold text-muted" style="font-size: 0.72rem; letter-spacing: 0.08em;">
-          <i class="fa-regular fa-clock me-1 text-primary"></i> Expected Restoration
-        </span>
-        <span class="badge bg-light text-dark border fw-semibold">
-          {% if availability.status %}{{ availability.status }}{% else %}MAINTENANCE{% endif %}
-        </span>
-      </div>
-      <div class="fw-semibold text-dark">
-        {{ restoration|default:"An update will be provided when services are restored." }}
+    <!-- Status Pill Badge -->
+    <div class="mb-2">
+      <div class="status-pill" id="statusPill">
+        <span class="pulse-dot" id="pulseDot"></span>
+        <span id="statusPillText">{{ availability.system_status|default:"Maintenance in progress" }}</span>
       </div>
     </div>
 
-    <p class="small text-muted mb-4">
-      We apologize for any inconvenience caused while we perform system maintenance.
-    </p>
+    <!-- Live Countdown Section (Server-Authoritative) -->
+    <div class="countdown-display" id="countdownBox">
+      <div class="d-flex justify-content-between align-items-center mb-2 px-2 text-muted small fw-semibold">
+        <span><i class="fa-solid fa-hourglass-half text-warning me-1"></i> ESTIMATED TIME REMAINING</span>
+        <span><i class="fa-regular fa-clock text-primary me-1"></i> Expected Restoration: <strong class="text-dark" id="expectedResumeTime">{{ restoration|date:"H:i:s"|default:"Shortly" }}</strong></span>
+      </div>
+      <div class="countdown-timer-value my-2" id="countdownTimer">--:--</div>
+      <div class="text-muted small" id="countdownNotice">
+        Normal operations will automatically resume as soon as this window closes.
+      </div>
+    </div>
 
-    <div class="d-flex justify-content-center align-items-center gap-2 flex-wrap mb-3">
-      <button id="btn-check-now" type="button" class="btn btn-outline-secondary btn-sm px-3 py-2 fw-semibold">
+    <!-- Actions Toolbar -->
+    <div class="d-flex justify-content-center align-items-center gap-2 flex-wrap mb-3" id="actionsToolbar">
+      <button id="btn-check-now" type="button" class="btn btn-outline-secondary btn-sm px-3 py-2 fw-semibold rounded-pill">
         <i class="fa-solid fa-rotate me-1"></i> Check Now
       </button>
-      <a href="{% url 'accounts:login' %}" class="btn btn-primary btn-sm px-3 py-2 fw-semibold">
-        <i class="fa-solid fa-right-to-bracket me-1"></i> Administrator Sign In
+      <a href="{% url 'accounts:login' %}" class="btn btn-primary btn-sm px-3 py-2 fw-semibold rounded-pill">
+        <i class="fa-solid fa-user-shield me-1"></i> Staff / Administrator Access
       </a>
     </div>
 
+    <!-- Live Reconnect Polling Indicator -->
     <div id="reconnect-indicator" class="pt-3 border-top small text-muted d-flex align-items-center justify-content-center gap-2">
       <span class="spinner-border spinner-border-sm text-warning" id="reconnect-spinner" role="status"></span>
       <span id="reconnect-text">Auto-checking restoration in <strong id="reconnect-timer">10</strong>s</span>
@@ -140,43 +210,137 @@
 
   <script>
     (function() {
-      let countdown = 10;
-      const statusUrl = "{% url 'control:status' %}";
-      const timerEl = document.getElementById('reconnect-timer');
-      const textEl = document.getElementById('reconnect-text');
-      const spinnerEl = document.getElementById('reconnect-spinner');
+      // Authoritative timestamps passed from backend
+      const expectedEndIso = "{{ availability.expected_end|default:availability.expected_restoration|default:'' }}";
+      let remainingSeconds = parseInt("{{ remaining_seconds|default:'0' }}", 10);
+      
+      const timerEl = document.getElementById('countdownTimer');
+      const expectedTimeEl = document.getElementById('expectedResumeTime');
+      const mainHeading = document.getElementById('mainHeading');
+      const mainMessage = document.getElementById('mainMessage');
+      const statusPill = document.getElementById('statusPill');
+      const statusPillText = document.getElementById('statusPillText');
+      const statusCard = document.getElementById('statusCard');
+      const statusIcon = document.getElementById('statusIcon');
+      const iconBadge = document.getElementById('iconBadge');
+      const spinnerRing = document.getElementById('spinnerRing');
+      const reconnectSpinner = document.getElementById('reconnect-spinner');
+      const reconnectText = document.getElementById('reconnect-text');
+      const reconnectTimerEl = document.getElementById('reconnect-timer');
       const btnCheck = document.getElementById('btn-check-now');
 
+      const statusUrl = "{% url 'control:status' %}";
+      let pollCountdown = 5;
+      let isRestored = false;
+
+      // Format seconds into MM:SS
+      function formatTime(seconds) {
+        if (seconds < 0) seconds = 0;
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        const mm = String(mins).padStart(2, '0');
+        const ss = String(secs).padStart(2, '0');
+        return `${mm}:${ss}`;
+      }
+
+      // Compute remaining seconds from server timestamp
+      function updateCalculatedRemaining() {
+        if (expectedEndIso) {
+          const endTime = new Date(expectedEndIso).getTime();
+          const nowTime = Date.now();
+          const diff = Math.max(0, Math.floor((endTime - nowTime) / 1000));
+          return diff;
+        }
+        return Math.max(0, remainingSeconds);
+      }
+
+      // Display initial countdown
+      if (expectedEndIso) {
+        remainingSeconds = updateCalculatedRemaining();
+      }
+      if (timerEl) {
+        timerEl.textContent = formatTime(remainingSeconds);
+      }
+
+      // Handle transition to restored operational state
+      function triggerSystemRestored() {
+        if (isRestored) return;
+        isRestored = true;
+
+        if (statusCard) statusCard.classList.add('restored');
+        if (iconBadge) {
+          iconBadge.style.background = 'rgba(16, 185, 129, 0.15)';
+          iconBadge.style.color = '#059669';
+        }
+        if (spinnerRing) spinnerRing.style.display = 'none';
+        if (statusIcon) statusIcon.className = 'fa-solid fa-circle-check text-success';
+        if (mainHeading) mainHeading.innerHTML = '<span class="text-success">System Restored ✓</span>';
+        if (mainMessage) mainMessage.textContent = 'Maintenance has been completed successfully. The system is now operational.';
+        if (statusPill) {
+          statusPill.className = 'status-pill restored-pill';
+          statusPillText.textContent = 'System Operational';
+        }
+        if (timerEl) timerEl.textContent = '00:00';
+        if (reconnectSpinner) reconnectSpinner.className = 'fa-solid fa-circle-check text-success';
+        if (reconnectText) reconnectText.innerHTML = '<strong class="text-success">Returning to the system...</strong>';
+
+        // Auto-redirect to destination or reload after brief transition
+        setTimeout(() => {
+          const urlParams = new URLSearchParams(window.location.search);
+          const nextUrl = urlParams.get('next') || window.location.pathname;
+          if (nextUrl && !nextUrl.startsWith('/system-control/unavailable')) {
+            window.location.href = nextUrl;
+          } else {
+            window.location.reload();
+          }
+        }, 1200);
+      }
+
+      // Periodic check against server status endpoint
       async function checkStatus() {
-        if (spinnerEl) spinnerEl.className = 'spinner-border spinner-border-sm text-primary';
-        if (textEl) textEl.textContent = 'Checking system status...';
+        if (isRestored) return;
+        if (reconnectSpinner) reconnectSpinner.className = 'spinner-border spinner-border-sm text-primary';
+        if (reconnectText) reconnectText.textContent = 'Verifying system status...';
         try {
           const res = await fetch(statusUrl, { cache: 'no-store' });
           if (res.ok) {
             const data = await res.json();
             const isOperational = data.status === 'Operational' || (!data.maintenance && !data.lockdown && !data.read_only);
             if (isOperational) {
-              if (spinnerEl) spinnerEl.className = 'fa-solid fa-circle-check text-success';
-              if (textEl) {
-                textEl.innerHTML = '<strong class="text-success">System restored! Redirecting...</strong>';
-              }
-              setTimeout(() => {
-                window.location.reload();
-              }, 1200);
+              triggerSystemRestored();
               return;
+            } else if (data.active_maintenance && data.active_maintenance.remaining_seconds !== undefined) {
+              remainingSeconds = data.active_maintenance.remaining_seconds;
+              if (timerEl) timerEl.textContent = formatTime(remainingSeconds);
             }
           }
         } catch (e) {
-          console.debug('Status check failed', e);
+          console.debug('Status check ping', e);
         }
-        countdown = 10;
-        if (spinnerEl) spinnerEl.className = 'spinner-border spinner-border-sm text-warning';
+        pollCountdown = 5;
+        if (reconnectSpinner) reconnectSpinner.className = 'spinner-border spinner-border-sm text-warning';
       }
 
+      // 1-second interval ticking countdown and poll counter
       setInterval(() => {
-        countdown--;
-        if (timerEl) timerEl.textContent = countdown;
-        if (countdown <= 0) {
+        if (isRestored) return;
+
+        if (expectedEndIso) {
+          remainingSeconds = updateCalculatedRemaining();
+        } else if (remainingSeconds > 0) {
+          remainingSeconds--;
+        }
+
+        if (timerEl) timerEl.textContent = formatTime(remainingSeconds);
+
+        if (remainingSeconds <= 0) {
+          // Timer reached zero: perform immediate server check
+          checkStatus();
+        }
+
+        pollCountdown--;
+        if (reconnectTimerEl) reconnectTimerEl.textContent = pollCountdown;
+        if (pollCountdown <= 0) {
           checkStatus();
         }
       }, 1000);

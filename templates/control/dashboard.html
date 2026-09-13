@@ -97,6 +97,45 @@
   </div>
 </div>
 
+<!-- Active Controlled Maintenance Status Banner -->
+{% if state.active_maintenance %}
+<div class="alert alert-warning border-0 shadow-sm rounded-4 p-4 mb-4" style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border-left: 6px solid #f59e0b !important;">
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3">
+    <div>
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <span class="badge bg-warning text-dark px-2.5 py-1 fw-bold text-uppercase" style="font-size: 0.75rem;">
+          <i class="fa-solid fa-screwdriver-wrench me-1"></i> SYSTEM STATUS: MAINTENANCE
+        </span>
+        <span class="badge bg-white text-dark border px-2 py-0.5 small">{{ state.active_maintenance.scope }}</span>
+      </div>
+      <h4 class="h5 fw-bold text-dark mb-1">{{ state.active_maintenance.title }}</h4>
+      <div class="text-secondary small mb-2">{{ state.active_maintenance.reason }}</div>
+      <div class="d-flex flex-wrap gap-3 text-muted small">
+        <span><i class="fa-regular fa-clock me-1 text-primary"></i><strong>Started:</strong> {{ state.active_maintenance.starts_at|date:"H:i:s"|default:state.active_maintenance.starts_at }}</span>
+        <span><i class="fa-solid fa-flag-checkered me-1 text-success"></i><strong>Automatic Resume:</strong> {{ state.active_maintenance.ends_at|date:"H:i:s"|default:state.active_maintenance.ends_at }}</span>
+        <span><i class="fa-solid fa-user-shield me-1 text-secondary"></i><strong>Started By:</strong> {{ state.active_maintenance.started_by }}</span>
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+      <div class="bg-white rounded-3 px-4 py-2 border shadow-sm text-center">
+        <span class="text-uppercase text-muted fw-bold d-block" style="font-size: 0.68rem; letter-spacing: 0.08em;">Remaining</span>
+        <strong class="fs-3 text-warning fw-bold font-monospace" id="activeMaintRemainingTimer" data-end="{{ state.active_maintenance.ends_at }}">
+          --:--
+        </strong>
+      </div>
+      <div>
+        <form method="post" action="{% url 'control:restriction_action' state.active_maintenance.id 'complete' %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-outline-success rounded-pill px-3 fw-semibold">
+            <i class="fa-solid fa-power-off me-1"></i> Lift Maintenance Now
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- 2. Upcoming Maintenance Notice Banner with Live Countdown -->
 {% if upcoming %}
 <div class="alert alert-warning border-0 shadow-sm rounded-4 p-4 mb-4" style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border-left: 6px solid #f59e0b !important;">
@@ -139,6 +178,10 @@
     </div>
 
     <div class="d-flex align-items-center gap-2">
+      <button type="button" class="btn btn-warning btn-sm d-inline-flex align-items-center gap-1.5 fw-semibold shadow-sm text-dark" data-bs-toggle="modal" data-bs-target="#quickMaintModal">
+        <i class="fa-solid fa-stopwatch"></i>
+        <span>Start 2-Min Maintenance</span>
+      </button>
       <a href="{% url 'control:restriction_create' %}" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1.5 fw-semibold shadow-sm">
         <i class="fa-solid fa-plus"></i>
         <span>Create Incident / Schedule</span>
@@ -269,6 +312,51 @@
     {% include 'control/pagination.html' with page=incidents %}
   </div>
 </div>
+
+<!-- Quick 2-Minute Maintenance Activation Modal -->
+<div class="modal fade" id="quickMaintModal" tabindex="-1" aria-labelledby="quickMaintModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <form method="post" action="{% url 'control:quick_maintenance' %}">
+        {% csrf_token %}
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold text-dark d-flex align-items-center gap-2" id="quickMaintModalLabel">
+            <span class="rounded-circle bg-warning bg-opacity-25 p-2 d-inline-flex text-warning">
+              <i class="fa-solid fa-screwdriver-wrench"></i>
+            </span>
+            Start System Maintenance Mode
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-4">
+          <p class="text-secondary small mb-3">
+            Placing UMS in <strong>Maintenance Mode</strong> will immediately serve the maintenance screen with live countdown to all regular users, safely pause non-critical operations, and preserve existing login sessions.
+          </p>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-muted">Maintenance Duration (Minutes)</label>
+            <div class="input-group">
+              <input type="number" name="duration" class="form-control" value="2" min="1" max="1440" required>
+              <span class="input-group-text bg-light text-muted">minutes</span>
+            </div>
+            <div class="form-text text-muted" style="font-size: 0.78rem;">
+              The backend server clock will automatically restore the system when this window expires.
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-semibold small text-muted">Operational Reason (Internal)</label>
+            <input type="text" name="reason" class="form-control" placeholder="e.g. 2-minute controlled maintenance & reliability check" value="Controlled 2-minute system maintenance and performance optimization.">
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-warning rounded-pill px-4 fw-bold text-dark shadow-sm">
+            <i class="fa-solid fa-play me-1"></i> Activate Maintenance Now
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -291,5 +379,23 @@
     updateCountdown();
     setInterval(updateCountdown, 1000);
   });
+
+  // Active maintenance live remaining timer
+  const activeMaintTimer = document.getElementById('activeMaintRemainingTimer');
+  if (activeMaintTimer && activeMaintTimer.dataset.end) {
+    const endTime = new Date(activeMaintTimer.dataset.end).getTime();
+    const tickActive = () => {
+      const diff = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+      const m = Math.floor(diff / 60);
+      const s = diff % 60;
+      activeMaintTimer.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+      if (diff <= 0) {
+        setTimeout(() => window.location.reload(), 1500);
+      }
+    };
+    tickActive();
+    setInterval(tickActive, 1000);
+  }
 </script>
 {% endblock %}
+
