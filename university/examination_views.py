@@ -9,7 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Exists, OuterRef
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
@@ -58,12 +58,27 @@ def index(request):
         qs = qs.filter(term_id=term)
     if request.GET.get('format') == 'csv':
         return csv_response('examination-timetable.csv', ['Course', 'Assessment', 'Term', 'Date', 'Start', 'End', 'Room', 'Status'], ([x.course.code, x.name, str(x.term or ''), x.date, x.start_time, x.end_time, str(x.room or ''), x.get_status_display()] for x in qs))
-    return render(request, 'examinations/index.html', {'page': Paginator(qs.order_by('-date', 'start_time', 'pk'), 20).get_page(request.GET.get('page')), 'staff': staff, 'admin': workflow.is_admin(user), 'counts': counts, 'terms': AcademicTerm.objects.all(), 'statuses': Exam.Status.choices, 'q': q, 'selected_status': status, 'selected_term': term})
+    can_create = workflow.can_create_exams(user)
+    return render(request, 'examinations/index.html', {
+        'page': Paginator(qs.order_by('-date', 'start_time', 'pk'), 20).get_page(request.GET.get('page')),
+        'staff': staff,
+        'admin': workflow.is_admin(user),
+        'can_create': can_create,
+        'counts': counts,
+        'terms': AcademicTerm.objects.all(),
+        'statuses': Exam.Status.choices,
+        'q': q,
+        'selected_status': status,
+        'selected_term': term
+    })
 
 
 @login_required
 def edit(request, pk=None):
-    if not (workflow.is_admin(request.user) or request.user.is_faculty):
+    if pk is None or request.GET.get('original'):
+        if not workflow.can_create_exams(request.user):
+            raise PermissionDenied("Only Heads of Department (HOD), Deans, and Administrators are authorized to create examinations.")
+    elif not (workflow.is_admin(request.user) or request.user.is_faculty):
         raise PermissionDenied
     exam = staff_exam(request, pk) if pk else Exam()
     if pk:
@@ -102,86 +117,173 @@ def edit(request, pk=None):
 def detail(request, pk):
     exam = staff_exam(request, pk)
     editor = workflow.can_mark(request.user, exam)
+    can_create = workflow.can_create_exams(request.user)
+    can_hod = workflow.can_hod_approve(request.user, exam)
+    can_dean = workflow.can_dean_publish(request.user, exam)
+    can_unpub = workflow.can_unpublish(request.user, exam)
+    user_role = workflow.get_user_exam_role(request.user, exam)
+
     rows = list(exam.results.select_related('student__user', 'exam').order_by('seat_number', 'student__roll_no'))
     entered = sum(r.marks_obtained is not None or r.attendance == 'ABSENT' for r in rows)
     S = Exam.Status
+
     catalogue = {
-        'schedule': ('Schedule & register candidates', False, 'primary',
-                     'Checks room capacity, invigilator and candidate clashes, then locks in the '
-                     'candidate register and seat numbers for this sitting.'),
-        'start': ('Open marks capture', False, 'primary',
-                  'Opens the marks sheet to the course lecturer and internal examiner. Marks stay private to staff until published.'),
-        'submit_internal': ('Submit for Internal Review', False, 'primary',
-                            'Marks are forwarded to the Internal Examiner (IE) for moderation and verification.'),
-        'review_internal': ('Sign off Internal Review', False, 'primary',
-                            'Confirms internal moderation is complete. Forwards marks to external review (if assigned) or approval.'),
-        'review_external': ('Sign off External Review', False, 'primary',
-                            'External Examiner (EE) signs off on moderated marks and forwards for administrative approval.'),
-        'submit': ('Submit marks as final', False, 'dark',
-                   'Locks the marks sheet against further edits and sends the results to the administrator '
-                   'for approval. Only an administrator can reopen it, with a written reason.'),
-        'approve': ('Approve results', False, 'primary',
-                    'Confirms the marks are correct and ready for release. Students still cannot see them '
-                    'until the results are published.'),
-        'publish': ('Publish to students', False, 'success',
-                    'Releases the results to every candidate immediately, and makes them count towards the '
-                    'weighted course total. Students may then lodge appeals.'),
-        'return': ('Return for correction', True, 'warning',
-                   'Rolls the sitting back to marks capture so the lecturer can correct it. Approval and '
-                   'publication must both be repeated afterwards.'),
-        'reopen': ('Withdraw published results', True, 'danger',
-                   'Immediately hides the published results from students and reopens the marks sheet. '
-                   'The sitting must be resubmitted, reapproved and republished.'),
-        'reschedule': ('Return to draft for rescheduling', True, 'warning',
-                       'Deletes the candidate register and seat allocations, and returns the sitting to draft.'),
-        'cancel': ('Cancel examination', True, 'danger',
-                   'Cancels the sitting permanently. It cannot be reinstated — create a new examination instead.'),
+        'schedule': (
+            'Schedule & Register Candidates', False, 'primary',
+            'Validates room capacity, invigilator and candidate schedules, then generates candidate seat numbers.',
+            None
+        ),
+        'start': (
+            'Open Marks Capture', False, 'primary',
+            'Opens the marks sheet to the course lecturer and internal examiner. Marks remain confidential to teaching staff.',
+            None
+        ),
+        'submit': (
+            'Submit Marks to HoD', False, 'primary',
+            'Finalizes marks capture and forwards the marks sheet to the Head of Department (HoD) for review and approval.',
+            None
+        ),
+        'resubmit': (
+            'Resubmit Marks to HoD', False, 'primary',
+            'Resubmits corrected marks to the Head of Department (HoD) as a new marks version.',
+            None
+        ),
+        'hod_approve': (
+            'Approve Marks (HoD)', False, 'success',
+            'Head of Department endorses departmental marks and forwards them for Dean / Senate publication.',
+            None
+        ),
+        'hod_send_back': (
+            'Return to Instructor for Correction (HoD)', True, 'warning',
+            'Returns marks sheet back to the course lecturer for corrections. A clear reason is required.',
+            'sendBackModal'
+        ),
+        'reopen_approved': (
+            'Reopen Approved Marks (HoD)', True, 'warning',
+            'Withdraws HoD approval and returns the marks sheet to the instructor for necessary corrections.',
+            'sendBackModal'
+        ),
+        'publish': (
+            'Publish Official Results (Dean)', False, 'success',
+            'Formally releases official examination results to students. Results appear on student transcripts and grade statements.',
+            None
+        ),
+        'dean_send_back_hod': (
+            'Return to HoD (Dean)', True, 'warning',
+            'Returns marks sheet back to the Head of Department for departmental revision.',
+            'sendBackModal'
+        ),
+        'dean_send_back_instructor': (
+            'Return to Instructor (Dean)', True, 'warning',
+            'Bypasses the HoD and returns marks sheet directly to the course lecturer for correction.',
+            'sendBackModal'
+        ),
+        'unpublish': (
+            'Unpublish Official Results (Dean / Registrar)', True, 'danger',
+            'Hides published results from student statements while preserving complete history, versions, and audit trails.',
+            'unpublishModal'
+        ),
+        'reschedule': (
+            'Return to Draft for Rescheduling', True, 'warning',
+            'Clears the candidate register and seat allocations, returning the exam to draft status.',
+            None
+        ),
+        'cancel': (
+            'Cancel Examination', True, 'danger',
+            'Cancels the examination sitting permanently. This action cannot be undone.',
+            None
+        ),
     }
+
     available = []
+    # 1. Instructor / Editor actions:
     if editor:
-        available += {
-            S.DRAFT: ['schedule'],
-            S.SCHEDULED: ['start'],
-            S.MARKING: ['submit_internal', 'submit'],
-            S.INTERNAL_REVIEW: ['review_internal'],
-        }.get(exam.status, [])
-    if workflow.can_review_external(request.user, exam) and exam.status == S.EXTERNAL_REVIEW:
-        available.append('review_external')
+        if exam.status == S.DRAFT:
+            available.append('schedule')
+        elif exam.status == S.SCHEDULED:
+            available.append('start')
+        elif exam.status == S.MARKING:
+            available.append('submit')
+        elif exam.status in (S.RETURNED_TO_INSTRUCTOR, S.CORRECTION, S.UNPUBLISHED):
+            available.append('resubmit')
+
+    # 2. HoD actions:
+    if can_hod:
+        if exam.status in (S.HOD_REVIEW, S.SUBMITTED):
+            available.extend(['hod_approve', 'hod_send_back'])
+        elif exam.status == S.HOD_APPROVED:
+            available.append('reopen_approved')
+
+    # 3. Dean / Registrar / Admin actions:
+    if can_dean:
+        if exam.status in (S.HOD_APPROVED, S.DEAN_REVIEW, S.APPROVED):
+            available.extend(['publish', 'dean_send_back_hod', 'dean_send_back_instructor'])
+        elif exam.status == S.RETURNED_TO_HOD:
+            available.append('dean_send_back_instructor')
+
+    if can_unpub and exam.status == S.PUBLISHED:
+        available.append('unpublish')
+
     if workflow.is_admin(request.user):
-        available += {
-            S.MARKING: ['submit_internal', 'submit'],
-            S.INTERNAL_REVIEW: ['review_internal', 'return'],
-            S.EXTERNAL_REVIEW: ['review_external', 'return'],
-            S.SUBMITTED: ['approve', 'return'],
-            S.APPROVED: ['publish', 'return'],
-            S.PUBLISHED: ['reopen'],
-            S.SCHEDULED: ['reschedule', 'cancel'],
-            S.DRAFT: ['cancel']
-        }.get(exam.status, [])
-    actions = [(key,) + catalogue[key] for key in dict.fromkeys(available)]
-    stages = [
-        (S.DRAFT, 'Draft'),
-        (S.SCHEDULED, 'Scheduled'),
-        (S.MARKING, 'Marks capture'),
-        (S.INTERNAL_REVIEW, 'Internal review'),
-        (S.EXTERNAL_REVIEW, 'External review'),
-        (S.SUBMITTED, 'Awaiting approval'),
-        (S.APPROVED, 'Approved'),
-        (S.PUBLISHED, 'Published')
+        if exam.status == S.SCHEDULED:
+            available.extend(['reschedule', 'cancel'])
+        elif exam.status == S.DRAFT:
+            available.append('cancel')
+
+    actions = [(key,) + catalogue[key] for key in dict.fromkeys(available) if key in catalogue]
+
+    track_stages = [
+        ('Draft', ['DRAFT']),
+        ('Scheduled', ['SCHEDULED']),
+        ('Marks Entry', ['MARKING', 'RETURNED_INSTRUCTOR', 'CORRECTION', 'UNPUBLISHED']),
+        ('HoD Review', ['HOD_REVIEW', 'SUBMITTED', 'RESUBMITTED', 'RETURNED_HOD']),
+        ('HoD Approved', ['HOD_APPROVED', 'DEAN_REVIEW', 'APPROVED']),
+        ('Published', ['PUBLISHED']),
     ]
-    order = [value for value, _ in stages]
-    position = order.index(exam.status) if exam.status in order else -1
-    track = [{'label': label, 'state': 'done' if i < position else 'current' if i == position else 'todo'}
-             for i, (value, label) in enumerate(stages)]
+
+    current_stage_idx = -1
+    for idx, (stage_name, status_list) in enumerate(track_stages):
+        if exam.status in status_list:
+            current_stage_idx = idx
+            break
+
+    track = []
+    for idx, (stage_name, _) in enumerate(track_stages):
+        if exam.status == S.CANCELLED:
+            state = 'todo'
+        elif idx < current_stage_idx:
+            state = 'done'
+        elif idx == current_stage_idx:
+            state = 'current'
+        else:
+            state = 'todo'
+        track.append({'label': stage_name, 'state': state})
+
     grades = Counter(r.grade for r in rows if r.attendance != 'PENDING' and (r.marks_obtained is not None or r.attendance == 'ABSENT'))
+    workflow_events = exam.workflow_events.select_related('actor').all()[:30]
+    marks_versions = exam.marks_versions.select_related('created_by').all()
+
     return render(request, 'examinations/detail.html', {
-        'exam': exam, 'rows': rows, 'editor': editor,
-        'admin': workflow.is_admin(request.user), 'actions': actions, 'track': track,
-        'cancelled': exam.status == S.CANCELLED, 'entered': entered, 'total': len(rows),
+        'exam': exam,
+        'rows': rows,
+        'editor': editor,
+        'admin': workflow.is_admin(request.user),
+        'can_create': can_create,
+        'can_hod': can_hod,
+        'can_dean': can_dean,
+        'can_unpublish': can_unpub,
+        'user_role': user_role,
+        'actions': actions,
+        'track': track,
+        'cancelled': exam.status == S.CANCELLED,
+        'entered': entered,
+        'total': len(rows),
         'passed': sum(r.outcome == 'Pass' for r in rows),
         'absent': sum(r.attendance == 'ABSENT' for r in rows),
         'grades': sorted(grades.items()),
-        'audit': exam.audit_entries.select_related('actor')[:50] if editor else [],
+        'workflow_events': workflow_events,
+        'marks_versions': marks_versions,
+        'audit': exam.audit_entries.select_related('actor')[:50] if (editor or can_hod or can_dean) else [],
         'appeals': ExamAppeal.objects.filter(result__exam=exam).select_related('result__student__user') if editor else []
     })
 
@@ -191,18 +293,63 @@ def detail(request, pk):
 def action(request, pk):
     staff_exam(request, pk)
     try:
-        workflow.transition(request.user, pk, request.POST.get('action'), request.POST.get('reason', ''), request.POST.get('revision', ''))
-        messages.success(request, 'Examination workflow updated.')
-    except ValidationError as exc:
+        ip = request.META.get('REMOTE_ADDR') or ''
+        ua = request.META.get('HTTP_USER_AGENT') or ''
+        workflow.transition(
+            request.user,
+            pk,
+            action=request.POST.get('action'),
+            reason=request.POST.get('reason', ''),
+            revision=request.POST.get('revision', ''),
+            reason_category=request.POST.get('reason_category', ''),
+            comments=request.POST.get('comments', ''),
+            target_stage=request.POST.get('target_stage', ''),
+            ip_address=ip,
+            user_agent=ua,
+        )
+        messages.success(request, 'Examination workflow updated successfully.')
+    except (ValidationError, PermissionDenied) as exc:
         error_message(request, exc)
     return redirect('examinations:detail', pk=pk)
 
 
 @login_required
-def marks(request, pk):
+def marks(request, pk=None):
+    user = request.user
+    staff = workflow.is_admin(user) or user.is_faculty
+    if not staff:
+        raise PermissionDenied
+
+    available_exams = workflow.staff_scope(user).exclude(
+        status__in=[Exam.Status.DRAFT, Exam.Status.CANCELLED]
+    ).select_related('course', 'term').order_by('course__code', 'name')
+
+    if not pk:
+        exam_param = request.GET.get('exam') or request.GET.get('exam_id') or request.POST.get('exam_id')
+        if exam_param and str(exam_param).isdigit():
+            pk = int(exam_param)
+        elif available_exams.exists():
+            marking_exam = available_exams.filter(status=Exam.Status.MARKING).first()
+            pk = marking_exam.pk if marking_exam else available_exams.first().pk
+        else:
+            return render(request, 'examinations/marks.html', {
+                'exam': None,
+                'available_exams': available_exams,
+                'rows': [],
+                'errors': [],
+                'editable': False,
+                'admin': workflow.is_admin(user),
+            })
+
     exam = staff_exam(request, pk)
     workflow.require_editor(request.user, exam)
-    rows = list(exam.results.select_related('student__user', 'exam').order_by('seat_number', 'student__roll_no'))
+    
+    retake_qs = Result.objects.filter(
+        student_id=OuterRef('student_id'),
+        exam__course_id=exam.course_id,
+        exam__term__start_date__lt=exam.term.start_date if exam.term else '1900-01-01'
+    )
+    rows = list(exam.results.annotate(is_retake=Exists(retake_qs)).select_related('student__user', 'exam').order_by('seat_number', 'student__roll_no'))
 
     fmt = request.GET.get('format', '').lower()
     if fmt in ('excel', 'xlsx'):
@@ -257,6 +404,8 @@ def marks(request, pk):
                         'attendance': request.POST.get(f'attendance_{r.pk}', ''),
                         'cat_marks': request.POST.get(f'cat_marks_{r.pk}', ''),
                         'exam_marks': request.POST.get(f'exam_marks_{r.pk}', ''),
+                        'exam_marks_ie': request.POST.get(f'exam_marks_ie_{r.pk}', ''),
+                        'exam_marks_ee': request.POST.get(f'exam_marks_ee_{r.pk}', ''),
                         'marks': request.POST.get(f'marks_{r.pk}', ''),
                         'remarks': request.POST.get(f'remarks_{r.pk}', '')
                     }
@@ -275,19 +424,46 @@ def marks(request, pk):
                 row.attendance = data.get('attendance')
                 row.cat_marks = data.get('cat_marks')
                 row.exam_marks = data.get('exam_marks')
+                row.exam_marks_ie = data.get('exam_marks_ie')
+                row.exam_marks_ee = data.get('exam_marks_ee')
                 row.marks_obtained = data.get('marks')
                 row.remarks = data.get('remarks')
     recorded = sum(r.attendance == 'ABSENT' or (r.attendance == 'PRESENT' and r.marks_obtained is not None) for r in rows)
     from accounts.models import FacultyProfile
     faculty_list = FacultyProfile.objects.select_related('user', 'department')
+
+    editable = exam.status in [
+        Exam.Status.MARKING,
+        Exam.Status.RETURNED_TO_INSTRUCTOR,
+        Exam.Status.CORRECTION,
+        Exam.Status.UNPUBLISHED,
+    ]
+    ie_editable = exam.status in [
+        Exam.Status.MARKING,
+        Exam.Status.RETURNED_TO_INSTRUCTOR,
+        Exam.Status.CORRECTION,
+        Exam.Status.UNPUBLISHED,
+        Exam.Status.INTERNAL_REVIEW,
+    ]
+    ee_editable = exam.status == Exam.Status.EXTERNAL_REVIEW
+    latest_event = exam.workflow_events.first()
+    marks_versions = exam.marks_versions.all()
+
     return render(request, 'examinations/marks.html', {
-        'exam': exam, 'rows': rows, 'errors': errors,
-        'editable': exam.status == Exam.Status.MARKING,
+        'exam': exam,
+        'available_exams': available_exams,
+        'rows': rows,
+        'errors': errors,
+        'editable': editable,
+        'ie_editable': ie_editable,
+        'ee_editable': ee_editable,
+        'latest_event': latest_event,
+        'marks_versions': marks_versions,
         'admin': workflow.is_admin(request.user),
         'faculty_list': faculty_list,
         'recorded': recorded, 'total': len(rows), 'outstanding': len(rows) - recorded,
         'bands': sorted(exam.grade_bands, key=lambda b: b['minimum'], reverse=True),
-        'component': f'CAT: max {exam.cat_max_marks:.0f} | Final Exam: max {exam.exam_max_marks:.0f} | Total: {exam.max_marks}',
+        'component': f'CAT: max {exam.cat_max_marks:.0f} | Final Exam IE: max {exam.exam_max_marks:.0f} | Final Exam EE: max {exam.exam_max_marks:.0f} | Total: {exam.max_marks}',
     })
 
 

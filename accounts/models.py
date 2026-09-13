@@ -192,6 +192,7 @@ class StudentProfile(models.Model):
     def is_active_student(self):
         return self.status == self.Status.ACTIVE
 
+    cohort = models.ForeignKey("university.Cohort", on_delete=models.SET_NULL, null=True, blank=True, related_name="students")
     def get_absolute_url(self):
         return reverse("university:student_detail", args=[self.pk])
 

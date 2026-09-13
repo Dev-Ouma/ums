@@ -16,6 +16,7 @@ from datetime import date, time, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
@@ -392,6 +393,9 @@ class Command(BaseCommand):
                                   created_at=timezone.now() - timedelta(
                                       days=random.randint(0, 14)))
 
+        # Seed all institutional role accounts
+        call_command("seed_demo_users", password=PASSWORD)
+
         self.stdout.write(self.style.SUCCESS(
             f"\nSeed complete! "
             f"{StudentProfile.objects.count()} students, "
@@ -401,7 +405,21 @@ class Command(BaseCommand):
             f"{Attendance.objects.count()} attendance records."))
         self.stdout.write(self.style.WARNING(
             f"\nDemo logins (password: {PASSWORD})\n"
-            "  Admin   -> admin\n  Faculty -> prof.rao\n  Student -> stu.aarav"))
+            "  Super Admin   -> superadmin\n"
+            "  Admin         -> admin\n"
+            "  VC            -> vc\n"
+            "  DVC-AA        -> dvcaa\n"
+            "  Registrar     -> registrar\n"
+            "  ICT Director  -> ictdirector\n"
+            "  Dean          -> dean\n"
+            "  HoD           -> hod\n"
+            "  Exam Officer  -> examofficer\n"
+            "  Lecturer      -> lecturer (or prof.rao)\n"
+            "  Student       -> student (or stu.aarav)\n"
+            "  Finance       -> finance\n"
+            "  Admissions    -> admissions\n"
+            "  Auditor       -> auditor\n"
+        ))
 
     # -- helpers ------------------------------------------------------------
     def _make_user(self, username, first, last, role):

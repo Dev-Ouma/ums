@@ -277,6 +277,7 @@ urlpatterns = [
     path("manage/admissions/<int:pk>/", admissions_views.admin_admission_detail, name="admin_admission_detail"),
     path("manage/admissions/<int:pk>/matriculate/", admissions_views.admin_admission_matriculate, name="admin_admission_matriculate"),
     path("manage/admissions/intakes/", admissions_views.admin_intakes, name="admin_intakes"),
+    path("manage/admissions/cohorts/", admissions_views.admin_cohorts, name="admin_cohorts"),
 
     # Admission Documents, Dynamic Templates & Attachment Management (Admin)
     path("manage/admissions/documents/", admission_document_views.admin_admission_documents_list, name="admin_admission_documents_list"),

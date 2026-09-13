@@ -155,11 +155,11 @@ class AcademicsModuleTests(TestCase):
         self.assertRedirects(submit_res, url)
 
         reg = SemesterRegistration.objects.get(student=self.student, term=self.term)
-        self.assertEqual(reg.status, SemesterRegistration.SUBMITTED)
+        self.assertEqual(reg.status, SemesterRegistration.APPROVED)
         self.assertIsNotNone(reg.submitted_at)
         # Child enrollments updated
         self.assertEqual(
-            Enrollment.objects.filter(student=self.student, status=Enrollment.SUBMITTED).count(), 2
+            Enrollment.objects.filter(student=self.student, status=Enrollment.ACTIVE).count(), 2
         )
 
     def test_student_transcripts_submodules_view(self):
@@ -178,11 +178,11 @@ class AcademicsModuleTests(TestCase):
         # Create a submitted registration
         reg = SemesterRegistration.objects.create(
             student=self.student, term=self.term, semester_no=1,
-            status=SemesterRegistration.SUBMITTED, total_credits=8
+            status=SemesterRegistration.APPROVED, total_credits=8
         )
         enr = Enrollment.objects.create(
             student=self.student, course=self.course1, term=self.term,
-            registration=reg, status=Enrollment.SUBMITTED
+            registration=reg, status=Enrollment.ACTIVE
         )
 
         self.client.force_login(self.admin_user)
@@ -206,11 +206,11 @@ class AcademicsModuleTests(TestCase):
         """Admin can review, add units, and approve/reject individual registrations."""
         reg = SemesterRegistration.objects.create(
             student=self.student, term=self.term, semester_no=1,
-            status=SemesterRegistration.SUBMITTED, total_credits=4
+            status=SemesterRegistration.APPROVED, total_credits=4
         )
         Enrollment.objects.create(
             student=self.student, course=self.course1, term=self.term,
-            registration=reg, status=Enrollment.SUBMITTED
+            registration=reg, status=Enrollment.ACTIVE
         )
 
         self.client.force_login(self.admin_user)

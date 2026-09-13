@@ -25,6 +25,7 @@ urlpatterns = [
     path('<int:pk>/', views.detail, name='detail'),
     path('<int:pk>/edit/', views.edit, name='edit'),
     path('<int:pk>/action/', views.action, name='action'),
+    path('marks/', views.marks, name='marks_capture'),
     path('<int:pk>/marks/', views.marks, name='marks'),
     path('<int:pk>/register/', views.register, name='register'),
 ]

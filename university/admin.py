@@ -3,10 +3,11 @@ from django.contrib import admin
 from .models import (
     Assignment, Attendance, ClassSchedule, Course, Department, Enrollment, Event,
     Exam, FeeInvoice, Notice, Payment, Program, Result, Submission, AcademicTerm,
-    DocumentReleaseControl, School, AcademicYear,
+    DocumentReleaseControl, School, AcademicYear, Cohort, Intake,
+    MarksVersion, MarksWorkflowEvent
 )
 
-for model in (Course, Enrollment, Attendance,
+for model in (Course, Enrollment, Attendance, Cohort, Intake,
               Assignment, Submission, FeeInvoice, Payment, Event, Notice, ClassSchedule):
     admin.site.register(model)
 
@@ -89,6 +90,8 @@ class ReadOnlyExamAdmin(admin.ModelAdmin):
 
 admin.site.register(Exam, ReadOnlyExamAdmin)
 admin.site.register(Result, ReadOnlyExamAdmin)
+admin.site.register(MarksVersion, ReadOnlyExamAdmin)
+admin.site.register(MarksWorkflowEvent, ReadOnlyExamAdmin)
 
 
 @admin.register(DocumentReleaseControl)

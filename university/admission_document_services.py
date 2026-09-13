@@ -484,6 +484,10 @@ def build_admission_letter_pdf_bytes(issued_document):
     1-page PDF byte stream matching standard Kenyan university stationery
     (inspired by premier national universities like UoN).
     """
+    # Register Quicksand fonts (shared with all other PDF exports)
+    from university.document_design import document_fonts
+    regular, bold = document_fonts()
+
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -500,7 +504,7 @@ def build_admission_letter_pdf_bytes(issued_document):
     title_style = ParagraphStyle(
         "LetterInstTitle",
         parent=styles["Normal"],
-        fontName="Times-Bold",
+        fontName=bold,
         fontSize=12.5,
         leading=14.5,
         textColor=primary_color,
@@ -510,7 +514,7 @@ def build_admission_letter_pdf_bytes(issued_document):
     office_style = ParagraphStyle(
         "LetterOfficeTitle",
         parent=styles["Normal"],
-        fontName="Times-Bold",
+        fontName=bold,
         fontSize=9.5,
         leading=11.5,
         textColor=primary_color,
@@ -520,7 +524,7 @@ def build_admission_letter_pdf_bytes(issued_document):
     confidential_style = ParagraphStyle(
         "LetterConfidential",
         parent=styles["Normal"],
-        fontName="Times-Roman",
+        fontName=regular,
         fontSize=8.5,
         leading=10.5,
         textColor=primary_color,
@@ -530,7 +534,7 @@ def build_admission_letter_pdf_bytes(issued_document):
     contact_left = ParagraphStyle(
         "HeaderContactLeft",
         parent=styles["Normal"],
-        fontName="Times-Roman",
+        fontName=regular,
         fontSize=7.5,
         leading=9.5,
         textColor=primary_color,
@@ -539,7 +543,7 @@ def build_admission_letter_pdf_bytes(issued_document):
     contact_right = ParagraphStyle(
         "HeaderContactRight",
         parent=styles["Normal"],
-        fontName="Times-Roman",
+        fontName=regular,
         fontSize=7.5,
         leading=9.5,
         textColor=primary_color,
@@ -548,7 +552,7 @@ def build_admission_letter_pdf_bytes(issued_document):
     ref_style = ParagraphStyle(
         "RefLeft",
         parent=styles["Normal"],
-        fontName="Times-Roman",
+        fontName=regular,
         fontSize=8.5,
         leading=11,
         textColor=primary_color,
@@ -558,7 +562,7 @@ def build_admission_letter_pdf_bytes(issued_document):
     salutation_style = ParagraphStyle(
         "LetterSalutation",
         parent=styles["Normal"],
-        fontName="Times-Roman",
+        fontName=regular,
         fontSize=8.5,
         leading=11,
         textColor=primary_color,
@@ -568,7 +572,7 @@ def build_admission_letter_pdf_bytes(issued_document):
     subject_style = ParagraphStyle(
         "LetterSubject",
         parent=styles["Normal"],
-        fontName="Times-Bold",
+        fontName=bold,
         fontSize=8.5,
         leading=11,
         textColor=primary_color,
@@ -577,7 +581,7 @@ def build_admission_letter_pdf_bytes(issued_document):
     section_head_style = ParagraphStyle(
         "SectionHead",
         parent=styles["Normal"],
-        fontName="Times-Bold",
+        fontName=bold,
         fontSize=8.5,
         leading=11,
         textColor=primary_color,
@@ -588,7 +592,7 @@ def build_admission_letter_pdf_bytes(issued_document):
     body_style = ParagraphStyle(
         "LetterBody",
         parent=styles["Normal"],
-        fontName="Times-Roman",
+        fontName=regular,
         fontSize=8.5,
         leading=10.8,
         textColor=primary_color,
@@ -597,7 +601,7 @@ def build_admission_letter_pdf_bytes(issued_document):
     list_item_style = ParagraphStyle(
         "LetterListItem",
         parent=styles["Normal"],
-        fontName="Times-Roman",
+        fontName=regular,
         fontSize=8.5,
         leading=10.8,
         textColor=primary_color,
@@ -607,7 +611,7 @@ def build_admission_letter_pdf_bytes(issued_document):
     closing_style = ParagraphStyle(
         "LetterClosing",
         parent=styles["Normal"],
-        fontName="Times-Roman",
+        fontName=regular,
         fontSize=8.5,
         leading=11,
         textColor=primary_color,
@@ -618,7 +622,7 @@ def build_admission_letter_pdf_bytes(issued_document):
     sig_style = ParagraphStyle(
         "SigText",
         parent=styles["Normal"],
-        fontName="Times-Bold",
+        fontName=bold,
         fontSize=8.5,
         leading=10.5,
         textColor=primary_color,
@@ -784,7 +788,7 @@ def build_admission_letter_pdf_bytes(issued_document):
     )
 
     badge_meta_html = (
-        '<font color="#059669">●</font> <b><font face="Times-Bold" size="7.5" color="#0f172a">SECURE VERIFICATION</font></b><br/>'
+        f'<font color="#059669">●</font> <b><font face="{bold}" size="7.5" color="#0f172a">SECURE VERIFICATION</font></b><br/>'
         f'<font color="#64748b">Doc Ref:</font> <b>{escape(doc_ref)}</b><br/>'
         f'<font color="#64748b">Checksum:</font> {checksum_short} (SHA256)<br/>'
         f'<font color="#64748b">Issued:</font> {issued_ts}<br/>'
@@ -822,7 +826,7 @@ def build_admission_letter_pdf_bytes(issued_document):
 
     sig_cell_elements.append(Paragraph(f"<u><b>{escape(sig_name.upper())}</b></u>", sig_style))
     sig_cell_elements.append(Paragraph(f"<b>{escape(sig_title.upper())}</b>", sig_style))
-    sig_cell_elements.append(Paragraph("For: Deputy Vice-Chancellor (Academic Affairs)", ParagraphStyle("SigForOffice", parent=sig_style, fontName="Times-Italic", fontSize=7.5, leading=9.5, textColor=primary_color)))
+    sig_cell_elements.append(Paragraph("For: Deputy Vice-Chancellor (Academic Affairs)", ParagraphStyle("SigForOffice", parent=sig_style, fontName=regular, fontSize=7.5, leading=9.5, textColor=primary_color)))
 
     footer_table = Table(
         [[badge_inner_table, sig_cell_elements]],

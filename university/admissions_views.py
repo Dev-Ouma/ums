@@ -56,7 +56,7 @@ from university.admissions_draft_services import (
 from university.models import (
     AcademicYear, Application, ApplicationAttachment,
     ApplicationCustomField, ApplicationCustomFieldValue,
-    ApplicationFeePayment, AuditLog, Intake, Program
+    ApplicationFeePayment, AuditLog, Intake, Program, Cohort
 )
 from university.audit_services import log_activity
 from university.upload_security import validate_uploaded_file
@@ -1290,4 +1290,53 @@ def admin_intakes(request):
         "intakes": intakes,
         "academic_years": academic_years,
         "current_year": current_year,
+    })
+
+
+@role_required(Role.ADMIN)
+def admin_cohorts(request):
+    """Admin: Manage university cohorts."""
+    from datetime import date
+    cohorts = Cohort.objects.all().order_by("-start_date", "-created_at")
+
+    if request.method == "POST":
+        month = request.POST.get("month", "").strip().upper()
+        year = request.POST.get("year", "").strip()
+        start_date = request.POST.get("start_date")
+        end_date = request.POST.get("end_date")
+        description = request.POST.get("description", "").strip()
+
+        if month not in ["JAN", "MAY", "SEP"]:
+            messages.error(request, "Cohorts can only be in January, May, or September.")
+            return redirect("university:admin_cohorts")
+        
+        if not year.isdigit() or len(year) != 4:
+            messages.error(request, "Enter a valid 4-digit year.")
+            return redirect("university:admin_cohorts")
+
+        name = f"{month}-{year}"
+
+        if Cohort.objects.filter(name=name).exists():
+            messages.error(request, "A cohort with this name already exists.")
+        else:
+            try:
+                parsed_start = date.fromisoformat(start_date) if start_date else None
+            except ValueError:
+                parsed_start = None
+            try:
+                parsed_end = date.fromisoformat(end_date) if end_date else None
+            except ValueError:
+                parsed_end = None
+
+            Cohort.objects.create(
+                name=name,
+                start_date=parsed_start,
+                end_date=parsed_end,
+                description=description
+            )
+            messages.success(request, f"Cohort '{name}' created successfully.")
+            return redirect("university:admin_cohorts")
+
+    return render(request, "admissions/admin_cohorts.html", {
+        "cohorts": cohorts,
     })

@@ -625,13 +625,22 @@ class Exam(models.Model):
     class Status(models.TextChoices):
         DRAFT = "DRAFT", "Draft"
         SCHEDULED = "SCHEDULED", "Scheduled"
-        MARKING = "MARKING", "Marks entry"
-        INTERNAL_REVIEW = "INTERNAL_REVIEW", "Internal review"
-        EXTERNAL_REVIEW = "EXTERNAL_REVIEW", "External review"
-        SUBMITTED = "SUBMITTED", "Awaiting approval"
-        APPROVED = "APPROVED", "Approved"
+        MARKING = "MARKING", "Marks Entry"
+        SUBMITTED = "SUBMITTED", "Submitted to HoD"
+        HOD_REVIEW = "HOD_REVIEW", "Under HoD Review"
+        RETURNED_TO_INSTRUCTOR = "RETURNED_INSTRUCTOR", "Returned to Instructor"
+        HOD_APPROVED = "HOD_APPROVED", "HoD Approved"
+        DEAN_REVIEW = "DEAN_REVIEW", "Under Dean Review"
+        RETURNED_TO_HOD = "RETURNED_HOD", "Returned to HoD"
         PUBLISHED = "PUBLISHED", "Published"
+        UNPUBLISHED = "UNPUBLISHED", "Unpublished (Under Review)"
+        CORRECTION = "CORRECTION", "Correction Required"
+        RESUBMITTED = "RESUBMITTED", "Resubmitted to HoD"
         CANCELLED = "CANCELLED", "Cancelled"
+        # Legacy status compatibility aliases
+        INTERNAL_REVIEW = "INTERNAL_REVIEW", "Internal Review"
+        EXTERNAL_REVIEW = "EXTERNAL_REVIEW", "External Review"
+        APPROVED = "APPROVED", "Approved"
 
     class Kind(models.TextChoices):
         CAT = "CAT", "Continuous assessment"
@@ -639,7 +648,7 @@ class Exam(models.Model):
         PRACTICAL = "PRACTICAL", "Practical"
         SUPPLEMENTARY = "SUPPLEMENTARY", "Supplementary"
 
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT, db_index=True)
+    status = models.CharField(max_length=30, choices=Status.choices, default=Status.DRAFT, db_index=True)
     kind = models.CharField(max_length=15, choices=Kind.choices, default=Kind.FINAL)
     start_time = models.TimeField(null=True, blank=True)
     end_time = models.TimeField(null=True, blank=True)
@@ -656,6 +665,15 @@ class Exam(models.Model):
                                      related_name="supplementary_exams")
     published_at = models.DateTimeField(null=True, blank=True)
     revision = models.PositiveIntegerField(default=0)
+    current_version = models.PositiveIntegerField(default=1)
+    submitted_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                      on_delete=models.SET_NULL, related_name="submitted_exams")
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    hod_approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                         on_delete=models.SET_NULL, related_name="hod_approved_exams")
+    hod_approved_at = models.DateTimeField(null=True, blank=True)
+    dean_published_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                           on_delete=models.SET_NULL, related_name="dean_published_exams")
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="exams")
     term = models.ForeignKey(AcademicTerm, on_delete=models.SET_NULL, null=True, blank=True)
     name = models.CharField(max_length=80, default="Mid Term")
@@ -727,6 +745,10 @@ class Result(models.Model):
                                 related_name="results")
     cat_marks = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     exam_marks = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    exam_marks_ie = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True,
+                                        help_text="Internal Examiner's final exam mark")
+    exam_marks_ee = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True,
+                                        help_text="External Examiner's moderated final exam mark")
     marks_obtained = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     attendance = models.CharField(max_length=7, choices=[("PENDING", "Not recorded"), ("PRESENT", "Present"), ("ABSENT", "Absent")], default="PENDING")
     seat_number = models.PositiveIntegerField(null=True, blank=True)
@@ -741,6 +763,21 @@ class Result(models.Model):
         if self.cat_marks is not None:
             if not 0 <= self.cat_marks <= cat_max:
                 raise ValidationError(f"CAT marks must be between 0 and {cat_max}.")
+
+        # Validate IE and EE exam marks against the exam maximum
+        if self.exam_marks_ie is not None:
+            if not 0 <= self.exam_marks_ie <= exam_max:
+                raise ValidationError(f"Internal Examiner exam marks must be between 0 and {exam_max}.")
+        if self.exam_marks_ee is not None:
+            if not 0 <= self.exam_marks_ee <= exam_max:
+                raise ValidationError(f"External Examiner exam marks must be between 0 and {exam_max}.")
+
+        # Resolve final exam_marks: EE mark (moderated) takes precedence over IE mark
+        if self.exam_marks_ee is not None:
+            self.exam_marks = self.exam_marks_ee
+        elif self.exam_marks_ie is not None:
+            self.exam_marks = self.exam_marks_ie
+
         if self.exam_marks is not None:
             if not 0 <= self.exam_marks <= exam_max:
                 raise ValidationError(f"Exam marks must be between 0 and {exam_max}.")
@@ -1189,6 +1226,62 @@ class ExamAudit(models.Model):
         ordering = ["-created_at", "-pk"]
 
 
+class MarksVersion(models.Model):
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name="marks_versions")
+    version_number = models.PositiveIntegerField()
+    status = models.CharField(max_length=30)  # Status at the time of snapshot
+    snapshot = models.JSONField(default=list)  # List of student mark dicts
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    created_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-version_number"]
+        unique_together = [("exam", "version_number")]
+
+    def __str__(self):
+        return f"{self.exam.name} — Version {self.version_number} ({self.status})"
+
+
+class MarksWorkflowEvent(models.Model):
+    class Action(models.TextChoices):
+        SUBMIT = "SUBMIT", "Submitted to HoD"
+        HOD_APPROVE = "HOD_APPROVE", "HoD Approved"
+        HOD_SEND_BACK = "HOD_SEND_BACK", "Returned to Instructor by HoD"
+        DEAN_APPROVE = "DEAN_APPROVE", "Dean Approved"
+        DEAN_SEND_BACK_HOD = "DEAN_SEND_BACK_HOD", "Returned to HoD by Dean"
+        DEAN_SEND_BACK_INSTRUCTOR = "DEAN_SEND_BACK_INSTRUCTOR", "Returned to Instructor by Dean"
+        PUBLISH = "PUBLISH", "Published by Dean"
+        UNPUBLISH = "UNPUBLISH", "Unpublished"
+        RESUBMIT = "RESUBMIT", "Resubmitted"
+        REAPPROVE = "REAPPROVE", "Reapproved"
+        REPUBLISH = "REPUBLISH", "Republished"
+        CANCEL = "CANCEL", "Cancelled"
+        REOPEN_APPROVED = "REOPEN_APPROVED", "Reopened Approved Marks"
+
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name="workflow_events")
+    action = models.CharField(max_length=40, choices=Action.choices)
+    from_status = models.CharField(max_length=30)
+    to_status = models.CharField(max_length=30)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    actor_role = models.CharField(max_length=60, blank=True)
+    reason = models.CharField(max_length=250, blank=True)
+    reason_category = models.CharField(max_length=100, blank=True)
+    comments = models.TextField(blank=True)
+    marks_version = models.PositiveIntegerField(null=True, blank=True)
+    submission_reference = models.CharField(max_length=60, blank=True)
+    ip_address = models.CharField(max_length=50, blank=True)
+    user_agent = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+
+    def __str__(self):
+        return f"{self.exam.name} · {self.get_action_display()} by {self.actor} at {self.created_at}"
+
+
+
 class ExamAppeal(models.Model):
     result = models.ForeignKey(Result, on_delete=models.PROTECT, related_name="appeals")
     reason = models.TextField(max_length=2000)
@@ -1202,6 +1295,19 @@ class ExamAppeal(models.Model):
         ordering = ["-created_at"]
         constraints = [models.UniqueConstraint(fields=["result"], condition=models.Q(status="OPEN"), name="one_open_exam_appeal")]
 
+
+class Cohort(models.Model):
+    name = models.CharField(max_length=120, unique=True)  # e.g., "SEP-2023"
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-start_date", "-created_at"]
+
+    def __str__(self):
+        return self.name
 
 class Intake(models.Model):
     name = models.CharField(max_length=120)  # e.g., "September 2026 Regular Intake"

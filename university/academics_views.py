@@ -248,14 +248,15 @@ def student_register_units(request):
                 messages.warning(request, f"Note: You have registered {current_credits} credits, which is below the standard minimum of 12 credits.")
 
             with transaction.atomic():
-                registration.status = SemesterRegistration.SUBMITTED
+                registration.status = SemesterRegistration.APPROVED
                 registration.submitted_at = timezone.now()
+                registration.approved_at = timezone.now()
                 registration.recalculate_credits(save=False)
                 registration.save()
-                # Update child enrollments to SUBMITTED
-                registration.enrollments.exclude(status=Enrollment.DROPPED).update(status=Enrollment.SUBMITTED)
+                # Update child enrollments to ACTIVE
+                registration.enrollments.exclude(status=Enrollment.DROPPED).update(status=Enrollment.ACTIVE)
 
-            messages.success(request, "Your unit registration has been formally submitted for administrative approval.")
+            messages.success(request, "Your unit registration has been successfully submitted and approved.")
             return redirect("university:student_register_units")
 
     # Registered units

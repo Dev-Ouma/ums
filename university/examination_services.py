@@ -6,28 +6,100 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from .models import Course, Enrollment, Exam, ExamAppeal, ExamAudit, Result, grade_point_for
+from .models import (
+    Course, Enrollment, Exam, ExamAppeal, ExamAudit, Result, grade_point_for,
+    MarksVersion, MarksWorkflowEvent
+)
 
 
 def is_admin(user):
     return user.is_authenticated and (user.is_admin_role or user.is_superuser)
 
 
+def can_create_exams(user):
+    """
+    Instructors/teachers cannot create exams.
+    Exam creation is strictly restricted to HOD, Dean, Academic Registrar, Exam Officer, Admin, Super Admin.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if is_admin(user):
+        return True
+    from .models import StaffRoleAssignment
+    if StaffRoleAssignment.objects.filter(
+        user=user,
+        is_active=True,
+        role__code__in=['hod', 'dean', 'academic_registrar', 'exam_officer']
+    ).exists():
+        return True
+    try:
+        from .permissions_services import user_has_permission
+        if user_has_permission(user, 'exams.create_exam'):
+            return True
+    except Exception:
+        pass
+    faculty = getattr(user, 'faculty_profile', None)
+    if faculty:
+        desig = (faculty.designation or '').lower()
+        if any(k in desig for k in ['dean', 'hod', 'head of department', 'chair', 'registrar', 'director']):
+            return True
+    sig = getattr(user, 'signature', None)
+    if sig:
+        title = (sig.title or '').lower()
+        if any(k in title for k in ['dean', 'hod', 'head of department', 'chair', 'registrar', 'director']):
+            return True
+    return False
+
+
 def staff_scope(user):
     qs = Exam.objects.select_related(
-        'course__faculty__user', 'term', 'room', 'invigilator__user',
+        'course__faculty__user', 'course__department__school', 'term', 'room', 'invigilator__user',
         'internal_examiner__user', 'external_examiner__user', 'original_exam'
     )
     if is_admin(user):
         return qs
-    if user.is_authenticated and user.is_faculty:
-        return qs.filter(
-            Q(course__faculty__user=user) |
-            Q(invigilator__user=user) |
-            Q(internal_examiner__user=user) |
-            Q(external_examiner__user=user)
-        )
-    return qs.none()
+    if not (user.is_authenticated and user.is_faculty):
+        return qs.none()
+
+    from .models import StaffRoleAssignment
+    roles = set(StaffRoleAssignment.objects.filter(user=user, is_active=True).values_list('role__code', flat=True))
+    if any(r in roles for r in ['dean', 'academic_registrar', 'exam_officer']):
+        return qs
+
+    if 'hod' in roles:
+        hod_depts = list(StaffRoleAssignment.objects.filter(user=user, is_active=True, role__code='hod', department__isnull=False).values_list('department_id', flat=True))
+        faculty = getattr(user, 'faculty_profile', None)
+        if faculty and faculty.department_id:
+            hod_depts.append(faculty.department_id)
+        if hod_depts:
+            return qs.filter(
+                Q(course__department_id__in=hod_depts) |
+                Q(course__faculty__user=user) |
+                Q(invigilator__user=user) |
+                Q(internal_examiner__user=user) |
+                Q(external_examiner__user=user)
+            ).distinct()
+
+    faculty = getattr(user, 'faculty_profile', None)
+    if faculty:
+        desig = (faculty.designation or '').lower()
+        if any(k in desig for k in ['dean', 'director', 'registrar']):
+            return qs
+        if any(k in desig for k in ['hod', 'head of department']) and faculty.department_id:
+            return qs.filter(
+                Q(course__department_id=faculty.department_id) |
+                Q(course__faculty__user=user) |
+                Q(invigilator__user=user) |
+                Q(internal_examiner__user=user) |
+                Q(external_examiner__user=user)
+            ).distinct()
+
+    return qs.filter(
+        Q(course__faculty__user=user) |
+        Q(invigilator__user=user) |
+        Q(internal_examiner__user=user) |
+        Q(external_examiner__user=user)
+    ).distinct()
 
 
 def can_mark(user, exam):
@@ -51,6 +123,178 @@ def can_review_external(user, exam):
 def require_editor(user, exam):
     if not can_mark(user, exam):
         raise PermissionDenied
+
+
+def get_user_exam_role(user, exam):
+    """Determine effective role of a user for a specific exam."""
+    if not user or not user.is_authenticated:
+        return 'anonymous'
+    if is_admin(user):
+        return 'admin'
+    from .models import StaffRoleAssignment
+    roles = set(StaffRoleAssignment.objects.filter(user=user, is_active=True).values_list('role__code', flat=True))
+    if any(r in roles for r in ['dean', 'academic_registrar', 'exam_officer']):
+        return 'dean'
+    faculty = getattr(user, 'faculty_profile', None)
+    if faculty:
+        desig = (faculty.designation or '').lower()
+        if any(k in desig for k in ['dean', 'director', 'registrar']):
+            return 'dean'
+    dept_id = exam.course.department_id if (exam.course_id and hasattr(exam.course, 'department_id')) else None
+    if 'hod' in roles:
+        hod_depts = list(StaffRoleAssignment.objects.filter(user=user, is_active=True, role__code='hod', department__isnull=False).values_list('department_id', flat=True))
+        if dept_id and dept_id in hod_depts:
+            return 'hod'
+    if faculty and dept_id and faculty.department_id == dept_id:
+        desig = (faculty.designation or '').lower()
+        if any(k in desig for k in ['hod', 'head of department', 'chair']):
+            return 'hod'
+    if can_mark(user, exam):
+        return 'instructor'
+    if can_review_external(user, exam):
+        return 'external_examiner'
+    return 'faculty' if getattr(user, 'is_faculty', False) else 'staff'
+
+
+def can_hod_approve(user, exam):
+    """Check whether user can approve or return marks at HoD level (enforces separation of duties)."""
+    if not user or not user.is_authenticated:
+        return False
+    if is_admin(user):
+        return True
+    if not getattr(user, 'is_faculty', False):
+        return False
+
+    dept_id = exam.course.department_id if (exam.course_id and hasattr(exam.course, 'department_id')) else None
+    from .models import StaffRoleAssignment
+    is_dept_hod = False
+    if StaffRoleAssignment.objects.filter(user=user, is_active=True, role__code='hod', department_id=dept_id).exists():
+        is_dept_hod = True
+    else:
+        faculty = getattr(user, 'faculty_profile', None)
+        if faculty and dept_id and faculty.department_id == dept_id:
+            desig = (faculty.designation or '').lower()
+            if any(k in desig for k in ['hod', 'head of department', 'chair']):
+                is_dept_hod = True
+
+    if not is_dept_hod:
+        return False
+
+    # Separation of duties: HoD cannot approve their own submission unless admin
+    is_submitter = bool(exam.submitted_by_id and exam.submitted_by_id == user.pk)
+    is_course_lecturer = bool(exam.course.faculty_id and exam.course.faculty.user_id == user.pk)
+    if (is_submitter or is_course_lecturer) and not is_admin(user):
+        return False
+
+    return True
+
+
+def can_dean_publish(user, exam):
+    """Check whether user can publish marks (Dean, Registrar, Exam Officer, Admin)."""
+    if not user or not user.is_authenticated:
+        return False
+    if is_admin(user):
+        return True
+    if not getattr(user, 'is_faculty', False):
+        return False
+    from .models import StaffRoleAssignment
+    if StaffRoleAssignment.objects.filter(
+        user=user, is_active=True, role__code__in=['dean', 'academic_registrar', 'exam_officer']
+    ).exists():
+        return True
+    faculty = getattr(user, 'faculty_profile', None)
+    if faculty:
+        desig = (faculty.designation or '').lower()
+        if any(k in desig for k in ['dean', 'director', 'registrar']):
+            return True
+    return False
+
+
+def can_unpublish(user, exam):
+    """Unpublishing requires Dean, Registrar, or Admin authorization."""
+    return can_dean_publish(user, exam)
+
+
+def snapshot_marks(exam, user=None, notes=''):
+    """Create a persistent MarksVersion record for audit, tracking, and rollback."""
+    results = exam.results.select_related('student__user').order_by('seat_number', 'student__roll_no')
+    snapshot = [
+        {
+            'student_id': r.student_id,
+            'roll_no': getattr(r.student, 'roll_no', '') or str(r.student_id),
+            'name': r.student.user.display_name if (r.student and r.student.user) else '',
+            'cat': float(r.cat_marks) if r.cat_marks is not None else None,
+            'ie': float(r.exam_marks_ie) if r.exam_marks_ie is not None else None,
+            'ee': float(r.exam_marks_ee) if r.exam_marks_ee is not None else None,
+            'exam_marks': float(r.exam_marks) if r.exam_marks is not None else None,
+            'total': float(r.marks_obtained) if r.marks_obtained is not None else None,
+            'grade': r.grade,
+            'outcome': r.outcome,
+            'attendance': r.attendance,
+            'remarks': r.remarks or '',
+        }
+        for r in results
+    ]
+    version, _ = MarksVersion.objects.update_or_create(
+        exam=exam,
+        version_number=exam.current_version,
+        defaults={
+            'status': exam.status,
+            'snapshot': snapshot,
+            'created_by': user if (user and user.is_authenticated) else None,
+            'notes': notes,
+        }
+    )
+    return version
+
+
+def record_workflow_event(exam, action, from_status, to_status, user=None, role='', reason='',
+                          reason_category='', comments='', marks_version=None,
+                          ip_address='', user_agent='', submission_reference=''):
+    """Create a MarksWorkflowEvent and sync with ExamAudit and central AuditLog."""
+    from .models import AuditLog
+    from .audit_services import log_activity
+
+    event = MarksWorkflowEvent.objects.create(
+        exam=exam,
+        action=action,
+        from_status=from_status,
+        to_status=to_status,
+        actor=user if (user and user.is_authenticated) else None,
+        actor_role=role or (get_user_exam_role(user, exam) if user else ''),
+        reason=reason[:250],
+        reason_category=reason_category[:100],
+        comments=comments,
+        marks_version=marks_version or exam.current_version,
+        submission_reference=submission_reference[:60],
+        ip_address=ip_address[:50],
+        user_agent=user_agent,
+    )
+
+    detail_parts = [f"{from_status} → {to_status}"]
+    if reason:
+        detail_parts.append(f"Reason: {reason}")
+    if reason_category:
+        detail_parts.append(f"Category: {reason_category}")
+    if comments:
+        detail_parts.append(f"Comments: {comments}")
+    audit(exam, user, action.replace('_', ' ').title(), ". ".join(detail_parts))
+
+    try:
+        log_activity(
+            user=user,
+            action=AuditLog.Action.UPDATE,
+            module=AuditLog.Module.ACADEMICS,
+            entity="Exam",
+            entity_id=exam.pk,
+            description=f"Marks Workflow [{action}]: {from_status} → {to_status}. {reason}".strip(),
+            previous_state={"status": from_status},
+            new_state={"status": to_status, "version": exam.current_version},
+        )
+    except Exception:
+        pass
+
+    return event
 
 
 def audit(exam, user, action, detail=''):
@@ -102,34 +346,193 @@ def check_complete(exam):
         row.full_clean()
 
 
+EDITABLE_STATUSES = {
+    Exam.Status.MARKING,
+    Exam.Status.RETURNED_TO_INSTRUCTOR,
+    Exam.Status.CORRECTION,
+    Exam.Status.UNPUBLISHED,
+}
+
+
 @transaction.atomic
-def transition(user, exam_id, action, reason='', revision=None):
+def transition(user, exam_id, action, reason='', revision=None,
+               reason_category='', comments='', target_stage='',
+               ip_address='', user_agent=''):
     exam = Exam.objects.select_for_update().select_related(
         'course__faculty__user', 'internal_examiner__user', 'external_examiner__user',
         'room', 'term', 'original_exam'
     ).get(pk=exam_id)
 
+    before = exam.status
+    role = get_user_exam_role(user, exam)
+
+    # Permission checks per action
     if action in ('review_external',) and not can_review_external(user, exam):
-        raise PermissionDenied
-    elif action not in ('review_external',):
+        raise PermissionDenied("Only the designated External Examiner can sign off on external review.")
+    elif action in ('hod_approve', 'hod_send_back'):
+        if not can_hod_approve(user, exam):
+            raise PermissionDenied("You do not have permission to approve or return marks as HoD for this department, or you are restricted by separation of duties.")
+    elif action in ('reopen_approved',):
+        if not (can_hod_approve(user, exam) or can_dean_publish(user, exam)):
+            raise PermissionDenied("Only an HoD or Dean can reopen approved marks.")
+    elif action in ('publish', 'dean_send_back_hod', 'dean_send_back_instructor'):
+        if not can_dean_publish(user, exam):
+            raise PermissionDenied("Only a Dean, Academic Registrar, or Admin can perform this action.")
+    elif action in ('unpublish',):
+        if not can_unpublish(user, exam):
+            raise PermissionDenied("Only a Dean, Academic Registrar, or Admin can unpublish marks.")
+    elif action in ('approve', 'cancel', 'reschedule'):
+        if not is_admin(user):
+            raise PermissionDenied
+    elif action in ('schedule', 'start', 'submit', 'resubmit', 'submit_internal', 'review_internal'):
         require_editor(user, exam)
 
-    if revision is not None and str(exam.revision) != str(revision):
+    if revision is not None and str(revision).strip() and str(exam.revision) != str(revision):
         raise ValidationError('This exam changed in another window. Reload before continuing.')
-    before = exam.status
-    admin_actions = {'approve', 'publish', 'reopen', 'cancel', 'reschedule'}
-    if action in admin_actions and not is_admin(user):
-        raise PermissionDenied
 
     if action == 'schedule' and before == Exam.Status.DRAFT:
         Course.objects.select_for_update().get(pk=exam.course_id)
         students = check_schedule(exam)
         Result.objects.bulk_create([Result(exam=exam, student_id=pk, seat_number=i) for i, pk in enumerate(sorted(students), 1)])
         exam.status = Exam.Status.SCHEDULED
+        audit(exam, user, 'Schedule', f'{before} → {exam.status}. {reason.strip()}')
+
     elif action == 'start' and before == Exam.Status.SCHEDULED:
         if exam.date > timezone.localdate():
             raise ValidationError('Marks entry opens on the examination date.')
         exam.status = Exam.Status.MARKING
+        audit(exam, user, 'Start', f'{before} → {exam.status}. {reason.strip()}')
+
+    elif action == 'submit' and before in (Exam.Status.MARKING, Exam.Status.RETURNED_TO_INSTRUCTOR, Exam.Status.CORRECTION, Exam.Status.INTERNAL_REVIEW, Exam.Status.EXTERNAL_REVIEW):
+        check_complete(exam)
+        exam.submitted_by = user
+        exam.submitted_at = timezone.now()
+        snapshot_marks(exam, user, notes=f'Submitted version {exam.current_version}')
+        exam.status = Exam.Status.SUBMITTED
+        record_workflow_event(exam, MarksWorkflowEvent.Action.SUBMIT, before, exam.status,
+                              user=user, role=role, reason=reason, reason_category=reason_category,
+                              comments=comments, ip_address=ip_address, user_agent=user_agent)
+
+    elif action == 'resubmit' and before in (Exam.Status.RETURNED_TO_INSTRUCTOR, Exam.Status.CORRECTION, Exam.Status.UNPUBLISHED):
+        check_complete(exam)
+        exam.current_version += 1
+        exam.submitted_by = user
+        exam.submitted_at = timezone.now()
+        snapshot_marks(exam, user, notes=f'Resubmitted version {exam.current_version}')
+        exam.status = Exam.Status.SUBMITTED
+        record_workflow_event(exam, MarksWorkflowEvent.Action.RESUBMIT, before, exam.status,
+                              user=user, role=role, reason=reason, reason_category=reason_category,
+                              comments=comments, ip_address=ip_address, user_agent=user_agent)
+
+    elif action == 'hod_approve' and before in (Exam.Status.HOD_REVIEW, Exam.Status.SUBMITTED):
+        check_complete(exam)
+        exam.hod_approved_by = user
+        exam.hod_approved_at = timezone.now()
+        snapshot_marks(exam, user, notes=f'Approved by HoD (v{exam.current_version})')
+        exam.status = Exam.Status.HOD_APPROVED
+        record_workflow_event(exam, MarksWorkflowEvent.Action.HOD_APPROVE, before, exam.status,
+                              user=user, role=role, reason=reason, reason_category=reason_category,
+                              comments=comments, ip_address=ip_address, user_agent=user_agent)
+
+    elif action == 'hod_send_back' and before in (Exam.Status.HOD_REVIEW, Exam.Status.SUBMITTED):
+        if not reason.strip():
+            raise ValidationError('A specific reason is required to return marks to the instructor.')
+        snapshot_marks(exam, user, notes=f'Returned to instructor by HoD: {reason}')
+        exam.status = Exam.Status.RETURNED_TO_INSTRUCTOR
+        record_workflow_event(exam, MarksWorkflowEvent.Action.HOD_SEND_BACK, before, exam.status,
+                              user=user, role=role, reason=reason, reason_category=reason_category,
+                              comments=comments, ip_address=ip_address, user_agent=user_agent)
+
+    elif action == 'reopen_approved' and before in (Exam.Status.HOD_APPROVED, Exam.Status.APPROVED):
+        if not reason.strip():
+            raise ValidationError('A specific reason is required to reopen approved marks.')
+        snapshot_marks(exam, user, notes=f'Approved marks reopened: {reason}')
+        exam.hod_approved_by = None
+        exam.hod_approved_at = None
+        exam.status = Exam.Status.RETURNED_TO_INSTRUCTOR
+        record_workflow_event(exam, MarksWorkflowEvent.Action.REOPEN_APPROVED, before, exam.status,
+                              user=user, role=role, reason=reason, reason_category=reason_category,
+                              comments=comments, ip_address=ip_address, user_agent=user_agent)
+
+    elif action == 'dean_send_back_hod' and before in (Exam.Status.HOD_APPROVED, Exam.Status.DEAN_REVIEW, Exam.Status.APPROVED):
+        if not reason.strip():
+            raise ValidationError('A reason is required to return marks to the HoD.')
+        snapshot_marks(exam, user, notes=f'Returned to HoD by Dean: {reason}')
+        exam.status = Exam.Status.RETURNED_TO_HOD
+        record_workflow_event(exam, MarksWorkflowEvent.Action.DEAN_SEND_BACK_HOD, before, exam.status,
+                              user=user, role=role, reason=reason, reason_category=reason_category,
+                              comments=comments, ip_address=ip_address, user_agent=user_agent)
+
+    elif action == 'dean_send_back_instructor' and before in (Exam.Status.HOD_APPROVED, Exam.Status.DEAN_REVIEW, Exam.Status.RETURNED_TO_HOD, Exam.Status.APPROVED):
+        if not reason.strip():
+            raise ValidationError('A reason is required to return marks to the instructor.')
+        snapshot_marks(exam, user, notes=f'Returned to instructor by Dean: {reason}')
+        exam.status = Exam.Status.RETURNED_TO_INSTRUCTOR
+        record_workflow_event(exam, MarksWorkflowEvent.Action.DEAN_SEND_BACK_INSTRUCTOR, before, exam.status,
+                              user=user, role=role, reason=reason, reason_category=reason_category,
+                              comments=comments, ip_address=ip_address, user_agent=user_agent)
+
+    elif action == 'publish' and before in (Exam.Status.HOD_APPROVED, Exam.Status.DEAN_REVIEW, Exam.Status.APPROVED):
+        check_complete(exam)
+        exam.dean_published_by = user
+        exam.published_at = timezone.now()
+        snapshot_marks(exam, user, notes=f'Official publication of version {exam.current_version}')
+        exam.status = Exam.Status.PUBLISHED
+        record_workflow_event(exam, MarksWorkflowEvent.Action.PUBLISH, before, exam.status,
+                              user=user, role=role, reason=reason, reason_category=reason_category,
+                              comments=comments, ip_address=ip_address, user_agent=user_agent)
+
+    elif action == 'unpublish' and before == Exam.Status.PUBLISHED:
+        if not reason.strip():
+            raise ValidationError('An official justification and reason are required to unpublish marks.')
+        snapshot_marks(exam, user, notes=f'Pre-unpublish baseline v{exam.current_version}: {reason}')
+        exam.published_at = None
+        exam.current_version += 1
+        target = target_stage.strip() if target_stage else Exam.Status.UNPUBLISHED
+        if target not in (Exam.Status.UNPUBLISHED, Exam.Status.CORRECTION, Exam.Status.RETURNED_TO_INSTRUCTOR):
+            target = Exam.Status.UNPUBLISHED
+        exam.status = target
+        record_workflow_event(exam, MarksWorkflowEvent.Action.UNPUBLISH, before, exam.status,
+                              user=user, role=role, reason=reason, reason_category=reason_category,
+                              comments=comments, ip_address=ip_address, user_agent=user_agent)
+
+    # Legacy workflow compatibility
+    elif action == 'approve' and before in (Exam.Status.SUBMITTED, Exam.Status.HOD_REVIEW):
+        check_complete(exam)
+        exam.status = Exam.Status.APPROVED
+        record_workflow_event(exam, MarksWorkflowEvent.Action.HOD_APPROVE, before, exam.status,
+                              user=user, role=role, reason=reason, comments=comments)
+
+    elif action in ('return', 'reopen') and before in ({Exam.Status.INTERNAL_REVIEW, Exam.Status.EXTERNAL_REVIEW, Exam.Status.SUBMITTED, Exam.Status.APPROVED, Exam.Status.HOD_APPROVED, Exam.Status.HOD_REVIEW} if action == 'return' else {Exam.Status.PUBLISHED}):
+        if not reason.strip():
+            raise ValidationError('A reason is required to return or reopen results.')
+        if before == Exam.Status.PUBLISHED:
+            snapshot_marks(exam, user, notes=f'Withdrawn from publication: {reason}')
+            exam.published_at = None
+            exam.current_version += 1
+            exam.status = Exam.Status.MARKING
+            record_workflow_event(exam, MarksWorkflowEvent.Action.UNPUBLISH, before, exam.status,
+                                  user=user, role=role, reason=reason)
+        else:
+            snapshot_marks(exam, user, notes=f'Returned for correction: {reason}')
+            exam.status = Exam.Status.MARKING
+            record_workflow_event(exam, MarksWorkflowEvent.Action.HOD_SEND_BACK, before, exam.status,
+                                  user=user, role=role, reason=reason)
+
+    elif action == 'cancel' and before in (Exam.Status.DRAFT, Exam.Status.SCHEDULED):
+        if not reason.strip():
+            raise ValidationError('A cancellation reason is required.')
+        exam.status = Exam.Status.CANCELLED
+        record_workflow_event(exam, MarksWorkflowEvent.Action.CANCEL, before, exam.status,
+                              user=user, role=role, reason=reason)
+
+    elif action == 'reschedule' and before == Exam.Status.SCHEDULED:
+        if not reason.strip():
+            raise ValidationError('A rescheduling reason is required.')
+        exam.results.all().delete()
+        exam.status = Exam.Status.DRAFT
+        audit(exam, user, 'Rescheduled', f'{before} → {exam.status}. {reason.strip()}')
+
     elif action == 'submit_internal' and before == Exam.Status.MARKING:
         check_complete(exam)
         exam.status = Exam.Status.INTERNAL_REVIEW
@@ -146,38 +549,11 @@ def transition(user, exam_id, action, reason='', revision=None):
         exam.external_reviewed_at = timezone.now()
         exam.external_reviewed_by = user
         exam.status = Exam.Status.SUBMITTED
-    elif action == 'submit' and before in (Exam.Status.MARKING, Exam.Status.INTERNAL_REVIEW, Exam.Status.EXTERNAL_REVIEW):
-        check_complete(exam)
-        if not exam.internal_reviewed_at:
-            exam.internal_reviewed_at = timezone.now()
-            exam.internal_reviewed_by = user
-        exam.status = Exam.Status.SUBMITTED
-    elif action == 'approve' and before == Exam.Status.SUBMITTED:
-        check_complete(exam)
-        exam.status = Exam.Status.APPROVED
-    elif action == 'publish' and before == Exam.Status.APPROVED:
-        check_complete(exam)
-        exam.status = Exam.Status.PUBLISHED
-        exam.published_at = timezone.now()
-    elif action in ('return', 'reopen') and before in ({Exam.Status.INTERNAL_REVIEW, Exam.Status.EXTERNAL_REVIEW, Exam.Status.SUBMITTED, Exam.Status.APPROVED} if action == 'return' else {Exam.Status.PUBLISHED}):
-        if not reason.strip():
-            raise ValidationError('A reason is required to return or reopen results.')
-        exam.status = Exam.Status.MARKING
-        exam.published_at = None
-    elif action == 'cancel' and before in (Exam.Status.DRAFT, Exam.Status.SCHEDULED):
-        if not reason.strip():
-            raise ValidationError('A cancellation reason is required.')
-        exam.status = Exam.Status.CANCELLED
-    elif action == 'reschedule' and before == Exam.Status.SCHEDULED:
-        if not reason.strip():
-            raise ValidationError('A rescheduling reason is required.')
-        exam.results.all().delete()
-        exam.status = Exam.Status.DRAFT
     else:
         raise ValidationError('That action is not available in the current exam state.')
+
     exam.revision += 1
     exam.save()
-    audit(exam, user, action.replace('_', ' ').title(), f'{before} → {exam.status}. {reason.strip()}')
     return exam
 
 
@@ -207,8 +583,8 @@ def parse_decimal_mark(val, roll_no, field_name='mark'):
 def save_marks(user, exam_id, entries, revision, examiner_data=None):
     exam = Exam.objects.select_for_update().select_related('course__faculty__user').get(pk=exam_id)
     require_editor(user, exam)
-    if exam.status != Exam.Status.MARKING:
-        raise ValidationError('Marks are locked. The exam must be in marks entry.')
+    if exam.status not in EDITABLE_STATUSES:
+        raise ValidationError('Marks are locked. The exam must be in marks entry or returned for correction.')
     if str(exam.revision) != str(revision):
         raise ValidationError('Another user changed this exam. Reload to avoid overwriting their work.')
     rows = {str(r.pk): r for r in exam.results.select_related('student', 'exam')}
@@ -235,14 +611,24 @@ def save_marks(user, exam_id, entries, revision, examiner_data=None):
 
         cat_val = data.get('cat_marks', None)
         exam_val = data.get('exam_marks', None)
+        exam_ie_val = data.get('exam_marks_ie', None)
+        exam_ee_val = data.get('exam_marks_ee', None)
         total_val = data.get('marks', None)
 
         cat_mark = parse_decimal_mark(cat_val, row.student.roll_no, 'CAT mark')
         exam_mark = parse_decimal_mark(exam_val, row.student.roll_no, 'exam mark')
+        exam_mark_ie = parse_decimal_mark(exam_ie_val, row.student.roll_no, 'IE exam mark')
+        exam_mark_ee = parse_decimal_mark(exam_ee_val, row.student.roll_no, 'EE exam mark')
         total_mark = parse_decimal_mark(total_val, row.student.roll_no, 'mark')
 
         if attendance == 'ABSENT' and (cat_mark is not None or exam_mark is not None or total_mark is not None):
             raise ValidationError(f'{row.student.roll_no}: absent candidates cannot receive marks.')
+
+        # Resolve final exam mark from IE/EE: EE (moderated) takes precedence
+        if exam_mark_ee is not None:
+            exam_mark = exam_mark_ee
+        elif exam_mark_ie is not None:
+            exam_mark = exam_mark_ie
 
         if attendance == 'PRESENT':
             if cat_mark is not None or exam_mark is not None:
@@ -256,13 +642,15 @@ def save_marks(user, exam_id, entries, revision, examiner_data=None):
         row.attendance = attendance
         row.cat_marks = cat_mark if attendance == 'PRESENT' else None
         row.exam_marks = exam_mark if attendance == 'PRESENT' else None
+        row.exam_marks_ie = exam_mark_ie if attendance == 'PRESENT' else None
+        row.exam_marks_ee = exam_mark_ee if attendance == 'PRESENT' else None
         row.marks_obtained = total_mark if attendance == 'PRESENT' else None
         row.remarks = data.get('remarks', '').strip()
         row.full_clean()
         changes.append(f'{row.student.roll_no}: {before} → {row.attendance}/{row.cat_marks}+{row.exam_marks}={row.marks_obtained}/{row.remarks}')
 
     for key in entries:
-        rows[key].save(update_fields=['attendance', 'cat_marks', 'exam_marks', 'marks_obtained', 'remarks'])
+        rows[key].save(update_fields=['attendance', 'cat_marks', 'exam_marks', 'exam_marks_ie', 'exam_marks_ee', 'marks_obtained', 'remarks'])
     exam.revision += 1
     exam.save(update_fields=['revision', 'internal_examiner', 'external_examiner', 'external_examiner_name', 'examiner_remarks'])
     audit(exam, user, 'Marks saved', '\n'.join(changes))

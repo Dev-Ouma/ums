@@ -1,26 +1,151 @@
 {% extends 'examinations/base.html' %}
 {% block exam_content %}
-<div class="exam-hero"><div><div class="exam-muted">{{ exam.course.code }} · {{ exam.term }}</div><h3>{{ exam.name }}</h3><p>{{ exam.course.title }}</p><span class="exam-status">{{ exam.get_status_display }}</span></div><div class="exam-actions no-print">{% if editor and exam.status == 'DRAFT' %}<a class="btn btn-primary" href="{% url 'examinations:edit' exam.pk %}">Edit draft</a>{% endif %}{% if editor and exam.status != 'DRAFT' and exam.status != 'CANCELLED' %}<a class="btn btn-primary" href="{% url 'examinations:marks' exam.pk %}">{% if exam.status == 'MARKING' %}Capture marks{% else %}View marks sheet{% endif %}</a>{% endif %}<a class="btn btn-outline-secondary" href="{% url 'examinations:register' exam.pk %}">Candidate register</a>{% if editor and exam.status == 'PUBLISHED' and not exam.original_exam_id %}<a class="btn btn-outline-primary" href="{% url 'examinations:create' %}?original={{ exam.pk }}">Supplementary sitting</a>{% endif %}</div></div>
+<div class="exam-hero">
+  <div>
+    <div class="exam-muted">{{ exam.course.code }} · {{ exam.term }}</div>
+    <h3>{{ exam.name }}</h3>
+    <p>{{ exam.course.title }}</p>
+    <div class="d-flex align-items-center gap-2 mt-1">
+      <span class="exam-status">{{ exam.get_status_display }}</span>
+      <span class="badge bg-light text-dark border"><i class="fa-solid fa-code-branch me-1 text-primary"></i>v{{ exam.current_version }}</span>
+      {% if exam.status == 'UNPUBLISHED' %}
+      <span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="fa-solid fa-eye-slash me-1"></i>Withdrawn from Student View</span>
+      {% elif exam.status == 'RETURNED_INSTRUCTOR' or exam.status == 'CORRECTION' %}
+      <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="fa-solid fa-rotate-left me-1"></i>Returned for Correction</span>
+      {% elif exam.status == 'PUBLISHED' %}
+      <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="fa-solid fa-check-circle me-1"></i>Official / Visible to Students</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="exam-actions no-print">
+    {% if editor and exam.status == 'DRAFT' %}
+    <a class="btn btn-primary" href="{% url 'examinations:edit' exam.pk %}"><i class="fa-solid fa-pen-to-square me-1"></i>Edit draft</a>
+    {% endif %}
+    {% if editor and exam.status != 'DRAFT' and exam.status != 'CANCELLED' %}
+    <a class="btn btn-primary" href="{% url 'examinations:marks' exam.pk %}">
+      {% if exam.status in 'MARKING,RETURNED_INSTRUCTOR,CORRECTION,UNPUBLISHED' %}
+      <i class="fa-solid fa-pen-to-square me-1"></i>Capture / Edit Marks
+      {% else %}
+      <i class="fa-solid fa-table-list me-1"></i>View Marks Sheet
+      {% endif %}
+    </a>
+    {% endif %}
+    <a class="btn btn-outline-secondary" href="{% url 'examinations:register' exam.pk %}"><i class="fa-solid fa-list-ol me-1"></i>Candidate register</a>
+    {% if can_create and exam.status == 'PUBLISHED' and not exam.original_exam_id %}
+    <a class="btn btn-outline-primary" href="{% url 'examinations:create' %}?original={{ exam.pk }}"><i class="fa-solid fa-plus me-1"></i>Supplementary sitting</a>
+    {% endif %}
+  </div>
+</div>
+
 <style>
 .wf-track{display:flex;gap:.35rem;flex-wrap:wrap;margin:1.1rem 0 1.4rem}
-.wf-step{flex:1;min-width:105px;padding:.6rem .65rem;border-radius:.7rem;background:#f4f5fa;border:1px solid #e9ebf3;font-size:.78rem;color:#8a90a2;position:relative}
+.wf-step{flex:1;min-width:115px;padding:.6rem .65rem;border-radius:.7rem;background:#f4f5fa;border:1px solid #e9ebf3;font-size:.78rem;color:#8a90a2;position:relative}
 .wf-step b{display:block;font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;opacity:.7}
 .wf-step.done{background:#eef7f2;border-color:#d4ebe0;color:#1c7a52}
 .wf-step.current{background:linear-gradient(135deg,var(--primary),var(--primary-dark));border-color:transparent;color:#fff;box-shadow:0 6px 16px rgba(20,25,60,.14)}
 .wf-step.current b{opacity:.85}
-.wf-cancelled{background:#fdeaea;border:1px solid #f3d5d5;color:#a32626;border-radius:.7rem;padding:.8rem 1rem;margin:1.1rem 0}
-.wf-action{border:1px solid #e9ebf3;border-radius:.85rem;padding:1rem 1.1rem;margin-bottom:.85rem}
+.wf-alert{border-radius:.75rem;padding:1rem 1.25rem;margin:1.1rem 0;display:flex;gap:1rem;align-items:flex-start}
+.wf-alert.warning{background:#fffbf0;border:1px solid #fde68a;color:#92400e}
+.wf-alert.danger{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
+.wf-action{border:1px solid #e9ebf3;border-radius:.85rem;padding:1.1rem 1.2rem;margin-bottom:.9rem;background:#fff;transition:border-color .15s ease}
+.wf-action:hover{border-color:#cbd5e1}
 .wf-action.warning{border-color:#f0e0bd;background:#fffbf1}
 .wf-action.danger{border-color:#f3d5d5;background:#fdf6f6}
 .wf-action.success{border-color:#d4ebe0;background:#f6fcf9}
-.wf-action h6{margin:0 0 .3rem;font-weight:700}
-.wf-action p{margin:0 0 .75rem;color:#5e6678;font-size:.86rem}
+.wf-action h6{margin:0 0 .35rem;font-weight:700}
+.wf-action p{margin:0 0 .8rem;color:#5e6678;font-size:.875rem}
 .wf-req{color:#a32626;font-weight:600;font-size:.78rem}
 .examiner-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:.75rem;padding:.85rem 1rem}
+.timeline-item{position:relative;padding-left:1.75rem;border-left:2px solid #e2e8f0;padding-bottom:1.25rem}
+.timeline-item:last-child{border-left-color:transparent;padding-bottom:0}
+.timeline-dot{position:absolute;left:-7px;top:0;width:12px;height:12px;border-radius:50%;background:#3b82f6;border:2px solid #fff}
+.timeline-dot.success{background:#10b981}
+.timeline-dot.warning{background:#f59e0b}
+.timeline-dot.danger{background:#ef4444}
 </style>
-<div class="wf-track no-print">{% for step in track %}<div class="wf-step {{ step.state }}"><b>{{ forloop.counter }}</b>{{ step.label }}</div>{% endfor %}</div>
-{% if cancelled %}<div class="wf-cancelled no-print"><strong>This examination was cancelled.</strong> It cannot be reinstated; create a fresh sitting if it needs to run.</div>{% endif %}
-<div class="exam-kpis"><div><small>Candidates</small><strong>{{ total }}</strong></div><div><small>Recorded</small><strong>{{ entered }}/{{ total }}</strong></div><div><small>Passed assessment</small><strong>{% if editor %}{{ passed }}{% else %}—{% endif %}</strong></div><div><small>Absent</small><strong>{{ absent }}</strong></div></div>
+
+<!-- Stepper / Track -->
+<div class="wf-track no-print">
+  {% for step in track %}
+  <div class="wf-step {{ step.state }}">
+    <b>Step {{ forloop.counter }}</b>{{ step.label }}
+  </div>
+  {% endfor %}
+</div>
+
+{% if cancelled %}
+<div class="wf-alert danger no-print">
+  <i class="fa-solid fa-ban fa-lg mt-1"></i>
+  <div>
+    <strong>This examination was cancelled.</strong> It cannot be reinstated; create a fresh sitting if it needs to run.
+  </div>
+</div>
+{% endif %}
+
+<!-- Returned or Unpublished Notice Banner -->
+{% if exam.status == 'RETURNED_INSTRUCTOR' or exam.status == 'CORRECTION' %}
+<div class="wf-alert warning no-print">
+  <i class="fa-solid fa-triangle-exclamation fa-lg mt-1 text-warning"></i>
+  <div>
+    <h6 class="mb-1 text-warning-emphasis font-weight-bold"><i class="fa-solid fa-rotate-left me-1"></i>Marks Sheet Returned for Revision</h6>
+    <p class="mb-1 small">This examination's marks were returned to the instructor for correction. Marks entry is reopened.</p>
+    {% with event=workflow_events.0 %}
+    {% if event and event.action in 'HOD_SEND_BACK,DEAN_SEND_BACK_INSTRUCTOR,REOPEN_APPROVED' %}
+    <div class="mt-2 p-2 bg-white rounded border border-warning-subtle small">
+      <strong>Returned by:</strong> {{ event.actor.display_name|default:'Department' }} ({{ event.actor_role|default:'HoD' }}) · <em>{{ event.created_at|date:'d M Y, H:i' }}</em><br>
+      {% if event.reason_category %}<strong>Category:</strong> <span class="badge bg-warning text-dark">{{ event.reason_category }}</span><br>{% endif %}
+      {% if event.reason %}<strong>Reason:</strong> {{ event.reason }}<br>{% endif %}
+      {% if event.comments %}<strong>Instructions:</strong> {{ event.comments }}{% endif %}
+    </div>
+    {% endif %}
+    {% endwith %}
+  </div>
+</div>
+{% elif exam.status == 'RETURNED_HOD' %}
+<div class="wf-alert warning no-print">
+  <i class="fa-solid fa-triangle-exclamation fa-lg mt-1 text-warning"></i>
+  <div>
+    <h6 class="mb-1 text-warning-emphasis font-weight-bold"><i class="fa-solid fa-rotate-left me-1"></i>Marks Returned to HoD by Dean</h6>
+    <p class="mb-1 small">The Dean has returned these marks to the Head of Department for departmental revision.</p>
+    {% with event=workflow_events.0 %}
+    {% if event and event.action == 'DEAN_SEND_BACK_HOD' %}
+    <div class="mt-2 p-2 bg-white rounded border border-warning-subtle small">
+      <strong>Returned by:</strong> {{ event.actor.display_name|default:'Dean' }} · <em>{{ event.created_at|date:'d M Y, H:i' }}</em><br>
+      {% if event.reason_category %}<strong>Category:</strong> <span class="badge bg-warning text-dark">{{ event.reason_category }}</span><br>{% endif %}
+      {% if event.reason %}<strong>Reason:</strong> {{ event.reason }}<br>{% endif %}
+      {% if event.comments %}<strong>Instructions:</strong> {{ event.comments }}{% endif %}
+    </div>
+    {% endif %}
+    {% endwith %}
+  </div>
+</div>
+{% elif exam.status == 'UNPUBLISHED' %}
+<div class="wf-alert danger no-print">
+  <i class="fa-solid fa-eye-slash fa-lg mt-1 text-danger"></i>
+  <div>
+    <h6 class="mb-1 text-danger font-weight-bold"><i class="fa-solid fa-shield-halved me-1"></i>Marks Unpublished (Under Academic Review)</h6>
+    <p class="mb-1 small">Official publication has been withdrawn. Results are hidden from student grade statements and GPA calculations. All prior versions and marks remain preserved.</p>
+    {% with event=workflow_events.0 %}
+    {% if event and event.action == 'UNPUBLISH' %}
+    <div class="mt-2 p-2 bg-white rounded border border-danger-subtle small text-dark">
+      <strong>Unpublished by:</strong> {{ event.actor.display_name|default:'Dean/Registrar' }} ({{ event.actor_role|default:'Dean' }}) · <em>{{ event.created_at|date:'d M Y, H:i' }}</em><br>
+      {% if event.reason_category %}<strong>Category:</strong> <span class="badge bg-danger text-white">{{ event.reason_category }}</span><br>{% endif %}
+      {% if event.reason %}<strong>Reason:</strong> {{ event.reason }}<br>{% endif %}
+      {% if event.comments %}<strong>Review Notes:</strong> {{ event.comments }}{% endif %}
+    </div>
+    {% endif %}
+    {% endwith %}
+  </div>
+</div>
+{% endif %}
+
+<div class="exam-kpis">
+  <div><small>Candidates</small><strong>{{ total }}</strong></div>
+  <div><small>Recorded</small><strong>{{ entered }}/{{ total }}</strong></div>
+  <div><small>Passed assessment</small><strong>{% if editor %}{{ passed }}{% else %}—{% endif %}</strong></div>
+  <div><small>Absent</small><strong>{{ absent }}</strong></div>
+</div>
+
 <div class="exam-card">
   <div class="row g-3">
     <div class="col-md-3">
@@ -70,39 +195,335 @@
   {% if exam.instructions %}<hr><div>{{ exam.instructions|linebreaksbr }}</div>{% endif %}
   {% if exam.original_exam %}<p class="mt-3">Supplementary for <a href="{% url 'examinations:detail' exam.original_exam_id %}">{{ exam.original_exam }}</a>. Published supplementary marks replace the original component in the statement.</p>{% endif %}
 </div>
-{% if actions %}<div class="exam-card no-print">
-  <h5 class="mb-1">Workflow</h5>
-  <p class="exam-muted">Each step below is recorded in the audit trail against your name. Read the consequence before you commit &mdash; rolling a step back always needs an administrator and a written reason.</p>
-  {% for key,label,needs_reason,tone,consequence in actions %}
+
+<!-- Workflow Actions Section -->
+{% if actions %}
+<div class="exam-card no-print">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h5 class="mb-0">Workflow Actions</h5>
+    <span class="badge bg-light text-secondary border">Your Effective Role: <strong>{{ user_role|title }}</strong></span>
+  </div>
+  <p class="exam-muted mb-3">All actions are recorded in the permanent audit trail. Actions that return marks or unpublish require a documented reason.</p>
+
+  {% for key,label,needs_reason,tone,consequence,modal_id in actions %}
   <div class="wf-action {{ tone }}">
-    <h6>{{ label }}</h6>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
+      <h6>
+        {% if 'submit' in key or 'resubmit' in key %}<i class="fa-solid fa-paper-plane me-1 text-primary"></i>
+        {% elif 'approve' in key %}<i class="fa-solid fa-stamp me-1 text-success"></i>
+        {% elif 'publish' in key %}<i class="fa-solid fa-bullhorn me-1 text-success"></i>
+        {% elif 'send_back' in key or 'return' in key or 'reopen' in key %}<i class="fa-solid fa-rotate-left me-1 text-warning"></i>
+        {% elif 'unpublish' in key %}<i class="fa-solid fa-eye-slash me-1 text-danger"></i>
+        {% endif %}
+        {{ label }}
+      </h6>
+      {% if needs_reason %}
+      <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="fa-solid fa-pencil me-1"></i>Requires Reason</span>
+      {% endif %}
+    </div>
     <p>{{ consequence }}</p>
-    <form method="post" action="{% url 'examinations:action' exam.pk %}" class="d-flex gap-2 flex-wrap align-items-center"
-          {% if key != 'schedule' and key != 'start' %}data-confirm="{{ label }}"{% endif %}>
+
+    {% if modal_id == 'sendBackModal' %}
+    <button type="button" class="btn btn-{% if tone == 'warning' %}outline-warning text-dark{% elif tone == 'danger' %}outline-danger{% else %}primary{% endif %}"
+            data-bs-toggle="modal" data-bs-target="#sendBackModal"
+            data-action="{{ key }}" data-title="{{ label }}">
+      <i class="fa-solid fa-rotate-left me-1"></i>{{ label }}
+    </button>
+    {% elif modal_id == 'unpublishModal' %}
+    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#unpublishModal">
+      <i class="fa-solid fa-eye-slash me-1"></i>{{ label }}
+    </button>
+    {% else %}
+    <form method="post" action="{% url 'examinations:action' exam.pk %}" class="d-flex gap-2 flex-wrap align-items-center" data-confirm="{{ label }}">
       {% csrf_token %}
       <input type="hidden" name="revision" value="{{ exam.revision }}">
       <input type="hidden" name="action" value="{{ key }}">
-      {% if needs_reason %}<input class="form-control" style="max-width:460px" name="reason"
+      {% if needs_reason %}
+      <input class="form-control" style="max-width:460px" name="reason"
              placeholder="Reason (required, recorded in the audit trail)"
-             aria-label="Reason for {{ label }}" required maxlength="2000">{% endif %}
-      <button class="btn btn-{% if tone == 'warning' %}outline-warning{% elif tone == 'danger' %}outline-danger{% elif tone == 'success' %}success{% elif tone == 'dark' %}dark{% else %}primary{% endif %}">{{ label }}</button>
-      {% if needs_reason %}<span class="wf-req">Rollback step</span>{% endif %}
+             aria-label="Reason for {{ label }}" required maxlength="250">
+      {% endif %}
+      <button class="btn btn-{% if tone == 'warning' %}outline-warning text-dark{% elif tone == 'danger' %}outline-danger{% elif tone == 'success' %}success{% elif tone == 'dark' %}dark{% else %}primary{% endif %}">
+        {{ label }}
+      </button>
     </form>
+    {% endif %}
   </div>
   {% endfor %}
 </div>
+
+<!-- Modal 1: Send-Back / Rollback Modal -->
+<div class="modal fade" id="sendBackModal" tabindex="-1" aria-labelledby="sendBackModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post" action="{% url 'examinations:action' exam.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="revision" value="{{ exam.revision }}">
+        <input type="hidden" name="action" id="sendBackAction" value="hod_send_back">
+        <div class="modal-header bg-warning-subtle border-bottom border-warning-subtle">
+          <h5 class="modal-title text-warning-emphasis" id="sendBackModalLabel"><i class="fa-solid fa-rotate-left me-1"></i>Return Marks for Correction</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-warning small mb-3">
+            <i class="fa-solid fa-circle-info me-1"></i>
+            Returning these marks will re-enable marks editing for the instructor. Current marks will be preserved in a snapshot.
+          </div>
+          <div class="mb-3">
+            <label class="form-label font-weight-bold" for="reasonCategorySelect">Reason Category <span class="text-danger">*</span></label>
+            <select name="reason_category" id="reasonCategorySelect" class="form-select" required>
+              <option value="">-- Choose Category --</option>
+              <option value="Missing Marks">Missing student marks</option>
+              <option value="Incorrect Mark Entry">Incorrect CAT or Final Exam marks entered</option>
+              <option value="Grade Calculation Discrepancy">Grade computation discrepancy</option>
+              <option value="Incomplete Attendance Records">Incomplete / missing attendance records</option>
+              <option value="Moderation Adjustment">Moderation adjustment required</option>
+              <option value="Compliance / Policy Concern">Compliance or Senate policy issue</option>
+              <option value="Other Administrative Issue">Other administrative review</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label font-weight-bold" for="reasonInput">Specific Reason / Summary <span class="text-danger">*</span></label>
+            <input type="text" name="reason" id="reasonInput" class="form-control" placeholder="Brief summary of why marks are returned..." required maxlength="250">
+          </div>
+          <div class="mb-3">
+            <label class="form-label font-weight-bold" for="commentsTextarea">Detailed Instructions / Comments for Instructor</label>
+            <textarea name="comments" id="commentsTextarea" class="form-control" rows="3" placeholder="Provide specific candidates, candidate numbers, or details that need attention..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-warning text-dark font-weight-bold"><i class="fa-solid fa-rotate-left me-1"></i>Confirm Return</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal 2: Unpublish Modal -->
+<div class="modal fade" id="unpublishModal" tabindex="-1" aria-labelledby="unpublishModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post" action="{% url 'examinations:action' exam.pk %}" id="unpublishForm">
+        {% csrf_token %}
+        <input type="hidden" name="revision" value="{{ exam.revision }}">
+        <input type="hidden" name="action" value="unpublish">
+        <div class="modal-header bg-danger text-white">
+          <h5 class="modal-title" id="unpublishModalLabel"><i class="fa-solid fa-eye-slash me-1"></i>Unpublish Official Examination Marks</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-danger small mb-3">
+            <strong><i class="fa-solid fa-triangle-exclamation me-1"></i>High-Impact Action:</strong>
+            Unpublishing will immediately revoke student visibility of these results and exclude them from student statements and GPA calculations. All existing marks and versions will be preserved.
+          </div>
+          <div class="mb-3">
+            <label class="form-label font-weight-bold" for="unpubTargetStage">Target Status After Unpublishing <span class="text-danger">*</span></label>
+            <select name="target_stage" id="unpubTargetStage" class="form-select" required>
+              <option value="UNPUBLISHED">Unpublished (Under Academic Review)</option>
+              <option value="RETURNED_INSTRUCTOR">Returned to Instructor for Correction</option>
+              <option value="CORRECTION">Correction Required</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label font-weight-bold" for="unpubCategory">Reason Category <span class="text-danger">*</span></label>
+            <select name="reason_category" id="unpubCategory" class="form-select" required>
+              <option value="">-- Choose Category --</option>
+              <option value="Erroneous Marks Published">Erroneous marks published</option>
+              <option value="Senate Resolution">Senate / Board resolution</option>
+              <option value="Academic Appeal Resolution">Academic appeal resolution</option>
+              <option value="Audit Discrepancy">Audit discrepancy identified</option>
+              <option value="Other Official Review">Other official review</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label font-weight-bold" for="unpubReason">Official Reason / Authority <span class="text-danger">*</span></label>
+            <input type="text" name="reason" id="unpubReason" class="form-control" placeholder="e.g. Senate Minute 42/2026 or Dean's Directive" required maxlength="250">
+          </div>
+          <div class="mb-3">
+            <label class="form-label font-weight-bold" for="unpubComments">Comments & Next Steps</label>
+            <textarea name="comments" id="unpubComments" class="form-control" rows="2" placeholder="Action required before republishing..."></textarea>
+          </div>
+          <div class="mb-3 p-3 bg-light rounded border">
+            <label class="form-label font-weight-bold text-danger mb-1" for="confirmTypeInput">Type "UNPUBLISH MARKS" to confirm:</label>
+            <input type="text" id="confirmTypeInput" class="form-control" autocomplete="off" placeholder="UNPUBLISH MARKS">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger font-weight-bold" id="btnConfirmUnpublish" disabled>
+            <i class="fa-solid fa-eye-slash me-1"></i>Proceed to Unpublish
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <script>
+// Confirm dialog for standard action forms
 document.querySelectorAll('form[data-confirm]').forEach(function (form) {
   form.addEventListener('submit', function (event) {
     var reason = form.querySelector('[name=reason]');
-    if (reason && !reason.value.trim()) return;  // the browser's own required check handles this
-    var text = form.dataset.confirm + '\n\n' + form.closest('.wf-action').querySelector('p').textContent
-             + '\n\nContinue?';
+    if (reason && !reason.value.trim()) return;
+    var text = form.dataset.confirm + '\n\n' + form.closest('.wf-action').querySelector('p').textContent + '\n\nContinue?';
     if (!window.confirm(text)) event.preventDefault();
   });
 });
-</script>{% endif %}
-{% if editor %}<div class="exam-card"><h5>Assessment grade distribution</h5><div class="exam-actions">{% for grade,count in grades %}<span class="exam-status">{{ grade }}: {{ count }}</span>{% empty %}<p class="exam-muted">No marks recorded yet.</p>{% endfor %}</div></div>
-<div class="exam-card"><h5>Appeals</h5>{% for a in appeals %}<div class="border-bottom py-3"><strong>{{ a.result.student.user.display_name }} · {{ a.result.student.roll_no }}</strong> <span class="exam-status">{{ a.get_status_display }}</span><p>{{ a.reason }}</p>{% if a.resolution %}<p>Resolution: {{ a.resolution }}</p>{% endif %}{% if admin and a.status == 'OPEN' %}<form action="{% url 'examinations:resolve' a.pk %}" method="post" class="no-print">{% csrf_token %}<label for="resolution-{{ a.pk }}">Resolution</label><textarea id="resolution-{{ a.pk }}" name="resolution" class="form-control mb-2" required maxlength="2000"></textarea><button name="decision" value="ACCEPTED" class="btn btn-primary">Accept & reopen for correction</button> <button name="decision" value="REJECTED" class="btn btn-outline-secondary">Reject appeal</button></form>{% endif %}</div>{% empty %}<p class="exam-muted">No appeals for this examination.</p>{% endfor %}</div>
-<div class="exam-card"><h5>Audit history</h5><p class="exam-muted">Latest 50 events, including changes to marks and publication decisions.</p>{% for a in audit %}<details class="border-bottom py-2"><summary>{{ a.created_at|date:'d M Y H:i' }} · {{ a.action }} · {{ a.actor.display_name|default:'System migration' }}</summary><pre style="white-space:pre-wrap;font-size:.8rem" class="mt-2">{{ a.detail }}</pre></details>{% empty %}<p>No events yet.</p>{% endfor %}</div>{% endif %}
+
+// Dynamic setup for Send-Back modal
+var sendBackModal = document.getElementById('sendBackModal');
+if (sendBackModal) {
+  sendBackModal.addEventListener('show.bs.modal', function (event) {
+    var button = event.relatedTarget;
+    var action = button.getAttribute('data-action');
+    var title = button.getAttribute('data-title');
+    document.getElementById('sendBackAction').value = action;
+    document.getElementById('sendBackModalLabel').innerHTML = '<i class="fa-solid fa-rotate-left me-1"></i>' + title;
+  });
+}
+
+// Type to confirm for Unpublish modal
+var confirmInput = document.getElementById('confirmTypeInput');
+var unpublishBtn = document.getElementById('btnConfirmUnpublish');
+if (confirmInput && unpublishBtn) {
+  confirmInput.addEventListener('input', function () {
+    unpublishBtn.disabled = (confirmInput.value.trim() !== 'UNPUBLISH MARKS');
+  });
+}
+</script>
+{% endif %}
+
+<!-- Marks Version History -->
+<div class="exam-card">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h5 class="mb-0"><i class="fa-solid fa-code-branch text-primary me-2"></i>Marks Version History</h5>
+    <span class="badge bg-primary-subtle text-primary border">Current Active: v{{ exam.current_version }}</span>
+  </div>
+  <p class="exam-muted">Snapshots are created automatically at every submission, approval, send-back, and unpublish transition.</p>
+
+  {% if marks_versions %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Version</th>
+          <th>Status Snapshot</th>
+          <th>Candidates</th>
+          <th>Saved By</th>
+          <th>Date & Time</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in marks_versions %}
+        <tr {% if v.version_number == exam.current_version %}class="table-active"{% endif %}>
+          <td>
+            <span class="badge {% if v.version_number == exam.current_version %}bg-primary{% else %}bg-secondary{% endif %}">
+              v{{ v.version_number }}
+            </span>
+          </td>
+          <td><span class="badge bg-light text-dark border">{{ v.status }}</span></td>
+          <td>{{ v.snapshot|length }} candidate(s)</td>
+          <td>{{ v.created_by.display_name|default:'System' }}</td>
+          <td>{{ v.created_at|date:'d M Y, H:i' }}</td>
+          <td><small class="text-muted">{{ v.notes|default:'—' }}</small></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted mb-0 small">No versions created yet. Initial snapshot is created on first submission.</p>
+  {% endif %}
+</div>
+
+<!-- Workflow Timeline Section -->
+<div class="exam-card">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h5 class="mb-0"><i class="fa-solid fa-timeline text-info me-2"></i>Workflow Timeline</h5>
+    <span class="badge bg-light text-muted border">{{ workflow_events|length }} Event(s)</span>
+  </div>
+  <p class="exam-muted">Complete state transition log with reasons, categories, and actor details.</p>
+
+  {% if workflow_events %}
+  <div class="mt-3">
+    {% for ev in workflow_events %}
+    <div class="timeline-item">
+      <div class="timeline-dot {% if 'APPROVE' in ev.action or 'PUBLISH' in ev.action and 'UN' not in ev.action %}success{% elif 'SEND_BACK' in ev.action or 'REOPEN' in ev.action %}warning{% elif 'UNPUBLISH' in ev.action or 'CANCEL' in ev.action %}danger{% endif %}"></div>
+      <div class="d-flex justify-content-between align-items-baseline flex-wrap gap-1">
+        <strong>
+          {{ ev.get_action_display }}
+          <span class="badge bg-light text-dark border ms-1">{{ ev.from_status }} → {{ ev.to_status }}</span>
+        </strong>
+        <span class="small text-muted">{{ ev.created_at|date:'d M Y, H:i' }}</span>
+      </div>
+      <div class="small text-muted mb-1">
+        Actor: <strong>{{ ev.actor.display_name|default:'System' }}</strong> {% if ev.actor_role %}({{ ev.actor_role|title }}){% endif %}
+        {% if ev.ip_address %}· <span class="font-monospace">{{ ev.ip_address }}</span>{% endif %}
+      </div>
+      {% if ev.reason_category %}
+      <div class="mb-1"><span class="badge bg-warning text-dark me-1">{{ ev.reason_category }}</span> <strong>{{ ev.reason }}</strong></div>
+      {% elif ev.reason %}
+      <div class="mb-1"><strong>Reason:</strong> {{ ev.reason }}</div>
+      {% endif %}
+      {% if ev.comments %}
+      <div class="small p-2 bg-light rounded text-secondary">{{ ev.comments }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-muted mb-0 small">No workflow transitions recorded yet.</p>
+  {% endif %}
+</div>
+
+{% if editor %}
+<div class="exam-card">
+  <h5>Assessment grade distribution</h5>
+  <div class="exam-actions">
+    {% for grade,count in grades %}
+    <span class="exam-status">{{ grade }}: {{ count }}</span>
+    {% empty %}
+    <p class="exam-muted">No marks recorded yet.</p>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="exam-card">
+  <h5>Appeals</h5>
+  {% for a in appeals %}
+  <div class="border-bottom py-3">
+    <strong>{{ a.result.student.user.display_name }} · {{ a.result.student.roll_no }}</strong>
+    <span class="exam-status">{{ a.get_status_display }}</span>
+    <p>{{ a.reason }}</p>
+    {% if a.resolution %}<p>Resolution: {{ a.resolution }}</p>{% endif %}
+    {% if admin and a.status == 'OPEN' %}
+    <form action="{% url 'examinations:resolve' a.pk %}" method="post" class="no-print">
+      {% csrf_token %}
+      <label for="resolution-{{ a.pk }}">Resolution</label>
+      <textarea id="resolution-{{ a.pk }}" name="resolution" class="form-control mb-2" required maxlength="2000"></textarea>
+      <button name="decision" value="ACCEPTED" class="btn btn-primary">Accept & reopen for correction</button>
+      <button name="decision" value="REJECTED" class="btn btn-outline-secondary">Reject appeal</button>
+    </form>
+    {% endif %}
+  </div>
+  {% empty %}
+  <p class="exam-muted">No appeals for this examination.</p>
+  {% endfor %}
+</div>
+
+<div class="exam-card">
+  <h5>Audit history</h5>
+  <p class="exam-muted">Latest 50 events, including changes to marks and publication decisions.</p>
+  {% for a in audit %}
+  <details class="border-bottom py-2">
+    <summary>{{ a.created_at|date:'d M Y H:i' }} · {{ a.action }} · {{ a.actor.display_name|default:'System migration' }}</summary>
+    <pre style="white-space:pre-wrap;font-size:.8rem" class="mt-2">{{ a.detail }}</pre>
+  </details>
+  {% empty %}
+  <p>No events yet.</p>
+  {% endfor %}
+</div>
+{% endif %}
 {% endblock %}

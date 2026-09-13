@@ -92,6 +92,9 @@
           <a class="item sub-item {% if url_name == 'admin_intakes' %}active{% endif %}" href="{% url 'university:admin_intakes' %}">
             <i class="fa-solid fa-calendar-plus"></i> <span class="item-label">Intake Cycles</span>
           </a>
+          <a class="item sub-item {% if url_name == 'admin_cohorts' %}active{% endif %}" href="{% url 'university:admin_cohorts' %}">
+            <i class="fa-solid fa-users"></i> <span class="item-label">Cohorts</span>
+          </a>
         </div>
       </div>
       {% endif %}
@@ -119,7 +122,10 @@
           </a>
           {% endif %}
           {% if 'examinations' in active_modules %}
-          <a class="item sub-item {% if request.resolver_match.namespace == 'examinations' %}active{% endif %}" href="{% url 'examinations:index' %}">
+          <a class="item sub-item {% if url_name == 'marks_capture' or url_name == 'marks' %}active{% endif %}" href="{% url 'examinations:marks_capture' %}">
+            <i class="fa-solid fa-pen-to-square"></i> <span class="item-label">Marks Capture</span>
+          </a>
+          <a class="item sub-item {% if request.resolver_match.namespace == 'examinations' and url_name != 'marks_capture' and url_name != 'marks' %}active{% endif %}" href="{% url 'examinations:index' %}">
             <i class="fa-solid fa-file-pen"></i> <span class="item-label">Examinations</span>
           </a>
           <a class="item sub-item {% if url_name == 'admin_supplementary_list' %}active{% endif %}" href="{% url 'university:admin_supplementary_list' %}">
@@ -448,7 +454,8 @@
           <a class="item sub-item {% if url_name == 'faculty_courses' %}active{% endif %}" href="{% url 'university:faculty_courses' %}"><i class="fa-solid fa-book-open"></i> <span class="item-label">My Courses</span></a>
           {% endif %}
           {% if 'examinations' in active_modules %}
-          <a class="item sub-item {% if request.resolver_match.namespace == 'examinations' %}active{% endif %}" href="{% url 'examinations:index' %}"><i class="fa-solid fa-file-pen"></i> <span class="item-label">Examinations</span></a>
+          <a class="item sub-item {% if url_name == 'marks_capture' or url_name == 'marks' %}active{% endif %}" href="{% url 'examinations:marks_capture' %}"><i class="fa-solid fa-pen-to-square"></i> <span class="item-label">Marks Capture</span></a>
+          <a class="item sub-item {% if request.resolver_match.namespace == 'examinations' and url_name != 'marks_capture' and url_name != 'marks' %}active{% endif %}" href="{% url 'examinations:index' %}"><i class="fa-solid fa-file-pen"></i> <span class="item-label">Examinations</span></a>
           <a class="item sub-item {% if url_name == 'admin_exam_nominal_rolls' %}active{% endif %}" href="{% url 'university:admin_exam_nominal_rolls' %}"><i class="fa-solid fa-users-viewfinder"></i> <span class="item-label">Nominal Rolls</span></a>
           {% endif %}
           {% if 'faculty_ops' in active_modules %}

@@ -36,6 +36,7 @@ DEFAULT_PERMISSIONS = [
     ("academics.unit_registration", "Approve Unit Registrations", "Academics", "Authorize and approve student semester course registrations."),
 
     # --- Examinations & Senate ---
+    ("exams.create_exam", "Create & Schedule Examinations", "Examinations", "Create examination sessions, supplementary exams, and schedules (HOD, Dean, and Admin only)."),
     ("exams.view_marks", "View Examination Marks & Grades", "Examinations", "Access CAT and final examination marks and grade summaries."),
     ("exams.enter_cat", "Enter CAT / Coursework Marks", "Examinations", "Submit continuous assessment marks (30%) for assigned units."),
     ("exams.enter_exam", "Enter Final Examination Marks", "Examinations", "Submit final written exam marks (70%)."),
@@ -109,7 +110,7 @@ DEFAULT_ROLES = [
         "permissions": [
             "students.view_all", "students.create", "students.edit", "students.clearance",
             "academics.view_curriculum", "academics.manage_programs", "academics.manage_courses", "academics.manage_terms", "academics.unit_registration",
-            "exams.view_marks", "exams.moderate_marks", "exams.approve_senate", "exams.publish_results",
+            "exams.create_exam", "exams.view_marks", "exams.moderate_marks", "exams.approve_senate", "exams.publish_results",
             "reports.view_catalog", "reports.generate_official", "reports.senate_marksheet", "reports.export_files",
             "admin.view_audit_logs",
         ]
@@ -122,7 +123,7 @@ DEFAULT_ROLES = [
         "permissions": [
             "students.view_all",
             "academics.view_curriculum", "academics.manage_courses", "academics.unit_registration",
-            "exams.view_marks", "exams.moderate_marks", "exams.approve_senate",
+            "exams.create_exam", "exams.view_marks", "exams.moderate_marks", "exams.approve_senate",
             "reports.view_catalog", "reports.generate_official", "reports.senate_marksheet", "reports.export_files",
         ]
     },
@@ -134,7 +135,7 @@ DEFAULT_ROLES = [
         "permissions": [
             "students.view_all",
             "academics.view_curriculum", "academics.manage_courses", "academics.unit_registration",
-            "exams.view_marks", "exams.enter_cat", "exams.enter_exam", "exams.moderate_marks",
+            "exams.create_exam", "exams.view_marks", "exams.enter_cat", "exams.enter_exam", "exams.moderate_marks",
             "reports.view_catalog", "reports.generate_official", "reports.export_files",
         ]
     },
@@ -145,7 +146,7 @@ DEFAULT_ROLES = [
         "description": "Central officer responsible for exam session scheduling, mark verification, Senate sheets, and official transcripts.",
         "permissions": [
             "students.view_all",
-            "exams.view_marks", "exams.enter_cat", "exams.enter_exam", "exams.moderate_marks", "exams.publish_results",
+            "exams.create_exam", "exams.view_marks", "exams.enter_cat", "exams.enter_exam", "exams.moderate_marks", "exams.publish_results",
             "reports.view_catalog", "reports.generate_official", "reports.senate_marksheet", "reports.export_files",
             "admin.view_audit_logs",
         ]
@@ -224,6 +225,33 @@ DEFAULT_ROLES = [
             "control.lockdown.bypass",
             "control.maintenance.view",
             "control.maintenance.bypass",
+        ]
+    },
+    {
+        "name": "Vice Chancellor",
+        "code": "vc",
+        "color": "#1e293b",
+        "description": "Chief Executive and Academic Head of the University with executive oversight over all governance, academics, and administration.",
+        "permissions": [
+            "students.view_all",
+            "academics.view_curriculum", "academics.manage_programs", "academics.manage_courses", "academics.manage_terms",
+            "exams.create_exam", "exams.view_marks", "exams.moderate_marks", "exams.approve_senate", "exams.publish_results",
+            "finance.view_invoices",
+            "reports.view_catalog", "reports.generate_official", "reports.senate_marksheet", "reports.export_files",
+            "admin.view_audit_logs",
+        ]
+    },
+    {
+        "name": "Deputy Vice Chancellor (Academic Affairs)",
+        "code": "dvcaa",
+        "color": "#4338ca",
+        "description": "Executive oversight of all academic faculties, programs, curriculum development, examination approvals, and Senate operations.",
+        "permissions": [
+            "students.view_all",
+            "academics.view_curriculum", "academics.manage_programs", "academics.manage_courses", "academics.manage_terms", "academics.unit_registration",
+            "exams.create_exam", "exams.view_marks", "exams.moderate_marks", "exams.approve_senate", "exams.publish_results",
+            "reports.view_catalog", "reports.generate_official", "reports.senate_marksheet", "reports.export_files",
+            "admin.view_audit_logs",
         ]
     },
 ]

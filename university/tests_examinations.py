@@ -462,3 +462,43 @@ class EnhancedCUEExaminationsTests(ExaminationTestBase):
         self.assertEqual(results[0].grade_point, 4.0)
         self.assertEqual(res.gpa, 4.0)
 
+    def test_instructor_cannot_create_exam(self):
+        self.client.force_login(self.lecturer)
+        # Ordinary instructor cannot create exams -> 403 Forbidden
+        response = self.client.get(reverse('examinations:create'))
+        self.assertEqual(response.status_code, 403)
+
+        # HOD can create exams
+        self.faculty.designation = "HOD, Department of Computing"
+        self.faculty.save()
+        response = self.client.get(reverse('examinations:create'))
+        self.assertEqual(response.status_code, 200)
+
+        # Admin can create exams
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse('examinations:create'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_marks_capture_view_and_filtering(self):
+        exam = self.make_exam(
+            Exam.Kind.FINAL, "Final Exam Test", 100,
+            cat_max_marks=30, exam_max_marks=70
+        )
+        self.drive_to_marking(exam)
+        self.client.force_login(self.lecturer)
+
+        # Test marks capture index without pk (auto-selects available exam)
+        response = self.client.get(reverse('examinations:marks_capture'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Marks Capture")
+        self.assertContains(response, "CMP101")
+        self.assertContains(response, "Generate")
+        self.assertContains(response, "Exam List")
+
+        # Test filter by exam_id
+        response = self.client.get(f"{reverse('examinations:marks_capture')}?exam_id={exam.pk}")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Final Exam IE")
+        self.assertContains(response, "Final Exam EE")
+        self.assertContains(response, "Cohort")
+
