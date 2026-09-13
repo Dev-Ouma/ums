@@ -1636,8 +1636,8 @@ class DomainMigrationRecord(models.Model):
     new_staff_domain = models.CharField(max_length=120, blank=True, default="")
     previous_student_domain = models.CharField(max_length=120, blank=True, default="")
     new_student_domain = models.CharField(max_length=120, blank=True, default="")
-    previous_student_prefix = models.CharField(max_length=50, blank=True, default="students")
-    new_student_prefix = models.CharField(max_length=50, blank=True, default="students")
+    previous_student_prefix = models.CharField(max_length=50, blank=True, default="student")
+    new_student_prefix = models.CharField(max_length=50, blank=True, default="student")
 
     migration_policy = models.CharField(max_length=40, choices=Policy.choices, default=Policy.MIGRATE_AND_ARCHIVE_ALIASES)
     staff_accounts_affected = models.PositiveIntegerField(default=0)
