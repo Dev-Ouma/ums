@@ -112,10 +112,68 @@
               </div>
             </div>
 
-            <!-- SECTION 3: Academic Qualifications -->
+            <!-- SECTION 3: Parent / Guardian & Emergency Contact -->
             <div class="mb-5">
               <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
                 <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">3</div>
+                <h5 class="fw-bold mb-0 text-dark">Parent / Guardian &amp; Emergency Contact</h5>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Guardian Full Name <span class="text-danger">*</span></label>
+                  <input type="text" name="guardian_name" class="form-control rounded-3" placeholder="e.g. Mary Jane Wabs" value="{{ data.guardian_name|default:'' }}" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Relationship to Applicant <span class="text-danger">*</span></label>
+                  <select name="guardian_relationship" class="form-select rounded-3" required>
+                    {% for val, lbl in guardian_relationships %}
+                      <option value="{{ val }}" {% if data.guardian_relationship == val or not data.guardian_relationship and val == 'Parent' %}selected{% endif %}>{{ lbl }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Primary Contact Phone <span class="text-danger">*</span></label>
+                  <input type="tel" name="guardian_phone" class="form-control rounded-3" placeholder="+254 712 345 678" value="{{ data.guardian_phone|default:'' }}" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Alternative Phone Number</label>
+                  <input type="tel" name="guardian_alternative_phone" class="form-control rounded-3" placeholder="Optional alternative phone" value="{{ data.guardian_alternative_phone|default:'' }}">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Email Address</label>
+                  <input type="email" name="guardian_email" class="form-control rounded-3" placeholder="guardian@example.com" value="{{ data.guardian_email|default:'' }}">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Country of Residence</label>
+                  <input type="text" name="guardian_country" class="form-control rounded-3" value="{{ data.guardian_country|default:'Kenya' }}">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Occupation</label>
+                  <input type="text" name="guardian_occupation" class="form-control rounded-3" placeholder="e.g. Teacher, Civil Servant, Business" value="{{ data.guardian_occupation|default:'' }}">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Employer / Organization</label>
+                  <input type="text" name="guardian_employer" class="form-control rounded-3" placeholder="e.g. Ministry of Education, Self-employed" value="{{ data.guardian_employer|default:'' }}">
+                </div>
+                <div class="col-12">
+                  <label class="form-label fw-semibold">Guardian Physical / Postal Address</label>
+                  <input type="text" name="guardian_address" class="form-control rounded-3" placeholder="e.g. P.O Box 4567, Kisumu / Kilimani, Nairobi" value="{{ data.guardian_address|default:'' }}">
+                </div>
+                <div class="col-12">
+                  <div class="form-check p-3 bg-light rounded-3 border">
+                    <input class="form-check-input ms-0 me-2" type="checkbox" name="is_guardian_emergency_contact" id="is_guardian_emergency_contact" {% if data.is_guardian_emergency_contact or data.is_guardian_emergency_contact is None %}checked{% endif %}>
+                    <label class="form-check-label fw-semibold text-dark small" for="is_guardian_emergency_contact">
+                      <i class="fa-solid fa-phone-volume text-primary me-1"></i> Designate this guardian as my primary Next of Kin &amp; Emergency Contact
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SECTION 4: Academic Qualifications -->
+            <div class="mb-5">
+              <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
+                <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">4</div>
                 <h5 class="fw-bold mb-0 text-dark">Secondary Education Qualifications</h5>
               </div>
               <div class="row g-3">
@@ -150,10 +208,10 @@
             </div>
 
             {% if custom_fields %}
-            <!-- SECTION 4: Additional Information -->
+            <!-- SECTION 5: Additional Information -->
             <div class="mb-5">
               <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
-                <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">4</div>
+                <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">5</div>
                 <h5 class="fw-bold mb-0 text-dark">Additional Institutional Information</h5>
               </div>
               <div class="row g-3">
@@ -181,10 +239,10 @@
             </div>
             {% endif %}
 
-            <!-- SECTION {% if custom_fields %}5{% else %}4{% endif %}: Document Attachments -->
+            <!-- SECTION {% if custom_fields %}6{% else %}5{% endif %}: Document Attachments -->
             <div class="mb-5">
               <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
-                <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">{% if custom_fields %}5{% else %}4{% endif %}</div>
+                <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-weight:600;">{% if custom_fields %}6{% else %}5{% endif %}</div>
                 <h5 class="fw-bold mb-0 text-dark">Required Supporting Documents</h5>
               </div>
               
@@ -410,12 +468,12 @@
               </div>
             </div>
 
-            <!-- SECTION {% if custom_fields %}6{% else %}5{% endif %}: Declaration & Submission -->
+            <!-- SECTION {% if custom_fields %}7{% else %}6{% endif %}: Declaration & Submission -->
             <div class="p-4 rounded-4 bg-light mb-4 border">
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="declaration" required>
                 <label class="form-check-label text-muted small" for="declaration">
-                  I hereby certify that all information provided in this application is true, complete, and accurate. I understand that any false statement or omission will lead to the immediate disqualification of my application or revocation of admission.
+                  I hereby certify that all information provided in this application (including Guardian Details and Uploaded Documents) is true, complete, and accurate. I understand that any false statement or omission will lead to the immediate disqualification of my application or revocation of admission.
                 </label>
               </div>
             </div>
@@ -425,7 +483,7 @@
                 <i class="fa-solid fa-arrow-left me-1"></i> Back to Home
               </a>
               <button type="submit" id="submitApplicationBtn" class="btn btn-primary px-5 py-2.5 rounded-pill fw-semibold shadow-sm">
-                Submit Application <i class="fa-solid fa-paper-plane ms-1"></i>
+                Save Application &amp; Continue <i class="fa-solid fa-arrow-right ms-1"></i>
               </button>
             </div>
 

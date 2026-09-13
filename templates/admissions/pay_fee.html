@@ -1,7 +1,7 @@
 {% extends "base_public.html" %}
 {% load static humanize %}
 
-{% block title %}Pay Application Fee | University Management System{% endblock %}
+{% block title %}Pay Application Fee | University Admissions{% endblock %}
 
 {% block content %}
 <div class="container py-5">
@@ -9,7 +9,7 @@
     <div class="col-lg-7">
 
       <!-- Header Banner -->
-      <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4" style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: white;">
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4" style="background: linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%); color: white;">
         <div class="card-body p-4 p-md-5 text-center">
           <div class="mb-3">
             <span class="rounded-circle bg-white text-primary p-3 d-inline-flex">
@@ -17,9 +17,18 @@
             </span>
           </div>
           <h2 class="fw-bold mb-1">Application Fee Payment</h2>
-          <p class="mb-0 opacity-75">Complete payment to submit your application for processing.</p>
+          <p class="mb-0 opacity-75">Pay your non-refundable processing fee to prepare your application for submission.</p>
         </div>
       </div>
+
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-4 mb-4" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
 
       <!-- Application Summary -->
       <div class="card border-0 shadow-sm rounded-4 mb-4">
@@ -27,51 +36,70 @@
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
             <div>
               <span class="text-muted small">Application Reference:</span>
-              <span class="fw-bold ms-1 text-primary">{{ application.application_number }}</span>
+              <span class="fw-bold ms-1 text-primary font-monospace">{{ application.application_number }}</span>
             </div>
-            <span class="badge bg-secondary px-3 py-2 rounded-pill"><i class="fa-solid fa-clock me-1"></i>{{ application.get_status_display }}</span>
+            <span class="badge bg-secondary-subtle text-secondary border px-3 py-2 rounded-pill"><i class="fa-solid fa-clock me-1"></i>{{ application.get_status_display }}</span>
           </div>
           <div class="row g-3">
             <div class="col-md-6">
-              <div class="text-muted small">Applicant</div>
-              <div class="fw-semibold">{{ application.full_name }}</div>
+              <div class="text-muted small">Applicant Name</div>
+              <div class="fw-semibold text-dark">{{ application.full_name }}</div>
             </div>
             <div class="col-md-6">
-              <div class="text-muted small">Programme</div>
-              <div class="fw-semibold">{{ application.program.code }} — {{ application.program.name }}</div>
+              <div class="text-muted small">Selected Programme</div>
+              <div class="fw-semibold text-dark">{{ application.program.code }} — {{ application.program.name }}</div>
             </div>
           </div>
           <hr class="my-3">
           <div class="d-flex justify-content-between align-items-center">
-            <span class="text-muted">Application Processing Fee</span>
+            <span class="text-muted fw-semibold">Application Processing Fee</span>
             <span class="fs-3 fw-bold text-primary">KES {{ fee_amount|intcomma }}</span>
           </div>
-          <p class="text-muted small mb-0 mt-2">This fee is non-refundable and required before your application is queued for review.</p>
+          <p class="text-muted small mb-0 mt-2">This fee is verified server-side and recorded immediately against your application ID.</p>
         </div>
       </div>
 
-      <!-- Payment Form -->
+      <!-- Payment Channel & Instructions -->
       <div class="card border-0 shadow-sm rounded-4">
         <div class="card-body p-4">
-          <h6 class="fw-bold mb-3"><i class="fa-solid fa-money-check-dollar me-2 text-primary"></i>Complete Payment</h6>
-          <form method="post">
+          <h5 class="fw-bold mb-3 text-dark"><i class="fa-solid fa-shield-halved me-2 text-primary"></i>Secure Payment Checkout</h5>
+          
+          <div class="alert alert-light border rounded-3 p-3 mb-4">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <i class="fa-solid fa-mobile-screen-button text-success fs-5"></i>
+              <strong class="text-dark">M-Pesa Paybill Instructions:</strong>
+            </div>
+            <div class="row g-2 small text-muted">
+              <div class="col-sm-6">Business No: <strong class="text-dark font-monospace">222111</strong></div>
+              <div class="col-sm-6">Account No: <strong class="text-dark font-monospace">{{ application.application_number }}</strong></div>
+              <div class="col-12">Amount: <strong class="text-dark font-monospace">KES {{ fee_amount|intcomma }}</strong></div>
+            </div>
+          </div>
+
+          <form method="post" action="{% url 'university:pay_application_fee' application.pk %}">
             {% csrf_token %}
             <input type="hidden" name="access" value="{{ application_access_token }}">
+
             <div class="mb-3">
-              <label class="form-label fw-semibold small">Payment Method</label>
-              <select name="method" class="form-select form-select-lg rounded-3">
-                {% for code, label in methods %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+              <label class="form-label fw-semibold small">Select Payment Channel</label>
+              <select name="method" class="form-select form-select-lg rounded-3" required>
+                {% for code, label in methods %}
+                  <option value="{{ code }}">{{ label }}</option>
+                {% endfor %}
               </select>
             </div>
-            <div class="mb-3">
-              <label class="form-label fw-semibold small">Transaction / Reference Number</label>
-              <input type="text" name="reference" class="form-control form-control-lg rounded-3" placeholder="e.g. M-Pesa confirmation code" required>
-              <div class="form-text">Enter the confirmation code you received after paying via your chosen channel.</div>
+
+            <div class="mb-4">
+              <label class="form-label fw-semibold small">Transaction / Reference Number <span class="text-danger">*</span></label>
+              <input type="text" name="reference" class="form-control form-control-lg rounded-3 font-monospace" placeholder="e.g. QK89XY781Z" required autofocus>
+              <div class="form-text text-muted" style="font-size:0.75rem;">Enter the M-Pesa transaction code, bank reference, or card authorization ID.</div>
             </div>
-            <button type="submit" class="btn btn-primary btn-lg w-100 rounded-3 fw-semibold">
-              <i class="fa-solid fa-check me-1"></i> Confirm Payment
+
+            <button type="submit" class="btn btn-primary btn-lg w-100 rounded-pill fw-semibold shadow-sm">
+              <i class="fa-solid fa-check me-1"></i> Verify &amp; Confirm Payment
             </button>
           </form>
+
         </div>
       </div>
 

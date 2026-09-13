@@ -134,8 +134,23 @@ def matriculate_applicant(application, created_by=None):
             date_of_birth=application.date_of_birth,
             current_semester=1,
             status=StudentProfile.Status.ACTIVE,
-            guardian_name=f"Parent of {application.first_name}",
+            guardian_name=application.guardian_name or f"Parent of {application.first_name}",
+            guardian_relationship=application.guardian_relationship or "Parent",
+            guardian_phone=application.guardian_phone or "",
+            guardian_email=application.guardian_email or "",
+            guardian_address=application.guardian_address or "",
         )
+    else:
+        # Update existing profile with guardian details if empty
+        if application.guardian_name and not student_profile.guardian_name:
+            student_profile.guardian_name = application.guardian_name
+            student_profile.guardian_relationship = application.guardian_relationship
+            student_profile.guardian_phone = application.guardian_phone
+            student_profile.guardian_email = application.guardian_email
+            student_profile.guardian_address = application.guardian_address
+            student_profile.save(update_fields=[
+                "guardian_name", "guardian_relationship", "guardian_phone", "guardian_email", "guardian_address"
+            ])
 
     # Institutional email, account status and the student's identity envelope.
     # Idempotent, so re-running matriculation never produces a second identity.

@@ -242,11 +242,16 @@ urlpatterns = [
     path("ai/reply/", views.ai_reply, name="ai_reply"),
     path("ai/insights/", views.ai_insights, name="ai_insights"),
 
-    # Admissions (Public & Admin)
+    # Admissions (Public, Applicant Portal & Admin)
+    path("admissions/register/", admissions_views.applicant_register, name="applicant_register"),
+    path("admissions/verify-otp/", admissions_views.applicant_verify_otp, name="applicant_verify_otp"),
+    path("admissions/login/", admissions_views.applicant_login, name="applicant_login"),
+    path("admissions/dashboard/", admissions_views.applicant_dashboard, name="applicant_dashboard"),
     path("admissions/apply/", admissions_views.apply, name="admissions_apply"),
     path("admissions/apply/upload-document/", admissions_views.upload_admission_document, name="admissions_upload_document"),
     path("admissions/apply/remove-document/", admissions_views.remove_admission_document, name="admissions_remove_document"),
     path("admissions/<int:pk>/pay-fee/", admissions_views.pay_application_fee, name="pay_application_fee"),
+    path("admissions/<int:pk>/submit/", admissions_views.submit_application, name="submit_application"),
     path("admissions/status/", admissions_views.application_status, name="admissions_status"),
     path("admissions/<int:pk>/letter/", admissions_views.download_admission_letter, name="download_admission_letter"),
     path("manage/admissions/", admissions_views.admin_admissions_list, name="admin_admissions"),

@@ -1220,13 +1220,32 @@ class Intake(models.Model):
 
 class Application(models.Model):
     class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        IN_PROGRESS = "IN_PROGRESS", "In Progress"
+        READY_FOR_PAYMENT = "READY_FOR_PAYMENT", "Ready For Payment"
+        PAYMENT_PENDING = "PAYMENT_PENDING", "Payment Pending"
+        PAID = "PAID", "Application Fee Paid"
+        READY_FOR_SUBMISSION = "READY_FOR_SUBMISSION", "Ready For Submission"
         SUBMITTED = "SUBMITTED", "Submitted"
         UNDER_REVIEW = "UNDER_REVIEW", "Under Review"
         ACCEPTED = "ACCEPTED", "Accepted (Admitted)"
         REJECTED = "REJECTED", "Rejected"
         ENROLLED = "ENROLLED", "Enrolled / Matriculated"
 
+    GUARDIAN_RELATIONSHIPS = [
+        ("Parent", "Parent"),
+        ("Father", "Father"),
+        ("Mother", "Mother"),
+        ("Legal Guardian", "Legal Guardian"),
+        ("Spouse", "Spouse"),
+        ("Sibling", "Sibling"),
+        ("Sponsor", "Sponsor"),
+        ("Relative", "Relative"),
+        ("Other", "Other"),
+    ]
+
     application_number = models.CharField(max_length=40, unique=True, db_index=True)
+    applicant_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="admission_applications")
     intake = models.ForeignKey(Intake, on_delete=models.SET_NULL, null=True, blank=True, related_name="applications")
     program = models.ForeignKey(Program, on_delete=models.CASCADE, related_name="applications")
 
@@ -1240,13 +1259,25 @@ class Application(models.Model):
     national_id = models.CharField(max_length=50, verbose_name="National ID / Passport No.")
     address = models.TextField(blank=True, default="")
 
+    # Guardian & Emergency Contact details
+    guardian_name = models.CharField(max_length=120, blank=True, default="", verbose_name="Guardian Full Name")
+    guardian_relationship = models.CharField(max_length=60, blank=True, default="Parent", choices=GUARDIAN_RELATIONSHIPS, verbose_name="Relationship to Applicant")
+    guardian_phone = models.CharField(max_length=30, blank=True, default="", verbose_name="Guardian Primary Phone")
+    guardian_alternative_phone = models.CharField(max_length=30, blank=True, default="", verbose_name="Guardian Alternative Phone")
+    guardian_email = models.EmailField(blank=True, default="", verbose_name="Guardian Email")
+    guardian_address = models.CharField(max_length=255, blank=True, default="", verbose_name="Guardian Physical / Postal Address")
+    guardian_country = models.CharField(max_length=80, blank=True, default="Kenya", verbose_name="Guardian Country")
+    guardian_occupation = models.CharField(max_length=120, blank=True, default="", verbose_name="Guardian Occupation")
+    guardian_employer = models.CharField(max_length=150, blank=True, default="", verbose_name="Guardian Employer / Organization")
+    is_guardian_emergency_contact = models.BooleanField(default=True, verbose_name="Is Next of Kin / Emergency Contact")
+
     # Academic qualifications
     secondary_school = models.CharField(max_length=160, blank=True, default="")
     kcse_index_number = models.CharField(max_length=60, blank=True, default="")
     kcse_mean_grade = models.CharField(max_length=10, blank=True, default="C+")
     kcse_year = models.PositiveIntegerField(default=2025)
 
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.SUBMITTED, db_index=True)
+    status = models.CharField(max_length=30, choices=Status.choices, default=Status.SUBMITTED, db_index=True)
     admitted_reg_no = models.CharField(max_length=50, blank=True, default="")
     reporting_date = models.DateField(null=True, blank=True)
     review_notes = models.TextField(blank=True, default="")
@@ -1271,6 +1302,10 @@ class Application(models.Model):
         return self.fee_payments.filter(status=ApplicationFeePayment.Status.CONFIRMED).exists()
 
     @property
+    def confirmed_fee_payment(self):
+        return self.fee_payments.filter(status=ApplicationFeePayment.Status.CONFIRMED).first()
+
+    @property
     def active_admission_document(self):
         return self.issued_documents.filter(is_current_version=True).exclude(status="REVOKED").first()
 
@@ -1286,6 +1321,7 @@ class ApplicationFeePayment(models.Model):
         MPESA = "MPESA", "M-Pesa"
         CARD = "CARD", "Debit / Credit Card"
         BANK = "BANK", "Bank Transfer"
+        ECITIZEN = "ECITIZEN", "eCitizen / Government Gateway"
 
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending Confirmation"
@@ -1293,8 +1329,10 @@ class ApplicationFeePayment(models.Model):
         FAILED = "FAILED", "Failed"
 
     application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name="fee_payments")
+    applicant_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="application_fee_payments")
+    receipt_number = models.CharField(max_length=60, unique=True, null=True, blank=True, db_index=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    method = models.CharField(max_length=10, choices=Method.choices, default=Method.MPESA)
+    method = models.CharField(max_length=15, choices=Method.choices, default=Method.MPESA)
     reference = models.CharField(max_length=60, help_text="Transaction / reference number from the payment channel")
     status = models.CharField(max_length=15, choices=Status.choices, default=Status.PENDING, db_index=True)
     paid_at = models.DateTimeField(default=timezone.now)

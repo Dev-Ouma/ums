@@ -8,6 +8,7 @@ class Role(models.TextChoices):
     ADMIN = "ADMIN", "Administrator"
     FACULTY = "FACULTY", "Teaching Staff"
     STUDENT = "STUDENT", "Student"
+    APPLICANT = "APPLICANT", "Applicant"
 
 
 # Per-role UI theme (drives the colour scheme / design language of each portal).
@@ -45,11 +46,22 @@ ROLE_THEMES = {
         "gradient": "linear-gradient(135deg,#0984e3 0%,#48b1f3 100%)",
         "icon": "fa-user-graduate",
     },
+    Role.APPLICANT: {
+        "key": "applicant",
+        "name": "Applicant",
+        "primary": "#4f46e5",
+        "primary_dark": "#4338ca",
+        "accent": "#06b6d4",
+        "sidebar": "linear-gradient(180deg,#1e1b4b 0%,#312e81 100%)",
+        "surface": "#f8fafc",
+        "gradient": "linear-gradient(135deg,#4f46e5 0%,#06b6d4 100%)",
+        "icon": "fa-user-clock",
+    },
 }
 
 
 class User(AbstractUser):
-    role = models.CharField(max_length=10, choices=Role.choices, default=Role.STUDENT)
+    role = models.CharField(max_length=15, choices=Role.choices, default=Role.STUDENT)
     phone = models.CharField(max_length=20, blank=True, default="0000")
     avatar_url = models.URLField(blank=True)
     # Uploaded avatar takes precedence over avatar_url, which in turn wins over
@@ -79,6 +91,10 @@ class User(AbstractUser):
     @property
     def is_student(self):
         return self.role == Role.STUDENT
+
+    @property
+    def is_applicant(self):
+        return self.role == Role.APPLICANT
 
     @property
     def display_name(self):
