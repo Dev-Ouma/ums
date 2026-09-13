@@ -1,0 +1,74 @@
+{% extends "base_public.html" %}
+{% load static %}
+
+{% block title %}Verify Account OTP | University Admissions{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+      
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        
+        <div class="p-4 text-center text-white" style="background: linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%);">
+          <div class="d-inline-flex p-3 bg-white bg-opacity-20 rounded-circle mb-3">
+            <i class="fa-solid fa-shield-halved fs-3"></i>
+          </div>
+          <h4 class="fw-bold mb-1">Verify Your Email</h4>
+          <p class="small mb-0 text-white-50">Enter the 6-digit code sent to your email address</p>
+        </div>
+
+        <div class="card-body p-4 p-md-4">
+          
+          {% if messages %}
+            {% for message in messages %}
+              <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-3 small" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+
+          <div class="text-center mb-4">
+            <span class="text-muted small">Verification code sent to:</span>
+            <p class="fw-bold text-dark mb-0 font-monospace">{{ email }}</p>
+          </div>
+
+          {% if demo_otp %}
+          <div class="alert alert-info border-0 rounded-3 py-2 px-3 mb-3 small d-flex align-items-center justify-content-between">
+            <div>
+              <i class="fa-solid fa-key text-primary me-1"></i> Verification OTP: <strong class="font-monospace fs-6">{{ demo_otp }}</strong>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill py-0 px-2" onclick="document.getElementById('otpInput').value='{{ demo_otp }}'">
+              Fill OTP
+            </button>
+          </div>
+          {% endif %}
+
+          <form method="post" action="{% url 'university:applicant_verify_otp' %}">
+            {% csrf_token %}
+            <input type="hidden" name="email" value="{{ email }}">
+
+            <div class="mb-4">
+              <label class="form-label fw-semibold small text-dark text-center d-block">6-Digit Verification Code</label>
+              <input type="text" name="otp_code" id="otpInput" class="form-control form-control-lg text-center fw-bold font-monospace rounded-3 letter-spacing-2" placeholder="••••••" maxlength="6" pattern="[0-9]{6}" value="{{ demo_otp }}" required autofocus style="font-size: 1.5rem; letter-spacing: 6px;">
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 py-2.5 rounded-pill fw-semibold shadow-sm mb-3">
+              Verify &amp; Continue <i class="fa-solid fa-check ms-1"></i>
+            </button>
+
+            <div class="text-center pt-2">
+              <a href="{% url 'university:applicant_register' %}" class="small text-muted text-decoration-none">
+                <i class="fa-solid fa-arrow-left me-1"></i> Use different email or re-register
+              </a>
+            </div>
+          </form>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

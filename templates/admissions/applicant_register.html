@@ -1,0 +1,92 @@
+{% extends "base_public.html" %}
+{% load static %}
+
+{% block title %}Create Applicant Account | University Admissions{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-7 col-lg-5">
+      
+      <!-- Card Container -->
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        
+        <!-- Header Banner -->
+        <div class="p-4 text-center text-white" style="background: linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%);">
+          <div class="d-inline-flex p-3 bg-white bg-opacity-20 rounded-circle mb-3">
+            <i class="fa-solid fa-user-plus fs-3"></i>
+          </div>
+          <h4 class="fw-bold mb-1">Create Applicant Account</h4>
+          <p class="small mb-0 text-white-50">Express your interest and begin your admissions journey</p>
+        </div>
+
+        <div class="card-body p-4 p-md-4">
+          
+          {% if messages %}
+            {% for message in messages %}
+              <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-3 small" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+
+          <form method="post" action="{% url 'university:applicant_register' %}" id="applicantRegisterForm">
+            {% csrf_token %}
+
+            <div class="row g-3 mb-3">
+              <div class="col-sm-6">
+                <label class="form-label fw-semibold small text-dark">First Name <span class="text-danger">*</span></label>
+                <input type="text" name="first_name" class="form-control rounded-3" placeholder="e.g. Kelvin" required autofocus>
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label fw-semibold small text-dark">Last Name <span class="text-danger">*</span></label>
+                <input type="text" name="last_name" class="form-control rounded-3" placeholder="e.g. Ochieng" required>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold small text-dark">Email Address <span class="text-danger">*</span></label>
+              <div class="input-group">
+                <span class="input-group-text bg-light border-end-0 rounded-start-3 text-muted"><i class="fa-solid fa-envelope"></i></span>
+                <input type="email" name="email" class="form-control rounded-end-3 border-start-0" placeholder="your.name@example.com" required>
+              </div>
+              <div class="form-text text-muted" style="font-size: 0.75rem;">A 6-digit OTP verification code will be sent to this email.</div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold small text-dark">Mobile Phone Number <span class="text-danger">*</span></label>
+              <div class="input-group">
+                <span class="input-group-text bg-light border-end-0 rounded-start-3 text-muted"><i class="fa-solid fa-phone"></i></span>
+                <input type="tel" name="phone" class="form-control rounded-end-3 border-start-0" placeholder="+254 712 345 678" required>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <label class="form-label fw-semibold small text-dark">Create Password <span class="text-danger">*</span></label>
+              <div class="input-group">
+                <span class="input-group-text bg-light border-end-0 rounded-start-3 text-muted"><i class="fa-solid fa-lock"></i></span>
+                <input type="password" name="password" class="form-control rounded-end-3 border-start-0" placeholder="••••••••" minlength="8" required>
+              </div>
+              <div class="form-text text-muted" style="font-size: 0.75rem;">Minimum 8 characters with letters &amp; numbers.</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 py-2.5 rounded-pill fw-semibold shadow-sm mb-3">
+              Create Account &amp; Send OTP <i class="fa-solid fa-arrow-right ms-1"></i>
+            </button>
+
+            <div class="text-center pt-2 border-top">
+              <p class="small text-muted mb-0">
+                Already have an applicant account? 
+                <a href="{% url 'university:applicant_login' %}" class="fw-bold text-primary text-decoration-none">Login</a>
+              </p>
+            </div>
+          </form>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

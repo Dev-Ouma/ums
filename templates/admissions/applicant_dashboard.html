@@ -1,0 +1,325 @@
+{% extends "base_public.html" %}
+{% load static humanize %}
+
+{% block title %}Applicant Dashboard | University Admissions{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  
+  <!-- Applicant Banner -->
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4" style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); color: white;">
+    <div class="card-body p-4 p-md-5">
+      <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+        <div class="d-flex align-items-center gap-3">
+          <div class="avatar-circle bg-white bg-opacity-20 text-white rounded-circle d-flex align-items-center justify-content-center fw-bold fs-3" style="width: 56px; height: 56px;">
+            {{ applicant.first_name|slice:":1" }}{{ applicant.last_name|slice:":1" }}
+          </div>
+          <div>
+            <span class="badge bg-primary-subtle text-white border border-white border-opacity-25 px-3 py-1 rounded-pill small mb-1">
+              <i class="fa-solid fa-user-check me-1"></i> Verified Applicant Account
+            </span>
+            <h3 class="fw-bold mb-0">{{ applicant.get_full_name|default:applicant.username }}</h3>
+            <span class="opacity-75 small">{{ applicant.email }}</span>
+          </div>
+        </div>
+        <div class="d-flex gap-2">
+          <a href="{% url 'university:admissions_apply' %}" class="btn btn-primary rounded-pill px-4 py-2">
+            <i class="fa-solid fa-file-pen me-1"></i> {% if application %}Edit / New Application{% else %}Start Application{% endif %}
+          </a>
+          <form method="post" action="{% url 'accounts:logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-light rounded-pill px-3 py-2">
+              <i class="fa-solid fa-arrow-right-from-bracket me-1"></i> Logout
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-4 mb-4" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  {% if not application %}
+    <!-- No Application Yet State -->
+    <div class="card border-0 shadow-sm rounded-4 text-center p-5">
+      <div class="py-4">
+        <div class="d-inline-flex p-4 bg-primary-subtle text-primary rounded-circle mb-3">
+          <i class="fa-solid fa-file-lines fs-1"></i>
+        </div>
+        <h4 class="fw-bold text-dark mb-2">No Active Application Found</h4>
+        <p class="text-muted mx-auto mb-4" style="max-width: 480px;">
+          You are successfully registered and verified. Select your preferred programme of study and provide your personal, guardian, and academic credentials.
+        </p>
+        <a href="{% url 'university:admissions_apply' %}" class="btn btn-primary btn-lg rounded-pill px-5 fw-semibold shadow-sm">
+          Begin Application Now <i class="fa-solid fa-arrow-right ms-1"></i>
+        </a>
+      </div>
+    </div>
+  {% else %}
+
+    <div class="row g-4">
+      
+      <!-- Left Column: Application Details & Action Card -->
+      <div class="col-lg-8">
+        
+        <!-- Application Master Card -->
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+          <div class="card-header bg-white border-bottom p-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+              <span class="text-muted small">Application Reference</span>
+              <h5 class="fw-bold mb-0 text-primary font-monospace">{{ application.application_number }}</h5>
+            </div>
+            <div>
+              {% if application.status == "DRAFT" or application.status == "IN_PROGRESS" %}
+                <span class="badge bg-secondary-subtle text-secondary px-3 py-2 rounded-pill"><i class="fa-solid fa-pen-ruler me-1"></i> Draft</span>
+              {% elif application.status == "READY_FOR_PAYMENT" %}
+                <span class="badge bg-warning-subtle text-dark border border-warning px-3 py-2 rounded-pill"><i class="fa-solid fa-clock me-1"></i> Fee Payment Required</span>
+              {% elif application.status == "READY_FOR_SUBMISSION" or application.status == "PAID" %}
+                <span class="badge bg-info-subtle text-dark border border-info px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> Fee Paid · Ready to Submit</span>
+              {% elif application.status == "SUBMITTED" %}
+                <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill"><i class="fa-solid fa-paper-plane me-1"></i> Submitted / Queued</span>
+              {% elif application.status == "UNDER_REVIEW" %}
+                <span class="badge bg-warning-subtle text-warning px-3 py-2 rounded-pill"><i class="fa-solid fa-spinner fa-spin me-1"></i> Under Review</span>
+              {% elif application.status == "ACCEPTED" %}
+                <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill"><i class="fa-solid fa-circle-check me-1"></i> Accepted / Admitted</span>
+              {% elif application.status == "ENROLLED" %}
+                <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fa-solid fa-check-double me-1"></i> Enrolled Student</span>
+              {% elif application.status == "REJECTED" %}
+                <span class="badge bg-danger-subtle text-danger px-3 py-2 rounded-pill"><i class="fa-solid fa-ban me-1"></i> Not Accepted</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="card-body p-4">
+            
+            <!-- Programme & Placement Details -->
+            <div class="mb-4 pb-3 border-bottom">
+              <div class="row g-3 align-items-center">
+                <div class="col-md-7">
+                  <span class="text-muted small text-uppercase fw-bold d-block mb-1">Selected Programme</span>
+                  <h5 class="fw-bold text-dark mb-1">{{ application.program.name }}</h5>
+                  <span class="badge bg-light text-muted border font-monospace">{{ application.program.code }}</span>
+                  <span class="text-muted small ms-2">{{ application.program.department.name }}</span>
+                </div>
+                <div class="col-md-5 text-md-end">
+                  <span class="text-muted small text-uppercase fw-bold d-block mb-1">Academic Intake</span>
+                  <div class="fw-semibold text-dark">{{ application.intake.name }}</div>
+                  <small class="text-muted">Applied on {{ application.created_at|date:"d M Y, H:i" }}</small>
+                </div>
+              </div>
+            </div>
+
+            <!-- Key Summary Blocks -->
+            <div class="row g-3 mb-4">
+              <div class="col-md-6">
+                <div class="p-3 bg-light rounded-3 h-100 border">
+                  <div class="small fw-bold text-uppercase text-muted mb-2"><i class="fa-solid fa-user me-1 text-primary"></i> Personal Details</div>
+                  <div class="fw-semibold text-dark">{{ application.full_name }}</div>
+                  <div class="small text-muted">ID/Passport: {{ application.national_id }}</div>
+                  <div class="small text-muted">Phone: {{ application.phone }}</div>
+                  <div class="small text-muted">Email: {{ application.email }}</div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="p-3 bg-light rounded-3 h-100 border">
+                  <div class="small fw-bold text-uppercase text-muted mb-2"><i class="fa-solid fa-people-roof me-1 text-primary"></i> Parent / Guardian Details</div>
+                  <div class="fw-semibold text-dark">{{ application.guardian_name|default:"Not specified" }}</div>
+                  <div class="small text-muted">Relationship: <span class="badge bg-primary-subtle text-primary">{{ application.guardian_relationship }}</span></div>
+                  <div class="small text-muted">Phone: {{ application.guardian_phone|default:"-" }}</div>
+                  {% if application.guardian_email %}<div class="small text-muted">Email: {{ application.guardian_email }}</div>{% endif %}
+                  {% if application.is_guardian_emergency_contact %}
+                    <div class="mt-1"><span class="badge bg-success-subtle text-success" style="font-size:0.7rem;"><i class="fa-solid fa-phone-volume me-1"></i>Next of Kin / Emergency Contact</span></div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <!-- Supporting Documents Status -->
+            <div class="mb-4">
+              <h6 class="fw-bold text-dark mb-2"><i class="fa-solid fa-folder-open text-primary me-1"></i> Uploaded Supporting Documents ({{ application.attachments.count }})</h6>
+              <div class="list-group list-group-flush border rounded-3 overflow-hidden">
+                {% for att in application.attachments.all %}
+                  <div class="list-group-item d-flex justify-content-between align-items-center p-3">
+                    <div class="d-flex align-items-center gap-2">
+                      <i class="fa-solid fa-file-pdf text-danger fs-5"></i>
+                      <div>
+                        <div class="fw-semibold small text-dark">{{ att.name|default:att.get_document_type_display }}</div>
+                        <div class="text-muted" style="font-size:0.75rem;">{{ att.file_name }}</div>
+                      </div>
+                    </div>
+                    <div>
+                      {% if att.verification_status == "VERIFIED" %}
+                        <span class="badge bg-success-subtle text-success"><i class="fa-solid fa-check me-1"></i>Verified</span>
+                      {% else %}
+                        <span class="badge bg-warning-subtle text-dark"><i class="fa-solid fa-clock me-1"></i>Pending Verification</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% empty %}
+                  <div class="list-group-item text-muted small p-3">No documents attached yet.</div>
+                {% endfor %}
+              </div>
+            </div>
+
+            <!-- Admission Letter Action if Admitted -->
+            {% if application.status == "ACCEPTED" or application.status == "ENROLLED" %}
+              <div class="alert alert-success border-0 rounded-4 p-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div>
+                  <h5 class="fw-bold text-success mb-1"><i class="fa-solid fa-award me-1"></i> Congratulations! You Have Been Admitted</h5>
+                  <p class="mb-0 text-success small">Your official Admission Letter is ready for download. Please present it during registration.</p>
+                </div>
+                <a href="{% url 'university:download_admission_letter' application.pk %}?access={{ application_access_token }}" class="btn btn-success rounded-pill px-4 py-2.5 fw-semibold shadow-sm">
+                  <i class="fa-solid fa-file-pdf me-1"></i> Download Admission Letter
+                </a>
+              </div>
+            {% endif %}
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: Progress Checklist & Immediate Action Card -->
+      <div class="col-lg-4">
+        
+        <!-- Application Progress Checklist -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+          <div class="card-header bg-white border-bottom p-3 px-4">
+            <h6 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-list-check text-primary me-2"></i>Application Checklist</h6>
+          </div>
+          <div class="card-body p-4">
+            <ul class="list-unstyled mb-0 d-flex flex-column gap-3">
+              
+              <!-- 1. Account Created -->
+              <li class="d-flex align-items-center gap-3">
+                <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width:28px; height:28px; font-size: 0.8rem;">
+                  <i class="fa-solid fa-check"></i>
+                </div>
+                <div class="small fw-semibold text-dark">Account Created &amp; Verified</div>
+              </li>
+
+              <!-- 2. Programme Selected -->
+              <li class="d-flex align-items-center gap-3">
+                <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width:28px; height:28px; font-size: 0.8rem;">
+                  <i class="fa-solid fa-check"></i>
+                </div>
+                <div class="small fw-semibold text-dark">Programme Selected ({{ application.program.code }})</div>
+              </li>
+
+              <!-- 3. Personal Details -->
+              <li class="d-flex align-items-center gap-3">
+                <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width:28px; height:28px; font-size: 0.8rem;">
+                  <i class="fa-solid fa-check"></i>
+                </div>
+                <div class="small fw-semibold text-dark">Personal Bio-Data Completed</div>
+              </li>
+
+              <!-- 4. Guardian Details -->
+              <li class="d-flex align-items-center gap-3">
+                <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width:28px; height:28px; font-size: 0.8rem;">
+                  <i class="fa-solid fa-check"></i>
+                </div>
+                <div class="small fw-semibold text-dark">Guardian Details Recorded</div>
+              </li>
+
+              <!-- 5. Documents Uploaded -->
+              <li class="d-flex align-items-center gap-3">
+                {% if application.attachments.exists %}
+                  <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width:28px; height:28px; font-size: 0.8rem;">
+                    <i class="fa-solid fa-check"></i>
+                  </div>
+                  <div class="small fw-semibold text-dark">Supporting Documents Uploaded ({{ application.attachments.count }})</div>
+                {% else %}
+                  <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width:28px; height:28px; font-size: 0.8rem;">
+                    <i class="fa-solid fa-minus"></i>
+                  </div>
+                  <div class="small text-muted">Supporting Documents Pending</div>
+                {% endif %}
+              </li>
+
+              <!-- 6. Application Fee -->
+              <li class="d-flex align-items-center gap-3">
+                {% if application.fee_paid %}
+                  <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width:28px; height:28px; font-size: 0.8rem;">
+                    <i class="fa-solid fa-check"></i>
+                  </div>
+                  <div>
+                    <div class="small fw-semibold text-dark">Application Fee Paid (KES {{ fee_amount|intcomma }})</div>
+                    <div class="text-success" style="font-size: 0.72rem;">Receipt: {{ application.confirmed_fee_payment.receipt_number|default:application.confirmed_fee_payment.reference }}</div>
+                  </div>
+                {% else %}
+                  <div class="rounded-circle bg-warning text-dark d-flex align-items-center justify-content-center flex-shrink-0" style="width:28px; height:28px; font-size: 0.8rem;">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                  </div>
+                  <div>
+                    <div class="small fw-bold text-dark">Application Fee: KES {{ fee_amount|intcomma }}</div>
+                    <div class="text-warning-emphasis" style="font-size: 0.72rem;">Payment Required</div>
+                  </div>
+                {% endif %}
+              </li>
+
+              <!-- 7. Final Submission -->
+              <li class="d-flex align-items-center gap-3">
+                {% if application.status == "SUBMITTED" or application.status == "UNDER_REVIEW" or application.status == "ACCEPTED" or application.status == "ENROLLED" %}
+                  <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width:28px; height:28px; font-size: 0.8rem;">
+                    <i class="fa-solid fa-check"></i>
+                  </div>
+                  <div class="small fw-semibold text-dark">Application Submitted &amp; Queued</div>
+                {% else %}
+                  <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width:28px; height:28px; font-size: 0.8rem;">
+                    <i class="fa-solid fa-minus"></i>
+                  </div>
+                  <div class="small text-muted">Final Submission Pending</div>
+                {% endif %}
+              </li>
+
+            </ul>
+          </div>
+        </div>
+
+        <!-- Action Card: Pay Fee OR Explicit Submit -->
+        {% if not application.fee_paid %}
+          <div class="card border-warning border-2 shadow-sm rounded-4 p-4 text-center bg-warning-subtle">
+            <i class="fa-solid fa-credit-card text-warning-emphasis fs-2 mb-2"></i>
+            <h5 class="fw-bold text-dark mb-1">Pay Application Fee</h5>
+            <p class="small text-muted mb-3">Amount Due: <strong class="text-dark fs-6">KES {{ fee_amount|intcomma }}</strong></p>
+            <a href="{% url 'university:pay_application_fee' application.pk %}?access={{ application_access_token }}" class="btn btn-warning w-100 py-2.5 rounded-pill fw-bold shadow-sm">
+              Pay KES {{ fee_amount|intcomma }} Now <i class="fa-solid fa-arrow-right ms-1"></i>
+            </a>
+          </div>
+        {% elif application.status == "READY_FOR_SUBMISSION" or application.status == "PAID" %}
+          <div class="card border-primary border-2 shadow-sm rounded-4 p-4 text-center bg-primary-subtle">
+            <i class="fa-solid fa-paper-plane text-primary fs-2 mb-2"></i>
+            <h5 class="fw-bold text-dark mb-1">Ready for Submission</h5>
+            <p class="small text-muted mb-3">Payment verified! Click below to explicitly submit your application for admissions review.</p>
+            <form method="post" action="{% url 'university:submit_application' application.pk %}">
+              {% csrf_token %}
+              <input type="hidden" name="access" value="{{ application_access_token }}">
+              <button type="submit" class="btn btn-primary w-100 py-2.5 rounded-pill fw-bold shadow-sm">
+                Submit Application Now <i class="fa-solid fa-paper-plane ms-1"></i>
+              </button>
+            </form>
+          </div>
+        {% else %}
+          <div class="card border-success border-2 shadow-sm rounded-4 p-4 text-center bg-success-subtle">
+            <i class="fa-solid fa-circle-check text-success fs-2 mb-2"></i>
+            <h6 class="fw-bold text-success mb-1">Application Submitted</h6>
+            <p class="small text-muted mb-0">Your application is undergoing formal review by the Admissions Committee.</p>
+          </div>
+        {% endif %}
+
+      </div>
+
+    </div>
+
+  {% endif %}
+
+</div>
+{% endblock %}

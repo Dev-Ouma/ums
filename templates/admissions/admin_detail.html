@@ -138,6 +138,68 @@
           </div>
         </div>
 
+        <!-- 2.5. Parent / Guardian & Emergency Contact Coordinates -->
+        <div class="mb-3 pb-3 border-bottom border-light-subtle">
+          <div class="text-muted small text-uppercase fw-bold mb-2" style="font-size: 0.72rem; letter-spacing: 0.5px;">
+            <i class="fa-solid fa-people-roof text-primary me-1"></i>Parent / Guardian &amp; Emergency Contact
+          </div>
+          <div class="row g-3">
+            <div class="col-12 col-md-4">
+              <span class="text-muted small d-block">Guardian Full Name</span>
+              <span class="fw-bold text-dark">{{ app.guardian_name|default:"Not specified" }}</span>
+            </div>
+            <div class="col-6 col-md-3">
+              <span class="text-muted small d-block">Relationship</span>
+              <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-2.5 py-0.5">
+                {{ app.guardian_relationship|default:"Parent" }}
+              </span>
+            </div>
+            <div class="col-6 col-md-5">
+              <span class="text-muted small d-block">Primary Contact Phone</span>
+              {% if app.guardian_phone %}
+                <a href="tel:{{ app.guardian_phone }}" class="fw-bold text-dark text-decoration-none font-monospace">
+                  <i class="fa-solid fa-phone text-success me-1 small"></i>{{ app.guardian_phone }}
+                </a>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </div>
+            {% if app.guardian_email or app.guardian_alternative_phone %}
+              <div class="col-12 col-md-6">
+                <span class="text-muted small d-block">Guardian Email</span>
+                {% if app.guardian_email %}
+                  <a href="mailto:{{ app.guardian_email }}" class="fw-semibold text-dark text-decoration-none text-break">
+                    <i class="fa-solid fa-envelope text-primary me-1 small"></i>{{ app.guardian_email }}
+                  </a>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </div>
+              <div class="col-12 col-md-6">
+                <span class="text-muted small d-block">Alternative Phone</span>
+                <span class="fw-semibold text-dark">{{ app.guardian_alternative_phone|default:"—" }}</span>
+              </div>
+            {% endif %}
+            {% if app.guardian_address or app.guardian_occupation %}
+              <div class="col-12 col-md-6">
+                <span class="text-muted small d-block">Occupation / Employer</span>
+                <span class="fw-semibold text-dark">{{ app.guardian_occupation|default:"—" }}{% if app.guardian_employer %} ({{ app.guardian_employer }}){% endif %}</span>
+              </div>
+              <div class="col-12 col-md-6">
+                <span class="text-muted small d-block">Guardian Address &amp; Country</span>
+                <span class="fw-semibold text-dark"><i class="fa-solid fa-location-dot text-warning me-1 small"></i>{{ app.guardian_address|default:"—" }} ({{ app.guardian_country|default:"Kenya" }})</span>
+              </div>
+            {% endif %}
+            {% if app.is_guardian_emergency_contact %}
+              <div class="col-12">
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1">
+                  <i class="fa-solid fa-phone-volume me-1"></i> Designated as Primary Next of Kin &amp; Emergency Contact
+                </span>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
         <!-- 3. Secondary School Academic Qualifications -->
         <div class="{% if app.fee_payments.exists %}mb-3 pb-3 border-bottom border-light-subtle{% endif %}">
           <div class="text-muted small text-uppercase fw-bold mb-2" style="font-size: 0.72rem; letter-spacing: 0.5px;">

@@ -14,6 +14,11 @@ from django.views.decorators.http import require_POST
 
 from decimal import Decimal, InvalidOperation
 import re
+import os
+import uuid
+
+from django.contrib.auth import authenticate, login
+from django.db.models import Q
 
 from university.decorators import role_required
 from accounts.models import Role
@@ -23,11 +28,17 @@ from university.admissions_services import (
     generate_application_number,
     matriculate_applicant,
 )
+from university.applicant_auth_services import (
+    register_applicant,
+    verify_applicant_otp,
+    get_applicant_active_application,
+)
 from university.models import (
     AcademicYear, Application, ApplicationAttachment,
     ApplicationCustomField, ApplicationCustomFieldValue,
-    ApplicationFeePayment, Intake, Program
+    ApplicationFeePayment, AuditLog, Intake, Program
 )
+from university.audit_services import log_activity
 from university.upload_security import validate_uploaded_file
 from university.settings_services import get_setting
 
@@ -175,12 +186,118 @@ def remove_admission_document(request):
     return JsonResponse({"success": True, "message": "Document removed successfully."})
 
 
+def applicant_register(request):
+    """Applicant account creation / express interest view."""
+    if request.user.is_authenticated and getattr(request.user, "role", "") == Role.APPLICANT:
+        return redirect("university:applicant_dashboard")
+
+    if request.method == "POST":
+        first_name = request.POST.get("first_name", "").strip()
+        last_name = request.POST.get("last_name", "").strip()
+        email = request.POST.get("email", "").strip().lower()
+        phone = request.POST.get("phone", "").strip()
+        password = request.POST.get("password", "").strip()
+
+        try:
+            user, otp = register_applicant(request, first_name, last_name, email, phone, password)
+            messages.success(request, f"Verification code sent to {email}. Please enter the 6-digit OTP below.")
+            return redirect(f"{reverse('university:applicant_verify_otp')}?email={email}")
+        except ValidationError as e:
+            messages.error(request, e.message if hasattr(e, "message") else str(e))
+
+    return render(request, "admissions/applicant_register.html")
+
+
+def applicant_verify_otp(request):
+    """OTP Verification view for newly registered applicants."""
+    email = request.GET.get("email", "").strip().lower() or request.POST.get("email", "").strip().lower()
+    pending = request.session.get("applicant_pending_verification", {})
+
+    if request.method == "POST":
+        otp_code = request.POST.get("otp_code", "").strip()
+        try:
+            user = verify_applicant_otp(request, email, otp_code)
+            messages.success(request, f"Welcome {user.first_name}! Your applicant account is verified.")
+            return redirect("university:applicant_dashboard")
+        except ValidationError as e:
+            messages.error(request, e.message if hasattr(e, "message") else str(e))
+
+    demo_otp = pending.get("otp_code") if pending.get("email") == email else ""
+
+    return render(request, "admissions/applicant_verify_otp.html", {
+        "email": email,
+        "demo_otp": demo_otp,
+    })
+
+
+def applicant_login(request):
+    """Applicant sign in."""
+    if request.user.is_authenticated:
+        if getattr(request.user, "role", "") == Role.APPLICANT:
+            return redirect("university:applicant_dashboard")
+        return redirect("university:dashboard")
+
+    if request.method == "POST":
+        identifier = request.POST.get("username", "").strip()
+        password = request.POST.get("password", "").strip()
+
+        user = authenticate(request, username=identifier, password=password)
+        if not user and "@" in identifier:
+            from django.contrib.auth import get_user_model
+            U = get_user_model()
+            u_obj = U.objects.filter(email__iexact=identifier).first()
+            if u_obj:
+                user = authenticate(request, username=u_obj.username, password=password)
+
+        if user:
+            login(request, user)
+            messages.success(request, f"Welcome back, {user.get_full_name() or user.username}!")
+            if user.role == Role.APPLICANT:
+                return redirect("university:applicant_dashboard")
+            return redirect("university:dashboard")
+        else:
+            messages.error(request, "Invalid email/username or password. Please try again.")
+
+    return render(request, "admissions/applicant_login.html")
+
+
+def applicant_dashboard(request):
+    """Applicant Dashboard showing live status, checklist, fee payment, and final submission."""
+    if not request.user.is_authenticated:
+        return redirect("university:applicant_login")
+
+    applications = Application.objects.filter(
+        Q(applicant_user=request.user) | Q(email__iexact=request.user.email)
+    ).select_related("program", "intake").prefetch_related("fee_payments", "attachments").order_by("-created_at")
+
+    active_app = applications.first()
+    fee_amount = get_setting("application_fee_default", default=Decimal("1000.00"))
+
+    return render(request, "admissions/applicant_dashboard.html", {
+        "applicant": request.user,
+        "applications": applications,
+        "application": active_app,
+        "fee_amount": fee_amount,
+        "application_access_token": application_access_token(active_app) if active_app else "",
+    })
+
+
 def apply(request):
-    """Public prospective student application form."""
+    """Prospective student application form with Guardian Details & authenticated applicant support."""
     active_intake = Intake.objects.filter(is_active=True).first()
     programs = Program.objects.filter(status=Program.Status.ACTIVE).select_related("department")
     custom_fields = ApplicationCustomField.objects.filter(is_active=True)
     draft_docs = request.session.get("draft_application_documents", {})
+
+    # Prepopulate for authenticated applicant
+    initial_data = {}
+    if request.user.is_authenticated:
+        initial_data = {
+            "first_name": request.user.first_name,
+            "last_name": request.user.last_name,
+            "email": request.user.email,
+            "phone": request.user.phone if request.user.phone != "0000" else "",
+        }
 
     if request.method == "POST":
         errors = []
@@ -198,6 +315,18 @@ def apply(request):
         national_id = request.POST.get("national_id", "").strip()
         address = request.POST.get("address", "").strip()
 
+        # Guardian Details
+        guardian_name = request.POST.get("guardian_name", "").strip()
+        guardian_relationship = request.POST.get("guardian_relationship", "Parent").strip()
+        guardian_phone = request.POST.get("guardian_phone", "").strip()
+        guardian_alternative_phone = request.POST.get("guardian_alternative_phone", "").strip()
+        guardian_email = request.POST.get("guardian_email", "").strip().lower()
+        guardian_address = request.POST.get("guardian_address", "").strip()
+        guardian_country = request.POST.get("guardian_country", "Kenya").strip()
+        guardian_occupation = request.POST.get("guardian_occupation", "").strip()
+        guardian_employer = request.POST.get("guardian_employer", "").strip()
+        is_guardian_emergency = request.POST.get("is_guardian_emergency_contact") in ("on", "true", "1", True)
+
         try:
             parsed_dob = date.fromisoformat(dob)
         except ValueError:
@@ -210,6 +339,27 @@ def apply(request):
             errors.append("Enter a valid email address.")
         if gender not in {choice[0] for choice in Application._meta.get_field("gender").choices}:
             errors.append("Please select a valid gender.")
+
+        # Guardian Validation
+        if "guardian_name" in request.POST or "guardian_phone" in request.POST:
+            if not guardian_name:
+                errors.append("Please provide the full name of your parent, guardian, or sponsor.")
+            if not guardian_phone:
+                errors.append("Please provide the primary contact phone number for your guardian.")
+            elif len(re.sub(r"[^0-9+]", "", guardian_phone)) < 7:
+                errors.append("Please enter a valid primary phone number for your guardian (at least 7 digits).")
+        else:
+            if not guardian_name:
+                guardian_name = f"Parent of {first_name}" if first_name else "Parent / Guardian"
+            if not guardian_phone:
+                guardian_phone = phone
+
+        if guardian_email:
+            try:
+                from django.forms import EmailField
+                EmailField().clean(guardian_email)
+            except ValidationError:
+                errors.append("Enter a valid email address for your guardian.")
 
         secondary_school = request.POST.get("secondary_school", "").strip()
         kcse_index = request.POST.get("kcse_index_number", "").strip()
@@ -250,11 +400,14 @@ def apply(request):
                 "custom_fields": custom_fields,
                 "data": request.POST,
                 "draft_documents": draft_docs,
+                "guardian_relationships": Application.GUARDIAN_RELATIONSHIPS,
             })
 
+        applicant_user = request.user if request.user.is_authenticated and getattr(request.user, "role", "") in (Role.APPLICANT, Role.STUDENT) else None
         app_num = generate_application_number(active_intake)
         application = Application.objects.create(
             application_number=app_num,
+            applicant_user=applicant_user,
             intake=active_intake,
             program=program,
             first_name=first_name,
@@ -265,11 +418,21 @@ def apply(request):
             gender=gender,
             national_id=national_id,
             address=address,
+            guardian_name=guardian_name,
+            guardian_relationship=guardian_relationship,
+            guardian_phone=guardian_phone,
+            guardian_alternative_phone=guardian_alternative_phone,
+            guardian_email=guardian_email,
+            guardian_address=guardian_address,
+            guardian_country=guardian_country,
+            guardian_occupation=guardian_occupation,
+            guardian_employer=guardian_employer,
+            is_guardian_emergency_contact=is_guardian_emergency,
             secondary_school=secondary_school,
             kcse_index_number=kcse_index,
             kcse_mean_grade=kcse_grade,
             kcse_year=int(kcse_year) if kcse_year.isdigit() else 2025,
-            status=Application.Status.SUBMITTED,
+            status=Application.Status.READY_FOR_PAYMENT,
         )
 
         # Save Custom Field Values
@@ -335,11 +498,25 @@ def apply(request):
         request.session.pop("draft_application_documents", None)
         request.session.modified = True
 
+        log_activity(
+            request=request,
+            user=request.user if request.user.is_authenticated else None,
+            action=AuditLog.Action.CREATE,
+            module=AuditLog.Module.ACADEMICS,
+            entity="Application",
+            entity_id=application.pk,
+            description=f"Application {application.application_number} created with complete Guardian Details.",
+        )
+
         messages.success(
             request,
-            f"Application submitted successfully! Your application reference number is {application.application_number}. "
-            f"Please pay the application fee to complete your submission."
+            f"Application saved successfully! Reference Number: {application.application_number}. "
+            f"Please proceed to pay the application processing fee."
         )
+
+        if request.user.is_authenticated and getattr(request.user, "role", "") in (Role.APPLICANT, Role.STUDENT):
+            return redirect(f"{reverse('university:pay_application_fee', args=[application.pk])}?access={application_access_token(application)}")
+
         return redirect(
             f"{reverse('university:pay_application_fee', args=[application.pk])}"
             f"?access={application_access_token(application)}")
@@ -349,57 +526,131 @@ def apply(request):
         "intake": active_intake,
         "custom_fields": custom_fields,
         "draft_documents": draft_docs,
+        "guardian_relationships": Application.GUARDIAN_RELATIONSHIPS,
+        "data": initial_data,
     })
 
 
-
 def pay_application_fee(request, pk):
-    """Public: pay the non-refundable application processing fee before the
-    application is queued for staff review."""
+    """Pay the application processing fee with server-side validation and receipt generation."""
     application = get_object_or_404(Application, pk=pk)
     access_token = request.GET.get("access") or request.POST.get("access")
     authorized_application = application_from_access_token(access_token)
     token_valid = bool(authorized_application and authorized_application.pk == application.pk)
+    is_owner = request.user.is_authenticated and (
+        application.applicant_user_id == request.user.id or application.email.lower() == request.user.email.lower()
+    )
     is_staff = request.user.is_authenticated and (
         request.user.is_staff or request.user.is_superuser or getattr(request.user, "role", "") in (Role.ADMIN, "ADMIN")
     )
-    if not (token_valid or is_staff):
-        return HttpResponse("Application access token required.", status=403)
+    if not (token_valid or is_owner or is_staff):
+        messages.error(request, "Please log in to access this application payment.")
+        return redirect("university:applicant_login")
+
     fee_amount = get_setting("application_fee_default", default=Decimal("1000.00"))
 
     if application.fee_paid:
-        messages.info(request, "The application fee has already been paid for this application.")
-        return redirect(
-            f"{reverse('university:admissions_status')}?access={application_access_token(application)}")
+        messages.info(request, "The application fee has already been paid and verified.")
+        if request.user.is_authenticated and getattr(request.user, "role", "") == Role.APPLICANT:
+            return redirect("university:applicant_dashboard")
+        return redirect(f"{reverse('university:admissions_status')}?access={application_access_token(application)}")
 
     if request.method == "POST":
         method = request.POST.get("method", ApplicationFeePayment.Method.MPESA)
         reference = request.POST.get("reference", "").strip()
+
         if not reference:
-            messages.error(request, "Please enter the transaction reference number from your payment channel.")
+            messages.error(request, "Please enter your payment reference / transaction code.")
         elif method not in ApplicationFeePayment.Method.values:
             messages.error(request, "Please select a valid payment method.")
         elif not re.fullmatch(r"[A-Za-z0-9._/-]{3,60}", reference):
-            messages.error(request, "Enter a valid payment reference using 3 to 60 letters, numbers, or - _ . / characters.")
+            messages.error(request, "Enter a valid payment reference using 3 to 60 alphanumeric characters.")
         elif ApplicationFeePayment.objects.filter(reference__iexact=reference).exists():
             messages.error(request, "That payment reference has already been recorded. Check the reference or contact Admissions.")
         else:
-            # No real payment gateway is integrated; the channel confirmation is
-            # simulated here, matching how other payments are recorded in this system.
-            ApplicationFeePayment.objects.create(
-                application=application, amount=fee_amount, method=method, reference=reference,
-                status=ApplicationFeePayment.Status.CONFIRMED, confirmed_at=timezone.now(),
+            receipt_no = f"PAY-{timezone.now().year}-{ApplicationFeePayment.objects.count() + 10001:06d}"
+            payment = ApplicationFeePayment.objects.create(
+                application=application,
+                applicant_user=request.user if request.user.is_authenticated else application.applicant_user,
+                receipt_number=receipt_no,
+                amount=fee_amount,
+                method=method,
+                reference=reference,
+                status=ApplicationFeePayment.Status.CONFIRMED,
+                confirmed_at=timezone.now(),
             )
-            messages.success(request, "Payment confirmed! Your application is now queued for processing.")
-            return redirect(
-                f"{reverse('university:admissions_status')}"
-                f"?access={application_access_token(application)}")
+            # Update status to READY_FOR_SUBMISSION
+            application.status = Application.Status.READY_FOR_SUBMISSION
+            application.save(update_fields=["status"])
+
+            log_activity(
+                request=request,
+                user=request.user if request.user.is_authenticated else None,
+                action=AuditLog.Action.CREATE,
+                module=AuditLog.Module.FEES,
+                entity="ApplicationFeePayment",
+                entity_id=payment.pk,
+                description=f"Application fee of KES {fee_amount} paid for application {application.application_number}. Receipt: {receipt_no}",
+            )
+
+            messages.success(
+                request,
+                f"Payment of KES {fee_amount:,.2f} confirmed! Receipt: {receipt_no}. "
+                f"Your application is now ready for final submission."
+            )
+            if request.user.is_authenticated and getattr(request.user, "role", "") == Role.APPLICANT:
+                return redirect("university:applicant_dashboard")
+            return redirect(f"{reverse('university:admissions_status')}?access={application_access_token(application)}")
 
     return render(request, "admissions/pay_fee.html", {
-        "application": application, "fee_amount": fee_amount,
+        "application": application,
+        "fee_amount": fee_amount,
         "methods": ApplicationFeePayment.Method.choices,
-        "application_access_token": access_token,
+        "application_access_token": access_token or application_access_token(application),
     })
+
+
+@require_POST
+def submit_application(request, pk):
+    """Explicit final submission of an application after payment is confirmed."""
+    application = get_object_or_404(Application, pk=pk)
+    access_token = request.POST.get("access") or request.GET.get("access")
+    authorized_application = application_from_access_token(access_token)
+    token_valid = bool(authorized_application and authorized_application.pk == application.pk)
+    is_owner = request.user.is_authenticated and (
+        application.applicant_user_id == request.user.id or application.email.lower() == request.user.email.lower()
+    )
+    is_staff = request.user.is_authenticated and (
+        request.user.is_staff or request.user.is_superuser or getattr(request.user, "role", "") in (Role.ADMIN, "ADMIN")
+    )
+
+    if not (token_valid or is_owner or is_staff):
+        messages.error(request, "Access denied to submit this application.")
+        return redirect("university:applicant_login")
+
+    if not application.fee_paid:
+        messages.error(request, "Application fee must be paid and verified before final submission.")
+        return redirect(f"{reverse('university:pay_application_fee', args=[application.pk])}?access={application_access_token(application)}")
+
+    if application.status in [Application.Status.SUBMITTED, Application.Status.UNDER_REVIEW, Application.Status.ACCEPTED, Application.Status.ENROLLED]:
+        messages.info(request, "Your application has already been submitted.")
+    else:
+        application.status = Application.Status.SUBMITTED
+        application.save(update_fields=["status"])
+        log_activity(
+            request=request,
+            user=request.user if request.user.is_authenticated else None,
+            action=AuditLog.Action.UPDATE,
+            module=AuditLog.Module.ADMISSIONS,
+            entity="Application",
+            entity_id=application.pk,
+            description=f"Application {application.application_number} explicitly submitted for review.",
+        )
+        messages.success(request, f"Application {application.application_number} submitted successfully! Your application is now queued for admissions review.")
+
+    if request.user.is_authenticated and getattr(request.user, "role", "") == Role.APPLICANT:
+        return redirect("university:applicant_dashboard")
+    return redirect(f"{reverse('university:admissions_status')}?access={application_access_token(application)}")
 
 
 def application_status(request):
