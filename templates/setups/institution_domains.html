@@ -89,7 +89,7 @@
             <div class="alert alert-info border-0 rounded-4 p-3 mb-4 d-flex align-items-start gap-3">
               <i class="fa-solid fa-circle-info fs-5 text-info mt-0.5"></i>
               <div class="small">
-                <strong>Dynamic Domain Derivation:</strong> Changing the <em>Primary University Root Domain</em> will automatically derive the staff domain (<code id="infoStaff">@{{ settings.primary_domain }}</code>) and student domain (<code id="infoStudent">@students.{{ settings.primary_domain }}</code>), unless explicitly overridden below.
+                <strong>Dynamic Domain Derivation:</strong> Changing the <em>Primary University Root Domain</em> will automatically derive the staff domain (<code id="infoStaff">@{{ settings.primary_domain }}</code>) and student domain (<code id="infoStudent">@student.{{ settings.primary_domain }}</code>), unless explicitly overridden below.
               </div>
             </div>
 
@@ -121,7 +121,7 @@
                   <input type="text" id="id_student_email_subdomain_prefix" name="student_email_subdomain_prefix" class="form-control font-monospace" value="{{ settings.student_email_subdomain_prefix }}" oninput="handlePrefixChange()">
                   <span class="input-group-text bg-light text-muted">.{root_domain}</span>
                 </div>
-                <div class="form-text small">E.g., <code>students</code> or <code>student</code>.</div>
+                <div class="form-text small">E.g., <code>student</code> or <code>students</code>.</div>
               </div>
 
               <div class="col-12">
@@ -130,7 +130,7 @@
                   <span class="input-group-text bg-light text-muted">@</span>
                   <input type="text" id="id_email_student_domain" name="email_student_domain" class="form-control rounded-end-3 font-monospace" value="{{ settings.student_email_domain }}" required oninput="updateLivePreview()">
                 </div>
-                <div class="form-text small">Assigned to students (e.g. <code>students.ums.ac.ke</code>).</div>
+                <div class="form-text small">Assigned to students (e.g. <code>student.ums.ac.ke</code>).</div>
               </div>
             </div>
 
@@ -387,7 +387,7 @@ function handleRootDomainChange() {
   const studentInput = document.getElementById('id_email_student_domain');
 
   const root = cleanDomain(rootInput.value);
-  const prefix = (prefixInput.value || "students").trim().toLowerCase().replace(/^\.+|\.+$/g, '');
+  const prefix = (prefixInput.value || "student").trim().toLowerCase().replace(/^\.+|\.+$/g, '');
 
   staffInput.value = root;
   studentInput.value = prefix ? `${prefix}.${root}` : root;
@@ -404,7 +404,7 @@ function handlePrefixChange() {
   const studentInput = document.getElementById('id_email_student_domain');
 
   const root = cleanDomain(rootInput.value);
-  const prefix = (prefixInput.value || "students").trim().toLowerCase().replace(/^\.+|\.+$/g, '');
+  const prefix = (prefixInput.value || "student").trim().toLowerCase().replace(/^\.+|\.+$/g, '');
 
   studentInput.value = prefix ? `${prefix}.${root}` : root;
   document.getElementById('infoStudent').innerText = `@${prefix ? prefix + '.' : ''}${root}`;
@@ -419,13 +419,13 @@ function updateLivePreview() {
   const admInput = document.getElementById('id_admissions_email');
 
   document.getElementById('previewStaffEmail').innerText = `m.wabs@${staffDomain || 'ums.ac.ke'}`;
-  document.getElementById('previewStudentEmail').innerText = `cs012026@${studentDomain || 'students.ums.ac.ke'}`;
+  document.getElementById('previewStudentEmail').innerText = `cs012026@${studentDomain || 'student.ums.ac.ke'}`;
   document.getElementById('previewAdmissionsEmail').innerText = admInput.value || `admissions@${staffDomain || 'ums.ac.ke'}`;
 
   // Update modal preview
   document.getElementById('modalTargetRoot').innerText = rootDomain || 'ums.ac.ke';
   document.getElementById('modalTargetStaff').innerText = `@${staffDomain || 'ums.ac.ke'}`;
-  document.getElementById('modalTargetStudent').innerText = `@${studentDomain || 'students.ums.ac.ke'}`;
+  document.getElementById('modalTargetStudent').innerText = `@${studentDomain || 'student.ums.ac.ke'}`;
 }
 
 document.addEventListener('DOMContentLoaded', () => {

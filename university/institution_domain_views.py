@@ -64,7 +64,7 @@ def api_preview_domain_migration(request):
     primary_domain = request.GET.get("primary_domain") or request.POST.get("primary_domain") or ""
     staff_domain = request.GET.get("staff_email_domain") or request.POST.get("staff_email_domain") or ""
     student_domain = request.GET.get("email_student_domain") or request.POST.get("email_student_domain") or ""
-    student_prefix = request.GET.get("student_email_subdomain_prefix") or request.POST.get("student_email_subdomain_prefix") or "students"
+    student_prefix = request.GET.get("student_email_subdomain_prefix") or request.POST.get("student_email_subdomain_prefix") or "student"
     inst_name = request.GET.get("institution_name") or request.POST.get("institution_name") or ""
     short_name = request.GET.get("institution_short_name") or request.POST.get("institution_short_name") or ""
 
@@ -96,7 +96,7 @@ def execute_domain_migration_view(request):
     primary_domain = clean_domain(request.POST.get("primary_domain", "").strip())
     staff_domain = clean_domain(request.POST.get("staff_email_domain", "").strip())
     student_domain = clean_domain(request.POST.get("email_student_domain", "").strip())
-    student_prefix = request.POST.get("student_email_subdomain_prefix", "students").strip().lower()
+    student_prefix = request.POST.get("student_email_subdomain_prefix", "student").strip().lower()
     website_url = request.POST.get("website_url", "").strip()
     portal_url = request.POST.get("portal_url", "").strip()
     admissions_email = request.POST.get("admissions_email", "").strip()

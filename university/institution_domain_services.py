@@ -36,7 +36,7 @@ def clean_domain(domain_str):
     return d
 
 
-def derive_subdomains(primary_domain, student_prefix="students"):
+def derive_subdomains(primary_domain, student_prefix="student"):
     """
     Derive default staff and student domains from the primary root domain.
     Staff domain defaults to root domain (@domain.ac.ke).
@@ -52,7 +52,7 @@ def derive_subdomains(primary_domain, student_prefix="students"):
         "primary_domain": cleaned_root,
         "staff_domain": staff_domain,
         "student_domain": student_domain,
-        "student_prefix": cleaned_prefix or "students",
+        "student_prefix": cleaned_prefix or "student",
     }
 
 
@@ -62,7 +62,7 @@ def get_institution_settings():
     Single source of truth used across all modules, templates, and services.
     """
     primary_domain = clean_domain(get_setting("primary_domain", "ums.ac.ke")) or "ums.ac.ke"
-    student_prefix = (get_setting("student_email_subdomain_prefix", "students") or "students").strip().lower()
+    student_prefix = (get_setting("student_email_subdomain_prefix", "student") or "student").strip().lower()
     derived = derive_subdomains(primary_domain, student_prefix)
 
     # Allow custom explicit override of staff and student email domains
@@ -235,7 +235,7 @@ def is_institutional_email(email):
 # ==============================================================================
 
 def preview_domain_migration(new_primary_domain, new_staff_domain=None, new_student_domain=None,
-                             new_student_prefix="students", new_institution_name=None, new_short_name=None):
+                             new_student_prefix="student", new_institution_name=None, new_short_name=None):
     """
     Calculate a dry-run migration preview without altering any database records.
     Returns counts of affected accounts, sample email transformations, and migration policies.

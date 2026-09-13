@@ -56,7 +56,7 @@ class InstitutionDomainArchitectureTests(TestCase):
             username="cs012026",
             first_name="Amina",
             last_name="Ouma",
-            email="cs012026@students.ums.ac.ke",
+            email="cs012026@student.ums.ac.ke",
             password="Password123!",
             role=Role.STUDENT,
         )
@@ -71,7 +71,7 @@ class InstitutionDomainArchitectureTests(TestCase):
         )
         self.student_inst_email = InstitutionalEmail.objects.create(
             user=self.student_user,
-            address="cs012026@students.ums.ac.ke",
+            address="cs012026@student.ums.ac.ke",
             kind=UserType.STUDENT,
             status=InstitutionalEmail.Status.ACTIVE,
             is_primary=True,
@@ -82,10 +82,10 @@ class InstitutionDomainArchitectureTests(TestCase):
         self.assertEqual(clean_domain("https://UMS.AC.KE/"), "ums.ac.ke")
         self.assertEqual(clean_domain("@newuniversity.ac.ke"), "newuniversity.ac.ke")
 
-        derived = derive_subdomains("newuniversity.ac.ke", student_prefix="students")
+        derived = derive_subdomains("newuniversity.ac.ke", student_prefix="student")
         self.assertEqual(derived["primary_domain"], "newuniversity.ac.ke")
         self.assertEqual(derived["staff_domain"], "newuniversity.ac.ke")
-        self.assertEqual(derived["student_domain"], "students.newuniversity.ac.ke")
+        self.assertEqual(derived["student_domain"], "student.newuniversity.ac.ke")
 
         derived_custom = derive_subdomains("globaltech.edu", student_prefix="learn")
         self.assertEqual(derived_custom["student_domain"], "learn.globaltech.edu")
@@ -96,7 +96,7 @@ class InstitutionDomainArchitectureTests(TestCase):
         self.assertEqual(staff_email, "michael.wabs@ums.ac.ke")
 
         student_email = generate_student_email(reg_number="CS/01/2026")
-        self.assertEqual(student_email, "cs012026@students.ums.ac.ke")
+        self.assertEqual(student_email, "cs012026@student.ums.ac.ke")
 
     def test_server_side_email_validation(self):
         """Test strict domain validation for staff and student addresses."""
@@ -107,14 +107,14 @@ class InstitutionDomainArchitectureTests(TestCase):
         self.assertFalse(invalid)
         self.assertIn("Staff email must belong to the official domain", err)
 
-        valid_student, _ = validate_student_email("cs012026@students.ums.ac.ke", reg_no="CS/01/2026")
+        valid_student, _ = validate_student_email("cs012026@student.ums.ac.ke", reg_no="CS/01/2026")
         self.assertTrue(valid_student)
 
         invalid_student_domain, err = validate_student_email("cs012026@ums.ac.ke")
         self.assertFalse(invalid_student_domain)
 
         self.assertTrue(is_institutional_email("dean@ums.ac.ke"))
-        self.assertTrue(is_institutional_email("cs012026@students.ums.ac.ke"))
+        self.assertTrue(is_institutional_email("cs012026@student.ums.ac.ke"))
         self.assertFalse(is_institutional_email("outsider@external.com"))
 
     def test_preview_domain_migration_calculation(self):
@@ -122,7 +122,8 @@ class InstitutionDomainArchitectureTests(TestCase):
         preview = preview_domain_migration(
             new_primary_domain="newuniversity.ac.ke",
             new_staff_domain="newuniversity.ac.ke",
-            new_student_domain="students.newuniversity.ac.ke",
+            new_student_domain="student.newuniversity.ac.ke",
+            new_student_prefix="student",
             new_institution_name="New University of Science",
             new_short_name="NUST",
         )
@@ -132,7 +133,7 @@ class InstitutionDomainArchitectureTests(TestCase):
         self.assertGreaterEqual(preview["student_affected_count"], 1)
         self.assertEqual(preview["target"]["primary_domain"], "newuniversity.ac.ke")
         self.assertEqual(preview["target"]["staff_email_domain"], "newuniversity.ac.ke")
-        self.assertEqual(preview["target"]["student_email_domain"], "students.newuniversity.ac.ke")
+        self.assertEqual(preview["target"]["student_email_domain"], "student.newuniversity.ac.ke")
 
     def test_execute_domain_migration_with_alias_preservation(self):
         """Test full migration execution: settings update, email rotation, alias archiving, and audit trail."""
@@ -141,8 +142,8 @@ class InstitutionDomainArchitectureTests(TestCase):
             "institution_short_name": "ANU",
             "primary_domain": "apex.ac.ke",
             "staff_email_domain": "apex.ac.ke",
-            "student_email_domain": "students.apex.ac.ke",
-            "student_email_subdomain_prefix": "students",
+            "student_email_domain": "student.apex.ac.ke",
+            "student_email_subdomain_prefix": "student",
         }
 
         record = execute_domain_migration(
@@ -159,7 +160,7 @@ class InstitutionDomainArchitectureTests(TestCase):
         current = get_institution_settings()
         self.assertEqual(current["primary_domain"], "apex.ac.ke")
         self.assertEqual(current["staff_email_domain"], "apex.ac.ke")
-        self.assertEqual(current["student_email_domain"], "students.apex.ac.ke")
+        self.assertEqual(current["student_email_domain"], "student.apex.ac.ke")
 
         # Verify staff email rotation and alias archiving
         old_staff_email = InstitutionalEmail.objects.get(id=self.staff_inst_email.id)
@@ -183,7 +184,7 @@ class InstitutionDomainArchitectureTests(TestCase):
             user=self.student_user, is_primary=True
         ).first()
         self.assertIsNotNone(new_student_email)
-        self.assertEqual(new_student_email.address, "cs012026@students.apex.ac.ke")
+        self.assertEqual(new_student_email.address, "cs012026@student.apex.ac.ke")
 
         # Verify AuditLog created
         audit = AuditLog.objects.filter(entity="InstitutionalDomainSettings").order_by("-id").first()

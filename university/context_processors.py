@@ -55,7 +55,7 @@ def theme_and_notifications(request):
         "institution_settings": inst_settings,
         "primary_domain": inst_settings.get("primary_domain", "ums.ac.ke"),
         "staff_email_domain": inst_settings.get("staff_email_domain", "ums.ac.ke"),
-        "student_email_domain": inst_settings.get("student_email_domain", "students.ums.ac.ke"),
+        "student_email_domain": inst_settings.get("student_email_domain", "student.ums.ac.ke"),
         "asset_version": _asset_version() if settings.DEBUG else _STATIC_ASSET_VERSION,
         "active_modules": registry["active_module_codes"],
         "active_submodules": registry["active_submodule_codes"],
