@@ -248,20 +248,33 @@ def terminate_sessions(r, user_ids=None):
             session.delete()
 
 
-def notify_restriction(r,event):
-    marker, created = ControlNotification.objects.get_or_create(restriction=r,event=event)
+def notify_restriction(r, event):
+    if event in {'complete', 'cancel'}:
+        # When maintenance is complete or cancelled, expire all associated banners immediately
+        Notice.objects.filter(restriction=r).update(status='EXPIRED')
+        return
+
+    marker, created = ControlNotification.objects.get_or_create(restriction=r, event=event)
     if not created:
         return
     body = r.notification_message or r.public_message
-    if event == 'complete':
-        body = 'System maintenance has been completed. Access is available subject to any other active restrictions.'
-    elif event.startswith('warning:'):
+    if event.startswith('warning:'):
         body = f'System maintenance begins in {event.split(":")[1]} minutes. ' + body
-    n = Notice.objects.create(title=r.title, body=body, message_type='MAINTENANCE', priority='HIGH', status='PUBLISHED',
-                              starts_at=timezone.now(), ends_at=r.ends_at if event not in {'complete','cancel'} else timezone.now()+timedelta(days=1),
-                              restriction=r, created_by=r.created_by, locations=['BANNER','IN_APP'])
+    n = Notice.objects.create(
+        title=r.title,
+        body=body,
+        message_type='MAINTENANCE',
+        priority='HIGH',
+        status='PUBLISHED',
+        starts_at=timezone.now(),
+        ends_at=r.ends_at,
+        restriction=r,
+        created_by=r.created_by,
+        locations=['BANNER', 'IN_APP']
+    )
     n.modules.set(r.modules.all())
-    marker.message=n; marker.save(update_fields=['message'])
+    marker.message = n
+    marker.save(update_fields=['message'])
 
 
 def audience_matches(n,user):
