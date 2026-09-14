@@ -10,7 +10,8 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
-from django.db.models import Case, Count, F, IntegerField, Q, When
+from django.db import transaction
+from django.db.models import Case, Count, F, IntegerField, Q, Sum, When
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -174,28 +175,38 @@ def dashboard(request):
     user = request.user
     from .models import StaffRoleAssignment
     roles = set(StaffRoleAssignment.objects.filter(user=user, is_active=True).values_list('role__code', flat=True))
+    active_role = request.session.get('active_role')
+    has_active_context = bool(active_role in roles)
+    if active_role in roles:
+        roles = {active_role}
 
     # 1. Specialized Admin Roles routing to their primary operational desks
-    if user.username == 'finance' or 'finance_officer' in roles:
+    if ('finance_officer' in roles) or (not has_active_context and user.username == 'finance'):
         return redirect("university:fee_accounts_dashboard")
 
-    if user.username == 'admissions' or 'admissions_officer' in roles:
+    if ('admissions_officer' in roles) or (not has_active_context and user.username == 'admissions'):
         return redirect("university:admin_admissions")
 
     if user.username == 'ictdirector' or (user.role == Role.ADMIN and 'identity_admin' in roles and not user.is_superuser and user.username != 'admin'):
         return redirect("university:user_dashboard")
 
-    if user.username == 'examofficer' or 'exam_officer' in roles:
+    if ('exam_officer' in roles) or (not has_active_context and user.username == 'examofficer'):
         return redirect("examinations:index")
 
     if user.username == 'auditor' or 'auditor' in roles:
         return redirect("university:audit_dashboard")
 
     # 2. Academic Leadership specialized dashboards
-    if 'dean' in roles or user.username == 'dean':
+    if 'vc' in roles or (not has_active_context and user.username == 'vc'):
+        return leadership_dashboard(request, 'vc')
+
+    if 'dvcaa' in roles or (not has_active_context and user.username == 'dvcaa'):
+        return leadership_dashboard(request, 'dvcaa')
+
+    if 'dean' in roles or (not has_active_context and user.username == 'dean'):
         return dean_dashboard(request)
 
-    if 'hod' in roles or user.username == 'hod':
+    if 'hod' in roles or (not has_active_context and user.username == 'hod'):
         return hod_dashboard(request)
 
     # 3. Base Administrator / Superuser dashboard
@@ -215,6 +226,61 @@ def dashboard(request):
     ctx["student"] = sp
     ctx["prediction"] = ai.student_prediction(sp)
     return render(request, "dashboard/student_dashboard.html", ctx)
+
+
+@require_POST
+@login_required
+def switch_role(request):
+    """Switch the authenticated user's active role context; never impersonates."""
+    from .models import StaffRoleAssignment
+    role_code = (request.POST.get("role") or "").strip().lower()
+    assignment = StaffRoleAssignment.objects.filter(user=request.user, role__code=role_code, is_active=True).select_related("role").first()
+    if not assignment:
+        messages.error(request, "That role is not currently assigned to your account.")
+        return safe_redirect(request, request.POST.get("next"), "university:dashboard")
+    request.session["active_role"] = assignment.role.code
+    request.session.modified = True
+    messages.success(request, f"Active role switched to {assignment.role.name}.")
+    return safe_redirect(request, request.POST.get("next"), "university:dashboard")
+
+
+@login_required
+def leadership_dashboard(request, leadership_role):
+    """Executive dashboards backed by live institutional and academic data."""
+    from .models import AcademicTerm, AcademicYear, Course, Department, Exam, Event, FeeInvoice, School
+    from accounts.models import FacultyProfile, StudentProfile
+
+    now = timezone.now()
+    current_term = AcademicTerm.objects.filter(is_current=True).select_related('academic_year').first()
+    context = {
+        'leadership_role': leadership_role,
+        'current_term': current_term,
+        'academic_year': AcademicYear.objects.filter(is_current=True).first(),
+        'student_count': StudentProfile.objects.filter(status=StudentProfile.Status.ACTIVE, user__is_active=True).count(),
+        'faculty_count': FacultyProfile.objects.filter(user__is_active=True).count(),
+        'school_count': School.objects.count(),
+        'department_count': Department.objects.count(),
+        'course_count': Course.objects.filter(status=Course.Status.ACTIVE).count(),
+        'active_exam_count': Exam.objects.filter(status__in=[Exam.Status.MARKING, Exam.Status.SUBMITTED, Exam.Status.HOD_APPROVED, Exam.Status.PUBLISHED]).count(),
+        'pending_exam_count': Exam.objects.filter(status__in=[Exam.Status.SUBMITTED, Exam.Status.HOD_APPROVED]).count(),
+        'invoice_total': FeeInvoice.objects.aggregate(total=Sum('amount'))['total'] or 0,
+        'invoice_paid': FeeInvoice.objects.aggregate(total=Sum('amount_paid'))['total'] or 0,
+        'upcoming_events': Event.objects.filter(date__gte=now.date()).order_by('date')[:5],
+        'recent_exams': Exam.objects.select_related('course', 'term').order_by('-updated_at', '-id')[:6],
+    }
+    context['cards'] = [
+        {'label': 'Active Students', 'value': context['student_count'], 'sub_label': 'Current student body', 'icon': 'fa-user-graduate', 'grad': 'linear-gradient(135deg,#0984e3,#48b1f3)'},
+        {'label': 'Academic Staff', 'value': context['faculty_count'], 'sub_label': 'Active teaching staff', 'icon': 'fa-chalkboard-user', 'grad': 'linear-gradient(135deg,#009688,#26c6a6)'},
+        {'label': 'Schools', 'value': context['school_count'], 'sub_label': 'Institutional schools', 'icon': 'fa-building-columns', 'grad': 'linear-gradient(135deg,#6C5CE7,#8f7bff)'},
+        {'label': 'Departments', 'value': context['department_count'], 'sub_label': 'Academic delivery units', 'icon': 'fa-sitemap', 'grad': 'linear-gradient(135deg,#e17055,#f0932b)'},
+    ] if leadership_role == 'vc' else [
+        {'label': 'Active Courses', 'value': context['course_count'], 'sub_label': 'University curriculum', 'icon': 'fa-book-open', 'grad': 'linear-gradient(135deg,#6C5CE7,#8f7bff)'},
+        {'label': 'Exam Workflows', 'value': context['active_exam_count'], 'sub_label': 'Marking through publication', 'icon': 'fa-file-pen', 'grad': 'linear-gradient(135deg,#0984e3,#48b1f3)'},
+        {'label': 'Pending Actions', 'value': context['pending_exam_count'], 'sub_label': 'HoD / Dean review queue', 'icon': 'fa-list-check', 'grad': 'linear-gradient(135deg,#e17055,#f0932b)'},
+        {'label': 'Departments', 'value': context['department_count'], 'sub_label': 'Academic delivery units', 'icon': 'fa-sitemap', 'grad': 'linear-gradient(135deg,#009688,#26c6a6)'},
+    ]
+    template = 'dashboard/vc_dashboard.html' if leadership_role == 'vc' else 'dashboard/dvc_dashboard.html'
+    return render(request, template, context)
 
 
 @login_required
@@ -245,6 +311,7 @@ def hod_dashboard(request):
         course__department=dept,
         status__in=[Exam.Status.HOD_APPROVED, Exam.Status.PUBLISHED]
     ).select_related('course', 'term').order_by('-hod_approved_at', '-id')[:5]
+    exam_status_rows = list(Exam.objects.filter(course__department=dept).values('status').annotate(total=Count('id')))
 
     ctx = {
         "department": dept,
@@ -255,7 +322,15 @@ def hod_dashboard(request):
         "pending_count": pending_exams.count(),
         "approved_exams": approved_exams,
         "courses": dept_courses[:8],
+        "exam_chart_labels": json.dumps([dict(Exam.Status.choices).get(r['status'], r['status']) for r in exam_status_rows]),
+        "exam_chart_values": json.dumps([r['total'] for r in exam_status_rows]),
     }
+    ctx["cards"] = [
+        {"label": "Department Courses", "value": course_count, "sub_label": "Active curriculum units", "icon": "fa-book-open", "grad": "linear-gradient(135deg,#6C5CE7,#8f7bff)"},
+        {"label": "Academic Staff", "value": faculty_count, "sub_label": "Lecturers and instructors", "icon": "fa-chalkboard-user", "grad": "linear-gradient(135deg,#009688,#26c6a6)"},
+        {"label": "Department Students", "value": student_count, "sub_label": "Enrolled nominal roll", "icon": "fa-user-graduate", "grad": "linear-gradient(135deg,#0984e3,#48b1f3)"},
+        {"label": "Pending HoD Review", "value": pending_exams.count, "sub_label": "Marks awaiting approval", "icon": "fa-file-pen", "grad": "linear-gradient(135deg,#e17055,#f0932b)"},
+    ]
     return render(request, "dashboard/hod_dashboard.html", ctx)
 
 
@@ -272,6 +347,25 @@ def dean_dashboard(request):
     course_count = Course.objects.filter(department_id__in=dept_ids).count()
     faculty_count = FacultyProfile.objects.filter(department_id__in=dept_ids).count()
     student_count = StudentProfile.objects.filter(program__department_id__in=dept_ids).count()
+    school_students = StudentProfile.objects.filter(program__department_id__in=dept_ids)
+    active_student_count = school_students.filter(status=StudentProfile.Status.ACTIVE, user__is_active=True).count()
+    attention_student_count = school_students.exclude(status=StudentProfile.Status.ACTIVE).count()
+    # Real user-registration trend for students in this school (last six months).
+    today = timezone.localdate()
+    month_keys = []
+    year, month = today.year, today.month
+    for _ in range(6):
+        month_keys.append((year, month))
+        month -= 1
+        if month == 0:
+            year, month = year - 1, 12
+    month_keys.reverse()
+    school_student_users = StudentProfile.objects.filter(
+        program__department_id__in=dept_ids,
+        user__date_joined__date__gte=date(month_keys[0][0], month_keys[0][1], 1),
+    ).values_list("user__date_joined", flat=True)
+    registration_counts = [sum(1 for joined in school_student_users if (joined.year, joined.month) == key) for key in month_keys]
+    registration_labels = json.dumps([date(y, m, 1).strftime("%b %Y") for y, m in month_keys])
 
     pending_publish = Exam.objects.filter(
         course__department_id__in=dept_ids,
@@ -282,6 +376,9 @@ def dean_dashboard(request):
         course__department_id__in=dept_ids,
         status=Exam.Status.PUBLISHED
     ).select_related('course', 'dean_published_by', 'term').order_by('-published_at', '-id')[:6]
+    status_counts = list(Exam.objects.filter(course__department_id__in=dept_ids).values('status').annotate(total=Count('id')))
+    exam_chart_labels = json.dumps([dict(Exam.Status.choices).get(row['status'], row['status']) for row in status_counts])
+    exam_chart_values = json.dumps([row['total'] for row in status_counts])
 
     ctx = {
         "school": school,
@@ -289,10 +386,24 @@ def dean_dashboard(request):
         "course_count": course_count,
         "faculty_count": faculty_count,
         "student_count": student_count,
+        "active_student_count": active_student_count,
+        "attention_student_count": attention_student_count,
         "pending_publish": pending_publish,
         "pending_count": pending_publish.count(),
         "published_exams": published_exams,
+        "exam_chart_labels": exam_chart_labels,
+        "exam_chart_values": exam_chart_values,
+        "registration_labels": registration_labels,
+        "registration_values": json.dumps(registration_counts),
+        "latest_registration_count": registration_counts[-1] if registration_counts else 0,
     }
+    ctx["cards"] = [
+        {"label": "Academic Departments", "value": departments.count, "sub_label": "Departments in school", "icon": "fa-building-columns", "grad": "linear-gradient(135deg,#6C5CE7,#8f7bff)"},
+        {"label": "School Courses", "value": course_count, "sub_label": "Degree and diploma units", "icon": "fa-graduation-cap", "grad": "linear-gradient(135deg,#009688,#26c6a6)"},
+        {"label": "Faculty Members", "value": faculty_count, "sub_label": "Active teaching staff", "icon": "fa-chalkboard-user", "grad": "linear-gradient(135deg,#0984e3,#48b1f3)"},
+        {"label": "Awaiting Dean Publishing", "value": pending_publish.count, "sub_label": "HoD-approved exams ready", "icon": "fa-bullhorn", "grad": "linear-gradient(135deg,#e17055,#f0932b)"},
+        {"label": "Student Population", "value": student_count, "sub_label": "Students in this school", "icon": "fa-users", "grad": "linear-gradient(135deg,#0b7285,#22b8cf)"},
+    ]
     return render(request, "dashboard/dean_dashboard.html", ctx)
 
 
@@ -982,7 +1093,7 @@ def admin_schools(request):
     return render(request, "dashboard/admin_schools.html", {"schools": schools})
 
 
-@login_required
+@role_required(Role.ADMIN)
 def school_detail(request, pk):
     school = get_object_or_404(School, pk=pk)
     return render(request, "dashboard/school_detail.html", {
@@ -1030,7 +1141,7 @@ def admin_departments(request):
     return render(request, "dashboard/admin_departments.html", {"departments": departments})
 
 
-@login_required
+@role_required(Role.ADMIN)
 def department_detail(request, pk):
     dept = get_object_or_404(Department, pk=pk)
     return render(request, "dashboard/department_detail.html", {
@@ -1182,7 +1293,7 @@ def admin_programs(request):
     })
 
 
-@login_required
+@role_required(Role.ADMIN)
 def program_detail(request, pk):
     """Detailed view for a single academic programme."""
     p = get_object_or_404(
@@ -1936,6 +2047,7 @@ def fee_create(request):
 
 @role_required(Role.ADMIN)
 @require_POST
+@transaction.atomic
 def record_payment(request, pk):
     invoice = get_object_or_404(FeeInvoice, pk=pk)
     try:
@@ -1943,11 +2055,14 @@ def record_payment(request, pk):
     except (InvalidOperation, TypeError):
         amount = Decimal("0")
     if amount > 0:
-        prev_balance = invoice.balance
-        invoice.amount_paid += amount
-        invoice.save()
-        fee_acc = FeeAccount.objects.filter(status=FeeAccount.Status.ACTIVE).first()
-        ref = f"TXN-{timezone.now().strftime('%H%M%S')}"
+        with transaction.atomic():
+            invoice = FeeInvoice.objects.select_for_update().get(pk=invoice.pk)
+            prev_balance = invoice.balance
+            invoice.amount_paid += amount
+            invoice.save(update_fields=["amount_paid"])
+            fee_acc = FeeAccount.objects.filter(status=FeeAccount.Status.ACTIVE).first()
+            import uuid
+            ref = f"TXN-{uuid.uuid4().hex[:20].upper()}"
         pmt = Payment.objects.create(
             invoice=invoice,
             student=invoice.student,
@@ -2047,8 +2162,9 @@ def fee_structure_delete(request, pk):
 def fee_receipt_pdf(request, pk):
     """Download official University Payment Receipt PDF."""
     payment = get_object_or_404(Payment.objects.select_related("invoice__student__user", "invoice__term"), pk=pk)
-    # Security: student can only download own receipts, admin can download all
-    if request.user.role == Role.STUDENT and payment.invoice.student.user != request.user:
+    allowed = request.user.is_superuser or request.user.role == Role.ADMIN
+    allowed = allowed or (request.user.role == Role.STUDENT and payment.invoice and payment.invoice.student.user_id == request.user.id)
+    if not allowed:
         raise Http404("Receipt not found.")
 
     pdf_bytes = generate_fee_receipt_pdf(payment)
@@ -2063,6 +2179,8 @@ def student_fee_statement(request):
     if request.user.role == Role.STUDENT:
         sp = get_object_or_404(StudentProfile, user=request.user)
     else:
+        if not (request.user.is_superuser or request.user.role == Role.ADMIN):
+            raise Http404("Statement not found.")
         student_id = request.GET.get("student_id")
         sp = get_object_or_404(StudentProfile, pk=student_id) if student_id else None
         if not sp:

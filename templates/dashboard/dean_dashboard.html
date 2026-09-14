@@ -7,7 +7,7 @@
     <small class="text-muted fw-semibold">{{ school.name }} ({{ school.code }}) · Dean: {{ school.dean_name|default:request.user.display_name }}</small>
   </div>
   <div class="d-flex gap-2">
-    <a href="{% url 'university:admin_reports_dashboard' %}" class="btn btn-outline-secondary rounded-pill btn-sm">
+    <a href="{% url 'examinations:index' %}" class="btn btn-outline-secondary rounded-pill btn-sm">
       <i class="fa-solid fa-chart-pie me-1"></i>School Reports
     </a>
     <div class="breadcrumb-chip">
@@ -17,6 +17,15 @@
 </div>
 
 <!-- KPI Metric Cards -->
+<div class="dashboard-five-cards">{% include 'dashboard/_cards.html' %}</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-8"><div class="card card-ums h-100"><div class="card-header"><i class="fa-solid fa-chart-column me-2 text-primary"></i>School Examination Pipeline</div><div class="card-body"><canvas id="deanExamChart" height="125"></canvas></div></div></div>
+  <div class="col-lg-4"><div class="card card-ums h-100"><div class="card-header"><i class="fa-solid fa-chart-pie me-2 text-success"></i>Exam Status Mix</div><div class="card-body"><canvas id="deanExamMixChart" height="145"></canvas></div></div></div>
+  <div class="col-lg-5"><div class="card card-ums h-100"><div class="card-header"><i class="fa-solid fa-wave-square me-2 text-success"></i>Student Registration Curve</div><div class="card-body"><canvas id="deanRegistrationChart" height="120"></canvas><div class="small text-muted mt-2">Student accounts registered in this school</div></div></div></div>
+</div>
+
+{% if false %}
 <div class="row g-3 mb-4">
   <div class="col-sm-6 col-xl-3">
     <div class="card card-ums p-3 border-0 shadow-sm">
@@ -77,6 +86,13 @@
       </div>
     </div>
   </div>
+</div>{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3"><a class="card card-ums h-100 text-decoration-none card-lift border-0 shadow-sm" href="{% url 'examinations:index' %}"><div class="card-body"><span class="icon-circle bg-primary bg-opacity-10 text-primary mb-3"><i class="fa-solid fa-file-pen"></i></span><div class="fw-bold text-dark">Examinations</div><small class="text-muted">Review and publish results</small></div></a></div>
+  <div class="col-6 col-lg-3"><a class="card card-ums h-100 text-decoration-none card-lift border-0 shadow-sm" href="{% url 'university:admin_admissions' %}"><div class="card-body"><span class="icon-circle bg-success bg-opacity-10 text-success mb-3"><i class="fa-solid fa-id-card-clip"></i></span><div class="fw-bold text-dark">School Admissions</div><small class="text-muted">Review applicants for your school</small></div></a></div>
+  <div class="col-6 col-lg-3"><a class="card card-ums h-100 text-decoration-none card-lift border-0 shadow-sm" href="{% url 'examinations:index' %}"><div class="card-body"><span class="icon-circle bg-info bg-opacity-10 text-info mb-3"><i class="fa-solid fa-book-open"></i></span><div class="fw-bold text-dark">Academic Operations</div><small class="text-muted">Review examinations and results</small></div></a></div>
+  <div class="col-6 col-lg-3"><a class="card card-ums h-100 text-decoration-none card-lift border-0 shadow-sm" href="{% url 'examinations:index' %}"><div class="card-body"><span class="icon-circle bg-warning bg-opacity-10 text-warning mb-3"><i class="fa-solid fa-chart-pie"></i></span><div class="fw-bold text-dark">School Performance</div><small class="text-muted">Review assessment trends</small></div></a></div>
 </div>
 
 <!-- Pending Publishing Queue (Dean & Senate Release Queue) -->
@@ -144,7 +160,7 @@
     <div class="card card-ums h-100 border-0 shadow-sm">
       <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
         <div class="fw-bold"><i class="fa-solid fa-sitemap text-primary me-2"></i>Departments under {{ school.name }}</div>
-        <a href="{% url 'university:admin_departments' %}" class="small text-decoration-none">View All Departments <i class="fa-solid fa-arrow-right ms-1"></i></a>
+        <span class="small text-muted">School departments</span>
       </div>
       <div class="p-3">
         <div class="row g-3">
@@ -153,7 +169,7 @@
             <div class="border rounded p-3 bg-light bg-opacity-50 h-100">
               <div class="d-flex align-items-center justify-content-between mb-2">
                 <span class="badge" style="background-color:{{ d.color }}; color:#fff;">{{ d.code }}</span>
-                <a href="{% url 'university:department_detail' d.id %}" class="btn btn-sm btn-outline-secondary rounded-pill py-0 px-2">View</a>
+                <span class="badge bg-secondary-subtle text-secondary">In scope</span>
               </div>
               <div class="fw-bold fs-6 text-dark">{{ d.name }}</div>
               <p class="small text-muted mb-2">{{ d.description|default:"Active academic department delivering undergraduate and graduate programs."|truncatechars:70 }}</p>
@@ -198,3 +214,4 @@
   </div>
 </div>
 {% endblock %}
+{% block extra_js %}<script>const examLabels={{ exam_chart_labels|safe }},examValues={{ exam_chart_values|safe }};new Chart(document.getElementById('deanExamChart'),{type:'bar',data:{labels:examLabels,datasets:[{label:'Examinations',data:examValues,backgroundColor:['#6C5CE7','#00a896','#0984e3','#f0932b','#e17055','#636e72'],borderRadius:10,maxBarThickness:58}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{grid:{display:false}}}}});new Chart(document.getElementById('deanExamMixChart'),{type:'doughnut',data:{labels:examLabels,datasets:[{data:examValues,backgroundColor:['#6C5CE7','#00a896','#0984e3','#f0932b','#e17055','#636e72'],borderWidth:3,borderColor:'#fff'}]},options:{cutout:'62%',plugins:{legend:{position:'bottom',labels:{usePointStyle:true,padding:12}}}}});new Chart(document.getElementById('deanRegistrationChart'),{type:'line',data:{labels:{{ registration_labels|safe }},datasets:[{label:'Student users',data:{{ registration_values|safe }},borderColor:'#00a896',backgroundColor:'rgba(0,168,150,.12)',fill:true,tension:.48,pointRadius:4,pointBackgroundColor:'#00a896'}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{grid:{display:false}}}}});</script>{% endblock %}

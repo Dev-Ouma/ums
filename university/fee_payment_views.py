@@ -146,15 +146,16 @@ def student_payment_status(request, reference):
     if not _can_view_student_payment(request.user, payment.student.user_id):
         raise Http404("Payment not found.")
 
-    from university.payment_providers.registry import get_payment_adapter
-    adapter = get_payment_adapter(payment.fee_account)
-    init_result = adapter.initiate_payment(payment, request, extra_data={"phone": payment.payer_phone})
-
     receipt = FeeReceipt.objects.filter(payment=payment).first()
+    # Status is read-only; initiating here could create duplicate provider prompts.
+    instructions = {
+        "steps": [],
+        "message": getattr(payment.fee_account, "description", "") if payment.fee_account else "",
+    }
 
     return render(request, "dashboard/student_payment_status.html", {
         "payment": payment,
-        "instructions": init_result.instructions,
+        "instructions": instructions,
         "receipt": receipt,
     })
 

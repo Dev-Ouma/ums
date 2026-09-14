@@ -14,7 +14,7 @@
 {% if system_banners %}
 <section class="system-ticker-stack" aria-label="System announcements">
   {% for n in system_banners %}
-    <div class="system-ticker system-ticker-{{ n.priority|lower }} {% if n.banner_mode == 'STATIC' or not n.animation_enabled %}system-ticker-static{% endif %} {% if n.dismissible and not n.persistent and n.priority != 'CRITICAL' %}alert-dismissible fade show{% endif %}" role="{% if n.priority == 'CRITICAL' %}alert{% else %}status{% endif %}">
+    <div class="system-ticker system-ticker-{{ n.priority|lower }} {% if n.banner_mode == 'STATIC' or not n.animation_enabled %}system-ticker-static{% endif %} {% if n.dismissible and not n.persistent and n.priority != 'CRITICAL' %}alert-dismissible fade show{% endif %}" role="{% if n.priority == 'CRITICAL' %}alert{% else %}status{% endif %}" data-notice-id="{{ n.pk }}" {% if n.dismissible and not n.persistent and n.priority != 'CRITICAL' %}data-auto-dismiss="15000"{% endif %}>
       <div class="system-ticker-label">
         <i class="fa-solid {% if n.priority == 'CRITICAL' %}fa-circle-exclamation{% else %}fa-bullhorn{% endif %}" aria-hidden="true"></i>
         <span>{{ n.rendered_title }}</span>
@@ -32,9 +32,14 @@
         <a class="system-ticker-action" href="{{ n.action_url }}">{{ n.action_label|default:'Open' }}</a>
       {% endif %}
       {% if n.dismissible and not n.persistent and n.priority != 'CRITICAL' %}
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" aria-label="Close"></button>
+        {% if request.user.is_authenticated %}<form method="post" action="{% url 'control:receipt' n.pk 'archive' %}" class="d-inline m-0"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}"><button type="submit" class="btn-close btn-close-white" aria-label="Dismiss"></button></form>{% else %}<button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" aria-label="Close"></button>{% endif %}
       {% endif %}
     </div>
   {% endfor %}
 </section>
 {% endif %}
+<script>
+document.querySelectorAll('[data-auto-dismiss]').forEach(function (banner) {
+  window.setTimeout(function () { banner.classList.remove('show'); banner.setAttribute('hidden', 'hidden'); }, Number(banner.dataset.autoDismiss));
+});
+</script>

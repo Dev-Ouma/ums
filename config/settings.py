@@ -77,6 +77,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "university.active_role_middleware.ActiveRoleMiddleware",
     "university.control_middleware.SystemControlMiddleware",
     "accounts.activity.LastSeenMiddleware",
     "accounts.identity.PasswordChangeRequiredMiddleware",

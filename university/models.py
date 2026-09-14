@@ -1555,6 +1555,27 @@ class SupplementaryExamRegistration(models.Model):
         return f"{self.student.roll_no} - {self.course.code} ({self.exam_type})"
 
 
+class StudentTransferRequest(models.Model):
+    """Audited request to transfer between university programmes."""
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending Review"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+    student = models.ForeignKey("accounts.StudentProfile", on_delete=models.CASCADE, related_name="transfer_requests")
+    from_program = models.ForeignKey(Program, on_delete=models.PROTECT, related_name="outgoing_transfers")
+    to_program = models.ForeignKey(Program, on_delete=models.PROTECT, related_name="incoming_transfers")
+    reason = models.TextField()
+    supporting_document = models.FileField(upload_to="student_transfers/%Y/%m/", blank=True, null=True)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING, db_index=True)
+    reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="reviewed_transfers")
+    review_comments = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(default=timezone.now)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [models.UniqueConstraint(fields=["student", "to_program"], condition=models.Q(status="PENDING"), name="one_pending_transfer_per_target")]
+
+
 class StudentRequest(models.Model):
     """Student-initiated Deferment / Withdrawal / Sick Leave requests, reviewed by staff."""
 

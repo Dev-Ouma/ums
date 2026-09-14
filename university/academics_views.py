@@ -23,7 +23,7 @@ from .examination_services import is_admin
 from .financial_services import check_financial_clearance, get_or_create_semester_invoice
 from .models import (
     AcademicTerm, Course, Department, Enrollment, Exam, FeeInvoice,
-    Program, Result, SemesterRegistration, SupplementaryExamRegistration,
+    Program, Result, SemesterRegistration, SupplementaryExamRegistration, StudentTransferRequest,
     DocumentReleaseControl, AuditLog
 )
 from .transcript_views import document as render_transcript_document
@@ -663,12 +663,16 @@ def student_supplementary(request):
     failing_results = [r for r in all_results if r.grade == "F" or (r.marks_obtained is not None and r.marks_obtained < 40)]
 
     # Already applied
+    terms = AcademicTerm.objects.order_by("-start_date", "-id")
+    current_term = terms.filter(is_current=True).first() or terms.first()
     existing_regs = SupplementaryExamRegistration.objects.filter(student=sp).select_related("course", "term", "fee_invoice")
 
     return render(request, "academics/supplementary.html", {
         "student": sp,
         "failing_results": failing_results,
         "existing_regs": existing_regs,
+        "terms": terms,
+        "current_term": current_term,
     })
 
 
@@ -679,14 +683,21 @@ def student_supplementary_apply(request, course_id):
     sp = _get_student(request)
     course = get_object_or_404(Course, pk=course_id)
     exam_type = request.POST.get("exam_type", SupplementaryExamRegistration.ExamType.SUPPLEMENTARY)
+    if exam_type not in SupplementaryExamRegistration.ExamType.values:
+        messages.error(request, "Select a valid examination type.")
+        return redirect("university:student_supplementary")
     reason = request.POST.get("reason", "").strip()
+    if exam_type == SupplementaryExamRegistration.ExamType.SPECIAL and len(reason) < 10:
+        messages.error(request, "Please provide a clear reason for a Special Examination application.")
+        return redirect("university:student_supplementary")
 
-    active_term = AcademicTerm.objects.filter(is_current=True).first() or AcademicTerm.objects.first()
+    term_id = request.POST.get("term")
+    active_term = get_object_or_404(AcademicTerm, pk=term_id) if term_id else (AcademicTerm.objects.filter(is_current=True).first() or AcademicTerm.objects.first())
 
     reg, created = SupplementaryExamRegistration.objects.get_or_create(
         student=sp,
         course=course,
-        exam_type=exam_type,
+        exam_type=exam_type, term=active_term,
         defaults={
             "term": active_term,
             "reason": reason,
@@ -700,6 +711,57 @@ def student_supplementary_apply(request, course_id):
         messages.info(request, f"You have already applied for {course.code} {reg.get_exam_type_display()}.")
 
     return redirect("university:student_supplementary")
+
+
+@login_required
+def student_transfer(request):
+    sp = _get_student(request)
+    applications = StudentTransferRequest.objects.filter(student=sp).select_related("from_program", "to_program", "reviewed_by")
+    programs = Program.objects.exclude(pk=sp.program_id).order_by("name") if sp.program_id else Program.objects.all().order_by("name")
+    if request.method == "POST":
+        target = get_object_or_404(Program, pk=request.POST.get("to_program"))
+        reason = request.POST.get("reason", "").strip()
+        if not sp.program_id or target.pk == sp.program_id:
+            messages.error(request, "Select a programme different from your current programme.")
+        elif len(reason) < 10:
+            messages.error(request, "Please provide a clear reason of at least 10 characters.")
+        elif applications.filter(status=StudentTransferRequest.Status.PENDING).exists():
+            messages.info(request, "You already have a transfer request awaiting review.")
+        else:
+            StudentTransferRequest.objects.create(student=sp, from_program=sp.program, to_program=target, reason=reason, supporting_document=request.FILES.get("supporting_document"))
+            messages.success(request, "Transfer application submitted for review.")
+            return redirect("university:student_transfer")
+    return render(request, "academics/student_transfer.html", {"student": sp, "programs": programs, "applications": applications})
+
+
+@login_required
+def admin_student_transfers(request):
+    if not (is_admin(request.user) or request.user.is_superuser):
+        raise PermissionDenied
+    applications = StudentTransferRequest.objects.select_related("student__user", "from_program", "to_program", "reviewed_by")
+    return render(request, "academics/admin_student_transfers.html", {"applications": applications})
+
+
+@login_required
+@require_POST
+def admin_student_transfer_decision(request, pk):
+    if not (is_admin(request.user) or request.user.is_superuser):
+        raise PermissionDenied
+    application = get_object_or_404(StudentTransferRequest, pk=pk, status=StudentTransferRequest.Status.PENDING)
+    decision = request.POST.get("decision")
+    if decision not in {StudentTransferRequest.Status.APPROVED, StudentTransferRequest.Status.REJECTED}:
+        messages.error(request, "Invalid transfer decision.")
+    else:
+        application.status = decision
+        application.review_comments = request.POST.get("review_comments", "").strip()
+        application.reviewed_by = request.user
+        application.reviewed_at = timezone.now()
+        if decision == StudentTransferRequest.Status.APPROVED:
+            application.student.program = application.to_program
+            application.student.save(update_fields=["program"])
+        application.save(update_fields=["status", "review_comments", "reviewed_by", "reviewed_at"])
+        messages.success(request, "Transfer request updated.")
+    return redirect("university:admin_student_transfers")
 
 
 @login_required
@@ -1065,5 +1127,3 @@ def admin_document_controls(request):
         "selected_term_id": term_id,
         "display_rows": display_rows,
     })
-
-

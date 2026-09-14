@@ -131,6 +131,9 @@
           <a class="item sub-item {% if url_name == 'admin_supplementary_list' %}active{% endif %}" href="{% url 'university:admin_supplementary_list' %}">
             <i class="fa-solid fa-arrows-rotate"></i> <span class="item-label">Supplementary Exams</span>
           </a>
+          <a class="item sub-item {% if url_name == 'admin_student_transfers' %}active{% endif %}" href="{% url 'university:admin_student_transfers' %}">
+            <i class="fa-solid fa-right-left"></i> <span class="item-label">Student Transfers</span>
+          </a>
           <a class="item sub-item {% if url_name == 'admin_exam_nominal_rolls' %}active{% endif %}" href="{% url 'university:admin_exam_nominal_rolls' %}">
             <i class="fa-solid fa-users-viewfinder"></i> <span class="item-label">Nominal Rolls</span>
           </a>
@@ -576,6 +579,9 @@
             <i class="fa-solid fa-arrows-rotate"></i> <span class="item-label">Supplementary Exams</span>
           </a>
           {% endif %}
+          <a class="item sub-item {% if url_name == 'student_transfer' %}active{% endif %}" href="{% url 'university:student_transfer' %}">
+            <i class="fa-solid fa-right-left"></i> <span class="item-label">Inter-School Transfer</span>
+          </a>
           {% if 'examinations' in active_modules %}
           <a class="item sub-item {% if request.resolver_match.namespace == 'examinations' and url_name != 'student_transcripts' and url_name != 'transcripts' and url_name != 'transcript_document' %}active{% endif %}" href="{% url 'examinations:index' %}">
             <i class="fa-solid fa-file-pen"></i> <span class="item-label">Examinations</span>

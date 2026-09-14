@@ -10,11 +10,15 @@ _SECRET_PATTERN = re.compile(
 )
 _BEARER_PATTERN = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+")
 _EMAIL_PATTERN = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+_QUERY_SECRET_PATTERN = re.compile(
+    r"(?i)([?&](?:key|api[_-]?key|access[_-]?token|token|signature|password|secret)=)[^&#\s]+"
+)
 
 
 def redact_log_value(value):
     value = _SECRET_PATTERN.sub(r"\1\2[REDACTED]", str(value))
     value = _BEARER_PATTERN.sub("Bearer [REDACTED]", value)
+    value = _QUERY_SECRET_PATTERN.sub(r"\1[REDACTED]", value)
     return _EMAIL_PATTERN.sub("[EMAIL]", value)
 
 

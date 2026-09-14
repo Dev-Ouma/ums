@@ -53,6 +53,7 @@ urlpatterns = [
 
     # Dashboard router
     path("dashboard/", views.dashboard, name="dashboard"),
+    path("dashboard/switch-role/", views.switch_role, name="switch_role"),
     path("manage/", views.dashboard, name="manage_dashboard"),
     path("finance/", views.finance_hub, name="finance"),
     path("manage/api/academic-performance/", views.api_academic_performance, name="api_academic_performance"),
@@ -307,6 +308,7 @@ urlpatterns = [
     path("academics/exam-card/", academics_views.student_exam_card, name="student_exam_card"),
     path("academics/exam-card/pdf/", academics_views.student_exam_card_pdf, name="student_exam_card_pdf"),
     path("academics/supplementary/", academics_views.student_supplementary, name="student_supplementary"),
+    path("academics/transfer/", academics_views.student_transfer, name="student_transfer"),
     path("academics/supplementary/<int:course_id>/apply/", academics_views.student_supplementary_apply, name="student_supplementary_apply"),
     path("academics/provisional-transcript/", academics_views.student_provisional_transcript_view, name="student_provisional_transcript"),
     path("academics/academic-transcript/", academics_views.student_academic_transcript_view, name="student_academic_transcript"),
@@ -319,6 +321,8 @@ urlpatterns = [
     path("manage/academics/registrations/", academics_views.admin_unit_registrations, name="admin_unit_registrations"),
     path("manage/academics/registrations/<int:pk>/", academics_views.admin_unit_registration_detail, name="admin_unit_registration_detail"),
     path("manage/academics/supplementary/", academics_views.admin_supplementary_list, name="admin_supplementary_list"),
+    path("manage/academics/transfers/", academics_views.admin_student_transfers, name="admin_student_transfers"),
+    path("manage/academics/transfers/<int:pk>/decision/", academics_views.admin_student_transfer_decision, name="admin_student_transfer_decision"),
     path("manage/academics/supplementary/<int:pk>/decision/", academics_views.admin_supplementary_decision, name="admin_supplementary_decision"),
     path("manage/academics/nominal-rolls/", academics_views.admin_exam_nominal_rolls, name="admin_exam_nominal_rolls"),
     path("manage/academics/nominal-rolls/<int:exam_id>/pdf/", academics_views.admin_exam_nominal_roll_pdf, name="admin_exam_nominal_roll_pdf"),

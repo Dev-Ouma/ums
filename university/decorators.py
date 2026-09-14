@@ -3,6 +3,7 @@ from functools import wraps
 from django.contrib import messages
 from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
+from accounts.models import Role
 
 
 def role_required(*roles):
@@ -11,7 +12,19 @@ def role_required(*roles):
         def _wrapped(request, *args, **kwargs):
             if not request.user.is_authenticated:
                 return redirect_to_login(request.get_full_path())
-            if request.user.role not in roles and not request.user.is_superuser:
+            active_code = getattr(request.user, "_active_role_code", None)
+            if active_code:
+                elevated_admin_codes = {"identity_admin", "system_admin", "administrator"}
+                faculty_codes = {"faculty", "lecturer", "instructor", "trainer", "hod", "dean", "examiner"}
+                active_allowed = any(
+                    (role == Role.ADMIN and active_code in elevated_admin_codes)
+                    or (role == Role.FACULTY and active_code in faculty_codes)
+                    or (role.value.lower() == active_code)
+                    for role in roles
+                )
+            else:
+                active_allowed = request.user.role in roles
+            if not active_allowed and not request.user.is_superuser:
                 messages.error(request, "You don't have access to that area.")
                 raise PermissionDenied
             return view(request, *args, **kwargs)

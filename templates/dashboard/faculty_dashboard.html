@@ -58,8 +58,8 @@
 
 {% block extra_js %}
 <script>
-new Chart(attCourse, {type:'bar', data:{labels:{{ course_labels|safe }},
-  datasets:[{label:'Attendance %', data:{{ course_att|safe }}, backgroundColor:'#009688', borderRadius:6}]},
+new Chart(attCourse, {type:'line', data:{labels:{{ course_labels|safe }},
+  datasets:[{label:'Attendance %', data:{{ course_att|safe }}, borderColor:'#009688', backgroundColor:'rgba(0,150,136,.14)', fill:true, tension:.45, pointRadius:4, pointBackgroundColor:'#009688', borderWidth:3}]},
   options:{plugins:{legend:{display:false}},scales:{y:{max:100,grid:{color:'#eef0f6'}},x:{grid:{display:false}}}}});
 new Chart(grades, {type:'polarArea', data:{labels:{{ grade_labels|safe }},
   datasets:[{data:{{ grade_values|safe }}, backgroundColor:['#00b894','#20c997','#4dabf7','#6C5CE7','#f0932b','#e17055','#e84393']}]},

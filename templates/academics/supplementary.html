@@ -11,6 +11,14 @@
   </div>
 </div>
 
+<div class="card border-0 shadow-sm rounded-4 border-top border-4 border-info mb-4">
+  <div class="card-body p-4"><div class="row g-3 align-items-end">
+    <div class="col-md-4"><label class="form-label fw-bold">Academic Year / Term</label><select id="application-term" class="form-select">{% for term in terms %}<option value="{{ term.id }}" {% if term.id == current_term.id %}selected{% endif %}>{{ term.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label fw-bold">Semester</label><input class="form-control" value="{{ current_term.name|default:'Current semester' }}" readonly></div>
+    <div class="col-md-4"><label class="form-label fw-bold">Stage</label><input class="form-control" value="Supplementary / Special examination" readonly></div>
+  </div></div>
+</div>
+
 <!-- Important Notice -->
 <div class="alert alert-info border-0 shadow-sm rounded-4 p-4 mb-4">
   <h6 class="fw-bold mb-1 text-info"><i class="fa-solid fa-circle-info me-2"></i>Kenyan CUE University Regulation</h6>
@@ -42,11 +50,11 @@
           {% for res in failing_results %}
             <tr>
               <td class="fw-bold text-primary font-monospace">{{ res.exam.course.code }}</td>
-              <td class="fw-semibold">{{ res.exam.course.name }}</td>
+              <td class="fw-semibold">{{ res.exam.course.title }}</td>
               <td><small class="badge bg-light text-dark border">{{ res.exam.term.name }}</small></td>
               <td><span class="badge bg-danger px-2 py-1 fs-6">F (Failed)</span></td>
-              <form method="post" action="{% url 'university:student_supplementary_apply' res.exam.course.id %}">
-                {% csrf_token %}
+              <form method="post" action="{% url 'university:student_supplementary_apply' res.exam.course.id %}" class="supplementary-form">
+                {% csrf_token %}<input type="hidden" name="term" class="term-value">
                 <td>
                   <select name="exam_type" class="form-select form-select-sm">
                     <option value="SUPPLEMENTARY">Supplementary Exam</option>
@@ -138,4 +146,5 @@
     </div>
   </div>
 </div>
+{% block extra_js %}<script>document.querySelectorAll('.supplementary-form').forEach(function(form){form.addEventListener('submit',function(){form.querySelector('.term-value').value=document.getElementById('application-term').value;});});</script>{% endblock %}
 {% endblock %}

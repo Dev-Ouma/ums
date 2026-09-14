@@ -13,7 +13,20 @@ from .models import (
 
 
 def is_admin(user):
-    return user.is_authenticated and (user.is_admin_role or user.is_superuser)
+    """Return true only for system administrators, not every ADMIN-labelled staff role."""
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    if not user.is_admin_role:
+        return False
+    from .models import StaffRoleAssignment
+    assignments = StaffRoleAssignment.objects.filter(user=user, is_active=True).select_related('role')
+    # A bare ADMIN user is retained as the legacy/system-admin fallback used
+    # by local installations and tests. Once a scoped institutional role is
+    # assigned, only identity administration is a system-admin role.
+    codes = set(assignments.values_list('role__code', flat=True))
+    return not codes or 'identity_admin' in codes
 
 
 def can_create_exams(user):

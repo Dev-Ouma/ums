@@ -234,14 +234,14 @@ def _query_llm_if_configured(prompt: str, user) -> str | None:
     # 1. Try Gemini
     if gemini_key:
         try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+            url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
             payload = {
                 "contents": [
                     {"role": "user", "parts": [{"text": f"{system_instruction}\n\nUser Question: {prompt}"}]}
                 ],
                 "generationConfig": {"temperature": 0.3, "maxOutputTokens": 400}
             }
-            res = requests.post(url, json=payload, timeout=3.0)
+            res = requests.post(url, headers={"x-goog-api-key": gemini_key}, json=payload, timeout=3.0)
             if res.status_code == 200:
                 data = res.json()
                 text = data["candidates"][0]["content"]["parts"][0]["text"]

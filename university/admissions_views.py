@@ -23,7 +23,8 @@ from django.contrib.auth import authenticate, login
 from django.db.models import Q
 
 from university.decorators import role_required
-from accounts.models import Role
+from accounts.models import Role, FacultyProfile
+from university.models import StaffRoleAssignment
 from university.admissions_services import (
     assign_admitted_reg_no,
     generate_admission_letter_pdf,
@@ -1004,10 +1005,27 @@ def applicant_decline_offer(request, pk):
 # ADMIN ADMISSIONS MANAGEMENT VIEWS
 # ==============================================================================
 
-@role_required(Role.ADMIN)
+def _admissions_scope(user):
+    if user.is_superuser or user.role == Role.ADMIN:
+        return True, set()
+    assignments = StaffRoleAssignment.objects.filter(user=user, is_active=True, role__code__iexact="dean").select_related("department__school")
+    school_ids = {a.department.school_id for a in assignments if a.department and a.department.school_id}
+    if not school_ids:
+        profile = FacultyProfile.objects.filter(user=user).select_related("department__school").first()
+        if profile and profile.department and profile.department.school_id:
+            school_ids.add(profile.department.school_id)
+    return False, school_ids
+
+
+@login_required
 def admin_admissions_list(request):
     """Admin: Overview and filtering of all prospective student applications."""
+    central_admin, school_ids = _admissions_scope(request.user)
+    if not central_admin and not school_ids:
+        raise PermissionDenied
     qs = Application.objects.select_related("program", "intake", "student").order_by("-created_at")
+    if not central_admin:
+        qs = qs.filter(program__department__school_id__in=school_ids)
 
     # Search
     q = request.GET.get("q", "").strip()
@@ -1040,7 +1058,7 @@ def admin_admissions_list(request):
         qs = qs.filter(intake_id=intake_id)
 
     # Stats
-    all_apps = Application.objects.all()
+    all_apps = Application.objects.all() if central_admin else qs.model.objects.filter(program__department__school_id__in=school_ids)
     stats = {
         "total": all_apps.count(),
         "submitted": all_apps.filter(status=Application.Status.SUBMITTED).count(),
@@ -1066,13 +1084,21 @@ def admin_admissions_list(request):
     })
 
 
-@role_required(Role.ADMIN)
+@login_required
 def admin_admission_detail(request, pk):
     """Admin: Review individual application, accept/reject, or edit decision."""
-    app = get_object_or_404(Application.objects.select_related("program", "intake", "student", "reviewed_by"), pk=pk)
+    central_admin, school_ids = _admissions_scope(request.user)
+    if not central_admin and not school_ids:
+        raise PermissionDenied
+    app_qs = Application.objects.select_related("program", "program__department__school", "intake", "student", "reviewed_by")
+    if not central_admin:
+        app_qs = app_qs.filter(program__department__school_id__in=school_ids)
+    app = get_object_or_404(app_qs, pk=pk)
 
     if request.method == "POST":
         action = request.POST.get("action")
+        if not central_admin and action in {"accept", "reject", "confirm_payment"}:
+            raise PermissionDenied
         review_notes = request.POST.get("review_notes", "").strip()
         reporting_date = request.POST.get("reporting_date", "").strip()
 
@@ -1209,6 +1235,7 @@ def admin_admission_detail(request, pk):
 
     return render(request, "admissions/admin_detail.html", {
         "app": app,
+        "central_admin": central_admin,
         "pending_fee_payment": app.fee_payments.filter(status=ApplicationFeePayment.Status.PENDING).first(),
     })
 

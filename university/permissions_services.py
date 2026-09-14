@@ -325,9 +325,11 @@ def has_user_permission(user, permission_code):
             return True
 
     # Check Assigned Active Staff Roles
+    role_filter = {"user": user, "is_active": True}
+    if getattr(user, "_active_role_code", None):
+        role_filter["role__code"] = user._active_role_code
     has_role_perm = StaffRoleAssignment.objects.filter(
-        user=user,
-        is_active=True,
+        **role_filter,
         role__permissions__code=permission_code
     ).exists()
 
@@ -350,6 +352,9 @@ def has_user_permission(user, permission_code):
 
     # Check Base System Role Defaults
     user_role = getattr(user, "role", "")
+    if getattr(user, "_active_role_code", None):
+        # Assigned custom roles are authoritative for this request.
+        user_role = "__active_custom_role__"
     if user_role == Role.ADMIN or getattr(user, "is_admin_role", False):
         # Admin has default access to all operational permissions unless explicitly denied
         return True

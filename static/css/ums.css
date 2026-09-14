@@ -2,7 +2,7 @@
   --primary:#6C5CE7; --primary-dark:#4834d4; --accent:#e84393;
   --sidebar:linear-gradient(180deg,#2d2a4a 0%,#3b3564 100%);
   --surface:#f4f5fb; --gradient:linear-gradient(135deg,#6C5CE7,#8f7bff);
-  --card-radius:18px; --shadow:0 10px 30px rgba(26,26,64,.08);
+  --card-radius:18px; --dashboard-card-radius:var(--card-radius); --shadow:0 10px 30px rgba(26,26,64,.08);
   --shadow-sm:0 4px 14px rgba(26,26,64,.06);
   --app-font:'Quicksand',system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
   --bs-font-sans-serif:var(--app-font);
@@ -102,6 +102,15 @@ a{text-decoration:none}
 .stat-tile .lbl{opacity:.92;font-weight:600;letter-spacing:.3px;text-transform:uppercase;font-size:.72rem}
 .stat-tile .ghost{position:absolute;right:-6px;bottom:-12px;font-size:5rem;opacity:.18}
 .stat-tile .delta{font-size:.78rem;opacity:.95}
+.dashboard-panel{border-radius:var(--dashboard-card-radius);border:1px solid rgba(229,229,240,.9);box-shadow:var(--shadow-sm);background:#fff;}
+.dashboard-empty{border:1px dashed #cfd2e1;border-radius:var(--dashboard-card-radius);padding:2.5rem 1rem;text-align:center;color:#73778a;background:rgba(244,245,251,.55)}
+.hod-actions .card{border:0!important;overflow:hidden;position:relative;box-shadow:var(--shadow-sm);transition:transform .22s ease,box-shadow .22s ease;background:linear-gradient(135deg,#fff,#f7f8fc)}
+.hod-actions .card:hover{transform:translateY(-4px);box-shadow:0 14px 30px rgba(26,26,64,.14)}
+.hod-actions .card .icon-circle{box-shadow:0 8px 18px rgba(26,26,64,.08)}
+.hod-actions .card:nth-child(1){background:linear-gradient(135deg,#eef0ff,#fff)}
+.hod-actions .card:nth-child(2){background:linear-gradient(135deg,#e8faf4,#fff)}
+.hod-actions .card:nth-child(3){background:linear-gradient(135deg,#e8f7ff,#fff)}
+@media (min-width:1200px){.dashboard-five-cards .col-xl-3{flex:0 0 20%;max-width:20%}}
 
 /* ---------- DASHBOARD SHELL ---------- */
 .app{display:flex;min-height:100vh;--rail:260px}

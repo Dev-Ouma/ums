@@ -18,7 +18,7 @@ Variant is controlled by the caller:
     </span>
     <span class="acct-trigger-text d-none d-md-flex">
       <span class="acct-trigger-name">{{ user.display_name }}</span>
-      <span class="acct-trigger-role">{{ user.get_role_display }}</span>
+      <span class="acct-trigger-role">{{ active_role_name|default:user.get_role_display }}</span>
     </span>
     <i class="fa-solid fa-chevron-down acct-caret" aria-hidden="true"></i>
     <span class="visually-hidden">Open account menu</span>
@@ -37,7 +37,7 @@ Variant is controlled by the caller:
         <div class="acct-name">{{ user.display_name }}</div>
         <div class="acct-email">{{ user.email|default:user.username }}</div>
         <span class="acct-role-badge">
-          <i class="fa-solid {{ user.theme.icon|default:'fa-user' }}"></i>{{ user.get_role_display }}
+          <i class="fa-solid {{ user.theme.icon|default:'fa-user' }}"></i>{{ active_role_name|default:user.get_role_display }}
         </span>
       </div>
     </div>
@@ -54,6 +54,18 @@ Variant is controlled by the caller:
           <i class="fa-solid fa-gauge-high"></i><span>Dashboard</span></a>
       {% endif %}
     </div>
+
+    {% if assigned_roles %}
+      <div class="acct-role-switcher border-top border-bottom py-2 my-1">
+        <div class="small text-muted px-3 mb-1"><i class="fa-solid fa-shuffle me-1"></i>Active role</div>
+        {% for assignment in assigned_roles %}
+          <form method="post" action="{% url 'university:switch_role' %}" class="m-0">
+            {% csrf_token %}<input type="hidden" name="role" value="{{ assignment.role.code }}"><input type="hidden" name="next" value="{{ request.path }}">
+            <button type="submit" class="acct-item w-100 border-0 bg-transparent text-start"><i class="fa-solid {% if active_role_code == assignment.role.code %}fa-check text-success{% else %}fa-user-tag{% endif %}"></i><span>{{ assignment.role.name }}</span>{% if active_role_code == assignment.role.code %}<small class="text-success ms-auto">Current</small>{% endif %}</button>
+          </form>
+        {% endfor %}
+      </div>
+    {% endif %}
 
     <form method="post" action="{% url 'accounts:logout' %}" class="acct-logout">
       {% csrf_token %}

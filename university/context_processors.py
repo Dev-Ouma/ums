@@ -37,6 +37,9 @@ def theme_and_notifications(request):
     is_identity_admin = False
     is_auditor = False
     is_vc_or_dvc = False
+    assigned_roles = []
+    active_role_code = None
+    active_role_name = None
 
     if user is not None and user.is_authenticated:
         theme = user.theme
@@ -46,15 +49,20 @@ def theme_and_notifications(request):
         unread = sum(n.pk not in read_ids for n in active_messages(user))
 
         user_roles = set(StaffRoleAssignment.objects.filter(user=user, is_active=True).values_list('role__code', flat=True))
-        is_hod = 'hod' in user_roles or user.username == 'hod'
-        is_dean = 'dean' in user_roles or user.username == 'dean'
-        is_exam_officer = 'exam_officer' in user_roles or user.username == 'examofficer'
-        is_registrar = 'academic_registrar' in user_roles or user.username == 'registrar'
-        is_finance_officer = 'finance_officer' in user_roles or user.username == 'finance'
-        is_admissions_officer = 'admissions_officer' in user_roles or user.username == 'admissions'
-        is_identity_admin = 'identity_admin' in user_roles or user.username in ('ictdirector', 'admin', 'superadmin') or user.is_superuser
-        is_auditor = 'auditor' in user_roles or user.username == 'auditor'
-        is_vc_or_dvc = bool(user_roles & {'vc', 'dvcaa'}) or user.username in ('vc', 'dvcaa')
+        assigned_roles = list(StaffRoleAssignment.objects.filter(user=user, is_active=True).select_related('role').order_by('role__name'))
+        active_role_code = request.session.get('active_role') if request.session.get('active_role') in user_roles else (user.role.lower() if user.role and user.role.lower() in user_roles else (sorted(user_roles)[0] if user_roles else None))
+        active_role_name = next((a.role.name for a in assigned_roles if a.role.code == active_role_code), None)
+        user_roles = {active_role_code} if active_role_code else set()
+        legacy_fallback = not active_role_code
+        is_hod = 'hod' in user_roles or (legacy_fallback and user.username == 'hod')
+        is_dean = 'dean' in user_roles or (legacy_fallback and user.username == 'dean')
+        is_exam_officer = 'exam_officer' in user_roles or (legacy_fallback and user.username == 'examofficer')
+        is_registrar = 'academic_registrar' in user_roles or (legacy_fallback and user.username == 'registrar')
+        is_finance_officer = 'finance_officer' in user_roles or (legacy_fallback and user.username == 'finance')
+        is_admissions_officer = 'admissions_officer' in user_roles or (legacy_fallback and user.username == 'admissions')
+        is_identity_admin = 'identity_admin' in user_roles or (legacy_fallback and user.username in ('ictdirector', 'admin', 'superadmin')) or user.is_superuser
+        is_auditor = 'auditor' in user_roles or (legacy_fallback and user.username == 'auditor')
+        is_vc_or_dvc = bool(user_roles & {'vc', 'dvcaa'}) or (legacy_fallback and user.username in ('vc', 'dvcaa'))
 
     from university.module_services import (
         get_cached_module_registry,
@@ -82,6 +90,9 @@ def theme_and_notifications(request):
         "is_identity_admin": is_identity_admin,
         "is_auditor": is_auditor,
         "is_vc_or_dvc": is_vc_or_dvc,
+        "assigned_roles": assigned_roles,
+        "active_role_code": active_role_code,
+        "active_role_name": active_role_name,
         "brand_name": inst_settings.get("institution_name", "University Management System"),
         "brand_short": inst_settings.get("institution_short_name", "UMS"),
         "institution_settings": inst_settings,
