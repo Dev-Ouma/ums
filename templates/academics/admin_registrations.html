@@ -1,9 +1,9 @@
 {% extends 'base_dashboard.html' %}
 {% block title %}Unit Registration Management · Academics · UMS{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="page-head d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
   <div>
-    <h4><i class="fa-solid fa-clipboard-check me-2" style="color:var(--primary)"></i>Unit Registration Management</h4>
+    <h4 class="mb-1"><i class="fa-solid fa-clipboard-check me-2" style="color:var(--primary)"></i>Unit Registration Management</h4>
     <small class="text-muted">Monitor, review, and approve student semester course registrations.</small>
   </div>
   <div class="d-flex align-items-center gap-2">
@@ -12,8 +12,8 @@
         <i class="fa-solid fa-download me-1"></i>Export
       </button>
       <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-        <li><a class="dropdown-item" href="?export=csv{% if q %}&q={{ q }}{% endif %}{% if selected_term %}&term={{ selected_term }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}"><i class="fa-solid fa-file-csv me-2 text-primary"></i>Export as CSV</a></li>
-        <li><a class="dropdown-item" href="?export=xlsx{% if q %}&q={{ q }}{% endif %}{% if selected_term %}&term={{ selected_term }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}"><i class="fa-solid fa-file-excel me-2 text-success"></i>Export as Excel (.xlsx)</a></li>
+        <li><a class="dropdown-item" href="?export=csv{% if base_querystring %}&{{ base_querystring }}{% endif %}"><i class="fa-solid fa-file-csv me-2 text-primary"></i>Export as CSV</a></li>
+        <li><a class="dropdown-item" href="?export=xlsx{% if base_querystring %}&{{ base_querystring }}{% endif %}"><i class="fa-solid fa-file-excel me-2 text-success"></i>Export as Excel (.xlsx)</a></li>
       </ul>
     </div>
   </div>
@@ -22,10 +22,10 @@
 <!-- KPI Cards -->
 <div class="row g-3 mb-4">
   <div class="col-sm-6 col-lg-3">
-    <div class="card card-ums p-3">
+    <div class="card card-ums card-lift p-3 h-100 border-0 shadow-sm">
       <div class="d-flex justify-content-between align-items-center">
         <div>
-          <span class="text-muted small">Total Registrations</span>
+          <span class="text-muted small text-uppercase fw-semibold">Total Registrations</span>
           <h4 class="fw-bold mb-0 mt-1">{{ total_count }}</h4>
         </div>
         <div class="icon-circle" style="background:#eef0fd;color:#494a87"><i class="fa-solid fa-users"></i></div>
@@ -33,10 +33,10 @@
     </div>
   </div>
   <div class="col-sm-6 col-lg-3">
-    <div class="card card-ums p-3">
+    <div class="card card-ums card-lift p-3 h-100 border-0 shadow-sm {% if pending_count > 0 %}border-start border-4 border-warning{% endif %}">
       <div class="d-flex justify-content-between align-items-center">
         <div>
-          <span class="text-muted small">Pending Approval</span>
+          <span class="text-muted small text-uppercase fw-semibold">Pending Approval</span>
           <h4 class="fw-bold mb-0 mt-1 text-warning">{{ pending_count }}</h4>
         </div>
         <div class="icon-circle" style="background:#fff9db;color:#f59f00"><i class="fa-solid fa-hourglass-half"></i></div>
@@ -44,10 +44,10 @@
     </div>
   </div>
   <div class="col-sm-6 col-lg-3">
-    <div class="card card-ums p-3">
+    <div class="card card-ums card-lift p-3 h-100 border-0 shadow-sm">
       <div class="d-flex justify-content-between align-items-center">
         <div>
-          <span class="text-muted small">Approved / Active</span>
+          <span class="text-muted small text-uppercase fw-semibold">Approved / Active</span>
           <h4 class="fw-bold mb-0 mt-1 text-success">{{ approved_count }}</h4>
         </div>
         <div class="icon-circle" style="background:#ebfbee;color:#2f9e44"><i class="fa-solid fa-circle-check"></i></div>
@@ -55,10 +55,10 @@
     </div>
   </div>
   <div class="col-sm-6 col-lg-3">
-    <div class="card card-ums p-3">
+    <div class="card card-ums card-lift p-3 h-100 border-0 shadow-sm">
       <div class="d-flex justify-content-between align-items-center">
         <div>
-          <span class="text-muted small">Academic Terms</span>
+          <span class="text-muted small text-uppercase fw-semibold">Academic Terms</span>
           <h4 class="fw-bold mb-0 mt-1 text-primary">{{ terms|length }}</h4>
         </div>
         <div class="icon-circle" style="background:#e7f5ff;color:#1c7ed6"><i class="fa-solid fa-calendar-check"></i></div>
@@ -68,17 +68,17 @@
 </div>
 
 <!-- Filters Bar -->
-<div class="card card-ums p-3 mb-4">
+<div class="card card-ums p-3 mb-4 border-0 shadow-sm">
   <form method="get" class="row g-2 align-items-center">
     <div class="col-md-3">
       <div class="input-group input-group-sm">
-        <span class="input-group-text bg-light"><i class="fa-solid fa-magnifying-glass"></i></span>
-        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Search student name, roll no...">
+        <span class="input-group-text bg-light border-end-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+        <input type="text" name="q" value="{{ q }}" class="form-control border-start-0" placeholder="Search student name, roll no...">
       </div>
     </div>
     <div class="col-md-2">
       <select name="term" class="form-select form-select-sm" onchange="this.form.submit()">
-        <option value="">All Academic Terms</option>
+        <option value="">All {{ term_type_label|default:"Academic Terms" }}</option>
         {% for t in terms %}
           <option value="{{ t.pk }}" {% if selected_term == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
         {% endfor %}
@@ -109,8 +109,22 @@
       </select>
     </div>
     <div class="col-md-3 d-flex gap-2">
-      <button type="submit" class="btn btn-sm btn-primary rounded-pill flex-fill">Apply Filters</button>
+      <button type="submit" class="btn btn-sm btn-primary rounded-pill flex-fill">
+        <i class="fa-solid fa-filter me-1"></i>Apply Filters
+      </button>
+      {% if q or selected_term or selected_program or selected_department or selected_status or selected_cohort %}
       <a href="{% url 'university:admin_unit_registrations' %}" class="btn btn-sm btn-outline-secondary rounded-pill">Reset</a>
+      {% endif %}
+    </div>
+    <div class="col-12 d-flex justify-content-between align-items-center pt-2 border-top mt-2">
+      <span class="small text-muted"><i class="fa-solid fa-circle-info me-1"></i>Use filters to narrow approvals by term, programme, cohort, or status.</span>
+      <label class="small text-muted d-flex align-items-center gap-2">Rows per page
+        <select name="page_size" class="form-select form-select-sm" style="width:90px" onchange="this.form.submit()">
+          <option value="25" {% if page_size == 25 %}selected{% endif %}>25</option>
+          <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+          <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+        </select>
+      </label>
     </div>
   </form>
 </div>
@@ -127,13 +141,14 @@
           <i class="fa-solid fa-check-double me-1"></i>Approve Selected
         </button>
       </div>
-      <span class="text-muted small">Showing page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+      <span class="text-muted small">Showing {{ page.start_index }}–{{ page.end_index }} of {{ page.paginator.count }} registrations</span>
     </div>
     <div class="table-responsive">
       <table class="table align-middle mb-0">
         <thead class="table-light">
           <tr>
-            <th class="ps-3" style="width:40px">
+            <th class="ps-3 text-center" style="width:52px">#</th>
+            <th class="text-center" style="width:40px">
               <input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('.reg-check').forEach(cb => cb.checked = this.checked);">
             </th>
             <th>Roll No</th>
@@ -149,7 +164,8 @@
         <tbody>
           {% for reg in page %}
             <tr>
-              <td class="ps-3">
+              <td class="ps-3 text-center text-muted fw-semibold">{{ forloop.counter|add:page.start_index|add:"-1" }}</td>
+              <td class="text-center">
                 {% if reg.status == 'SUBMITTED' %}
                   <input type="checkbox" name="selected_ids" value="{{ reg.pk }}" class="form-check-input reg-check">
                 {% endif %}
@@ -201,13 +217,12 @@
       <div class="card-footer d-flex justify-content-between align-items-center py-2">
         <span class="small text-muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
         <ul class="pagination pagination-sm mb-0">
-          {% if page.has_previous %}
-            <li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if selected_term %}&term={{ selected_term }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_cohort %}&cohort={{ selected_cohort }}{% endif %}">Previous</a></li>
-          {% endif %}
-          <li class="page-item active"><span class="page-link">{{ page.number }}</span></li>
-          {% if page.has_next %}
-            <li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if selected_term %}&term={{ selected_term }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_cohort %}&cohort={{ selected_cohort }}{% endif %}">Next</a></li>
-          {% endif %}
+          {% if page.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}{% if base_querystring %}&{{ base_querystring }}{% endif %}"><i class="fa-solid fa-chevron-left"></i></a></li>{% endif %}
+          {% for num in page.paginator.page_range %}
+            {% if num == page.number %}<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% elif num == 1 or num == page.paginator.num_pages or num >= page.number|add:'-2' and num <= page.number|add:'2' %}<li class="page-item"><a class="page-link" href="?page={{ num }}{% if base_querystring %}&{{ base_querystring }}{% endif %}">{{ num }}</a></li>{% endif %}
+          {% endfor %}
+          {% if page.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}{% if base_querystring %}&{{ base_querystring }}{% endif %}"><i class="fa-solid fa-chevron-right"></i></a></li>{% endif %}
         </ul>
       </div>
     {% endif %}

@@ -30,6 +30,7 @@ from .transcript_views import document as render_transcript_document
 from .document_access_services import check_document_access
 from .audit_services import get_client_ip, detect_device_type, log_activity
 from .academic_calendar_services import get_current_academic_year, get_current_semester, get_active_academic_context
+from . import services
 
 
 def _get_student(request):
@@ -248,15 +249,20 @@ def student_register_units(request):
                 messages.warning(request, f"Note: You have registered {current_credits} credits, which is below the standard minimum of 12 credits.")
 
             with transaction.atomic():
-                registration.status = SemesterRegistration.APPROVED
+                # Student submission enters the admin review queue. Approval
+                # must be an explicit administrative action; students must
+                # never approve their own registrations.
+                registration.status = SemesterRegistration.SUBMITTED
                 registration.submitted_at = timezone.now()
-                registration.approved_at = timezone.now()
+                registration.approved_at = None
+                registration.approved_by = None
                 registration.recalculate_credits(save=False)
                 registration.save()
-                # Update child enrollments to ACTIVE
-                registration.enrollments.exclude(status=Enrollment.DROPPED).update(status=Enrollment.ACTIVE)
+                # Keep child enrollments pending until an administrator
+                # approves the parent registration.
+                registration.enrollments.exclude(status=Enrollment.DROPPED).update(status=Enrollment.SUBMITTED)
 
-            messages.success(request, "Your unit registration has been successfully submitted and approved.")
+            messages.success(request, "Your unit registration has been submitted for administrative approval.")
             return redirect("university:student_register_units")
 
     # Registered units
@@ -393,10 +399,23 @@ def admin_unit_registrations(request):
     approved_count = SemesterRegistration.objects.filter(status=SemesterRegistration.APPROVED).count()
     active_terms = AcademicTerm.objects.all()
 
-    page = Paginator(registrations_qs, 25).get_page(request.GET.get("page"))
+    try:
+        page_size = int(request.GET.get("page_size", 25))
+    except ValueError:
+        page_size = 25
+    page_size = page_size if page_size in (25, 50, 100) else 25
+
+    page = Paginator(registrations_qs, page_size).get_page(request.GET.get("page"))
+
+    querydict = request.GET.copy()
+    querydict.pop("page", None)
+    base_querystring = querydict.urlencode()
 
     return render(request, "academics/admin_registrations.html", {
         "page": page,
+        "page_size": page_size,
+        "base_querystring": base_querystring,
+        "term_type_label": services._current_term_type_label(),
         "total_count": total_count,
         "pending_count": pending_count,
         "approved_count": approved_count,
