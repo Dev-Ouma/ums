@@ -476,6 +476,28 @@ def semester_action(request, pk, action):
         elif action == "reopen":
             reopen_semester(sem.pk, user=request.user, request=request)
             messages.success(request, f"Semester '{sem.name}' has been REOPENED.")
+        elif action == "senate_approve":
+            sem.senate_approved_at = timezone.now()
+            sem.senate_approved_by = request.user
+            sem.save(update_fields=["senate_approved_at", "senate_approved_by"])
+            log_activity(
+                request=request, user=request.user,
+                action=AuditLog.Action.UPDATE, module=AuditLog.Module.CALENDAR,
+                entity="AcademicTerm", entity_id=sem.id,
+                description=f"Senate-approved results for '{sem.name}'.",
+            )
+            messages.success(request, f"'{sem.name}' marked as Senate-approved. Documents requiring Senate approval can now be released for this term.")
+        elif action == "senate_unapprove":
+            sem.senate_approved_at = None
+            sem.senate_approved_by = None
+            sem.save(update_fields=["senate_approved_at", "senate_approved_by"])
+            log_activity(
+                request=request, user=request.user,
+                action=AuditLog.Action.UPDATE, module=AuditLog.Module.CALENDAR,
+                entity="AcademicTerm", entity_id=sem.id,
+                description=f"Revoked Senate approval for '{sem.name}'.",
+            )
+            messages.warning(request, f"Senate approval revoked for '{sem.name}'. Documents requiring Senate approval will be blocked again.")
         else:
             messages.error(request, f"Unknown action '{action}'.")
     except ValidationError as e:

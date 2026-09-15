@@ -108,15 +108,17 @@ def apply_hostel_room(student, room, term, notes="", request=None):
 def allocate_hostel_room(allocation_id, admin_user=None, request=None):
     """Warden or housing admin approves room assignment and auto-bills semester hostel fee."""
     alloc = HostelAllocation.objects.select_for_update().get(pk=allocation_id)
-    room = alloc.room
+    room = HostelRoom.objects.select_for_update().get(pk=alloc.room_id)
 
-    if room.available_beds <= 0 and alloc.status != HostelAllocation.Status.ALLOCATED:
+    if alloc.status != HostelAllocation.Status.APPLIED:
+        return False, f"Only pending applications can be allocated (current status: {alloc.get_status_display()})."
+
+    if room.available_beds <= 0:
         return False, "Cannot allocate: Room has reached maximum bed capacity."
 
-    if alloc.status != HostelAllocation.Status.ALLOCATED:
-        room.occupied_beds = F("occupied_beds") + 1
-        room.save(update_fields=["occupied_beds"])
-        room.refresh_from_db()
+    room.occupied_beds = F("occupied_beds") + 1
+    room.save(update_fields=["occupied_beds"])
+    room.refresh_from_db()
 
     alloc.status = HostelAllocation.Status.ALLOCATED
     alloc.allocated_at = timezone.now()
@@ -153,6 +155,8 @@ def allocate_hostel_room(allocation_id, admin_user=None, request=None):
 def checkin_hostel_student(allocation_id, key_number="", admin_user=None, request=None):
     """Record student physical arrival and room key handover."""
     alloc = HostelAllocation.objects.select_for_update().get(pk=allocation_id)
+    if alloc.status != HostelAllocation.Status.ALLOCATED:
+        return False, f"Only allocated students can be checked in (current status: {alloc.get_status_display()})."
     alloc.status = HostelAllocation.Status.CHECKED_IN
     alloc.check_in_date = timezone.now().date()
     alloc.room_key_number = key_number or f"KEY-{alloc.room.room_number}"
@@ -174,13 +178,15 @@ def checkin_hostel_student(allocation_id, key_number="", admin_user=None, reques
 def checkout_hostel_student(allocation_id, admin_user=None, request=None):
     """Release student bed space upon departure or semester conclusion."""
     alloc = HostelAllocation.objects.select_for_update().get(pk=allocation_id)
-    room = alloc.room
+    room = HostelRoom.objects.select_for_update().get(pk=alloc.room_id)
 
-    if alloc.status in [HostelAllocation.Status.ALLOCATED, HostelAllocation.Status.CHECKED_IN]:
-        if room.occupied_beds > 0:
-            room.occupied_beds = F("occupied_beds") - 1
-            room.save(update_fields=["occupied_beds"])
-            room.refresh_from_db()
+    if alloc.status not in [HostelAllocation.Status.ALLOCATED, HostelAllocation.Status.CHECKED_IN]:
+        return False, f"Only allocated or checked-in students can be checked out (current status: {alloc.get_status_display()})."
+
+    if room.occupied_beds > 0:
+        room.occupied_beds = F("occupied_beds") - 1
+        room.save(update_fields=["occupied_beds"])
+        room.refresh_from_db()
 
     alloc.status = HostelAllocation.Status.CHECKED_OUT
     alloc.check_out_date = timezone.now().date()

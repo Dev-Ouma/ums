@@ -67,13 +67,24 @@ class ExaminationForm(StyledForm, forms.ModelForm):
         if not self.instance.internal_examiner_id and self.instance.course_id and self.instance.course.faculty_id:
             self.initial.setdefault('internal_examiner', self.instance.course.faculty_id)
 
+        effective_kind = (self.data.get('kind') if self.is_bound else None) or self.initial.get('kind') or self.instance.kind
+        is_supplementary = effective_kind == Exam.Kind.SUPPLEMENTARY
+
         grade_bands = self.instance.grade_bands or default_grade_bands()
         for band in grade_bands:
-            if band['grade'] != 'F':
-                self.fields['grade_' + band['grade']] = forms.DecimalField(
-                    min_value=0, max_value=100, decimal_places=2,
-                    initial=band['minimum'], label=f"Grade {band['grade']} minimum (%)"
-                )
+            if band['grade'] == 'F':
+                continue
+            if is_supplementary and band['grade'] not in ('C', 'D'):
+                # CUE regulation: a supplementary sitting's awarded grade is capped
+                # at 'C' — A/B are not reachable, so those thresholds aren't offered.
+                continue
+            label = f"Grade {band['grade']} minimum (%)"
+            if is_supplementary and band['grade'] == 'C':
+                label += " — capped ceiling for supplementary sittings"
+            self.fields['grade_' + band['grade']] = forms.DecimalField(
+                min_value=0, max_value=100, decimal_places=2,
+                initial=band['minimum'], label=label
+            )
         self.style()
 
     def clean(self):

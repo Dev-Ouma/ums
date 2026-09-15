@@ -6,10 +6,12 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import Role, StudentProfile
 from university.models import (
-    AcademicTerm, AcademicYear, Course, Department, Enrollment, Program, SemesterRegistration
+    AcademicTerm, AcademicYear, Course, Department, DocumentReleaseControl,
+    Enrollment, Program, SemesterRegistration
 )
 
 User = get_user_model()
@@ -174,13 +176,12 @@ class AcademicsModuleTests(TestCase):
         self.assertEqual(res_acad.status_code, 200)
 
     def test_admin_unit_registration_management(self):
-        """Admin can monitor registrations, filter, and bulk approve submitted registrations."""
-        # Create a submitted registration
+        """Admin can monitor registrations and filter the list."""
         reg = SemesterRegistration.objects.create(
             student=self.student, term=self.term, semester_no=1,
             status=SemesterRegistration.APPROVED, total_credits=8
         )
-        enr = Enrollment.objects.create(
+        Enrollment.objects.create(
             student=self.student, course=self.course1, term=self.term,
             registration=reg, status=Enrollment.ACTIVE
         )
@@ -191,16 +192,20 @@ class AcademicsModuleTests(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertContains(res, self.student.roll_no)
 
-        # Bulk approve
-        approve_res = self.client.post(admin_url, {
-            "action": "bulk_approve", "selected_ids": [reg.pk]
-        })
-        self.assertRedirects(approve_res, admin_url)
-
-        reg.refresh_from_db()
-        self.assertEqual(reg.status, SemesterRegistration.APPROVED)
-        enr.refresh_from_db()
-        self.assertEqual(enr.status, Enrollment.ACTIVE)
+    def test_admin_unit_registration_pending_metric_counts_drafts_not_dead_submitted_status(self):
+        """
+        Registrations are auto-approved on student submission (see
+        submit_registration) — nothing ever reaches SUBMITTED, so the
+        'pending' KPI must reflect DRAFT (not-yet-submitted) registrations,
+        never the unreachable SUBMITTED status.
+        """
+        SemesterRegistration.objects.create(
+            student=self.student, term=self.term, semester_no=1,
+            status=SemesterRegistration.DRAFT, total_credits=0,
+        )
+        self.client.force_login(self.admin_user)
+        res = self.client.get(reverse("university:admin_unit_registrations"))
+        self.assertEqual(res.context["pending_count"], 1)
 
     def test_admin_unit_registration_detail_actions(self):
         """Admin can review, add units, and approve/reject individual registrations."""
@@ -246,8 +251,133 @@ class AcademicsModuleTests(TestCase):
         self.assertEqual(res_acad.status_code, 200)
         self.assertContains(res_acad, self.student.roll_no)
 
+    def test_admin_supplementary_list_view(self):
+        """Admin can access the supplementary list directory."""
+        self.client.force_login(self.admin_user)
+        url = reverse("university:admin_supplementary_list")
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+
+    def test_admin_exam_nominal_rolls_view(self):
+        """Admin can access the nominal rolls directory."""
+        self.client.force_login(self.admin_user)
+        url = reverse("university:admin_exam_nominal_rolls")
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+
     def test_permissions_student_cannot_access_admin_academics(self):
         """Regular student cannot access admin registration management."""
         self.client.force_login(self.student_user)
         res = self.client.get(reverse("university:admin_unit_registrations"))
         self.assertEqual(res.status_code, 403)
+
+
+class StudentTransferDecisionTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        dept = Department.objects.create(name="School of Business", code="SOB", color="#00b894")
+        cls.program_a = Program.objects.create(name="BCom", code="BCOM-T", department=dept, level="UG")
+        cls.program_b = Program.objects.create(name="BBA", code="BBA-T", department=dept, level="UG")
+        student_user = User.objects.create_user(
+            username="transfer.student", email="transfer@university.ac.ke",
+            password="password123", role=Role.STUDENT,
+        )
+        cls.student = StudentProfile.objects.create(
+            user=student_user, roll_no="SB/001/2026", program=cls.program_a, current_semester=1
+        )
+        cls.admin_user = User.objects.create_user(
+            username="admin.transfer", email="admin.transfer@university.ac.ke",
+            password="password123", role=Role.ADMIN,
+        )
+
+    def _make_request(self):
+        from university.models import StudentTransferRequest
+        return StudentTransferRequest.objects.create(
+            student=self.student, from_program=self.program_a, to_program=self.program_b,
+            reason="Better fit for career goals",
+        )
+
+    def test_approval_updates_program_and_logs_audit(self):
+        from university.models import StudentTransferRequest, AuditLog
+        req = self._make_request()
+        self.client.force_login(self.admin_user)
+        url = reverse("university:admin_student_transfer_decision", args=[req.pk])
+        res = self.client.post(url, {"decision": StudentTransferRequest.Status.APPROVED, "review_comments": "Approved"})
+        self.assertRedirects(res, reverse("university:admin_student_transfers"))
+
+        req.refresh_from_db()
+        self.assertEqual(req.status, StudentTransferRequest.Status.APPROVED)
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.program_id, self.program_b.id)
+        self.assertTrue(AuditLog.objects.filter(entity="StudentTransferRequest", entity_id=req.id).exists())
+
+    def test_cannot_approve_same_transfer_twice(self):
+        from university.models import StudentTransferRequest
+        req = self._make_request()
+        self.client.force_login(self.admin_user)
+        url = reverse("university:admin_student_transfer_decision", args=[req.pk])
+        self.client.post(url, {"decision": StudentTransferRequest.Status.APPROVED})
+        second = self.client.post(url, {"decision": StudentTransferRequest.Status.APPROVED})
+        self.assertEqual(second.status_code, 404)
+
+
+class SenateApprovalDocumentGateTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        from university.models import DocumentReleaseControl
+        dept = Department.objects.create(name="School of Law", code="SOL", color="#0984e3")
+        program = Program.objects.create(name="LLB", code="LLB-T", department=dept, level="UG")
+        cls.academic_year = AcademicYear.objects.create(
+            name="2026/2027", start_date=date.today() - timedelta(days=30),
+            end_date=date.today() + timedelta(days=330),
+            status=AcademicYear.Status.PUBLISHED, is_current=True,
+        )
+        cls.term = AcademicTerm.objects.create(
+            academic_year=cls.academic_year, name="Law Term 1", semester_number=1,
+            start_date=date.today() - timedelta(days=10), end_date=date.today() + timedelta(days=60),
+            status=AcademicYear.Status.CURRENT, is_current=True,
+        )
+        student_user = User.objects.create_user(
+            username="senate.student", email="senate@university.ac.ke",
+            password="password123", role=Role.STUDENT,
+        )
+        cls.student = StudentProfile.objects.create(user=student_user, roll_no="SL/001/2026", program=program)
+        cls.control = DocumentReleaseControl.objects.create(
+            term=cls.term, document_type=DocumentReleaseControl.DocumentType.RESULTS_STATEMENT,
+            is_open=True, require_senate_approval=True,
+        )
+
+    def test_blocked_until_senate_approved(self):
+        from university.document_access_services import check_document_access
+        allowed, reason, control, _ = check_document_access(
+            self.student, DocumentReleaseControl.DocumentType.RESULTS_STATEMENT, term=self.term
+        )
+        self.assertFalse(allowed)
+        self.assertIn("Senate", reason)
+
+    def test_allowed_after_senate_approval_recorded(self):
+        from university.document_access_services import check_document_access
+        self.term.senate_approved_at = timezone.now()
+        self.term.save(update_fields=["senate_approved_at"])
+        allowed, reason, control, _ = check_document_access(
+            self.student, DocumentReleaseControl.DocumentType.RESULTS_STATEMENT, term=self.term
+        )
+        self.assertTrue(allowed)
+
+    def test_admin_can_toggle_senate_approval_via_semester_action(self):
+        admin_user = User.objects.create_user(
+            username="registrar.senate", email="registrar.senate@university.ac.ke",
+            password="password123", role=Role.ADMIN,
+        )
+        self.client.force_login(admin_user)
+        url = reverse("university:semester_action", args=[self.term.pk, "senate_approve"])
+        res = self.client.post(url)
+        self.assertEqual(res.status_code, 302)
+        self.term.refresh_from_db()
+        self.assertIsNotNone(self.term.senate_approved_at)
+        self.assertEqual(self.term.senate_approved_by_id, admin_user.id)
+
+        revoke_url = reverse("university:semester_action", args=[self.term.pk, "senate_unapprove"])
+        self.client.post(revoke_url)
+        self.term.refresh_from_db()
+        self.assertIsNone(self.term.senate_approved_at)

@@ -1,0 +1,966 @@
+{% extends 'examinations/base.html' %}
+{% block exam_content %}
+<style>
+/* ── Schedule List Styles ── */
+.sched-header {
+  background: linear-gradient(135deg, #006677 0%, #004d5c 100%);
+  border-radius: 1rem 1rem 0 0;
+  padding: 1.5rem 2rem;
+  color: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.sched-header h3 {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.4rem;
+  letter-spacing: -.015em;
+  font-style: italic;
+}
+.sched-filter-bar {
+  background: #fff;
+  padding: 1.25rem 2rem;
+  border-left: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.sched-filter-bar label {
+  font-weight: 600;
+  font-size: .82rem;
+  color: #475569;
+  margin-bottom: .25rem;
+  display: block;
+}
+.sched-entries {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .85rem;
+  color: #475569;
+}
+.sched-search {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .85rem;
+}
+.sched-search input {
+  max-width: 200px;
+}
+.sched-btn-add {
+  background: #e05a47;
+  color: #fff;
+  border: none;
+  padding: .5rem 1.25rem;
+  border-radius: .5rem;
+  font-weight: 700;
+  font-size: .85rem;
+  cursor: pointer;
+  transition: all .2s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+}
+.sched-btn-add:hover {
+  background: #c94a38;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(224,90,71,.25);
+}
+.sched-table-wrap {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-top: none;
+  border-radius: 0 0 1rem 1rem;
+  overflow: hidden;
+}
+.sched-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+}
+.sched-table thead th {
+  background: #006677;
+  color: #fff;
+  padding: .75rem .85rem;
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+.sched-table thead th:after {
+  content: ' ⇅';
+  opacity: .5;
+  font-size: .7rem;
+}
+.sched-table tbody td {
+  padding: .75rem .85rem;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: .87rem;
+  color: #1e293b;
+  vertical-align: middle;
+}
+.sched-table tbody tr:hover {
+  background: #f8fafc;
+}
+.sched-table tbody tr:nth-child(even) {
+  background: #fafbfc;
+}
+.sched-table tbody tr:nth-child(even):hover {
+  background: #f1f5f9;
+}
+.sched-btn-view {
+  background: #006677;
+  color: #fff;
+  border: none;
+  padding: .3rem .7rem;
+  border-radius: .35rem;
+  font-size: .78rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all .2s;
+}
+.sched-btn-view:hover {
+  background: #004d5c;
+  color: #fff;
+}
+.sched-btn-edit {
+  background: #e05a47;
+  color: #fff;
+  border: none;
+  padding: .3rem .55rem;
+  border-radius: .35rem;
+  font-size: .78rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all .2s;
+}
+.sched-btn-edit:hover {
+  background: #c94a38;
+  color: #fff;
+}
+.sched-btn-del {
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  padding: .3rem .55rem;
+  border-radius: .35rem;
+  font-size: .78rem;
+  cursor: pointer;
+  transition: all .2s;
+}
+.sched-btn-del:hover {
+  background: #b91c1c;
+}
+.sched-btn-pub {
+  background: #16a34a;
+  color: #fff;
+  border: none;
+  padding: .3rem .55rem;
+  border-radius: .35rem;
+  font-size: .78rem;
+  cursor: pointer;
+  transition: all .2s;
+}
+.sched-btn-pub:hover {
+  background: #15803d;
+}
+.sched-status {
+  display: inline-block;
+  padding: .25rem .6rem;
+  border-radius: 9999px;
+  font-size: .75rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+.sched-status-Active { background: #dcfce7; color: #15803d; }
+.sched-status-Published { background: #dbeafe; color: #1d4ed8; }
+.sched-status-Inactive { background: #f3f4f6; color: #6b7280; }
+.sched-status-Draft { background: #fef3c7; color: #b45309; }
+.sched-status-Scheduled { background: #eef0fd; color: #4834d4; }
+.sched-footer {
+  padding: .85rem 2rem;
+  background: #fff;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+  font-size: .85rem;
+  color: #475569;
+}
+.sched-pagination {
+  display: flex;
+  gap: .25rem;
+}
+.sched-pagination a, .sched-pagination span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: .25rem .6rem;
+  border-radius: .35rem;
+  font-size: .85rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  background: #fff;
+  transition: all .15s;
+}
+.sched-pagination a:hover {
+  background: #006677;
+  color: #fff;
+  border-color: #006677;
+}
+.sched-pagination .active {
+  background: #006677;
+  color: #fff;
+  border-color: #006677;
+}
+
+/* ── Modal Styles ── */
+.sched-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 9000;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+}
+.sched-modal-overlay.open { display: flex; }
+.sched-modal {
+  background: #fff;
+  border-radius: 1rem;
+  width: 100%;
+  max-width: 1100px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.2);
+  animation: schedSlide .25s ease-out;
+}
+@keyframes schedSlide {
+  from { transform: translateY(-30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.sched-modal-head {
+  background: linear-gradient(135deg, #006677, #004d5c);
+  color: #fff;
+  padding: 1.15rem 1.5rem;
+  border-radius: 1rem 1rem 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.sched-modal-head h4 {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+.sched-modal-close {
+  background: rgba(255,255,255,.15);
+  border: none;
+  color: #fff;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background .2s;
+}
+.sched-modal-close:hover {
+  background: rgba(255,255,255,.3);
+}
+.sched-modal-body {
+  padding: 1.5rem;
+  max-height: 75vh;
+  overflow-y: auto;
+}
+.sched-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: .85rem 1.25rem;
+}
+.sched-form-grid label {
+  font-weight: 600;
+  font-size: .82rem;
+  color: #475569;
+  display: block;
+  margin-bottom: .25rem;
+}
+.sched-form-grid label span {
+  color: #dc2626;
+}
+.sched-form-grid select,
+.sched-form-grid input {
+  width: 100%;
+  padding: .5rem .75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: .45rem;
+  font-size: .88rem;
+  color: #1e293b;
+  transition: border .2s;
+}
+.sched-form-grid select:focus,
+.sched-form-grid input:focus {
+  border-color: #006677;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0,102,119,.12);
+}
+.sched-course-section {
+  margin-top: 1.25rem;
+}
+.sched-course-section h5 {
+  font-size: .9rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: .6rem;
+}
+.sched-course-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .82rem;
+}
+.sched-course-table thead th {
+  background: #006677;
+  color: #fff;
+  padding: .55rem .65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  font-size: .72rem;
+  white-space: nowrap;
+}
+.sched-course-table tbody td {
+  padding: .55rem .65rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+.sched-course-table tbody tr:hover {
+  background: #f0fdfa;
+}
+.sched-course-table select,
+.sched-course-table input {
+  padding: .3rem .5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: .35rem;
+  font-size: .82rem;
+  width: 100%;
+}
+.sched-course-table .center-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  background: #006677;
+  color: #fff;
+  padding: .2rem .55rem;
+  border-radius: .3rem;
+  font-size: .75rem;
+  font-weight: 600;
+}
+.sched-course-table .center-tag .remove-tag {
+  cursor: pointer;
+  font-weight: 800;
+}
+.sched-modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: .75rem;
+}
+.sched-modal-footer .btn-update {
+  background: #f59e0b;
+  color: #fff;
+  border: none;
+  padding: .5rem 1.5rem;
+  border-radius: .45rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .2s;
+}
+.sched-modal-footer .btn-update:hover {
+  background: #d97706;
+}
+.sched-modal-footer .btn-close-modal {
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  padding: .5rem 1.25rem;
+  border-radius: .45rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .2s;
+}
+.sched-modal-footer .btn-close-modal:hover {
+  background: #b91c1c;
+}
+.sched-loading {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  color: #64748b;
+  font-size: .85rem;
+  padding: 1rem;
+}
+.sched-loading .spinner {
+  width: 1.2rem;
+  height: 1.2rem;
+  border: 2px solid #e2e8f0;
+  border-top-color: #006677;
+  border-radius: 50%;
+  animation: schedSpin .6s linear infinite;
+}
+@keyframes schedSpin { to { transform: rotate(360deg); } }
+
+/* ── View Courses Modal ── */
+.sched-view-modal {
+  max-width: 900px;
+}
+.sched-view-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .85rem;
+}
+.sched-view-table thead th {
+  background: #006677;
+  color: #fff;
+  padding: .6rem .75rem;
+  font-size: .75rem;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.sched-view-table tbody td {
+  padding: .6rem .75rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+.sched-view-table tbody tr:hover {
+  background: #f0fdfa;
+}
+@media (max-width: 768px) {
+  .sched-form-grid { grid-template-columns: 1fr; }
+  .sched-header { padding: 1rem; }
+  .sched-filter-bar { padding: 1rem; flex-direction: column; align-items: stretch; }
+}
+</style>
+
+<!-- Schedule List Header -->
+<div class="sched-header">
+  <h3><i class="fa-solid fa-calendar-check me-2"></i>Examination Schedule List</h3>
+</div>
+
+<!-- Filter Bar -->
+<div class="sched-filter-bar">
+  <form method="get" class="d-flex align-items-end gap-3 flex-wrap flex-grow-1">
+    <div>
+      <label>Cohort<span style="color:#dc2626">*</span></label>
+      <select name="cohort" class="form-select form-select-sm" style="min-width:200px" onchange="this.form.submit()">
+        <option value="">All Cohorts</option>
+        {% for c in cohorts %}
+          <option value="{{ c.pk }}" {% if selected_cohort == c.pk|stringformat:'s' %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="ms-auto sched-search">
+      <label class="mb-0 me-1">Search:</label>
+      <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Programme or exam name…">
+    </div>
+  </form>
+  <button class="sched-btn-add" onclick="openCreateModal()">
+    <i class="fa-solid fa-plus"></i> Add
+  </button>
+</div>
+
+<!-- Show entries info -->
+<div class="sched-filter-bar" style="padding: .5rem 2rem; border-top: none;">
+  <div class="sched-entries">
+    Show <strong>{{ page.paginator.per_page }}</strong> entries
+  </div>
+</div>
+
+<!-- Schedule Table -->
+<div class="sched-table-wrap">
+  <div class="table-responsive">
+    <table class="sched-table" id="scheduleTable">
+      <thead>
+        <tr>
+          <th>Programme</th>
+          <th>Cohort</th>
+          <th>Academic Year</th>
+          <th>Study Year</th>
+          <th>Semester</th>
+          <th>Exam Name</th>
+          <th>Course List</th>
+          <th>Action</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for sched in page %}
+        <tr>
+          <td>
+            <strong>{{ sched.program.code }}</strong> - {{ sched.program.name }}
+          </td>
+          <td>{{ sched.cohort|default:"—" }}</td>
+          <td>{{ sched.academic_year|default:"—" }}</td>
+          <td>{{ sched.study_year }}</td>
+          <td>{{ sched.semester }}</td>
+          <td>{{ sched.name }}</td>
+          <td>
+            <button class="sched-btn-view" onclick="viewCourses({{ sched.pk }})">
+              <i class="fa-solid fa-eye me-1"></i>View
+            </button>
+          </td>
+          <td>
+            <div class="d-flex gap-1 flex-wrap">
+              <button class="sched-btn-edit" onclick="openEditModal({{ sched.pk }})" title="Edit">
+                <i class="fa-solid fa-pen"></i> Edit
+              </button>
+              <form method="post" action="{% url 'examinations:schedule_delete' sched.pk %}" style="display:inline" onsubmit="return confirm('Delete this schedule?')">
+                {% csrf_token %}
+                <button class="sched-btn-del" type="submit" title="Delete"><i class="fa-solid fa-trash"></i></button>
+              </form>
+              {% if sched.status != 'Published' %}
+              <form method="post" action="{% url 'examinations:schedule_publish' sched.pk %}" style="display:inline">
+                {% csrf_token %}
+                <button class="sched-btn-pub" type="submit" title="Publish"><i class="fa-solid fa-check-circle"></i></button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+          <td>
+            <span class="sched-status sched-status-{{ sched.status }}">{{ sched.status }}</span>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="9" style="text-align:center; padding:3rem; color:#64748b;">
+            <i class="fa-solid fa-inbox fa-3x mb-3" style="opacity:.4;display:block"></i>
+            No examination schedules match the current filters.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Footer / Pagination -->
+  <div class="sched-footer">
+    <span>Showing {{ page.start_index }} to {{ page.end_index }} of {{ page.paginator.count }} entries</span>
+    {% if page.has_other_pages %}
+    <div class="sched-pagination">
+      {% if page.has_previous %}
+        <a href="?page={{ page.previous_page_number }}&cohort={{ selected_cohort }}&q={{ q|urlencode }}">Previous</a>
+      {% endif %}
+      {% for num in page.paginator.page_range %}
+        {% if num == page.number %}
+          <span class="active">{{ num }}</span>
+        {% elif num > page.number|add:'-3' and num < page.number|add:'3' %}
+          <a href="?page={{ num }}&cohort={{ selected_cohort }}&q={{ q|urlencode }}">{{ num }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if page.has_next %}
+        <a href="?page={{ page.next_page_number }}&cohort={{ selected_cohort }}&q={{ q|urlencode }}">Next</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- CREATE / EDIT MODAL -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="sched-modal-overlay" id="schedFormOverlay">
+  <div class="sched-modal">
+    <div class="sched-modal-head">
+      <h4 id="schedFormTitle"><i class="fa-solid fa-calendar-plus me-2"></i>Add Examination Schedule</h4>
+      <button class="sched-modal-close" onclick="closeFormModal()">&times;</button>
+    </div>
+    <form id="schedForm" method="post" action="{% url 'examinations:schedule_create' %}">
+      {% csrf_token %}
+      <div class="sched-modal-body">
+        <div class="sched-form-grid">
+          <div>
+            <label>Programme <span>*</span></label>
+            <select name="program" id="schedProgram" required onchange="fetchCourses()">
+              <option value="">Select programme</option>
+              {% for p in programs %}
+                <option value="{{ p.pk }}">{{ p.code }} - {{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label>Cohort <span>*</span></label>
+            <select name="cohort" id="schedCohort">
+              <option value="">Select cohort</option>
+              {% for c in cohorts %}
+                <option value="{{ c.pk }}">{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label>Academic year <span>*</span></label>
+            <select name="academic_year" id="schedAcademicYear">
+              <option value="">Select year</option>
+              {% for ay in academic_years %}
+                <option value="{{ ay.pk }}">{{ ay.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label>Study year <span>*</span></label>
+            <select name="study_year" id="schedStudyYear" onchange="fetchCourses()">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+            </select>
+          </div>
+          <div>
+            <label>Semester <span>*</span></label>
+            <select name="semester" id="schedSemester" onchange="fetchCourses()">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+            </select>
+          </div>
+          <div>
+            <label>Exam Type <span>*</span></label>
+            <select name="exam_type" id="schedExamType">
+              {% for val, label in exam_types %}
+                <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <!-- Course List -->
+        <div class="sched-course-section">
+          <h5><i class="fa-solid fa-book me-1"></i>Course List:</h5>
+          <div id="schedCourseLoading" class="sched-loading" style="display:none">
+            <div class="spinner"></div> Loading courses…
+          </div>
+          <div class="sched-entries mb-2">
+            Show <select id="schedCourseEntries" style="width:60px;padding:.2rem .3rem;border:1px solid #cbd5e1;border-radius:.3rem"><option>10</option><option>25</option><option>50</option></select> entries
+            <span class="ms-auto sched-search">Search: <input type="text" id="schedCourseSearch" style="max-width:160px" class="form-control form-control-sm" placeholder="Filter…" oninput="filterCourseTable()"></span>
+          </div>
+          <div class="table-responsive">
+            <table class="sched-course-table" id="schedCourseTable">
+              <thead>
+                <tr>
+                  <th>Course Code</th>
+                  <th>Course Unit Name</th>
+                  <th>Specialization</th>
+                  <th>Is Core</th>
+                  <th>Is Practical</th>
+                  <th>Mode Of Exam</th>
+                  <th>Choose Center</th>
+                  <th>Date Of Exam</th>
+                  <th>Exam Session</th>
+                </tr>
+              </thead>
+              <tbody id="schedCourseBody">
+                <tr id="schedCoursePlaceholder">
+                  <td colspan="9" style="text-align:center;color:#94a3b8;padding:2rem;">
+                    Select a programme, study year and semester to load courses.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="schedCourseInfo" class="mt-2" style="font-size:.82rem;color:#64748b"></div>
+        </div>
+
+        <!-- Bottom Fields -->
+        <div class="sched-form-grid mt-3">
+          <div>
+            <label>Exam Name <span>*</span></label>
+            <input type="text" name="name" id="schedName" placeholder="e.g. AUGUST-2026-EXAM" required>
+          </div>
+          <div>
+            <label>Status <span>*</span></label>
+            <select name="status" id="schedStatus">
+              {% for val, label in status_choices %}
+                <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="sched-modal-footer">
+        <button type="submit" class="btn-update" id="schedSubmitBtn">
+          <i class="fa-solid fa-save me-1"></i> Save
+        </button>
+        <button type="button" class="btn-close-modal" onclick="closeFormModal()">Close</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- VIEW COURSES MODAL -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="sched-modal-overlay" id="schedViewOverlay">
+  <div class="sched-modal sched-view-modal">
+    <div class="sched-modal-head">
+      <h4 id="schedViewTitle"><i class="fa-solid fa-list me-2"></i>Course List</h4>
+      <button class="sched-modal-close" onclick="closeViewModal()">&times;</button>
+    </div>
+    <div class="sched-modal-body">
+      <div id="schedViewLoading" class="sched-loading">
+        <div class="spinner"></div> Loading…
+      </div>
+      <div id="schedViewInfo" style="margin-bottom:.75rem;font-size:.88rem;color:#475569;"></div>
+      <div class="table-responsive">
+        <table class="sched-view-table" id="schedViewTable" style="display:none">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Course Code</th>
+              <th>Course Name</th>
+              <th>Core / Elective</th>
+              <th>Practical</th>
+              <th>Mode</th>
+              <th>Center</th>
+              <th>Date</th>
+              <th>Session</th>
+              <th>Students</th>
+            </tr>
+          </thead>
+          <tbody id="schedViewBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="sched-modal-footer">
+      <button type="button" class="btn-close-modal" onclick="closeViewModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Helpers ──
+const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+function openCreateModal() {
+  document.getElementById('schedFormTitle').innerHTML = '<i class="fa-solid fa-calendar-plus me-2"></i>Add Examination Schedule';
+  document.getElementById('schedForm').action = "{% url 'examinations:schedule_create' %}";
+  document.getElementById('schedSubmitBtn').innerHTML = '<i class="fa-solid fa-save me-1"></i> Save';
+  document.getElementById('schedForm').reset();
+  document.getElementById('schedCourseBody').innerHTML = '<tr id="schedCoursePlaceholder"><td colspan="9" style="text-align:center;color:#94a3b8;padding:2rem;">Select a programme, study year and semester to load courses.</td></tr>';
+  document.getElementById('schedCourseInfo').textContent = '';
+  document.getElementById('schedFormOverlay').classList.add('open');
+}
+
+function closeFormModal() {
+  document.getElementById('schedFormOverlay').classList.remove('open');
+}
+
+function openEditModal(pk) {
+  document.getElementById('schedFormTitle').innerHTML = '<i class="fa-solid fa-pen me-2"></i>Edit Examination Schedule';
+  document.getElementById('schedSubmitBtn').innerHTML = '<i class="fa-solid fa-save me-1"></i> Update';
+
+  // Fetch schedule detail
+  fetch(`{% url 'examinations:schedule_list' %}../schedules/${pk}/detail/`)
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('schedForm').action = `{% url 'examinations:schedule_list' %}../schedules/${pk}/edit/`;
+
+      // Populate form fields
+      selectByText('schedProgram', data.program.split(' - ')[0]);
+      selectByValue('schedCohort', findOptionByText('schedCohort', data.cohort));
+      selectByValue('schedAcademicYear', findOptionByText('schedAcademicYear', data.academic_year));
+      document.getElementById('schedStudyYear').value = data.study_year;
+      document.getElementById('schedSemester').value = data.semester;
+      document.getElementById('schedExamType').value = data.exam_type;
+      document.getElementById('schedName').value = data.name;
+      document.getElementById('schedStatus').value = data.status;
+
+      // Render course items
+      renderEditCourseItems(data.items);
+      document.getElementById('schedFormOverlay').classList.add('open');
+    });
+}
+
+function selectByText(selId, text) {
+  const sel = document.getElementById(selId);
+  for (let o of sel.options) {
+    if (o.textContent.trim().startsWith(text)) { sel.value = o.value; return; }
+  }
+}
+function findOptionByText(selId, text) {
+  const sel = document.getElementById(selId);
+  for (let o of sel.options) {
+    if (o.textContent.trim() === text) return o.value;
+  }
+  return '';
+}
+function selectByValue(selId, val) {
+  document.getElementById(selId).value = val;
+}
+
+function renderEditCourseItems(items) {
+  const tbody = document.getElementById('schedCourseBody');
+  if (!items.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:1.5rem;">No courses in this schedule.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = '';
+  items.forEach((item, i) => {
+    // We need the course id – fetch it from API or embed; for edit we'll re-fetch
+    tbody.innerHTML += courseRowHtml({id: 0, code: item.course_code, title: item.course_title}, item);
+  });
+}
+
+function fetchCourses() {
+  const prog = document.getElementById('schedProgram').value;
+  const yr = document.getElementById('schedStudyYear').value;
+  const sem = document.getElementById('schedSemester').value;
+  if (!prog) return;
+
+  document.getElementById('schedCourseLoading').style.display = 'flex';
+  document.getElementById('schedCourseBody').innerHTML = '';
+
+  fetch(`{% url 'examinations:schedule_courses_api' %}?program=${prog}&study_year=${yr}&semester=${sem}`)
+    .then(r => r.json())
+    .then(courses => {
+      document.getElementById('schedCourseLoading').style.display = 'none';
+      const tbody = document.getElementById('schedCourseBody');
+      if (!courses.length) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:1.5rem;">No courses found for this selection.</td></tr>';
+        document.getElementById('schedCourseInfo').textContent = '0 courses';
+        return;
+      }
+      tbody.innerHTML = '';
+      courses.forEach(c => {
+        tbody.innerHTML += courseRowHtml(c, {});
+      });
+      document.getElementById('schedCourseInfo').textContent = `Showing 1 to ${courses.length} of ${courses.length} entries`;
+    })
+    .catch(() => {
+      document.getElementById('schedCourseLoading').style.display = 'none';
+    });
+}
+
+function courseRowHtml(course, defaults) {
+  const modes = [{% for val, label in mode_choices %}["{{ val }}","{{ label }}"],{% endfor %}];
+  const sessions = [{% for val, label in session_choices %}["{{ val }}","{{ label }}"],{% endfor %}];
+  const cores = [{% for val, label in core_choices %}["{{ val }}","{{ label }}"],{% endfor %}];
+
+  const modeOpts = modes.map(([v,l]) => `<option value="${v}" ${defaults.mode_of_exam === v ? 'selected' : ''}>${l}</option>`).join('');
+  const sessOpts = sessions.map(([v,l]) => `<option value="${v}" ${defaults.exam_session === v ? 'selected' : ''}>${l}</option>`).join('');
+  const coreOpts = cores.map(([v,l]) => `<option value="${v}" ${defaults.is_core === v ? 'selected' : ''}>${l}</option>`).join('');
+
+  return `<tr class="sched-course-row">
+    <input type="hidden" name="course_id" value="${course.id}">
+    <td><strong>${course.code}</strong></td>
+    <td>${course.title}</td>
+    <td><input type="text" name="specialization" value="${defaults.specialization || ''}" placeholder="—"></td>
+    <td><select name="is_core">${coreOpts}</select></td>
+    <td><select name="is_practical"><option value="No" ${!defaults.is_practical ? 'selected' : ''}>No</option><option value="Yes" ${defaults.is_practical ? 'selected' : ''}>Yes</option></select></td>
+    <td><select name="mode_of_exam" onchange="updateCenter(this)">${modeOpts}</select></td>
+    <td>
+      <select name="center_name" style="min-width:120px">
+        <option value="ONLINE" ${(defaults.center_name||'') === 'ONLINE' ? 'selected' : ''}>ONLINE</option>
+        {% for r in rooms %}
+          <option value="{{ r.name }}" ${false ? 'selected' : ''}>{{ r.name }}</option>
+        {% endfor %}
+      </select>
+      <input type="hidden" name="room" value="">
+    </td>
+    <td><input type="date" name="exam_date" value="${defaults.exam_date || ''}"></td>
+    <td><select name="exam_session">${sessOpts}</select></td>
+  </tr>`;
+}
+
+function updateCenter(sel) {
+  const row = sel.closest('tr');
+  const centerSel = row.querySelector('[name="center_name"]');
+  if (sel.value === 'Online') {
+    centerSel.value = 'ONLINE';
+  }
+}
+
+function filterCourseTable() {
+  const q = document.getElementById('schedCourseSearch').value.toLowerCase();
+  document.querySelectorAll('#schedCourseBody .sched-course-row').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+// ── View Courses Modal ──
+function viewCourses(pk) {
+  document.getElementById('schedViewLoading').style.display = 'flex';
+  document.getElementById('schedViewTable').style.display = 'none';
+  document.getElementById('schedViewInfo').textContent = '';
+  document.getElementById('schedViewOverlay').classList.add('open');
+
+  fetch(`{% url 'examinations:schedule_list' %}../schedules/${pk}/detail/`)
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('schedViewLoading').style.display = 'none';
+      document.getElementById('schedViewTitle').innerHTML = `<i class="fa-solid fa-list me-2"></i>Course List — ${data.name}`;
+      document.getElementById('schedViewInfo').innerHTML = `<strong>${data.program}</strong> · ${data.cohort} · ${data.academic_year} · Year ${data.study_year} · Sem ${data.semester}`;
+
+      const tbody = document.getElementById('schedViewBody');
+      tbody.innerHTML = '';
+      if (!data.items.length) {
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#94a3b8;padding:2rem;">No courses in this schedule.</td></tr>';
+      } else {
+        data.items.forEach((item, i) => {
+          tbody.innerHTML += `<tr>
+            <td>${i+1}</td>
+            <td><strong>${item.course_code}</strong></td>
+            <td>${item.course_title}</td>
+            <td>${item.is_core}</td>
+            <td>${item.is_practical ? 'Yes' : 'No'}</td>
+            <td>${item.mode_of_exam}</td>
+            <td><span class="center-tag" style="background:#006677;color:#fff;padding:.2rem .55rem;border-radius:.3rem;font-size:.75rem;font-weight:600;">${item.center_name}</span></td>
+            <td>${item.exam_date || '—'}</td>
+            <td>${item.exam_session}</td>
+            <td><a class="btn btn-sm btn-outline-primary" href="/manage/academics/examinations/schedules/items/${item.id}/students/"><i class="fa-solid fa-users me-1"></i>Students</a></td>
+          </tr>`;
+        });
+      }
+      document.getElementById('schedViewTable').style.display = '';
+    });
+}
+
+function closeViewModal() {
+  document.getElementById('schedViewOverlay').classList.remove('open');
+}
+
+// Close modals on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeFormModal();
+    closeViewModal();
+  }
+});
+// Close modals on backdrop click
+document.getElementById('schedFormOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeFormModal();
+});
+document.getElementById('schedViewOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeViewModal();
+});
+</script>
+{% endblock %}

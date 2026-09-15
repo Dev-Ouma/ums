@@ -184,7 +184,25 @@ REPORT_REGISTRY = {
         "description": "Official master examination board marksheet compiling CAT, Final Exam, Total, and Senate recommendation per candidate.",
         "icon": "fa-table-list",
         "orientation": "landscape",
-        "filters": ["term", "program", "semester", "course"]
+        "filters": ["term", "program", "cohort", "semester", "course"]
+    },
+    "senate_pass_list": {
+        "key": "senate_pass_list", "category": "academic", "title": "Senate Pass List",
+        "description": "Candidates with complete published results and no failed units in the selected period.",
+        "icon": "fa-circle-check", "orientation": "landscape",
+        "filters": ["term", "program", "cohort", "semester"]
+    },
+    "senate_progression_list": {
+        "key": "senate_progression_list", "category": "academic", "title": "Senate Progression List",
+        "description": "Candidates eligible to progress based on complete published results in the selected period.",
+        "icon": "fa-arrow-trend-up", "orientation": "landscape",
+        "filters": ["term", "program", "cohort", "semester"]
+    },
+    "senate_fail_list": {
+        "key": "senate_fail_list", "category": "academic", "title": "Senate Fail & Review List",
+        "description": "Candidates with one or more failed published units requiring an academic decision.",
+        "icon": "fa-triangle-exclamation", "orientation": "landscape",
+        "filters": ["term", "program", "cohort", "semester"]
     },
     "academic_performance": {
         "key": "academic_performance",
@@ -343,6 +361,9 @@ def build_report_data(report_key, params, user=None):
         "student_demographics": _query_student_demographics,
         "students_by_program": _query_students_by_program,
         "senate_consolidated_sheet": _query_senate_consolidated_sheet,
+        "senate_pass_list": _query_senate_pass_list,
+        "senate_progression_list": _query_senate_progression_list,
+        "senate_fail_list": _query_senate_fail_list,
         "academic_performance": _query_academic_performance,
         "grade_distribution": _query_grade_distribution,
         "examination_results_summary": _query_examination_results_summary,
@@ -371,6 +392,17 @@ def build_report_data(report_key, params, user=None):
     data["generated_at"] = timezone.now()
     data["generated_by"] = getattr(user, "display_name", "System Administrator") if user else "System Administrator"
     return data
+
+
+def _scope_examination_queryset(qs, user, exam_field="exam"):
+    """Apply the same departmental/teaching scope used by examination operations."""
+    if not user or not getattr(user, "is_authenticated", False):
+        return qs.none()
+    from . import examination_services
+    if examination_services.is_admin(user):
+        return qs
+    scoped_ids = examination_services.staff_scope(user).values("pk")
+    return qs.filter(**{f"{exam_field}_id__in": scoped_ids})
 
 
 # ---------- Sub-queries ----------
@@ -535,7 +567,9 @@ def _query_senate_consolidated_sheet(params, user):
     weighted average, and Senate recommendation.
     """
     applied_filters = []
-    results_qs = Result.objects.select_related("student", "student__user", "student__program", "exam", "exam__course").all()
+    results_qs = _scope_examination_queryset(Result.objects.select_related(
+        "student", "student__user", "student__program", "student__cohort", "exam", "exam__course"
+    ).filter(exam__status=Exam.Status.PUBLISHED, marks_obtained__isnull=False), user)
 
     if params.get("term"):
         results_qs = results_qs.filter(exam__term_id=params["term"])
@@ -551,6 +585,15 @@ def _query_senate_consolidated_sheet(params, user):
         results_qs = results_qs.filter(exam__course_id=params["course"])
         c = Course.objects.filter(pk=params["course"]).first()
         if c: applied_filters.append(f"Course: {c.code} - {c.title}")
+
+    if params.get("cohort"):
+        results_qs = results_qs.filter(student__cohort_id=params["cohort"])
+        cohort = Cohort.objects.filter(pk=params["cohort"]).first()
+        if cohort: applied_filters.append(f"Cohort: {cohort.name}")
+
+    if params.get("semester"):
+        results_qs = results_qs.filter(student__current_semester=params["semester"])
+        applied_filters.append(f"Semester: {params['semester']}")
 
     students_map = {}
     for r in results_qs:
@@ -576,7 +619,6 @@ def _query_senate_consolidated_sheet(params, user):
     columns = ["#", "Roll No", "Student Name", "Programme", "Units Taken", "Passed", "Failed", "Mean (%)", "Senate Recommendation"]
     rows = []
     pass_count = 0
-    supp_count = 0
     repeat_count = 0
 
     for idx, (sid, data) in enumerate(students_map.items(), start=1):
@@ -588,11 +630,8 @@ def _query_senate_consolidated_sheet(params, user):
         if failed == 0:
             rec = "PASS (Proceed to Next Level)"
             pass_count += 1
-        elif failed <= 3:
-            rec = f"SUPPLEMENTARY in {failed} Unit(s)"
-            supp_count += 1
         else:
-            rec = "REPEAT YEAR / PROBATION"
+            rec = f"ACADEMIC REVIEW REQUIRED ({failed} failed unit(s))"
             repeat_count += 1
 
         rows.append([
@@ -610,8 +649,7 @@ def _query_senate_consolidated_sheet(params, user):
     kpis = [
         {"label": "Candidates Examined", "val": f"{len(students_map):,}", "icon": "fa-users", "color": "#6C5CE7"},
         {"label": "Pass & Proceed", "val": f"{pass_count:,}", "icon": "fa-circle-check", "color": "#00b894"},
-        {"label": "Supplementary", "val": f"{supp_count:,}", "icon": "fa-arrows-rotate", "color": "#f0932b"},
-        {"label": "Repeat / Probation", "val": f"{repeat_count:,}", "icon": "fa-circle-xmark", "color": "#e84393"},
+        {"label": "Academic Review", "val": f"{repeat_count:,}", "icon": "fa-triangle-exclamation", "color": "#e84393"},
     ]
 
     return {
@@ -621,6 +659,37 @@ def _query_senate_consolidated_sheet(params, user):
         "columns": columns,
         "rows": rows,
     }
+
+
+def _query_senate_candidate_list(params, user, mode):
+    data = _query_senate_consolidated_sheet(params, user)
+    if mode in ('pass', 'progression'):
+        data['rows'] = [row for row in data['rows'] if row[6] == '0']
+    else:
+        data['rows'] = [row for row in data['rows'] if row[6] != '0']
+    titles = {
+        'pass': 'Senate Pass List',
+        'progression': 'Senate Progression List',
+        'fail': 'Senate Fail & Review List',
+    }
+    data['title'] = titles[mode]
+    data['kpis'] = [{
+        'label': 'Candidates Listed', 'val': f"{len(data['rows']):,}",
+        'icon': 'fa-users', 'color': '#6C5CE7'
+    }]
+    return data
+
+
+def _query_senate_pass_list(params, user):
+    return _query_senate_candidate_list(params, user, 'pass')
+
+
+def _query_senate_progression_list(params, user):
+    return _query_senate_candidate_list(params, user, 'progression')
+
+
+def _query_senate_fail_list(params, user):
+    return _query_senate_candidate_list(params, user, 'fail')
 
 
 def _query_academic_performance(params, user):

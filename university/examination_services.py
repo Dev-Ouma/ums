@@ -76,8 +76,13 @@ def staff_scope(user):
 
     from .models import StaffRoleAssignment
     roles = set(StaffRoleAssignment.objects.filter(user=user, is_active=True).values_list('role__code', flat=True))
-    if any(r in roles for r in ['dean', 'academic_registrar', 'exam_officer', 'vc', 'dvcaa']):
+    if any(r in roles for r in ['academic_registrar', 'exam_officer', 'vc', 'dvcaa']):
         return qs
+
+    if 'dean' in roles:
+        dean_assignments = StaffRoleAssignment.objects.filter(user=user, is_active=True, role__code='dean')
+        school_ids = list(dean_assignments.filter(school__isnull=False).values_list('school_id', flat=True))
+        return qs.filter(course__department__school_id__in=school_ids).distinct() if school_ids else qs.none()
 
     if 'hod' in roles:
         hod_depts = list(StaffRoleAssignment.objects.filter(user=user, is_active=True, role__code='hod', department__isnull=False).values_list('department_id', flat=True))
@@ -131,6 +136,45 @@ def can_review_external(user, exam):
     if not (user.is_authenticated and user.is_faculty):
         return False
     return bool(exam.external_examiner_id and exam.external_examiner.user_id == user.pk)
+
+
+def can_record_attendance(user, exam):
+    """Attendance belongs to the invigilator and central examinations office."""
+    if is_admin(user):
+        return True
+    if not user or not user.is_authenticated:
+        return False
+    if exam.invigilator_id and exam.invigilator.user_id == user.pk:
+        return True
+    from .permissions_services import has_user_permission
+    return has_user_permission(user, 'exams.create_exam')
+
+
+@transaction.atomic
+def save_attendance(user, exam_id, entries):
+    exam = Exam.objects.select_for_update().select_related('invigilator__user', 'course').get(pk=exam_id)
+    if not can_record_attendance(user, exam):
+        raise PermissionDenied('Only the assigned invigilator or examinations office may record attendance.')
+    if exam.status not in (Exam.Status.SCHEDULED, Exam.Status.MARKING):
+        raise ValidationError('Attendance is locked after the marksheet is submitted for review.')
+    rows = {str(row.pk): row for row in exam.results.select_for_update().select_related('student')}
+    changed = []
+    for result_id, value in entries.items():
+        row = rows.get(str(result_id))
+        if not row:
+            raise ValidationError('An attendance row does not belong to this examination.')
+        attendance = str(value).strip().upper()
+        if attendance not in ('PENDING', 'PRESENT', 'ABSENT'):
+            raise ValidationError(f'{row.student.roll_no}: invalid attendance status.')
+        if attendance == 'ABSENT' and any(v is not None for v in (row.cat_marks, row.exam_marks, row.marks_obtained)):
+            raise ValidationError(f'{row.student.roll_no}: remove entered marks before recording the candidate absent.')
+        if row.attendance != attendance:
+            changed.append(f'{row.student.roll_no}: {row.attendance} → {attendance}')
+            row.attendance = attendance
+            row.save(update_fields=['attendance'])
+    if changed:
+        audit(exam, user, 'Attendance updated', '; '.join(changed))
+    return len(changed)
 
 
 def require_editor(user, exam):
@@ -203,16 +247,27 @@ def can_hod_approve(user, exam):
 
 
 def can_dean_publish(user, exam):
-    """Check whether user can publish marks (Dean, Registrar, Exam Officer, VC, DVCAA, Admin)."""
+    """Check whether user can publish marks (Dean, Registrar, Exam Officer, VC, DVCAA, Admin).
+
+    A Dean's authority is always scoped to their own School/Faculty — never a
+    blanket bypass. An unscoped 'dean' role assignment (no school on record)
+    is treated as "not yet configured", not "publish everywhere": it is
+    denied rather than defaulted to full access, matching how dean_dashboard
+    scoping works elsewhere in the app.
+    """
     if not user or not user.is_authenticated:
         return False
     if is_admin(user):
         return True
     from .models import StaffRoleAssignment
-    if StaffRoleAssignment.objects.filter(
-        user=user, is_active=True, role__code__in=['dean', 'academic_registrar', 'exam_officer', 'vc', 'dvcaa']
-    ).exists():
+    exam_school_id = getattr(getattr(exam.course, 'department', None), 'school_id', None)
+    assignments = StaffRoleAssignment.objects.filter(user=user, is_active=True)
+    if assignments.filter(role__code__in=['academic_registrar', 'exam_officer', 'vc', 'dvcaa']).exists():
         return True
+    dean_assignments = assignments.filter(role__code='dean')
+    if dean_assignments.exists():
+        scoped_schools = set(dean_assignments.filter(school__isnull=False).values_list('school_id', flat=True))
+        return bool(exam_school_id) and exam_school_id in scoped_schools
     try:
         from .permissions_services import has_user_permission
         if has_user_permission(user, 'exams.publish_results'):
@@ -222,8 +277,11 @@ def can_dean_publish(user, exam):
     faculty = getattr(user, 'faculty_profile', None)
     if faculty:
         desig = (faculty.designation or '').lower()
-        if any(k in desig for k in ['dean', 'director', 'registrar', 'vice chancellor', 'dvc']):
+        if any(k in desig for k in ['registrar', 'vice chancellor', 'dvc']):
             return True
+        if any(k in desig for k in ['dean', 'director']):
+            faculty_school_id = getattr(faculty.department, 'school_id', None) if faculty.department_id else None
+            return bool(exam_school_id) and faculty_school_id == exam_school_id
     return False
 
 
@@ -320,7 +378,14 @@ def audit(exam, user, action, detail=''):
 
 def eligible_students(exam):
     if exam.original_exam_id:
-        return [r.student_id for r in exam.original_exam.results.select_related('exam') if r.outcome in ('Fail', 'Absent')]
+        from .models import SupplementaryExamRegistration
+        failed_ids = {r.student_id for r in exam.original_exam.results.select_related('exam') if r.outcome in ('Fail', 'Absent')}
+        approved_ids = set(SupplementaryExamRegistration.objects.filter(
+            course=exam.course, term=exam.term,
+            exam_type=SupplementaryExamRegistration.ExamType.SUPPLEMENTARY,
+            status=SupplementaryExamRegistration.Status.APPROVED,
+        ).values_list('student_id', flat=True))
+        return list(failed_ids & approved_ids)
     return list(Enrollment.objects.filter(course=exam.course, term=exam.term, status=Enrollment.ACTIVE).values_list('student_id', flat=True))
 
 
@@ -398,6 +463,9 @@ def transition(user, exam_id, action, reason='', revision=None,
     elif action in ('unpublish',):
         if not can_unpublish(user, exam):
             raise PermissionDenied("Only a Dean, Academic Registrar, or Admin can unpublish marks.")
+    elif action in ('return', 'reopen'):
+        if not (can_hod_approve(user, exam) or can_dean_publish(user, exam)):
+            raise PermissionDenied("Only an HoD, Dean, Academic Registrar, or Admin can return or reopen results.")
     elif action in ('approve', 'cancel', 'reschedule'):
         if not is_admin(user):
             raise PermissionDenied
@@ -726,7 +794,8 @@ def student_statement(student, term=None):
         key = (row.exam.course_id, row.exam.term_id)
         group = groups.setdefault(key, {
             'course': row.exam.course, 'term': row.exam.term, 'components': [],
-            'total': Decimal(0), 'weight': Decimal(0), 'kinds': set(), 'final': None
+            'total': Decimal(0), 'weight': Decimal(0), 'kinds': set(), 'final': None,
+            'grade_exam': None,
         })
         effective = supplements.get(row.exam_id, row)
         contribution = (effective.marks_obtained or Decimal(0)) * row.exam.weight / Decimal(effective.exam.max_marks)
@@ -736,6 +805,9 @@ def student_statement(student, term=None):
         group['kinds'].add(row.exam.kind)
         if row.exam.kind == Exam.Kind.FINAL:
             group['final'] = row.exam
+            # A published supplementary sitting governs the awarded grade/GP for
+            # this component too (e.g. its capped grade_bands), not just the marks.
+            group['grade_exam'] = effective.exam
 
     complete_groups = []
     for group in groups.values():
@@ -750,16 +822,18 @@ def student_statement(student, term=None):
         )
         group['complete'] = is_complete
         if is_complete and group['final']:
-            group['grade'] = group['final'].grade_for(float(group['total']))
-            group['grade_point'] = exam_grade_point(group['final'], group['grade'])
-            group['outcome'] = 'Pass' if group['total'] >= group['final'].pass_mark else 'Fail'
+            grade_exam = group['grade_exam'] or group['final']
+            group['grade'] = grade_exam.grade_for(float(group['total']))
+            group['grade_point'] = exam_grade_point(grade_exam, group['grade'])
+            group['outcome'] = 'Pass' if group['total'] >= grade_exam.pass_mark else 'Fail'
             complete_groups.append(group)
         elif is_complete and group['components']:
-            # Fallback to first component's exam grade
-            first_exam = group['components'][0]['result'].exam
-            group['grade'] = first_exam.grade_for(float(group['total']))
-            group['grade_point'] = exam_grade_point(first_exam, group['grade'])
-            group['outcome'] = 'Pass' if group['total'] >= first_exam.pass_mark else 'Fail'
+            # Fallback to first component's effective exam grade (honours a
+            # published supplementary substitution even for a single-component course).
+            grade_exam = group['components'][0]['effective'].exam
+            group['grade'] = grade_exam.grade_for(float(group['total']))
+            group['grade_point'] = exam_grade_point(grade_exam, group['grade'])
+            group['outcome'] = 'Pass' if group['total'] >= grade_exam.pass_mark else 'Fail'
             complete_groups.append(group)
         else:
             group['grade'] = 'Incomplete'

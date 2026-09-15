@@ -401,6 +401,80 @@ def generate_nominal_roll_pdf(exam):
     return buffer.getvalue()
 
 
+def generate_schedule_item_roster_pdf(item, students):
+    """
+    Official list of students eligible to sit a scheduled examination item
+    (Exam Schedule -> course), for the room/invigilation office.
+    """
+    buffer = io.BytesIO()
+    doc = ReportDocTemplate(buffer, pagesize=A4, leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36)
+
+    styles = document_styles()
+    primary_color = colors.HexColor("#6C5CE7")
+    dark_gray = colors.HexColor("#1f2937")
+
+    title_style = ParagraphStyle("RosterTitle", parent=styles["Normal"], fontName="Quicksand-Bold",
+                                  fontSize=16, leading=20, textColor=primary_color, alignment=1)
+    body_style = ParagraphStyle("RosterBody", parent=styles["Normal"], fontName="Quicksand",
+                                 fontSize=9, leading=13, textColor=dark_gray)
+    body_bold = ParagraphStyle("RosterBodyBold", parent=styles["Normal"], fontName="Quicksand-Bold",
+                                fontSize=9, leading=13, textColor=dark_gray)
+
+    story = [
+        Paragraph(escape(get_branding()["site_name"].upper()), title_style),
+        Paragraph("OFFICE OF EXAMINATIONS · ELIGIBLE STUDENTS LIST", ParagraphStyle(
+            "RosterSub", parent=title_style, fontSize=11, leading=15, textColor=colors.HexColor("#4b5563"))),
+        Spacer(1, 4),
+        HRFlowable(width="100%", thickness=1.5, color=primary_color, spaceAfter=10),
+    ]
+
+    schedule = item.schedule
+    meta = [
+        [Paragraph(f"<b>Course:</b> {item.course.code} - {item.course.title}", body_style),
+         Paragraph(f"<b>Exam Date:</b> {item.exam_date.strftime('%d %B %Y') if item.exam_date else '—'}", ParagraphStyle("RD", parent=body_style, alignment=2))],
+        [Paragraph(f"<b>Schedule:</b> {schedule.name}", body_style),
+         Paragraph(f"<b>Session:</b> {item.exam_session}", ParagraphStyle("RS", parent=body_style, alignment=2))],
+        [Paragraph(f"<b>Programme:</b> {schedule.program.code} - {schedule.program.name}", body_style),
+         Paragraph(f"<b>Venue:</b> {item.center_name}", ParagraphStyle("RV", parent=body_style, alignment=2))],
+    ]
+    mtable = Table(meta, colWidths=[310, 213])
+    mtable.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"), ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ("TOPPADDING", (0, 0), (-1, -1), 2), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    story.append(mtable)
+    story.append(Spacer(1, 10))
+
+    rows = [[
+        Paragraph("<b>#</b>", body_bold), Paragraph("<b>Roll No</b>", body_bold),
+        Paragraph("<b>Student Name</b>", body_bold), Paragraph("<b>Programme</b>", body_bold),
+    ]]
+    for idx, sp in enumerate(students, start=1):
+        rows.append([
+            Paragraph(str(idx), body_style),
+            Paragraph(f"<b>{sp.roll_no}</b>", body_style),
+            Paragraph(sp.user.display_name, body_style),
+            Paragraph(sp.program.code if sp.program else "—", body_style),
+        ])
+    if len(rows) == 1:
+        rows.append([Paragraph("—", body_style), Paragraph("No eligible students found.", body_style), Paragraph("", body_style), Paragraph("", body_style)])
+
+    roster_table = Table(rows, colWidths=[30, 85, 268, 145], repeatRows=1)
+    roster_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5), ("TOPPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    story.append(roster_table)
+    story.append(Spacer(1, 14))
+    story.append(Paragraph(f"Total eligible candidates: <b>{len(students)}</b>", body_style))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
 def cap_supplementary_grade(grade, marks):
     """
     Apply Kenyan CUE university regulation:

@@ -2,8 +2,8 @@ from university.document_views import present_pdf
 from university.reporting_services import generate_report_pdf, generate_report_excel
 import csv
 import io
+import uuid
 from collections import Counter
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -12,10 +12,12 @@ from django.db import transaction
 from django.db.models import Count, Q, Exists, OuterRef
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from accounts.models import StudentProfile
 from .models import AcademicTerm, Course, Exam, ExamAppeal, ExamRoom, Result, DocumentReleaseControl
+from .permissions_services import has_user_permission
 from .document_access_services import check_document_access
 from .examination_forms import ExaminationForm, RoomForm, TermForm
 from . import examination_services as workflow
@@ -51,6 +53,9 @@ def index(request):
     if q:
         qs = qs.filter(Q(name__icontains=q) | Q(course__code__icontains=q) | Q(course__title__icontains=q))
     status = request.GET.get('status', '')
+    # Redirect ?status=SCHEDULED to the new Exam Schedules management view
+    if status == 'SCHEDULED' and staff and request.GET.get('view') != 'legacy':
+        return redirect('examinations:schedule_list')
     if status in dict(Exam.Status.choices):
         qs = qs.filter(status=status)
     term = request.GET.get('term', '')
@@ -59,6 +64,7 @@ def index(request):
     if request.GET.get('format') == 'csv':
         return csv_response('examination-timetable.csv', ['Course', 'Assessment', 'Term', 'Date', 'Start', 'End', 'Room', 'Status'], ([x.course.code, x.name, str(x.term or ''), x.date, x.start_time, x.end_time, str(x.room or ''), x.get_status_display()] for x in qs))
     can_create = workflow.can_create_exams(user)
+    scoped = workflow.staff_scope(user) if staff else Exam.objects.none()
     return render(request, 'examinations/index.html', {
         'page': Paginator(qs.order_by('-date', 'start_time', 'pk'), 20).get_page(request.GET.get('page')),
         'staff': staff,
@@ -69,8 +75,97 @@ def index(request):
         'statuses': Exam.Status.choices,
         'q': q,
         'selected_status': status,
-        'selected_term': term
+        'selected_term': term,
+        'can_view_marks': staff and has_user_permission(user, 'exams.view_marks'),
+        'can_moderate': staff and has_user_permission(user, 'exams.moderate_marks'),
+        'can_publish': staff and has_user_permission(user, 'exams.publish_results'),
+        'can_senate': staff and has_user_permission(user, 'reports.senate_marksheet'),
+        'workflow_counts': {
+            'capture': scoped.filter(status__in=[Exam.Status.SCHEDULED, Exam.Status.MARKING, Exam.Status.RETURNED_TO_INSTRUCTOR, Exam.Status.CORRECTION]).count(),
+            'submission': scoped.filter(status__in=[Exam.Status.MARKING, Exam.Status.RETURNED_TO_INSTRUCTOR, Exam.Status.CORRECTION]).count(),
+            'approval': scoped.filter(status__in=[Exam.Status.SUBMITTED, Exam.Status.HOD_REVIEW, Exam.Status.RESUBMITTED]).count(),
+            'publication': scoped.filter(status__in=[Exam.Status.HOD_APPROVED, Exam.Status.DEAN_REVIEW, Exam.Status.APPROVED]).count(),
+        },
     })
+
+
+@login_required
+def workflow_queue(request, stage):
+    """Role-scoped operational queues for submission, approval and publication."""
+    stages = {
+        'submission': {
+            'title': 'Marks Submission',
+            'subtitle': 'Complete marksheets and submit them to the Head of Department.',
+            'statuses': [Exam.Status.MARKING, Exam.Status.RETURNED_TO_INSTRUCTOR, Exam.Status.CORRECTION],
+            'permission': 'exams.view_marks',
+            'action_label': 'Open marksheet',
+            'action_route': 'examinations:marks',
+        },
+        'approval': {
+            'title': 'Exam Marks Approval',
+            'subtitle': 'Review submitted marksheets, return exceptions, or approve departmental results.',
+            'statuses': [Exam.Status.SUBMITTED, Exam.Status.HOD_REVIEW, Exam.Status.RESUBMITTED],
+            'permission': 'exams.moderate_marks',
+            'action_label': 'Review submission',
+            'action_route': 'examinations:detail',
+        },
+        'publication': {
+            'title': 'Exam Marks Publish',
+            'subtitle': 'Release approved results to students after the required academic review.',
+            'statuses': [Exam.Status.HOD_APPROVED, Exam.Status.DEAN_REVIEW, Exam.Status.APPROVED, Exam.Status.PUBLISHED],
+            'permission': 'exams.publish_results',
+            'action_label': 'Review publication',
+            'action_route': 'examinations:detail',
+        },
+    }
+    config = stages.get(stage)
+    if not config or not has_user_permission(request.user, config['permission']):
+        raise PermissionDenied
+    qs = workflow.staff_scope(request.user).filter(status__in=config['statuses'])
+    term = request.GET.get('term', '')
+    q = request.GET.get('q', '').strip()
+    if term.isdigit():
+        qs = qs.filter(term_id=term)
+    if q:
+        qs = qs.filter(Q(course__code__icontains=q) | Q(course__title__icontains=q) | Q(name__icontains=q))
+    return render(request, 'examinations/workflow_queue.html', {
+        'stage': stage,
+        'queue': config,
+        'page': Paginator(qs.order_by('date', 'course__code'), 20).get_page(request.GET.get('page')),
+        'terms': AcademicTerm.objects.all(),
+        'selected_term': term,
+        'q': q,
+    })
+
+
+@login_required
+def attendance(request, pk=None):
+    exams = workflow.staff_scope(request.user).exclude(status__in=[Exam.Status.DRAFT, Exam.Status.CANCELLED])
+    if not workflow.is_admin(request.user) and not has_user_permission(request.user, 'exams.create_exam'):
+        exams = exams.filter(invigilator__user=request.user)
+    exams = exams.annotate(candidate_count=Count('results'), attendance_count=Count('results', filter=~Q(results__attendance='PENDING')), absent_count=Count('results', filter=Q(results__attendance='ABSENT'))).order_by('-date', 'start_time')
+    if pk is None:
+        term = request.GET.get('term', '')
+        q = request.GET.get('q', '').strip()
+        if term.isdigit(): exams = exams.filter(term_id=term)
+        if q: exams = exams.filter(Q(course__code__icontains=q) | Q(course__title__icontains=q) | Q(name__icontains=q))
+        return render(request, 'examinations/attendance_list.html', {'page': Paginator(exams, 20).get_page(request.GET.get('page')), 'terms': AcademicTerm.objects.all(), 'selected_term': term, 'q': q})
+    exam = get_object_or_404(exams, pk=pk)
+    if not workflow.can_record_attendance(request.user, exam): raise PermissionDenied
+    rows = list(exam.results.select_related('student__user').order_by('seat_number', 'student__roll_no'))
+    if request.method == 'POST':
+        bulk = request.POST.get('bulk_action', '')
+        selected = set(request.POST.getlist('selected'))
+        entries = {str(row.pk): bulk for row in rows if str(row.pk) in selected} if bulk in ('PRESENT', 'ABSENT', 'PENDING') else {str(row.pk): request.POST.get(f'attendance_{row.pk}', row.attendance) for row in rows}
+        if bulk and not entries:
+            messages.warning(request, 'Select at least one candidate for the bulk action.')
+            return redirect('examinations:attendance_detail', pk=pk)
+        try:
+            changed = workflow.save_attendance(request.user, pk, entries)
+            messages.success(request, f'Attendance saved for {changed} candidate(s).')
+            return redirect('examinations:attendance_detail', pk=pk)
+        except (ValidationError, PermissionDenied) as exc: error_message(request, exc)
+    return render(request, 'examinations/attendance_detail.html', {'exam': exam, 'rows': rows, 'recorded': sum(r.attendance != 'PENDING' for r in rows), 'present': sum(r.attendance == 'PRESENT' for r in rows), 'absent': sum(r.attendance == 'ABSENT' for r in rows), 'locked': exam.status not in (Exam.Status.SCHEDULED, Exam.Status.MARKING)})
 
 
 @login_required
@@ -342,8 +437,23 @@ def marks(request, pk=None):
             })
 
     exam = staff_exam(request, pk)
-    workflow.require_editor(request.user, exam)
-    
+    can_edit_marks = workflow.can_mark(request.user, exam)
+    can_view_marks = (
+        can_edit_marks
+        or workflow.can_hod_approve(request.user, exam)
+        or workflow.can_dean_publish(request.user, exam)
+    )
+    if not can_view_marks:
+        raise PermissionDenied(
+            "You may view marks only for courses you teach, or for exams awaiting "
+            "your review as HoD/Dean/Registrar/Exam Officer."
+        )
+
+    preview_session_key = f'marks_preview_{exam.pk}'
+    if request.GET.get('cancel_preview') == '1':
+        request.session.pop(preview_session_key, None)
+        return redirect('examinations:marks', pk=pk)
+
     retake_qs = Result.objects.filter(
         student_id=OuterRef('student_id'),
         exam__course_id=exam.course_id,
@@ -373,6 +483,7 @@ def marks(request, pk=None):
         )
 
     errors = []
+    preview = None
     if request.method == 'POST':
         entries = {}
         examiner_data = {}
@@ -383,6 +494,31 @@ def marks(request, pk=None):
                 examiner_data['external_examiner_name'] = request.POST.get('external_examiner_name', '')
                 examiner_data['examiner_remarks'] = request.POST.get('examiner_remarks', '')
 
+            if request.POST.get('confirm_upload') == '1':
+                stored = request.session.get(preview_session_key)
+                token = request.POST.get('preview_token')
+                expired = False
+                if stored:
+                    parsed_at = timezone.datetime.fromisoformat(stored['parsed_at'])
+                    if timezone.is_naive(parsed_at):
+                        parsed_at = timezone.make_aware(parsed_at)
+                    expired = (timezone.now() - parsed_at).total_seconds() > 1800
+                if not stored or stored.get('token') != token or expired or str(exam.revision) != str(stored.get('revision')):
+                    request.session.pop(preview_session_key, None)
+                    messages.error(request, 'Your marks preview has expired or the exam changed since you uploaded the file. Please upload again.')
+                    return redirect('examinations:marks', pk=pk)
+                entries = stored['entries']
+                workflow.save_marks(request.user, pk, entries, stored['revision'], examiner_data=examiner_data)
+                imported = len(entries)
+                skipped = stored.get('error_count', 0)
+                request.session.pop(preview_session_key, None)
+                workflow.audit(exam, request.user, 'Bulk marks imported', f'{imported} imported, {skipped} skipped (errors) from prior preview')
+                msg = f"Imported marks for {imported} candidate(s)."
+                if skipped:
+                    msg += f" {skipped} row(s) were skipped due to errors and were not imported."
+                messages.success(request, msg)
+                return redirect('examinations:marks', pk=pk)
+
             upload = request.FILES.get('marks_file') or request.FILES.get('csv_file')
             if upload:
                 parsed = marks_io.parse_exam_marks_file(upload, exam)
@@ -391,13 +527,36 @@ def marks(request, pk=None):
                     for item in parsed['items']:
                         all_errs.extend(item['errors'])
                     raise ValidationError(all_errs or ['No valid marks records found in the uploaded file.'])
-                entries = parsed['entries']
-                workflow.save_marks(request.user, pk, entries, request.POST.get('revision'), examiner_data=examiner_data)
-                msg = f"Successfully uploaded marks for {parsed['valid_count']} candidate(s). Total marks and CUE grades updated."
-                if parsed['error_count'] > 0:
-                    messages.warning(request, f"{parsed['error_count']} row(s) had errors and were skipped.")
-                messages.success(request, msg)
-                return redirect('examinations:marks', pk=pk)
+
+                preview_token = uuid.uuid4().hex
+                request.session[preview_session_key] = {
+                    'token': preview_token,
+                    'revision': str(exam.revision),
+                    'entries': parsed['entries'],
+                    'error_count': parsed['error_count'],
+                    'parsed_at': timezone.now().isoformat(),
+                }
+                request.session.modified = True
+                workflow.audit(
+                    exam, request.user, 'Bulk marks preview generated',
+                    f"{parsed['valid_count']} valid, {parsed['warning_count']} warning, "
+                    f"{parsed['error_count']} error row(s) from '{upload.name}'"
+                )
+
+                for item in parsed['items']:
+                    item['grade'] = exam.grade_for(float(item['total_marks'])) if item['total_marks'] is not None else None
+
+                preview = {
+                    'token': preview_token,
+                    'filename': upload.name,
+                    'items': parsed['items'],
+                    'total_count': parsed['total_count'],
+                    'valid_count': parsed['valid_count'],
+                    'warning_count': parsed['warning_count'],
+                    'error_count': parsed['error_count'],
+                }
+                # Fall through to the shared render at the end of the view,
+                # which builds the full page context; `preview` rides along.
             else:
                 entries = {
                     str(r.pk): {
@@ -432,20 +591,23 @@ def marks(request, pk=None):
     from accounts.models import FacultyProfile
     faculty_list = FacultyProfile.objects.select_related('user', 'department')
 
-    editable = exam.status in [
+    # Read-only for anyone who isn't the assigned instructor/internal examiner
+    # (or admin) — HoD/Dean/Registrar/Exam Officer can view but never edit here;
+    # their action is to approve/return/publish from the exam detail page.
+    editable = can_edit_marks and exam.status in [
         Exam.Status.MARKING,
         Exam.Status.RETURNED_TO_INSTRUCTOR,
         Exam.Status.CORRECTION,
         Exam.Status.UNPUBLISHED,
     ]
-    ie_editable = exam.status in [
+    ie_editable = can_edit_marks and exam.status in [
         Exam.Status.MARKING,
         Exam.Status.RETURNED_TO_INSTRUCTOR,
         Exam.Status.CORRECTION,
         Exam.Status.UNPUBLISHED,
         Exam.Status.INTERNAL_REVIEW,
     ]
-    ee_editable = exam.status == Exam.Status.EXTERNAL_REVIEW
+    ee_editable = workflow.can_review_external(request.user, exam) and exam.status == Exam.Status.EXTERNAL_REVIEW
     latest_event = exam.workflow_events.first()
     marks_versions = exam.marks_versions.all()
 
@@ -454,6 +616,7 @@ def marks(request, pk=None):
         'available_exams': available_exams,
         'rows': rows,
         'errors': errors,
+        'preview': preview,
         'editable': editable,
         'ie_editable': ie_editable,
         'ee_editable': ee_editable,
@@ -620,3 +783,413 @@ def report(request):
     rows = list(qs)
     counts = Counter(r.outcome for r in rows)
     return render(request, 'examinations/report.html', {'page': Paginator(rows, 40).get_page(request.GET.get('page')), 'total': len(rows), 'passed': counts['Pass'], 'failed': counts['Fail'], 'absent': counts['Absent'], 'terms': AcademicTerm.objects.all(), 'selected_term': term, 'appeals': ExamAppeal.objects.filter(status='OPEN').select_related('result__exam__course', 'result__student__user')})
+
+
+# ---------------------------------------------------------------------------
+# Examination Schedule Management Views
+# ---------------------------------------------------------------------------
+from .models import (
+    ExamSchedule, ExamScheduleItem, Program, Cohort, AcademicYear, ExamRoom
+)
+import json
+
+
+@login_required
+def schedule_list(request):
+    """Main schedule list – filtered by cohort, with search and pagination."""
+    user = request.user
+    if not (workflow.is_admin(user) or user.is_faculty):
+        raise PermissionDenied
+
+    cohorts = Cohort.objects.all()
+    programs = Program.objects.order_by('code')
+    academic_years = AcademicYear.objects.all()
+    rooms = ExamRoom.objects.filter(active=True)
+
+    selected_cohort = request.GET.get('cohort', '')
+    q = request.GET.get('q', '').strip()
+
+    qs = ExamSchedule.objects.select_related(
+        'program', 'cohort', 'academic_year', 'term', 'created_by'
+    ).prefetch_related('items__course')
+
+    if selected_cohort:
+        qs = qs.filter(cohort_id=selected_cohort)
+    if q:
+        qs = qs.filter(
+            Q(name__icontains=q) |
+            Q(program__code__icontains=q) |
+            Q(program__name__icontains=q)
+        )
+
+    page = Paginator(qs, 10).get_page(request.GET.get('page'))
+
+    return render(request, 'examinations/schedule_list.html', {
+        'page': page,
+        'cohorts': cohorts,
+        'programs': programs,
+        'academic_years': academic_years,
+        'rooms': rooms,
+        'selected_cohort': selected_cohort,
+        'q': q,
+        'terms': AcademicTerm.objects.all(),
+        'exam_types': ExamSchedule.EXAM_TYPE_CHOICES,
+        'status_choices': ExamSchedule.STATUS_CHOICES,
+        'mode_choices': ExamScheduleItem.MODE_CHOICES,
+        'session_choices': ExamScheduleItem.SESSION_CHOICES,
+        'core_choices': ExamScheduleItem.CORE_CHOICES,
+    })
+
+
+@login_required
+@require_POST
+def schedule_create(request):
+    """Create a new exam schedule with items from POST data."""
+    user = request.user
+    if not workflow.can_create_exams(user):
+        raise PermissionDenied
+
+    try:
+        program = get_object_or_404(Program, pk=request.POST.get('program'))
+        cohort = Cohort.objects.filter(pk=request.POST.get('cohort')).first()
+        academic_year = AcademicYear.objects.filter(pk=request.POST.get('academic_year')).first()
+        term = AcademicTerm.objects.filter(pk=request.POST.get('term')).first()
+        study_year = int(request.POST.get('study_year', 1))
+        semester = int(request.POST.get('semester', 1))
+        exam_type = request.POST.get('exam_type', 'Regular')
+        name = request.POST.get('name', '').strip()
+        status = request.POST.get('status', 'Active')
+
+        if not name:
+            messages.error(request, 'Exam name is required.')
+            return redirect('examinations:schedule_list')
+
+        with transaction.atomic():
+            sched = ExamSchedule.objects.create(
+                name=name,
+                program=program,
+                cohort=cohort,
+                academic_year=academic_year,
+                term=term,
+                study_year=study_year,
+                semester=semester,
+                exam_type=exam_type,
+                status=status,
+                created_by=user,
+            )
+            # Parse course items from POST
+            _save_schedule_items(request, sched, term)
+
+        messages.success(request, f'Examination schedule "{sched.name}" created successfully.')
+    except (ValueError, ValidationError) as e:
+        messages.error(request, f'Error creating schedule: {e}')
+
+    return redirect('examinations:schedule_list')
+
+
+@login_required
+@require_POST
+def schedule_edit(request, pk):
+    """Update an existing exam schedule and its items."""
+    user = request.user
+    if not workflow.can_create_exams(user):
+        raise PermissionDenied
+
+    sched = get_object_or_404(ExamSchedule, pk=pk)
+
+    try:
+        sched.program = get_object_or_404(Program, pk=request.POST.get('program'))
+        sched.cohort = Cohort.objects.filter(pk=request.POST.get('cohort')).first()
+        sched.academic_year = AcademicYear.objects.filter(pk=request.POST.get('academic_year')).first()
+        sched.term = AcademicTerm.objects.filter(pk=request.POST.get('term')).first()
+        sched.study_year = int(request.POST.get('study_year', 1))
+        sched.semester = int(request.POST.get('semester', 1))
+        sched.exam_type = request.POST.get('exam_type', sched.exam_type)
+        sched.name = request.POST.get('name', sched.name).strip()
+        sched.status = request.POST.get('status', sched.status)
+
+        with transaction.atomic():
+            sched.save()
+            sched.items.all().delete()
+            _save_schedule_items(request, sched, sched.term)
+
+        messages.success(request, f'Schedule "{sched.name}" updated.')
+    except (ValueError, ValidationError) as e:
+        messages.error(request, f'Error updating schedule: {e}')
+
+    return redirect('examinations:schedule_list')
+
+
+def _save_schedule_items(request, sched, term):
+    """Parse course items from POST and create ExamScheduleItem + sync Exam."""
+    course_ids = request.POST.getlist('course_id')
+    for i, cid in enumerate(course_ids):
+        try:
+            course = Course.objects.get(pk=cid)
+        except Course.DoesNotExist:
+            continue
+
+        is_core = request.POST.getlist('is_core')[i] if i < len(request.POST.getlist('is_core')) else 'Core'
+        is_practical = request.POST.getlist('is_practical')[i] if i < len(request.POST.getlist('is_practical')) else 'No'
+        mode = request.POST.getlist('mode_of_exam')[i] if i < len(request.POST.getlist('mode_of_exam')) else 'Physical'
+        center = request.POST.getlist('center_name')[i] if i < len(request.POST.getlist('center_name')) else ''
+        exam_date_str = request.POST.getlist('exam_date')[i] if i < len(request.POST.getlist('exam_date')) else ''
+        exam_session = request.POST.getlist('exam_session')[i] if i < len(request.POST.getlist('exam_session')) else 'Morning'
+
+        from datetime import datetime
+        exam_date = None
+        if exam_date_str:
+            try:
+                exam_date = datetime.strptime(exam_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+        room = None
+        room_id_list = request.POST.getlist('room')
+        if i < len(room_id_list) and room_id_list[i]:
+            room = ExamRoom.objects.filter(pk=room_id_list[i]).first()
+
+        # Create or sync underlying Exam object
+        exam_obj = None
+        if exam_date and term:
+            exam_obj, _ = Exam.objects.get_or_create(
+                course=course,
+                term=term,
+                name=f"{sched.name} - {course.code}",
+                defaults={
+                    'date': exam_date,
+                    'room': room,
+                    'status': Exam.Status.SCHEDULED,
+                    'kind': Exam.Kind.FINAL,
+                    'weight': 70,
+                }
+            )
+            # Update date/room if exam already existed
+            if exam_obj.date != exam_date or exam_obj.room != room:
+                exam_obj.date = exam_date
+                exam_obj.room = room
+                exam_obj.save(update_fields=['date', 'room'])
+
+        ExamScheduleItem.objects.create(
+            schedule=sched,
+            course=course,
+            is_core=is_core,
+            is_practical=(is_practical.lower() in ('yes', 'true', '1', 'on')),
+            mode_of_exam=mode,
+            room=room,
+            center_name=center or (room.name if room else 'ONLINE'),
+            exam_date=exam_date,
+            exam_session=exam_session,
+            exam=exam_obj,
+        )
+
+
+def _schedule_item_eligible_students(item):
+    """
+    Students eligible to sit a scheduled exam item's course. Prefers the
+    actual candidate roster if this item is already linked to a real Exam
+    sitting; otherwise derives eligibility from active course enrollment
+    for the schedule's term, the same authoritative source used elsewhere.
+    """
+    from django.db.models import Q as _Q
+    schedule = item.schedule
+    if item.exam_id:
+        student_ids = list(item.exam.results.values_list('student_id', flat=True))
+    else:
+        from .models import Enrollment
+        enrollments = Enrollment.objects.filter(course=item.course, status=Enrollment.ACTIVE)
+        if schedule.term_id:
+            enrollments = enrollments.filter(term_id=schedule.term_id)
+        student_ids = list(enrollments.values_list('student_id', flat=True))
+    return (StudentProfile.objects.filter(pk__in=student_ids)
+            .select_related('user', 'program').order_by('roll_no'))
+
+
+@login_required
+def schedule_item_students(request, item_id):
+    """Eligible-students roster for one Exam Schedule item — web view, PDF, XLS, CSV."""
+    user = request.user
+    if not (workflow.is_admin(user) or user.is_faculty):
+        raise PermissionDenied
+
+    item = get_object_or_404(
+        ExamScheduleItem.objects.select_related('schedule__program', 'schedule__cohort', 'schedule__academic_year', 'course', 'exam'),
+        pk=item_id
+    )
+    students = _schedule_item_eligible_students(item)
+
+    fmt = request.GET.get('format', '').lower()
+    if fmt == 'pdf':
+        from .examination_operations import generate_schedule_item_roster_pdf
+        content = generate_schedule_item_roster_pdf(item, students)
+        response = HttpResponse(content, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="{item.course.code}-eligible-students.pdf"'
+        return response
+    if fmt in ('xlsx', 'excel'):
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Eligible Students"
+        ws.append(["#", "Roll Number", "Student Name", "Programme"])
+        for idx, sp in enumerate(students, start=1):
+            ws.append([idx, sp.roll_no, sp.user.display_name, sp.program.code if sp.program else ""])
+        out = io.BytesIO()
+        wb.save(out)
+        response = HttpResponse(
+            out.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{item.course.code}-eligible-students.xlsx"'
+        return response
+    if fmt == 'csv':
+        return csv_response(
+            f'{item.course.code}-eligible-students.csv',
+            ['roll_no', 'student_name', 'programme'],
+            ([sp.roll_no, sp.user.display_name, sp.program.code if sp.program else ''] for sp in students)
+        )
+
+    try:
+        page_size = int(request.GET.get('page_size', 25))
+    except ValueError:
+        page_size = 25
+    page_size = page_size if page_size in (25, 50, 100) else 25
+
+    page = Paginator(students, page_size).get_page(request.GET.get('page'))
+
+    querydict = request.GET.copy()
+    querydict.pop('page', None)
+    base_querystring = querydict.urlencode()
+
+    return render(request, 'examinations/schedule_item_students.html', {
+        'item': item, 'page': page, 'page_size': page_size,
+        'base_querystring': base_querystring, 'total': students.count(),
+    })
+
+
+@login_required
+def schedule_detail(request, pk):
+    """Return schedule detail as JSON for the course list modal."""
+    sched = get_object_or_404(
+        ExamSchedule.objects.select_related('program', 'cohort', 'academic_year', 'term'),
+        pk=pk
+    )
+    items = sched.items.select_related('course', 'room').all()
+    data = {
+        'id': sched.pk,
+        'name': sched.name,
+        'program': f"{sched.program.code} - {sched.program.name}",
+        'cohort': str(sched.cohort) if sched.cohort else '',
+        'academic_year': str(sched.academic_year) if sched.academic_year else '',
+        'study_year': sched.study_year,
+        'semester': sched.semester,
+        'exam_type': sched.exam_type,
+        'status': sched.status,
+        'items': [{
+            'id': item.pk,
+            'course_code': item.course.code,
+            'course_title': item.course.title,
+            'specialization': item.specialization,
+            'is_core': item.is_core,
+            'is_practical': item.is_practical,
+            'mode_of_exam': item.mode_of_exam,
+            'center_name': item.center_name,
+            'exam_date': item.exam_date.strftime('%Y-%m-%d') if item.exam_date else '',
+            'exam_session': item.exam_session,
+        } for item in items],
+    }
+    return HttpResponse(json.dumps(data), content_type='application/json')
+
+
+@login_required
+@require_POST
+def schedule_delete(request, pk):
+    """Delete a schedule and its items."""
+    if not workflow.can_create_exams(request.user):
+        raise PermissionDenied
+    sched = get_object_or_404(ExamSchedule, pk=pk)
+    name = sched.name
+    sched.delete()
+    messages.success(request, f'Schedule "{name}" deleted.')
+    return redirect('examinations:schedule_list')
+
+
+@login_required
+@require_POST
+def schedule_publish(request, pk):
+    """Mark a schedule as Published and transition all linked exams to SCHEDULED."""
+    if not workflow.can_create_exams(request.user):
+        raise PermissionDenied
+    sched = get_object_or_404(ExamSchedule, pk=pk)
+    sched.status = ExamSchedule.STATUS_PUBLISHED
+    sched.save(update_fields=['status'])
+    # Ensure all linked exams are SCHEDULED
+    for item in sched.items.filter(exam__isnull=False).select_related('exam'):
+        if item.exam.status == Exam.Status.DRAFT:
+            item.exam.status = Exam.Status.SCHEDULED
+            item.exam.save(update_fields=['status'])
+    messages.success(request, f'Schedule "{sched.name}" published successfully.')
+    return redirect('examinations:schedule_list')
+
+
+@login_required
+@require_POST
+def schedule_toggle_status(request, pk):
+    """Toggle a schedule between Active and Inactive."""
+    if not workflow.can_create_exams(request.user):
+        raise PermissionDenied
+    sched = get_object_or_404(ExamSchedule, pk=pk)
+    if sched.status == ExamSchedule.STATUS_ACTIVE:
+        sched.status = ExamSchedule.STATUS_INACTIVE
+    else:
+        sched.status = ExamSchedule.STATUS_ACTIVE
+    sched.save(update_fields=['status'])
+    messages.success(request, f'Schedule status changed to {sched.status}.')
+    return redirect('examinations:schedule_list')
+
+
+@login_required
+def schedule_courses_api(request):
+    """Return JSON list of courses for a given programme, study_year, semester."""
+    program_id = request.GET.get('program')
+    study_year = request.GET.get('study_year', '1')
+    semester = request.GET.get('semester', '1')
+
+    if not program_id:
+        return HttpResponse(json.dumps([]), content_type='application/json')
+
+    try:
+        year = int(study_year)
+        sem = int(semester)
+    except (ValueError, TypeError):
+        year, sem = 1, 1
+
+    # Calculate semester_no from study_year + semester (e.g. Year 2 Sem 1 = semester_no 3)
+    program = Program.objects.filter(pk=program_id).first()
+    if not program:
+        return HttpResponse(json.dumps([]), content_type='application/json')
+
+    semesters_per_year = program.semesters_per_year or 2
+    target_semester_no = (year - 1) * semesters_per_year + sem
+
+    courses = Course.objects.filter(
+        program=program,
+        semester_no=target_semester_no,
+        status=Course.STATUS_ACTIVE
+    ).order_by('code')
+
+    # Fallback: if no courses found for exact semester_no, return all active courses for the program
+    if not courses.exists():
+        courses = Course.objects.filter(
+            program=program,
+            status=Course.STATUS_ACTIVE
+        ).order_by('code')
+
+    data = [{
+        'id': c.pk,
+        'code': c.code,
+        'title': c.title,
+        'credits': c.credits,
+        'semester_no': c.semester_no,
+    } for c in courses]
+
+    return HttpResponse(json.dumps(data), content_type='application/json')

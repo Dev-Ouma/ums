@@ -254,6 +254,16 @@ class AcademicTerm(models.Model):
     registration_end_date = models.DateField(null=True, blank=True)
     exam_start_date = models.DateField(null=True, blank=True)
     exam_end_date = models.DateField(null=True, blank=True)
+    supplementary_registration_start_date = models.DateField(null=True, blank=True)
+    supplementary_registration_end_date = models.DateField(null=True, blank=True)
+    senate_approved_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When this term's results were ratified by Senate. Gates document release where configured to require it."
+    )
+    senate_approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="senate_approved_terms"
+    )
     status = models.CharField(
         max_length=20,
         choices=AcademicYear.Status.choices,
@@ -308,6 +318,9 @@ class AcademicTerm(models.Model):
         if self.exam_start_date and self.exam_end_date:
             if self.exam_start_date > self.exam_end_date:
                 raise ValidationError("Exam start date must be on or before exam end date.")
+        if self.supplementary_registration_start_date and self.supplementary_registration_end_date:
+            if self.supplementary_registration_start_date > self.supplementary_registration_end_date:
+                raise ValidationError("Supplementary exam registration start date must be on or before its end date.")
 
     def save(self, *args, **kwargs):
         if self.is_current:
@@ -714,6 +727,14 @@ class Exam(models.Model):
                 raise ValidationError("An original exam is only allowed for supplementary sittings.")
         elif self.kind == self.Kind.SUPPLEMENTARY:
             raise ValidationError("A supplementary sitting requires an original exam.")
+
+        if self.kind == self.Kind.SUPPLEMENTARY:
+            capped_out = {b.get('grade') for b in (self.grade_bands or [])} & {'A', 'B'}
+            if capped_out:
+                raise ValidationError(
+                    "A supplementary examination's awarded grade is capped at 'C' — "
+                    "remove grade bands above this ceiling (CUE regulation)."
+                )
 
         # Default internal examiner to course faculty if not assigned
         if not self.internal_examiner_id and self.course_id and self.course.faculty_id:
@@ -1308,6 +1329,92 @@ class Cohort(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ExamSchedule(models.Model):
+    STATUS_ACTIVE = "Active"
+    STATUS_INACTIVE = "Inactive"
+    STATUS_SCHEDULED = "Scheduled"
+    STATUS_PUBLISHED = "Published"
+    STATUS_DRAFT = "Draft"
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, "Active"),
+        (STATUS_INACTIVE, "Inactive"),
+        (STATUS_SCHEDULED, "Scheduled"),
+        (STATUS_PUBLISHED, "Published"),
+        (STATUS_DRAFT, "Draft"),
+    ]
+
+    EXAM_TYPE_CHOICES = [
+        ("Regular", "Regular Examination"),
+        ("Supplementary", "Supplementary Examination"),
+        ("Special", "Special Examination"),
+        ("CAT", "Continuous Assessment (CAT)"),
+        ("Final", "Final Examination"),
+        ("Retake", "Retake Examination"),
+    ]
+
+    name = models.CharField(max_length=150, help_text="e.g. AUGUST-2026-EXAM")
+    program = models.ForeignKey(Program, on_delete=models.CASCADE, related_name="exam_schedules")
+    cohort = models.ForeignKey(Cohort, on_delete=models.SET_NULL, null=True, blank=True, related_name="exam_schedules")
+    academic_year = models.ForeignKey(AcademicYear, on_delete=models.SET_NULL, null=True, blank=True, related_name="exam_schedules")
+    term = models.ForeignKey(AcademicTerm, on_delete=models.SET_NULL, null=True, blank=True, related_name="exam_schedules")
+    study_year = models.PositiveSmallIntegerField(default=1)
+    semester = models.PositiveSmallIntegerField(default=1)
+    exam_type = models.CharField(max_length=30, choices=EXAM_TYPE_CHOICES, default="Regular")
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default=STATUS_ACTIVE, db_index=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_exam_schedules")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "program__code"]
+
+    def __str__(self):
+        return f"{self.name} - {self.program.code} (Yr {self.study_year} Sem {self.semester})"
+
+    @property
+    def courses_count(self):
+        return self.items.count()
+
+
+class ExamScheduleItem(models.Model):
+    MODE_CHOICES = [
+        ("Physical", "Physical (On-Campus)"),
+        ("Online", "Online"),
+        ("Blended", "Blended"),
+    ]
+    SESSION_CHOICES = [
+        ("Morning", "Morning (08:30 - 11:30)"),
+        ("Mid-day", "Mid-day (11:45 - 14:45)"),
+        ("Afternoon", "Afternoon (15:00 - 18:00)"),
+        ("Evening", "Evening (18:15 - 20:45)"),
+    ]
+    CORE_CHOICES = [
+        ("Core", "Core"),
+        ("Elective", "Elective"),
+    ]
+
+    schedule = models.ForeignKey(ExamSchedule, on_delete=models.CASCADE, related_name="items")
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="schedule_items")
+    specialization = models.CharField(max_length=120, blank=True, default="")
+    is_core = models.CharField(max_length=20, choices=CORE_CHOICES, default="Core")
+    is_practical = models.BooleanField(default=False)
+    mode_of_exam = models.CharField(max_length=20, choices=MODE_CHOICES, default="Physical")
+    room = models.ForeignKey(ExamRoom, on_delete=models.SET_NULL, null=True, blank=True, related_name="schedule_items")
+    center_name = models.CharField(max_length=120, blank=True, default="ONLINE")
+    exam_date = models.DateField(null=True, blank=True)
+    exam_session = models.CharField(max_length=30, choices=SESSION_CHOICES, default="Morning")
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
+    exam = models.ForeignKey(Exam, on_delete=models.SET_NULL, null=True, blank=True, related_name="schedule_item")
+
+    class Meta:
+        ordering = ["exam_date", "course__code"]
+
+    def __str__(self):
+        return f"{self.course.code} ({self.schedule.name})"
+
 
 class Intake(models.Model):
     name = models.CharField(max_length=120)  # e.g., "September 2026 Regular Intake"

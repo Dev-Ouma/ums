@@ -51,7 +51,16 @@ def check_document_access(student, document_type, term=None, user=None):
         reason = f"The download window for {control.get_document_type_display()} closed on {control.lock_date.strftime('%d %b %Y at %H:%M')}."
         return False, reason, control, False
 
-    # 5. Financial Clearance Gate
+    # 5. Senate Approval Gate
+    if control.require_senate_approval:
+        if not term:
+            reason = f"{control.get_document_type_display()} requires a specific academic term to check Senate approval status."
+            return False, reason, control, False
+        if not term.senate_approved_at:
+            reason = f"Results for {term.name} have not yet been ratified by Senate. This document will be available once Senate approval is recorded."
+            return False, reason, control, False
+
+    # 6. Financial Clearance Gate
     if control.require_financial_clearance:
         fin = check_financial_clearance(student, term=term)
         max_allowed = control.max_allowed_fee_balance
@@ -62,7 +71,7 @@ def check_document_access(student, document_type, term=None, user=None):
             )
             return False, reason, control, False
 
-    # 6. Disciplinary / Academic Holds
+    # 7. Disciplinary / Academic Holds
     if hasattr(student, 'status') and student.status in ['SUSPENDED', 'DISCONTINUED', 'WITHDRAWN']:
         reason = f"Document issuance is locked due to student account status ({student.get_status_display()}). Please contact the Academic Registrar."
         return False, reason, control, False

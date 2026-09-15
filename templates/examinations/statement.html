@@ -34,9 +34,11 @@
     </div>
     <div class="col-md-5 text-md-end no-print">
       <div class="exam-actions justify-content-md-end">
+        {% if student and student.pk %}
         <a class="btn btn-outline-primary rounded-pill px-3" href="{% url 'examinations:transcript_document' student.pk 'academic' %}">
           <i class="fa-solid fa-scroll me-1"></i>Official Transcript
         </a>
+        {% endif %}
         <a class="btn btn-primary rounded-pill px-3" href="?format=pdf&amp;preview=1&amp;term={{ selected_term }}">
           <i class="fa-solid fa-print me-1"></i>Preview &amp; Print
         </a>

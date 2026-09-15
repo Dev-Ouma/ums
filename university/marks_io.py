@@ -20,7 +20,10 @@ from university.models import Exam, Result, Submission
 def _normalize_header(header):
     if not header:
         return ""
-    return re.sub(r"[^a-z0-9]", "", str(header).strip().lower())
+    # Strip a trailing parenthetical qualifier, e.g. "CAT Marks (Max 30)" -> "CAT Marks",
+    # so template-generated headers exact-match the same aliases as plain ones.
+    text = re.sub(r"\s*\([^)]*\)\s*$", "", str(header).strip())
+    return re.sub(r"[^a-z0-9]", "", text.lower())
 
 
 HEADER_MAP_EXAM = {
@@ -269,6 +272,13 @@ def parse_exam_marks_file(upload_file, exam):
             "Please ensure your spreadsheet has a header row with Roll Number, Attendance, CAT Marks, and Exam Marks."
         )
 
+    if not ({"cat_marks", "exam_marks", "total_marks"} & set(col_map)):
+        raise ValidationError(
+            "Required marks columns not found. Expected a 'CAT Marks' and/or 'Exam Marks' "
+            "(or 'Total Marks') column in the header row — download the current template "
+            "and use it unmodified rather than retyping headers by hand."
+        )
+
     # Prepare Candidate Lookup
     candidates = {
         r.student.roll_no.strip().upper(): r
@@ -286,6 +296,7 @@ def parse_exam_marks_file(upload_file, exam):
     error_count = 0
     duplicate_count = 0
     valid_count = 0
+    warning_count = 0
 
     for row_num, row in enumerate(data_rows, start=header_idx + 2):
         # Extract fields
@@ -373,11 +384,20 @@ def parse_exam_marks_file(upload_file, exam):
         rem_idx = col_map.get("remarks")
         remarks_val = row[rem_idx].strip() if rem_idx is not None and rem_idx < len(row) else ""
 
+        row_warnings = []
         if row_errors:
             status = "error" if status != "duplicate" else "duplicate"
             error_count += 1
         else:
-            valid_count += 1
+            has_existing = result_obj and any(
+                v is not None for v in (result_obj.cat_marks, result_obj.exam_marks, result_obj.marks_obtained)
+            )
+            if has_existing and (cat_parsed is not None or exam_parsed is not None or total_parsed is not None):
+                status = "warning"
+                row_warnings.append("Existing marks for this student will be replaced.")
+                warning_count += 1
+            else:
+                valid_count += 1
             if result_obj:
                 entries[str(result_obj.pk)] = {
                     "attendance": attendance,
@@ -398,12 +418,14 @@ def parse_exam_marks_file(upload_file, exam):
             "remarks": remarks_val,
             "status": status,
             "errors": row_errors,
+            "warnings": row_warnings,
         })
 
     return {
         "valid_count": valid_count,
         "error_count": error_count,
         "duplicate_count": duplicate_count,
+        "warning_count": warning_count,
         "total_count": len(items),
         "entries": entries,
         "items": items,

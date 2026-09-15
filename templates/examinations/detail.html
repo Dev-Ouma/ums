@@ -174,8 +174,8 @@
           <span class="exam-muted"><i class="fa-solid fa-user-check text-primary me-1"></i>Internal Examiner (IE)</span>
           {% if exam.internal_reviewed_at %}<span class="badge bg-success">Reviewed {{ exam.internal_reviewed_at|date:'d M Y' }}</span>{% else %}<span class="badge bg-secondary">Pending review</span>{% endif %}
         </div>
-        <strong>{{ exam.internal_examiner.user.display_name|default:exam.course.faculty.user.display_name|default:'Not assigned' }}</strong>
-        <div class="small text-muted">{{ exam.internal_examiner.department.name|default:exam.course.department.name }}</div>
+        <strong>{% if exam.internal_examiner and exam.internal_examiner.user %}{{ exam.internal_examiner.user.display_name }}{% elif exam.course.faculty and exam.course.faculty.user %}{{ exam.course.faculty.user.display_name }}{% else %}Not assigned{% endif %}</strong>
+        <div class="small text-muted">{% if exam.internal_examiner and exam.internal_examiner.department %}{{ exam.internal_examiner.department.name }}{% elif exam.course.department %}{{ exam.course.department.name }}{% else %}&mdash;{% endif %}</div>
       </div>
     </div>
     <div class="col-md-6">
@@ -184,8 +184,8 @@
           <span class="exam-muted"><i class="fa-solid fa-user-shield text-info me-1"></i>External Examiner (EE)</span>
           {% if exam.external_reviewed_at %}<span class="badge bg-success">Reviewed {{ exam.external_reviewed_at|date:'d M Y' }}</span>{% elif exam.external_examiner or exam.external_examiner_name %}<span class="badge bg-warning text-dark">Awaiting review</span>{% else %}<span class="badge bg-light text-secondary border">None assigned</span>{% endif %}
         </div>
-        <strong>{{ exam.external_examiner.user.display_name|default:exam.external_examiner_name|default:'None assigned' }}</strong>
-        <div class="small text-muted">{{ exam.external_examiner.department.name|default:'External moderation' }}</div>
+        <strong>{% if exam.external_examiner and exam.external_examiner.user %}{{ exam.external_examiner.user.display_name }}{% elif exam.external_examiner_name %}{{ exam.external_examiner_name }}{% else %}None assigned{% endif %}</strong>
+        <div class="small text-muted">{% if exam.external_examiner and exam.external_examiner.department %}{{ exam.external_examiner.department.name }}{% else %}External moderation{% endif %}</div>
       </div>
     </div>
   </div>

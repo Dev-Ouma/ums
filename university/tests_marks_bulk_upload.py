@@ -196,9 +196,107 @@ class MarksBulkUploadTestCase(TestCase):
             "marks_file": upload,
             "revision": self.exam.revision,
         })
-        self.assertEqual(response.status_code, 302)
-
-        # Check that results were updated in the database
+        # Upload now only parses and previews — nothing is saved yet.
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "has been parsed but")
         res1 = Result.objects.get(exam=self.exam, student__roll_no="STU001")
+        self.assertIsNone(res1.marks_obtained)
+
+        token = response.context["preview"]["token"]
+        confirm = self.client.post(url, {
+            "confirm_upload": "1",
+            "preview_token": token,
+        })
+        self.assertEqual(confirm.status_code, 302)
+
+        res1.refresh_from_db()
         self.assertEqual(res1.marks_obtained, Decimal("82.00"))
         self.assertEqual(res1.grade, "A")
+
+    def test_excel_template_round_trip_preserves_marks(self):
+        """
+        Regression guard for the actual reported bug: a file produced by the
+        app's own 'Download Excel Template' button, filled in exactly as a
+        real user would, must round-trip through the parser with marks intact.
+        """
+        template_bytes = marks_io.generate_exam_marks_template(self.exam, fmt="excel")
+        wb = openpyxl.load_workbook(io.BytesIO(template_bytes))
+        ws = wb.active
+
+        # Header row is row 5 per generate_exam_marks_template; candidate rows start at 6.
+        header_values = [c.value for c in ws[5]]
+        self.assertIn("CAT Marks (Max 30)", header_values)
+        self.assertIn("Exam Marks (Max 70)", header_values)
+        roll_col = header_values.index("Roll Number") + 1
+        cat_col = header_values.index("CAT Marks (Max 30)") + 1
+        exam_col = header_values.index("Exam Marks (Max 70)") + 1
+        att_col = header_values.index("Attendance") + 1
+
+        marks_by_roll = {"STU001": (25, 55), "STU002": (20, 50), "STU003": (18, 40)}
+        for row in ws.iter_rows(min_row=6, max_row=8):
+            roll = row[roll_col - 1].value
+            cat, exam_mark = marks_by_roll[roll]
+            row[cat_col - 1].value = cat
+            row[exam_col - 1].value = exam_mark
+            row[att_col - 1].value = "PRESENT"
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+        upload = SimpleUploadedFile(
+            "exam-template.xlsx", buf.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        parsed = marks_io.parse_exam_marks_file(upload, self.exam)
+
+        self.assertEqual(parsed["valid_count"], 3)
+        self.assertEqual(parsed["error_count"], 0)
+        res1 = Result.objects.get(exam=self.exam, student__roll_no="STU001")
+        entry1 = parsed["entries"][str(res1.pk)]
+        self.assertEqual(entry1["cat_marks"], "25.00")
+        self.assertEqual(entry1["exam_marks"], "55.00")
+
+    def test_missing_marks_columns_raises_explicit_error(self):
+        csv_content = "Roll Number,Student Name,Attendance\nSTU001,Student1 Test,PRESENT\n".encode("utf-8")
+        upload = SimpleUploadedFile("marks.csv", csv_content, content_type="text/csv")
+        with self.assertRaises(ValidationError) as ctx:
+            marks_io.parse_exam_marks_file(upload, self.exam)
+        self.assertIn("Required marks columns not found", str(ctx.exception))
+
+    def test_warning_when_existing_marks_would_be_replaced(self):
+        existing = Result.objects.get(exam=self.exam, student__roll_no="STU001")
+        existing.cat_marks = Decimal("20.00")
+        existing.exam_marks = Decimal("40.00")
+        existing.attendance = "PRESENT"
+        existing.save()
+
+        csv_content = (
+            "Roll Number,Attendance,CAT Marks,Exam Marks\n"
+            "STU001,PRESENT,25.0,55.0\n"
+        ).encode("utf-8")
+        upload = SimpleUploadedFile("marks.csv", csv_content, content_type="text/csv")
+        parsed = marks_io.parse_exam_marks_file(upload, self.exam)
+
+        self.assertEqual(parsed["warning_count"], 1)
+        self.assertEqual(parsed["valid_count"], 0)
+        self.assertEqual(parsed["items"][0]["status"], "warning")
+        self.assertIn(str(existing.pk), parsed["entries"])
+
+    def test_confirm_with_stale_token_is_rejected(self):
+        self.client.force_login(self.fac_user)
+        csv_content = (
+            "Roll Number,Attendance,CAT Marks,Exam Marks\n"
+            "STU001,PRESENT,22.0,60.0\n"
+        ).encode("utf-8")
+        upload = SimpleUploadedFile("marks.csv", csv_content, content_type="text/csv")
+        url = reverse("examinations:marks", args=[self.exam.pk])
+        self.client.post(url, {"marks_file": upload, "revision": self.exam.revision})
+
+        confirm = self.client.post(url, {
+            "confirm_upload": "1",
+            "preview_token": "not-the-real-token",
+        }, follow=True)
+        self.assertContains(confirm, "expired or the exam changed")
+        res1 = Result.objects.get(exam=self.exam, student__roll_no="STU001")
+        self.assertIsNone(res1.marks_obtained)

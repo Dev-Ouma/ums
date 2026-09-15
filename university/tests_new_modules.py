@@ -23,9 +23,10 @@ from university.financial_services import (
 )
 from university.models import (
     AcademicTerm, AcademicYear, Application, Course, Department, Enrollment, Exam,
-    FeeInvoice, FeeStructure, Intake, Payment, Program,
+    FeeInvoice, FeeStructure, Intake, Payment, Program, Result,
     SupplementaryExamRegistration,
 )
+from university import examination_services
 
 User = get_user_model()
 
@@ -62,6 +63,8 @@ class AdmissionsAndFinancialTests(TestCase):
             start_date=date.today(),
             end_date=date.today() + timedelta(days=120),
             is_current=True,
+            supplementary_registration_start_date=date.today() - timedelta(days=1),
+            supplementary_registration_end_date=date.today() + timedelta(days=30),
         )
 
         # Fee Structure for Program
@@ -256,3 +259,95 @@ class AdmissionsAndFinancialTests(TestCase):
         self.assertEqual(reg.status, SupplementaryExamRegistration.Status.APPROVED)
         self.assertIsNotNone(reg.fee_invoice)
         self.assertEqual(reg.fee_invoice.amount, Decimal("1000.00"))
+
+    def test_supplementary_application_blocked_when_window_unconfigured(self):
+        self.term.supplementary_registration_start_date = None
+        self.term.supplementary_registration_end_date = None
+        self.term.save()
+
+        user = User.objects.create_user(
+            username="supp.nowindow", email="suppnowindow@ums.ac.ke", password="password123", role=Role.STUDENT
+        )
+        StudentProfile.objects.create(user=user, roll_no="BCS/0102/2026", program=self.prog, current_semester=1)
+        course = Course.objects.create(department=self.dept, code="CSC104", title="Data Structures", credits=3)
+
+        self.client.force_login(user)
+        response = self.client.post(reverse("university:student_supplementary_apply", args=[course.id]), {
+            "exam_type": "SUPPLEMENTARY", "reason": "Retake after failing end of term paper",
+        }, follow=True)
+        self.assertContains(response, "not yet open")
+        self.assertFalse(SupplementaryExamRegistration.objects.filter(course=course).exists())
+
+    def test_supplementary_application_blocked_outside_window(self):
+        self.term.supplementary_registration_start_date = date.today() - timedelta(days=30)
+        self.term.supplementary_registration_end_date = date.today() - timedelta(days=1)
+        self.term.save()
+
+        user = User.objects.create_user(
+            username="supp.late", email="supplate@ums.ac.ke", password="password123", role=Role.STUDENT
+        )
+        StudentProfile.objects.create(user=user, roll_no="BCS/0103/2026", program=self.prog, current_semester=1)
+        course = Course.objects.create(department=self.dept, code="CSC105", title="Operating Systems", credits=3)
+
+        self.client.force_login(user)
+        response = self.client.post(reverse("university:student_supplementary_apply", args=[course.id]), {
+            "exam_type": "SUPPLEMENTARY", "reason": "Retake after failing end of term paper",
+        }, follow=True)
+        self.assertContains(response, "closed on")
+        self.assertFalse(SupplementaryExamRegistration.objects.filter(course=course).exists())
+
+    def test_supplementary_application_allowed_inside_window(self):
+        user = User.objects.create_user(
+            username="supp.open", email="suppopen@ums.ac.ke", password="password123", role=Role.STUDENT
+        )
+        StudentProfile.objects.create(user=user, roll_no="BCS/0104/2026", program=self.prog, current_semester=1)
+        course = Course.objects.create(department=self.dept, code="CSC106", title="Databases", credits=3)
+
+        self.client.force_login(user)
+        self.client.post(reverse("university:student_supplementary_apply", args=[course.id]), {
+            "exam_type": "SUPPLEMENTARY", "reason": "Retake after failing end of term paper",
+        })
+        self.assertTrue(SupplementaryExamRegistration.objects.filter(course=course).exists())
+
+    def test_supplementary_roster_only_includes_approved_applicants(self):
+        course = Course.objects.create(department=self.dept, code="CSC107", title="Networks", credits=3, faculty=None)
+
+        def make_student(roll_no, username):
+            u = User.objects.create_user(username=username, email=f"{username}@ums.ac.ke", password="password123", role=Role.STUDENT)
+            return StudentProfile.objects.create(user=u, roll_no=roll_no, program=self.prog, current_semester=1)
+
+        failed_no_application = make_student("BCS/0201/2026", "supp.roster.noapp")
+        failed_pending = make_student("BCS/0202/2026", "supp.roster.pending")
+        failed_approved = make_student("BCS/0203/2026", "supp.roster.approved")
+        failed_rejected = make_student("BCS/0204/2026", "supp.roster.rejected")
+
+        original_exam = Exam.objects.create(
+            course=course, term=self.term, kind=Exam.Kind.FINAL, name="Final",
+            status=Exam.Status.PUBLISHED, max_marks=100, pass_mark=40,
+        )
+        for sp in (failed_no_application, failed_pending, failed_approved, failed_rejected):
+            Result.objects.create(exam=original_exam, student=sp, marks_obtained=20, attendance="PRESENT")
+
+        SupplementaryExamRegistration.objects.create(
+            student=failed_pending, course=course, term=self.term,
+            exam_type=SupplementaryExamRegistration.ExamType.SUPPLEMENTARY,
+            status=SupplementaryExamRegistration.Status.PENDING,
+        )
+        SupplementaryExamRegistration.objects.create(
+            student=failed_approved, course=course, term=self.term,
+            exam_type=SupplementaryExamRegistration.ExamType.SUPPLEMENTARY,
+            status=SupplementaryExamRegistration.Status.APPROVED,
+        )
+        SupplementaryExamRegistration.objects.create(
+            student=failed_rejected, course=course, term=self.term,
+            exam_type=SupplementaryExamRegistration.ExamType.SUPPLEMENTARY,
+            status=SupplementaryExamRegistration.Status.REJECTED,
+        )
+
+        supp_exam = Exam.objects.create(
+            course=course, term=self.term, kind=Exam.Kind.SUPPLEMENTARY, name="Supplementary",
+            original_exam=original_exam, status=Exam.Status.DRAFT, max_marks=100, pass_mark=40,
+        )
+
+        roster = examination_services.eligible_students(supp_exam)
+        self.assertEqual(set(roster), {failed_approved.pk})

@@ -114,7 +114,7 @@ class UniversityReportsTestCase(TestCase):
             pass_mark=40,
             cat_max_marks=30,
             exam_max_marks=70,
-            status="HELD"
+            status=Exam.Status.PUBLISHED
         )
 
         self.result = Result.objects.create(
@@ -191,6 +191,14 @@ class UniversityReportsTestCase(TestCase):
         self.assertEqual(row[5], "1")  # Passed
         self.assertEqual(row[6], "0")  # Failed
         self.assertIn("PASS", row[8])  # Senate Recommendation
+
+    def test_senate_lists_use_only_published_results(self):
+        pass_list = build_report_data("senate_pass_list", {"term": self.term.id}, user=self.admin_user)
+        self.assertEqual(len(pass_list["rows"]), 1)
+        self.exam.status = Exam.Status.UNPUBLISHED
+        self.exam.save(update_fields=["status"])
+        hidden = build_report_data("senate_consolidated_sheet", {"term": self.term.id}, user=self.admin_user)
+        self.assertEqual(hidden["rows"], [])
 
     def test_academic_performance_report(self):
         """Verify mean score and pass rate calculations."""
@@ -363,5 +371,4 @@ class UniversityReportsTestCase(TestCase):
         res_p50 = self.client.get(url, {"per_page": 50, "page": 1})
         self.assertEqual(res_p50.status_code, 200)
         self.assertEqual(res_p50.context["per_page"], 50)
-
 

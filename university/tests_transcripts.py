@@ -70,12 +70,16 @@ class TranscriptTests(ExaminationTestBase):
 
     def test_latest_published_supplement_replaces_original(self):
         exam=self.published(mark=20)
+        capped_bands=[{'grade':'C','minimum':50},{'grade':'D','minimum':40},{'grade':'F','minimum':0}]
         for i,mark in enumerate([60,80]):
             supplement=Exam.objects.create(course=self.course,term=self.term,original_exam=exam,
-                kind=Exam.Kind.SUPPLEMENTARY,status=Exam.Status.PUBLISHED,date=self.today+timedelta(days=i))
+                kind=Exam.Kind.SUPPLEMENTARY,status=Exam.Status.PUBLISHED,date=self.today+timedelta(days=i),
+                grade_bands=capped_bands)
             Result.objects.create(exam=supplement,student=self.students[0],attendance='PRESENT',marks_obtained=mark)
         ctx=build_transcript_context(self.students[0])
-        self.assertEqual(ctx['cgpa'],Decimal('4.00'))
+        # A supplementary sitting's awarded grade is capped at 'C' (GP 2.0) even
+        # though the raw mark (80%) would otherwise earn a higher grade.
+        self.assertEqual(ctx['cgpa'],Decimal('2.00'))
         self.assertEqual(ctx['overall_credits_attempted'],4)
 
     def test_student_admin_and_faculty_permissions_for_every_format(self):
@@ -134,7 +138,7 @@ class TranscriptTests(ExaminationTestBase):
                 self.assertIn('Ada <Registry> & Co',text)
                 self.assertIn('COURSE064',text)
                 self.assertIn('Page 2 of',text)
-                self.assertGreater(text.count('Course title'),1)
+                self.assertGreater(text.count('COURSE TITLE'), 1)
 
     def test_zero_credit_results_do_not_invent_a_gpa(self):
         self.course.credits=0

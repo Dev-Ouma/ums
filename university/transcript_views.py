@@ -50,7 +50,10 @@ def selection(request, student):
     if raw_year:
         if not raw_year.isdigit():
             raise Http404('Invalid academic year')
-        selected_year = get_object_or_404(terms, academic_year_id=raw_year).academic_year
+        match = terms.filter(academic_year_id=raw_year).select_related('academic_year').first()
+        if not match:
+            raise Http404('Academic year not found for this student')
+        selected_year = match.academic_year
     return terms, selected, years, selected_year
 
 

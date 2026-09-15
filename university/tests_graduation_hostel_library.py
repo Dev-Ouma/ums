@@ -20,10 +20,12 @@ from university.library_services import (
     get_user_library_status, issue_book, return_book,
     search_books, seed_default_books
 )
+from university.permissions_services import seed_default_permissions_and_roles
 from university.models import (
     AcademicTerm, Book, BookLoan, Course, Department, DepartmentClearance,
     Exam, FeeInvoice, GraduationApplication, GraduationCeremony, HostelAllocation,
-    HostelBlock, HostelRoom, PastExamPaper, Program, Result
+    HostelBlock, HostelRoom, PastExamPaper, Program, Result, StaffRole,
+    StaffRoleAssignment
 )
 
 User = get_user_model()
@@ -216,6 +218,30 @@ class GraduationHostelLibraryTestCase(TestCase):
         res_admin = self.client.get(reverse("university:admin_hostels_dashboard"))
         self.assertEqual(res_admin.status_code, 200)
 
+    def test_hostel_lifecycle_rejects_invalid_repeated_transitions(self):
+        seed_default_hostels()
+        room = get_available_rooms()[0]
+        alloc, _ = apply_hostel_room(self.student_profile, room, self.term)
+        self.assertEqual(checkin_hostel_student(alloc.id)[0], False)
+        self.assertTrue(allocate_hostel_room(alloc.id, admin_user=self.admin_user)[0])
+        self.assertEqual(allocate_hostel_room(alloc.id, admin_user=self.admin_user)[0], False)
+        self.assertTrue(checkin_hostel_student(alloc.id, admin_user=self.admin_user)[0])
+        self.assertTrue(checkout_hostel_student(alloc.id, admin_user=self.admin_user)[0])
+        self.assertEqual(checkout_hostel_student(alloc.id, admin_user=self.admin_user)[0], False)
+        room.refresh_from_db()
+        self.assertEqual(room.occupied_beds, 0)
+
+    def test_hostel_warden_can_manage_accommodation(self):
+        seed_default_permissions_and_roles()
+        warden = User.objects.create_user("warden", password="password123", role=Role.FACULTY)
+        StaffRoleAssignment.objects.create(
+            user=warden, role=StaffRole.objects.get(code="hostel_warden"), assigned_by=self.admin_user
+        )
+        self.client.force_login(warden)
+        self.assertEqual(self.client.get(reverse("university:admin_hostels_dashboard")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("university:admin_hostels_dashboard") + "?block=None").status_code, 200)
+        self.assertEqual(self.client.post(reverse("university:admin_hostel_allocate", args=[999999])).status_code, 404)
+
     # ==============================================================================
     # 3. LIBRARY & PAST EXAM PAPERS TESTS
     # ==============================================================================
@@ -273,3 +299,27 @@ class GraduationHostelLibraryTestCase(TestCase):
         self.client.login(username="admin_staff", password="password123")
         res_admin = self.client.get(reverse("university:admin_library_dashboard"))
         self.assertEqual(res_admin.status_code, 200)
+
+    def test_librarian_role_and_invalid_form_values(self):
+        seed_default_permissions_and_roles()
+        seed_default_books()
+        librarian = User.objects.create_user("librarian", password="password123", role=Role.FACULTY)
+        StaffRoleAssignment.objects.create(
+            user=librarian, role=StaffRole.objects.get(code="librarian"), assigned_by=self.admin_user
+        )
+        self.client.force_login(librarian)
+        self.assertEqual(self.client.get(reverse("university:admin_library_dashboard")).status_code, 200)
+        invalid_days = self.client.post(reverse("university:admin_library_issue"), {
+            "book_id": Book.objects.first().pk, "borrower_username": self.student_user.username, "days": "not-a-number",
+        })
+        self.assertEqual(invalid_days.status_code, 302)
+        self.assertFalse(BookLoan.objects.filter(borrower=self.student_user).exists())
+        invalid_copies = self.client.post(reverse("university:admin_library_book_create"), {
+            "title": "Invalid Inventory", "author": "Tester", "copies": "invalid",
+        })
+        self.assertEqual(invalid_copies.status_code, 302)
+        self.assertFalse(Book.objects.filter(title="Invalid Inventory").exists())
+        my_loans = self.client.get(reverse("university:student_library_portal") + "?tab=my_loans")
+        self.assertEqual(my_loans.status_code, 200)
+        self.assertContains(my_loans, "My Borrowed Books")
+        self.assertEqual(self.client.post(reverse("university:admin_library_return", args=[999999])).status_code, 404)

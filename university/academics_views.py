@@ -30,6 +30,7 @@ from .transcript_views import document as render_transcript_document
 from .document_access_services import check_document_access
 from .audit_services import get_client_ip, detect_device_type, log_activity
 from .academic_calendar_services import get_current_academic_year, get_current_semester, get_active_academic_context
+from .permissions_services import has_user_permission
 from . import services
 
 
@@ -203,7 +204,7 @@ def student_register_units(request):
                 return redirect("university:student_register_units")
 
             # Check credit limit (max 24 credits per semester)
-            current_credits = sum(e.course.credits for e in registration.enrollments.exclude(status=Enrollment.DROPPED))
+            current_credits = sum(e.course.credits for e in registration.enrollments.select_related("course").exclude(status=Enrollment.DROPPED))
             if current_credits + course.credits > 24:
                 messages.error(request, f"Adding {course.code} ({course.credits} units) exceeds the maximum limit of 24 credits per semester.")
                 return redirect("university:student_register_units")
@@ -239,7 +240,7 @@ def student_register_units(request):
 
         elif action == "submit_registration":
             enrolled_count = registration.enrollments.exclude(status=Enrollment.DROPPED).count()
-            current_credits = sum(e.course.credits for e in registration.enrollments.exclude(status=Enrollment.DROPPED))
+            current_credits = sum(e.course.credits for e in registration.enrollments.select_related("course").exclude(status=Enrollment.DROPPED))
 
             if enrolled_count == 0:
                 messages.error(request, "Please register at least one course unit before submitting.")
@@ -249,20 +250,20 @@ def student_register_units(request):
                 messages.warning(request, f"Note: You have registered {current_credits} credits, which is below the standard minimum of 12 credits.")
 
             with transaction.atomic():
-                # Student submission enters the admin review queue. Approval
-                # must be an explicit administrative action; students must
-                # never approve their own registrations.
-                registration.status = SemesterRegistration.SUBMITTED
+                # Student submission is immediately approved by policy. Any
+                # subsequent additions, removals, or corrections remain an
+                # administrator-only operation from the detail screen.
+                registration.status = SemesterRegistration.APPROVED
                 registration.submitted_at = timezone.now()
-                registration.approved_at = None
+                registration.approved_at = timezone.now()
+                # This is an automatic system approval, not an administrator
+                # action; preserve that distinction in the audit trail.
                 registration.approved_by = None
                 registration.recalculate_credits(save=False)
                 registration.save()
-                # Keep child enrollments pending until an administrator
-                # approves the parent registration.
-                registration.enrollments.exclude(status=Enrollment.DROPPED).update(status=Enrollment.SUBMITTED)
+                registration.enrollments.exclude(status=Enrollment.DROPPED).update(status=Enrollment.ACTIVE)
 
-            messages.success(request, "Your unit registration has been submitted for administrative approval.")
+            messages.success(request, "Your unit registration has been submitted and approved.")
             return redirect("university:student_register_units")
 
     # Registered units
@@ -351,26 +352,6 @@ def admin_unit_registrations(request):
     if cohort_id.isdigit():
         registrations_qs = registrations_qs.filter(student__cohort_id=cohort_id)
 
-    # Batch action
-    if request.method == "POST":
-        action = request.POST.get("action")
-        selected_ids = request.POST.getlist("selected_ids")
-        if action == "bulk_approve" and selected_ids:
-            with transaction.atomic():
-                updated = SemesterRegistration.objects.filter(
-                    id__in=selected_ids, status=SemesterRegistration.SUBMITTED
-                ).update(
-                    status=SemesterRegistration.APPROVED,
-                    approved_at=timezone.now(),
-                    approved_by=request.user
-                )
-                # Also activate the enrollments
-                Enrollment.objects.filter(
-                    registration_id__in=selected_ids, status=Enrollment.SUBMITTED
-                ).update(status=Enrollment.ACTIVE)
-            messages.success(request, f"Approved {updated} pending unit registration(s).")
-            return redirect("university:admin_unit_registrations")
-
     # Exports
     export_fmt = request.GET.get("export")
     if export_fmt in ["csv", "xlsx"]:
@@ -380,7 +361,10 @@ def admin_unit_registrations(request):
         writer = csv.writer(response)
         writer.writerow(["Reg No", "Student Name", "Program", "Term", "Semester", "Credits", "Status", "Units"])
         for reg in registrations_qs:
-            courses_str = ", ".join(e.course.code for e in reg.enrollments.exclude(status=Enrollment.DROPPED))
+            # Filter the already-prefetched enrollments in Python — calling
+            # .exclude() on a prefetched related manager re-queries the DB
+            # per row instead of reusing the prefetch cache.
+            courses_str = ", ".join(e.course.code for e in reg.enrollments.all() if e.status != Enrollment.DROPPED)
             writer.writerow([
                 reg.student.roll_no,
                 reg.student.user.display_name,
@@ -394,8 +378,11 @@ def admin_unit_registrations(request):
         return response
 
     # Metrics
+    # Note: registrations are auto-approved on student submission (see
+    # submit_registration below) — nothing ever reaches SUBMITTED awaiting
+    # admin action, so "pending" here means "not yet submitted" (DRAFT).
     total_count = registrations_qs.count()
-    pending_count = SemesterRegistration.objects.filter(status=SemesterRegistration.SUBMITTED).count()
+    pending_count = SemesterRegistration.objects.filter(status=SemesterRegistration.DRAFT).count()
     approved_count = SemesterRegistration.objects.filter(status=SemesterRegistration.APPROVED).count()
     active_terms = AcademicTerm.objects.all()
 
@@ -515,7 +502,7 @@ def admin_unit_registration_detail(request, pk):
 @login_required
 def admin_provisional_transcripts(request):
     """Admin Provisional Transcripts directory & generator."""
-    if not (is_admin(request.user) or request.user.is_superuser):
+    if not (is_admin(request.user) or request.user.is_superuser or has_user_permission(request.user, "exams.publish_results")):
         raise PermissionDenied
 
     query = request.GET.get("q", "").strip()
@@ -552,7 +539,7 @@ def admin_provisional_transcripts(request):
 @login_required
 def admin_academic_transcripts(request):
     """Admin Official Academic Transcripts directory & generator."""
-    if not (is_admin(request.user) or request.user.is_superuser):
+    if not (is_admin(request.user) or request.user.is_superuser or has_user_permission(request.user, "exams.publish_results")):
         raise PermissionDenied
 
     query = request.GET.get("q", "").strip()
@@ -701,13 +688,37 @@ def student_supplementary(request):
     current_term = terms.filter(is_current=True).first() or terms.first()
     existing_regs = SupplementaryExamRegistration.objects.filter(student=sp).select_related("course", "term", "fee_invoice")
 
+    window_open, window_message = _supplementary_window_status(current_term)
+
     return render(request, "academics/supplementary.html", {
         "student": sp,
         "failing_results": failing_results,
         "existing_regs": existing_regs,
         "terms": terms,
         "current_term": current_term,
+        "supplementary_window_open": window_open,
+        "supplementary_window_message": window_message,
     })
+
+
+def _supplementary_window_status(term):
+    """
+    Whether supplementary exam applications are currently open for `term`,
+    per its configured supplementary_registration_start/end_date window.
+    An unconfigured window is treated as closed, not open-by-default.
+    """
+    if not term:
+        return False, "No academic term is currently configured."
+    start = term.supplementary_registration_start_date
+    end = term.supplementary_registration_end_date
+    if not start or not end:
+        return False, "Supplementary exam applications are not yet open for this term."
+    today = timezone.now().date()
+    if today < start:
+        return False, f"Supplementary exam applications open on {start:%d %b %Y}."
+    if today > end:
+        return False, f"Supplementary exam applications closed on {end:%d %b %Y}."
+    return True, f"Applications close on {end:%d %b %Y}."
 
 
 @login_required
@@ -727,6 +738,11 @@ def student_supplementary_apply(request, course_id):
 
     term_id = request.POST.get("term")
     active_term = get_object_or_404(AcademicTerm, pk=term_id) if term_id else (AcademicTerm.objects.filter(is_current=True).first() or AcademicTerm.objects.first())
+
+    window_open, window_message = _supplementary_window_status(active_term)
+    if not window_open:
+        messages.error(request, window_message)
+        return redirect("university:student_supplementary")
 
     reg, created = SupplementaryExamRegistration.objects.get_or_create(
         student=sp,
@@ -786,14 +802,30 @@ def admin_student_transfer_decision(request, pk):
     if decision not in {StudentTransferRequest.Status.APPROVED, StudentTransferRequest.Status.REJECTED}:
         messages.error(request, "Invalid transfer decision.")
     else:
-        application.status = decision
-        application.review_comments = request.POST.get("review_comments", "").strip()
-        application.reviewed_by = request.user
-        application.reviewed_at = timezone.now()
-        if decision == StudentTransferRequest.Status.APPROVED:
-            application.student.program = application.to_program
-            application.student.save(update_fields=["program"])
-        application.save(update_fields=["status", "review_comments", "reviewed_by", "reviewed_at"])
+        with transaction.atomic():
+            application.status = decision
+            application.review_comments = request.POST.get("review_comments", "").strip()
+            application.reviewed_by = request.user
+            application.reviewed_at = timezone.now()
+            if decision == StudentTransferRequest.Status.APPROVED:
+                application.student.program = application.to_program
+                application.student.save(update_fields=["program"])
+            application.save(update_fields=["status", "review_comments", "reviewed_by", "reviewed_at"])
+            log_activity(
+                request=request, user=request.user,
+                action=AuditLog.Action.UPDATE, module=AuditLog.Module.ACADEMICS,
+                entity="StudentTransferRequest", entity_id=application.id,
+                description=(
+                    f"{decision.title()} transfer request for {application.student.roll_no}: "
+                    f"{application.from_program.code} → {application.to_program.code}."
+                ),
+                new_state={
+                    "status": decision,
+                    "from_program": application.from_program.code,
+                    "to_program": application.to_program.code,
+                    "reviewed_by": request.user.username,
+                },
+            )
         messages.success(request, "Transfer request updated.")
     return redirect("university:admin_student_transfers")
 
@@ -817,12 +849,27 @@ def admin_supplementary_list(request):
     paginator = Paginator(qs, 20)
     page_obj = paginator.get_page(request.GET.get("page", 1))
 
+    current_term = AcademicTerm.objects.filter(is_current=True).first() or AcademicTerm.objects.order_by("-start_date").first()
+    window_open, window_message = _supplementary_window_status(current_term)
+
+    # Pre-compute, per (course_id, term_id), whether a supplementary Exam sitting already exists,
+    # so approved rows can link straight into scheduling it instead of staff hunting manually.
+    scheduled_exam_by_course_term = {
+        (e.course_id, e.term_id): e.id
+        for e in Exam.objects.filter(kind=Exam.Kind.SUPPLEMENTARY, original_exam__isnull=False)
+    }
+    for reg in page_obj:
+        reg.scheduled_exam_id = scheduled_exam_by_course_term.get((reg.course_id, reg.term_id))
+
     return render(request, "academics/admin_supplementary.html", {
         "page_obj": page_obj,
         "statuses": SupplementaryExamRegistration.Status.choices,
         "types": SupplementaryExamRegistration.ExamType.choices,
         "selected_status": status_filter,
         "selected_type": type_filter,
+        "current_term": current_term,
+        "supplementary_window_open": window_open,
+        "supplementary_window_message": window_message,
     })
 
 
@@ -968,7 +1015,6 @@ def progressive_report_detail_view(request, student_id):
             "total_passed_credits": ctx.get("earned_credits", 0),
             "total_attempted_credits": ctx.get("attempted_credits", 0),
             "passed_courses_count": ctx.get("total_courses_completed", 0),
-            "total_courses_count": ctx.get("attempted_credits", 0),  # fallback
             "terms_data": [],
             "generated_at": ctx.get("issued_date", ""),
         },

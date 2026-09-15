@@ -51,7 +51,7 @@ def build_transcript_context(student, term=None, academic_year=None):
     selected = [g for s in visible for g in s['groups']]
     legends = []
     for g in selected:
-        bands = g['final'].grade_bands
+        bands = (g.get('grade_exam') or g['final']).grade_bands
         key = json.dumps(bands, sort_keys=True)
         entry = next((x for x in legends if x['key'] == key), None)
         if entry is None:

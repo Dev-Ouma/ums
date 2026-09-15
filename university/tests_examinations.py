@@ -15,7 +15,8 @@ from accounts.models import FacultyProfile, Role, StudentProfile, User
 from university import examination_services as workflow
 from university.examination_forms import ExaminationForm
 from university.models import (AcademicTerm, Course, Department, Enrollment,
-                               Exam, ExamRoom, Program, Result)
+                               Exam, ExamRoom, ExamSchedule, ExamScheduleItem,
+                               Program, Result, StaffRole, StaffRoleAssignment)
 
 
 class ExaminationTestBase(TestCase):
@@ -81,6 +82,40 @@ class ExaminationLifecycleTests(ExaminationTestBase):
         form = ExaminationForm(dict(base, kind=Exam.Kind.FINAL, name="Final"), user=self.lecturer)
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(form.save().weight, 70)
+
+    # --- supplementary grade cap ----------------------------------------
+
+    def test_supplementary_form_only_offers_capped_grade_bands(self):
+        original = self.make_exam(Exam.Kind.FINAL, "Final", 100, status=Exam.Status.PUBLISHED)
+        form = ExaminationForm(user=self.lecturer, initial={
+            "kind": Exam.Kind.SUPPLEMENTARY, "original_exam": original.pk,
+            "course": self.course.pk, "term": self.term.pk,
+        })
+        self.assertNotIn("grade_A", form.fields)
+        self.assertNotIn("grade_B", form.fields)
+        self.assertIn("grade_C", form.fields)
+        self.assertIn("grade_D", form.fields)
+
+        base = {"course": self.course.pk, "term": self.term.pk, "name": "Supplementary",
+                "kind": Exam.Kind.SUPPLEMENTARY, "original_exam": original.pk,
+                "date": self.today, "start_time": "09:00", "end_time": "11:00",
+                "room": self.room.pk, "invigilator": self.faculty.pk,
+                "max_marks": 100, "pass_mark": 40, "instructions": "",
+                "grade_C": 50, "grade_D": 40}
+        form = ExaminationForm(base, user=self.lecturer)
+        self.assertTrue(form.is_valid(), form.errors)
+        exam = form.save()
+        self.assertEqual({b["grade"] for b in exam.grade_bands}, {"C", "D", "F"})
+
+    def test_supplementary_exam_rejects_uncapped_grade_bands(self):
+        original = self.make_exam(Exam.Kind.FINAL, "Final", 100, status=Exam.Status.PUBLISHED)
+        supplement = Exam(
+            course=self.course, term=self.term, name="Supplementary",
+            kind=Exam.Kind.SUPPLEMENTARY, original_exam=original,
+            date=self.today, max_marks=100, pass_mark=40,
+        )
+        with self.assertRaises(ValidationError):
+            supplement.full_clean()
 
     # --- happy path ----------------------------------------------------
 
@@ -502,3 +537,164 @@ class EnhancedCUEExaminationsTests(ExaminationTestBase):
         self.assertContains(response, "Final Exam EE")
         self.assertContains(response, "Cohort")
 
+    def test_examination_operations_hub_and_workflow_queues(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse('examinations:index'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Examinations Operations')
+        self.assertContains(response, 'Senate reports')
+        self.assertContains(response, reverse('examinations:schedule_list'))
+        destinations = (
+            reverse('examinations:schedule_list'),
+            reverse('examinations:attendance'),
+            reverse('examinations:marks_capture'),
+            reverse('examinations:rooms'),
+            reverse('examinations:grading'),
+            reverse('examinations:report'),
+        )
+        for destination in destinations:
+            with self.subTest(destination=destination):
+                self.assertEqual(self.client.get(destination).status_code, 200)
+        for stage in ('submission', 'approval', 'publication'):
+            queue = self.client.get(reverse('examinations:workflow_queue', args=[stage]))
+            self.assertEqual(queue.status_code, 200)
+
+    def test_invigilator_can_capture_attendance_end_to_end(self):
+        exam = self.make_exam(Exam.Kind.FINAL, "Attendance Test", 100)
+        workflow.transition(self.lecturer, exam.pk, "schedule")
+        rows = list(exam.results.order_by('seat_number'))
+        changed = workflow.save_attendance(self.lecturer, exam.pk, {
+            str(rows[0].pk): 'PRESENT', str(rows[1].pk): 'PRESENT', str(rows[2].pk): 'ABSENT',
+        })
+        self.assertEqual(changed, 3)
+        self.assertEqual(exam.results.filter(attendance='PRESENT').count(), 2)
+        self.assertEqual(exam.results.filter(attendance='ABSENT').count(), 1)
+        self.assertTrue(exam.audit_entries.filter(action='Attendance updated').exists())
+        with self.assertRaises(PermissionDenied):
+            workflow.save_attendance(self.other_faculty.user, exam.pk, {str(rows[0].pk): 'ABSENT'})
+
+        self.client.force_login(self.lecturer)
+        self.assertEqual(self.client.get(reverse('examinations:attendance')).status_code, 200)
+        detail = self.client.get(reverse('examinations:attendance_detail', args=[exam.pk]))
+        self.assertEqual(detail.status_code, 200)
+        self.assertContains(detail, 'Official attendance register')
+
+        exam.status = Exam.Status.SUBMITTED
+        exam.save(update_fields=['status'])
+        with self.assertRaises(ValidationError):
+            workflow.save_attendance(self.lecturer, exam.pk, {str(rows[0].pk): 'PENDING'})
+
+
+class ScheduleItemStudentRosterTests(ExaminationTestBase):
+    def setUp(self):
+        self.schedule = ExamSchedule.objects.create(
+            name="Test Schedule", program=self.program, term=self.term,
+            study_year=1, semester=1,
+        )
+        self.item = ExamScheduleItem.objects.create(
+            schedule=self.schedule, course=self.course, exam_date=self.today,
+        )
+
+    def test_web_view_lists_eligible_students(self):
+        self.client.force_login(self.lecturer)
+        url = reverse('examinations:schedule_item_students', args=[self.item.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['total'], 3)
+        for sp in self.students:
+            self.assertContains(response, sp.roll_no)
+
+    def test_web_view_paginates_with_page_size_filter(self):
+        # Add enough students to force a second page at the smallest page size.
+        for i in range(30):
+            u = User.objects.create_user(f"extra{i}", password="x", role=Role.STUDENT)
+            sp = StudentProfile.objects.create(user=u, roll_no=f"EX{i:03}", program=self.program)
+            Enrollment.objects.create(student=sp, course=self.course, term=self.term)
+
+        self.client.force_login(self.lecturer)
+        url = reverse('examinations:schedule_item_students', args=[self.item.pk])
+        response = self.client.get(url, {'page_size': 25})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['total'], 33)
+        self.assertEqual(len(response.context['page'].object_list), 25)
+        self.assertTrue(response.context['page'].has_next())
+
+        page2 = self.client.get(url, {'page_size': 25, 'page': 2})
+        self.assertEqual(len(page2.context['page'].object_list), 8)
+
+        # Exports must always cover the FULL roster, never just the current page.
+        csv_resp = self.client.get(url, {'format': 'csv'})
+        self.assertEqual(csv_resp.content.decode().count('\r\n') - 1, 33)
+
+    def test_pdf_xlsx_csv_exports_work(self):
+        self.client.force_login(self.lecturer)
+        url = reverse('examinations:schedule_item_students', args=[self.item.pk])
+        pdf = self.client.get(url + '?format=pdf')
+        self.assertEqual(pdf.status_code, 200)
+        self.assertTrue(pdf.content.startswith(b'%PDF'))
+        xlsx = self.client.get(url + '?format=xlsx')
+        self.assertEqual(xlsx.status_code, 200)
+        self.assertIn('spreadsheetml', xlsx['Content-Type'])
+        csv_resp = self.client.get(url + '?format=csv')
+        self.assertEqual(csv_resp.status_code, 200)
+        self.assertIn(self.students[0].roll_no, csv_resp.content.decode())
+
+    def test_roster_uses_linked_exam_when_present(self):
+        exam = self.make_exam(Exam.Kind.FINAL, "Final", 100)
+        workflow.transition(self.lecturer, exam.pk, "schedule")
+        exam.refresh_from_db()
+        # Only one candidate actually has a Result row for this exam sitting.
+        exam.results.exclude(pk=exam.results.first().pk).delete()
+        self.item.exam = exam
+        self.item.save()
+
+        self.client.force_login(self.lecturer)
+        url = reverse('examinations:schedule_item_students', args=[self.item.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.context['total'], 1)
+
+
+class MarksReadOnlyViewingTests(ExaminationTestBase):
+    def setUp(self):
+        self.hod_user = User.objects.create_user("hod1", password="x", role=Role.FACULTY)
+        self.hod_faculty = FacultyProfile.objects.create(user=self.hod_user, employee_id="H1", department=self.course.department)
+        hod_role, _ = StaffRole.objects.get_or_create(code="hod", defaults={"name": "HOD"})
+        StaffRoleAssignment.objects.create(user=self.hod_user, role=hod_role, department=self.course.department, is_active=True)
+
+    def test_hod_can_view_submitted_marks_read_only(self):
+        exam = self.make_exam(Exam.Kind.FINAL, "Final", 100)
+        self.drive_to_marking(exam)
+        self.enter_marks(exam, [80, 50, 30])
+        workflow.transition(self.lecturer, exam.pk, "submit")
+
+        self.client.force_login(self.hod_user)
+        response = self.client.get(reverse('examinations:marks', args=[exam.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context['editable'])
+
+    def test_hod_cannot_edit_marks_via_post(self):
+        exam = self.make_exam(Exam.Kind.FINAL, "Final", 100)
+        self.drive_to_marking(exam)
+        self.enter_marks(exam, [80, 50, 30])
+        workflow.transition(self.lecturer, exam.pk, "submit")
+        exam.refresh_from_db()
+        row = exam.results.first()
+
+        self.client.force_login(self.hod_user)
+        response = self.client.post(reverse('examinations:marks', args=[exam.pk]), {
+            'revision': exam.revision,
+            f'attendance_{row.pk}': 'PRESENT',
+            f'cat_marks_{row.pk}': '10',
+            f'exam_marks_{row.pk}': '10',
+        }, follow=False)
+        self.assertEqual(response.status_code, 403)
+        row.refresh_from_db()
+        self.assertEqual(row.marks_obtained, Decimal('80'))  # unchanged from lecturer's submission
+
+    def test_unrelated_faculty_cannot_view_marks(self):
+        # staff_scope() excludes exams with no relationship to this user entirely,
+        # so it's a 404 (object not visible), not a 403 (object visible but denied).
+        exam = self.make_exam(Exam.Kind.FINAL, "Final", 100)
+        self.client.force_login(self.other_faculty.user)
+        response = self.client.get(reverse('examinations:marks', args=[exam.pk]))
+        self.assertEqual(response.status_code, 404)

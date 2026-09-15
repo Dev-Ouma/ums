@@ -59,6 +59,11 @@ DEFAULT_PERMISSIONS = [
     ("hostels.allocate_room", "Allocate & Reassign Rooms", "Accommodation", "Assign students to hostel blocks, rooms, and beds."),
     ("hostels.clear_student", "Hostel Exit Clearance", "Accommodation", "Authorize room check-out and hostel clearance."),
 
+    # --- Library & Repository ---
+    ("library.view", "View Library Operations", "Library", "View the catalog, circulation ledger, past papers, and borrower status."),
+    ("library.circulate", "Issue & Return Books", "Library", "Issue catalog copies, process returns, and assess overdue fines."),
+    ("library.manage_catalog", "Manage Library Catalog", "Library", "Register books, copies, call numbers, shelves, and digital past papers."),
+
     # --- Reports & Analytics ---
     ("reports.view_catalog", "Access Reports Catalog", "Reports", "Browse standard university report catalogues and web previews."),
     ("reports.generate_official", "Generate Official Reports", "Reports", "Run full institution-wide operational and demographic reports."),
@@ -124,7 +129,7 @@ DEFAULT_ROLES = [
         "permissions": [
             "students.view_all",
             "academics.view_curriculum", "academics.manage_courses", "academics.unit_registration",
-            "exams.create_exam", "exams.view_marks", "exams.moderate_marks", "exams.approve_senate",
+            "exams.create_exam", "exams.view_marks", "exams.moderate_marks", "exams.approve_senate", "exams.publish_results",
             "reports.view_catalog", "reports.generate_official", "reports.senate_marksheet", "reports.export_files",
         ]
     },
@@ -172,6 +177,17 @@ DEFAULT_ROLES = [
         "permissions": [
             "students.view_all",
             "hostels.view_allocation", "hostels.allocate_room", "hostels.clear_student",
+            "reports.view_catalog", "reports.export_files",
+        ]
+    },
+    {
+        "name": "Librarian / Repository Officer",
+        "code": "librarian",
+        "color": "#0984e3",
+        "description": "Library officer managing catalog records, circulation, fines, and the digital past-paper repository.",
+        "permissions": [
+            "students.view_all",
+            "library.view", "library.circulate", "library.manage_catalog",
             "reports.view_catalog", "reports.export_files",
         ]
     },

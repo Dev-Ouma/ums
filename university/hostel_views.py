@@ -4,8 +4,9 @@ from django.core.paginator import Paginator
 from django.db.models import F, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
+from functools import wraps
 
-from accounts.models import Role, StudentProfile
+from accounts.models import StudentProfile
 from university.hostel_services import (
     allocate_hostel_room, apply_hostel_room, checkin_hostel_student,
     checkout_hostel_student, get_available_rooms, seed_default_hostels
@@ -15,16 +16,26 @@ from university.models import (
 )
 
 
+from university.permissions_services import has_user_permission
+
+
+def _permission_required(permission_code):
+    def decorator(view_func):
+        @wraps(view_func)
+        def _wrapped(request, *args, **kwargs):
+            if not request.user.is_authenticated:
+                return redirect("accounts:login")
+            if not has_user_permission(request.user, permission_code):
+                messages.error(request, "You do not have permission to perform this accommodation operation.")
+                return redirect("university:dashboard")
+            return view_func(request, *args, **kwargs)
+        return _wrapped
+    return decorator
+
+
 def _admin_required(view_func):
-    def _wrapped(request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return redirect("accounts:login")
-        user_role = getattr(request.user, "role", "")
-        if not (request.user.is_staff or request.user.is_superuser or user_role in (Role.ADMIN, "ADMIN")):
-            messages.error(request, "Access restricted. Administrator privileges required.")
-            return redirect("university:dashboard")
-        return view_func(request, *args, **kwargs)
-    return _wrapped
+    """Backward-compatible alias for hostel allocation visibility."""
+    return _permission_required("hostels.view_allocation")(view_func)
 
 
 # ==============================================================================
@@ -87,6 +98,9 @@ def student_hostel_apply(request):
     notes = request.POST.get("notes", "").strip()
     room = get_object_or_404(HostelRoom, pk=room_id)
     term = AcademicTerm.objects.filter(is_current=True).first() or AcademicTerm.objects.first()
+    if term is None:
+        messages.error(request, "Accommodation applications are unavailable until an academic term is configured.")
+        return redirect("university:student_hostel_portal")
 
     alloc, msg = apply_hostel_room(sp, room, term, notes=notes, request=request)
     if alloc:
@@ -132,8 +146,10 @@ def admin_hostels_dashboard(request):
         )
     if status_filter:
         allocations = allocations.filter(status=status_filter)
-    if block_filter:
+    if block_filter.isdigit():
         allocations = allocations.filter(room__block_id=block_filter)
+    elif block_filter:
+        block_filter = ""
 
     paginator = Paginator(allocations, 20)
     page_obj = paginator.get_page(request.GET.get("page"))
@@ -154,10 +170,11 @@ def admin_hostels_dashboard(request):
 
 
 @login_required
-@_admin_required
+@_permission_required("hostels.allocate_room")
 @require_POST
 def admin_hostel_allocate(request, pk):
     """Approve hostel room allocation."""
+    get_object_or_404(HostelAllocation, pk=pk)
     success, msg = allocate_hostel_room(pk, admin_user=request.user, request=request)
     if success:
         messages.success(request, msg)
@@ -167,10 +184,11 @@ def admin_hostel_allocate(request, pk):
 
 
 @login_required
-@_admin_required
+@_permission_required("hostels.allocate_room")
 @require_POST
 def admin_hostel_checkin(request, pk):
     """Mark student arrived and record room key."""
+    get_object_or_404(HostelAllocation, pk=pk)
     key = request.POST.get("key_number", "").strip()
     success, msg = checkin_hostel_student(pk, key_number=key, admin_user=request.user, request=request)
     if success:
@@ -181,10 +199,11 @@ def admin_hostel_checkin(request, pk):
 
 
 @login_required
-@_admin_required
+@_permission_required("hostels.clear_student")
 @require_POST
 def admin_hostel_checkout(request, pk):
     """Release student bed space."""
+    get_object_or_404(HostelAllocation, pk=pk)
     success, msg = checkout_hostel_student(pk, admin_user=request.user, request=request)
     if success:
         messages.success(request, msg)

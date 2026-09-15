@@ -160,10 +160,14 @@ def admin_dashboard():
     year = date.today().year
     collected_by_month = [0.0] * 12
     pending_by_month = [0.0] * 12
-    for inv in FeeInvoice.objects.all():
-        m = inv.issued_on.month - 1
-        collected_by_month[m] += float(inv.amount_paid)
-        pending_by_month[m] += float(inv.balance)
+    for row in (FeeInvoice.objects.filter(issued_on__year=year)
+                .values("issued_on__month")
+                .annotate(paid=Sum("amount_paid"), billed=Sum("amount"))):
+        month = row["issued_on__month"]
+        paid = float(row["paid"] or 0)
+        billed = float(row["billed"] or 0)
+        collected_by_month[month - 1] += paid
+        pending_by_month[month - 1] += max(0.0, billed - paid)
 
     # Enrollment trend (cumulative by month) ------------------------------
     enroll_by_month = [0] * 12

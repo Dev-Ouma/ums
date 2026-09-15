@@ -27,6 +27,12 @@
   </p>
 </div>
 
+<!-- Application Window Status -->
+<div class="alert {% if supplementary_window_open %}alert-success{% else %}alert-warning{% endif %} border-0 shadow-sm rounded-4 p-3 mb-4 d-flex align-items-center gap-2">
+  <i class="fa-solid {% if supplementary_window_open %}fa-lock-open{% else %}fa-lock{% endif %}"></i>
+  <span class="small fw-semibold">{{ supplementary_window_message }}</span>
+</div>
+
 <!-- Failing / Eligible Courses for Supplementary -->
 <div class="card border-0 shadow-sm rounded-4 mb-4">
   <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
@@ -65,7 +71,7 @@
                   <input type="text" name="reason" class="form-control form-control-sm" placeholder="e.g. Re-sit failed paper" required>
                 </td>
                 <td class="text-end">
-                  <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3">
+                  <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3" {% if not supplementary_window_open %}disabled title="Applications are currently closed"{% endif %}>
                     <i class="fa-solid fa-paper-plane me-1"></i> Apply
                   </button>
                 </td>

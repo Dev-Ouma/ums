@@ -5,27 +5,35 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
+from functools import wraps
 
-from accounts.models import Role
 from university.library_services import (
     get_user_library_status, issue_book, return_book,
     search_books, seed_default_books
 )
 from university.models import AcademicTerm, Book, BookLoan, Course, PastExamPaper
+from university.permissions_services import has_user_permission
 
 User = get_user_model()
 
 
+def _permission_required(permission_code):
+    def decorator(view_func):
+        @wraps(view_func)
+        def _wrapped(request, *args, **kwargs):
+            if not request.user.is_authenticated:
+                return redirect("accounts:login")
+            if not has_user_permission(request.user, permission_code):
+                messages.error(request, "You do not have permission to perform this library operation.")
+                return redirect("university:dashboard")
+            return view_func(request, *args, **kwargs)
+        return _wrapped
+    return decorator
+
+
 def _admin_required(view_func):
-    def _wrapped(request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return redirect("accounts:login")
-        user_role = getattr(request.user, "role", "")
-        if not (request.user.is_staff or request.user.is_superuser or user_role in (Role.ADMIN, "ADMIN")):
-            messages.error(request, "Access restricted. Staff privileges required.")
-            return redirect("university:dashboard")
-        return view_func(request, *args, **kwargs)
-    return _wrapped
+    """Backward-compatible alias for library operations visibility."""
+    return _permission_required("library.view")(view_func)
 
 
 # ==============================================================================
@@ -39,6 +47,8 @@ def student_library_portal(request):
         seed_default_books()
 
     active_tab = request.GET.get("tab", "catalog").strip()
+    if active_tab not in {"catalog", "my_loans", "past_papers"}:
+        active_tab = "catalog"
     q = request.GET.get("q", "").strip()
     cat = request.GET.get("category", "").strip()
 
@@ -86,6 +96,8 @@ def admin_library_dashboard(request):
         seed_default_books()
 
     active_tab = request.GET.get("tab", "circulation").strip()
+    if active_tab not in {"circulation", "catalog", "past_papers"}:
+        active_tab = "circulation"
     
     # Metrics
     total_titles = Book.objects.count()
@@ -130,13 +142,21 @@ def admin_library_dashboard(request):
 
 
 @login_required
-@_admin_required
+@_permission_required("library.circulate")
 @require_POST
 def admin_library_issue(request):
     """Check out a book to a user."""
     book_id = request.POST.get("book_id")
     borrower_username = request.POST.get("borrower_username", "").strip()
-    days = int(request.POST.get("days", 14))
+    try:
+        days = int(request.POST.get("days", 14))
+    except (TypeError, ValueError):
+        days = 0
+    if not 1 <= days <= 60:
+        messages.error(request, "Loan period must be between 1 and 60 days.")
+        return redirect("/manage/library/?tab=circulation")
+
+    get_object_or_404(Book, pk=book_id)
 
     borrower = User.objects.filter(Q(username=borrower_username) | Q(email=borrower_username)).first()
     if not borrower:
@@ -153,10 +173,11 @@ def admin_library_issue(request):
 
 
 @login_required
-@_admin_required
+@_permission_required("library.circulate")
 @require_POST
 def admin_library_return(request, pk):
     """Process return of a loaned book."""
+    get_object_or_404(BookLoan, pk=pk)
     success, msg = return_book(pk, staff_user=request.user, request=request)
     if success:
         messages.success(request, msg)
@@ -166,7 +187,8 @@ def admin_library_return(request, pk):
 
 
 @login_required
-@_admin_required
+@_permission_required("library.manage_catalog")
+@require_POST
 def admin_library_book_create(request):
     """Add a new volume to the catalog."""
     if request.method == "POST":
@@ -176,7 +198,13 @@ def admin_library_book_create(request):
         category = request.POST.get("category", "General")
         call_no = request.POST.get("call_number", "")
         shelf = request.POST.get("shelf_location", "General Stacks")
-        copies = int(request.POST.get("copies", 1))
+        try:
+            copies = int(request.POST.get("copies", 1))
+        except (TypeError, ValueError):
+            copies = 0
+        if not title or not title.strip() or not author or not author.strip() or not 1 <= copies <= 10000:
+            messages.error(request, "Title, author, and a copy count between 1 and 10,000 are required.")
+            return redirect("/manage/library/?tab=catalog")
 
         Book.objects.create(
             title=title, author=author, isbn=isbn, category=category,
@@ -188,7 +216,8 @@ def admin_library_book_create(request):
 
 
 @login_required
-@_admin_required
+@_permission_required("library.manage_catalog")
+@require_POST
 def admin_past_paper_create(request):
     """Upload or register a past examination paper."""
     if request.method == "POST":

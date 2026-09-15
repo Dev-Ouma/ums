@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import transaction
 from django.db.models import Case, Count, F, IntegerField, Q, Sum, When
@@ -1896,11 +1896,31 @@ def course_import(request):
 def course_detail(request, pk):
     course = get_object_or_404(Course.objects.select_related(
         "department", "faculty__user"), pk=pk)
-    roster = Enrollment.objects.filter(course=course).select_related("student__user")
-    enrolled_ids = roster.values_list("student_id", flat=True)
-    available = StudentProfile.objects.exclude(pk__in=enrolled_ids).select_related("user")
+    user = request.user
+    is_staff_viewer = bool(
+        user.is_admin_role or user.is_superuser
+        or (user.is_faculty and course.faculty_id and course.faculty.user_id == user.pk)
+    )
+    is_enrolled_student = False
+    if user.is_student:
+        sp = getattr(user, "student_profile", None)
+        is_enrolled_student = bool(sp and Enrollment.objects.filter(course=course, student=sp).exists())
+    if not (is_staff_viewer or is_enrolled_student):
+        raise PermissionDenied("You do not have access to this course.")
+
+    if is_staff_viewer:
+        roster = Enrollment.objects.filter(course=course).select_related("student__user")
+        enrolled_ids = roster.values_list("student_id", flat=True)
+        available = StudentProfile.objects.exclude(pk__in=enrolled_ids).select_related("user")
+    else:
+        # Enrolled students see the course itself, not the full roster/enrollment
+        # directory — that's a staff-only management surface.
+        roster = Enrollment.objects.none()
+        available = StudentProfile.objects.none()
+
     return render(request, "dashboard/course_detail.html", {
-        "course": course, "roster": roster,
+        "course": course, "roster": roster, "is_staff_viewer": is_staff_viewer,
+        "is_admin": bool(user.is_admin_role or user.is_superuser),
         "assignments": course.assignments.all(), "exams": course.exams.all(),
         "available_students": available,
     })

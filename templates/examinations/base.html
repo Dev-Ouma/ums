@@ -26,11 +26,26 @@
 .exam-flow span { background: #f1f5f9; border-radius: .5rem; padding: .45rem .75rem; font-weight: 500; }
 .exam-errors { color: #b91c1c; font-weight: 600; }
 .exam-empty { padding: 3rem 1.5rem; text-align: center; color: #64748b; background: #f8fafc; border-radius: .85rem; }
+.exam-eyebrow { color: var(--primary, #6C5CE7); font-size: .72rem; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
+.exam-operations-hero { align-items: center; padding: .35rem 0; }
+.exam-stage-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 1rem; }
+.exam-stage-card { position: relative; display: flex; flex-direction: column; gap: .65rem; padding: 1.15rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 2px 8px rgba(15,23,42,.04); }
+.exam-stage-card.senate-card { grid-column: span 2; background: linear-gradient(145deg,#fff 55%,#f3f1ff); }
+.exam-stage-card h4 { margin: .1rem 0 .5rem; color: #172033; font-size: 1.02rem; font-weight: 750; }
+.exam-stage-number { position: absolute; right: 1rem; top: .9rem; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; background: #f0edff; color: var(--primary,#6C5CE7); font-weight: 800; }
+.exam-stage-card > a { display: flex; gap: .8rem; align-items: center; padding: .72rem; color: #28334a; text-decoration: none; border-radius: .75rem; border: 1px solid transparent; transition: .18s ease; }
+.exam-stage-card > a:hover { background: #f8fafc; border-color: #e2e8f0; transform: translateY(-1px); }
+.exam-stage-card > a > i { width: 2rem; height: 2rem; display: grid; place-items: center; flex: 0 0 auto; border-radius: .55rem; color: var(--primary,#6C5CE7); background: #f0edff; }
+.exam-stage-card a span { min-width: 0; } .exam-stage-card a b,.exam-stage-card a small { display:block; } .exam-stage-card a small { color:#718096; margin-top:.08rem; }
+.exam-mini-links { display:flex; flex-wrap:wrap; gap:.45rem; padding-top:.2rem; } .exam-mini-links a { padding:.38rem .7rem; border-radius:999px; background:#fff; border:1px solid #ddd7ff; color:#5747c7; font-size:.78rem; font-weight:700; text-decoration:none; }
 details summary { cursor: pointer; color: var(--primary, #6C5CE7); font-weight: 600; }
 @media (max-width: 750px) {
   .exam-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .exam-hero { flex-direction: column; }
+  .exam-stage-grid { grid-template-columns: 1fr; }
+  .exam-stage-card.senate-card { grid-column: span 1; }
 }
+@media (min-width: 751px) and (max-width: 1180px) { .exam-stage-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media print {
   .sidebar, .topbar, .ai-fab, .exam-nav, .no-print, .alert { display: none !important; }
   .main { margin: 0 !important; width: 100% !important; padding: 0 !important; }
@@ -44,14 +59,20 @@ details summary { cursor: pointer; color: var(--primary, #6C5CE7); font-weight: 
 </style>
 <nav class="exam-nav no-print" aria-label="Examinations">
   {% if user.is_admin_role or user.is_superuser or user.is_faculty %}
+    <a href="{% url 'examinations:attendance' %}" class="{% if request.resolver_match.url_name == 'attendance' or request.resolver_match.url_name == 'attendance_detail' %}active{% endif %}"><i class="fa-solid fa-user-check me-1"></i>Attendance</a>
     <a href="{% url 'examinations:marks_capture' %}" class="{% if request.resolver_match.url_name == 'marks_capture' or request.resolver_match.url_name == 'marks' %}active{% endif %}"><i class="fa-solid fa-pen-to-square me-1"></i>Marks Capture</a>
   {% endif %}
   <a href="{% url 'examinations:index' %}" class="{% if request.resolver_match.url_name == 'index' %}active{% endif %}"><i class="fa-solid fa-calendar-days me-1"></i>Examinations &amp; Timetable</a>
   {% if user.is_admin_role or user.is_superuser %}
-    <a href="{% url 'examinations:report' %}"><i class="fa-solid fa-chart-line me-1"></i>Results &amp; Appeals</a>
-    <a href="{% url 'examinations:rooms' %}"><i class="fa-solid fa-door-open me-1"></i>Rooms</a>
-    <a href="{% url 'university:admin_academic_calendar' %}"><i class="fa-solid fa-clock-rotate-left me-1"></i>Academic Terms</a>
-    <a href="{% url 'examinations:grading' %}"><i class="fa-solid fa-scale-balanced me-1"></i>CUE Grading Scale</a>
+    <a href="{% url 'examinations:schedule_list' %}" class="{% if request.resolver_match.url_name == 'schedule_list' %}active{% endif %}"><i class="fa-solid fa-calendar-check me-1"></i>Exam Schedules</a>
+    <a href="{% url 'university:admin_exam_nominal_rolls' %}" class="{% if request.resolver_match.url_name == 'admin_exam_nominal_rolls' %}active{% endif %}"><i class="fa-solid fa-clipboard-user me-1"></i>Nominal Rolls</a>
+    <a href="{% url 'university:admin_supplementary_list' %}" class="{% if request.resolver_match.url_name == 'admin_supplementary_list' %}active{% endif %}"><i class="fa-solid fa-arrows-rotate me-1"></i>Supplementary</a>
+    <a href="{% url 'examinations:transcripts' %}" class="{% if request.resolver_match.url_name == 'transcripts' or request.resolver_match.url_name == 'student_transcripts' %}active{% endif %}"><i class="fa-solid fa-scroll me-1"></i>Transcripts</a>
+    <a href="{% url 'university:admin_progressive_reports' %}" class="{% if request.resolver_match.url_name == 'admin_progressive_reports' or request.resolver_match.url_name == 'progressive_report_detail' %}active{% endif %}"><i class="fa-solid fa-chart-pie me-1"></i>Progressive Reports</a>
+    <a href="{% url 'examinations:report' %}" class="{% if request.resolver_match.url_name == 'report' %}active{% endif %}"><i class="fa-solid fa-chart-line me-1"></i>Results &amp; Appeals</a>
+    <a href="{% url 'examinations:rooms' %}" class="{% if request.resolver_match.url_name == 'rooms' %}active{% endif %}"><i class="fa-solid fa-door-open me-1"></i>Rooms</a>
+    <a href="{% url 'university:admin_academic_calendar' %}"><i class="fa-solid fa-clock-rotate-left me-1"></i>Terms</a>
+    <a href="{% url 'examinations:grading' %}" class="{% if request.resolver_match.url_name == 'grading' %}active{% endif %}"><i class="fa-solid fa-scale-balanced me-1"></i>Grading Scale</a>
   {% elif user.is_student %}
     <a href="{% url 'examinations:statement' %}"><i class="fa-solid fa-award me-1"></i>My Results &amp; Statement</a>
     <a href="{% url 'examinations:admission' %}"><i class="fa-solid fa-id-card me-1"></i>Exam Admission Slip</a>

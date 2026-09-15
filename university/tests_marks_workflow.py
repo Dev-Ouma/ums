@@ -9,13 +9,15 @@ from accounts.models import FacultyProfile, Role, StudentProfile, User
 from university import examination_services as workflow
 from university.models import (
     AcademicTerm, Course, Department, Enrollment, Exam, ExamRoom,
-    MarksVersion, MarksWorkflowEvent, Program, Result, StaffRoleAssignment, StaffRole
+    MarksVersion, MarksWorkflowEvent, Program, Result, School, StaffRoleAssignment, StaffRole
 )
+from university.permissions_services import seed_default_permissions_and_roles
 
 
 class MarksWorkflowTests(TestCase):
     @classmethod
     def setUpTestData(cls):
+        seed_default_permissions_and_roles()
         cls.today = date.today()
         cls.term = AcademicTerm.objects.create(
             name="Term 1 2026",
@@ -23,7 +25,8 @@ class MarksWorkflowTests(TestCase):
             end_date=cls.today + timedelta(days=30),
             is_current=True
         )
-        cls.dept = Department.objects.create(name="Computer Science", code="CS")
+        cls.school = School.objects.create(name="School of Computing", code="SOC")
+        cls.dept = Department.objects.create(name="Computer Science", code="CS", school=cls.school)
         cls.program = Program.objects.create(name="BSc CS", code="BCS", department=cls.dept)
 
         # Users and roles
@@ -40,7 +43,7 @@ class MarksWorkflowTests(TestCase):
         cls.dean_user = User.objects.create_user("dean_wf", password="x", role=Role.FACULTY)
         cls.dean_faculty = FacultyProfile.objects.create(user=cls.dean_user, employee_id="D1", department=cls.dept, designation="Dean of School")
         cls.dean_role, _ = StaffRole.objects.get_or_create(code="dean", defaults={"name": "Dean"})
-        StaffRoleAssignment.objects.create(user=cls.dean_user, role=cls.dean_role, is_active=True)
+        StaffRoleAssignment.objects.create(user=cls.dean_user, role=cls.dean_role, school=cls.school, is_active=True)
 
         cls.course = Course.objects.create(
             code="CS101", title="Intro to CS", department=cls.dept,
@@ -114,6 +117,50 @@ class MarksWorkflowTests(TestCase):
         self.assertIn("SUBMIT", actions_recorded)
         self.assertIn("HOD_APPROVE", actions_recorded)
         self.assertIn("PUBLISH", actions_recorded)
+
+    def test_role_specific_http_workflow_from_capture_to_student_release(self):
+        """Every role sees and completes only its operational stage through the UI routes."""
+        exam = self.make_and_mark_exam()
+
+        self.client.force_login(self.lecturer_user)
+        marks_page = self.client.get(f"/manage/academics/examinations/marks/?exam_id={exam.pk}")
+        self.assertEqual(marks_page.status_code, 200)
+        self.assertContains(marks_page, "Submit Marks as Final")
+        submit = self.client.post(f"/manage/academics/examinations/{exam.pk}/action/", {
+            "action": "submit", "revision": exam.revision,
+        })
+        self.assertEqual(submit.status_code, 302)
+        exam.refresh_from_db()
+        self.assertEqual(exam.status, Exam.Status.SUBMITTED)
+
+        self.client.force_login(self.hod_user)
+        approval_queue = self.client.get('/manage/academics/examinations/workflow/approval/')
+        self.assertEqual(approval_queue.status_code, 200)
+        self.assertContains(approval_queue, exam.course.code)
+        approval_page = self.client.get(f"/manage/academics/examinations/{exam.pk}/")
+        self.assertContains(approval_page, "Approve Marks (HoD)")
+        self.client.post(f"/manage/academics/examinations/{exam.pk}/action/", {
+            "action": "hod_approve", "revision": exam.revision,
+        })
+        exam.refresh_from_db()
+        self.assertEqual(exam.status, Exam.Status.HOD_APPROVED)
+
+        self.client.force_login(self.dean_user)
+        publication_queue = self.client.get('/manage/academics/examinations/workflow/publication/')
+        self.assertEqual(publication_queue.status_code, 200)
+        self.assertContains(publication_queue, exam.course.code)
+        publication_page = self.client.get(f"/manage/academics/examinations/{exam.pk}/")
+        self.assertContains(publication_page, "Publish Official Results (Dean)")
+        self.client.post(f"/manage/academics/examinations/{exam.pk}/action/", {
+            "action": "publish", "revision": exam.revision,
+        })
+        exam.refresh_from_db()
+        self.assertEqual(exam.status, Exam.Status.PUBLISHED)
+
+        self.client.force_login(self.students[0].user)
+        statement = self.client.get('/manage/academics/examinations/results/')
+        self.assertEqual(statement.status_code, 200)
+        self.assertContains(statement, exam.course.code)
 
     def test_hod_send_back_requires_reason(self):
         """HoD cannot send back marks without providing a reason."""

@@ -61,6 +61,9 @@ def issue_book(book_id, borrower_user, days=14, staff_user=None, request=None):
     """Issue a library book to a student or faculty member."""
     book = Book.objects.select_for_update().get(pk=book_id)
 
+    if not isinstance(days, int) or not 1 <= days <= 60:
+        return None, "Loan period must be between 1 and 60 days."
+
     if book.available_copies <= 0:
         return None, f"No copies available for '{book.title}'."
 
@@ -108,6 +111,9 @@ def return_book(loan_id, staff_user=None, request=None):
     loan = BookLoan.objects.select_for_update().get(pk=loan_id)
     if loan.status == BookLoan.Status.RETURNED:
         return False, "Book is already marked as returned."
+    book = Book.objects.select_for_update().get(pk=loan.book_id)
+    if book.available_copies >= book.total_copies:
+        return False, "Catalog inventory is already at full availability; return was not applied."
 
     today = timezone.now().date()
     fine = Decimal("0.00")
@@ -121,7 +127,6 @@ def return_book(loan_id, staff_user=None, request=None):
     loan.save(update_fields=["return_date", "status", "fine_accrued"])
 
     # Increment available copies
-    book = loan.book
     book.available_copies = F("available_copies") + 1
     book.save(update_fields=["available_copies"])
     book.refresh_from_db()

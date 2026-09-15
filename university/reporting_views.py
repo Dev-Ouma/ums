@@ -28,6 +28,7 @@ from university.reporting_services import (
     generate_report_excel,
     generate_report_csv,
 )
+from university.permissions_services import has_user_permission
 
 
 def _ensure_admin(user):
@@ -36,6 +37,21 @@ def _ensure_admin(user):
 
 def _ensure_faculty(user):
     return user.is_authenticated and (user.is_faculty or user.is_admin_role or user.is_superuser)
+
+
+def _can_access_report(user, report_key, export=False):
+    if _ensure_admin(user):
+        return True
+    senate_reports = {
+        "senate_consolidated_sheet", "senate_pass_list", "senate_progression_list",
+        "senate_fail_list", "academic_performance", "grade_distribution",
+        "examination_results_summary", "pass_fail_analysis", "cat_vs_exam_analysis",
+        "missing_marks_audit",
+    }
+    required = "reports.senate_marksheet" if report_key in senate_reports else "reports.generate_official"
+    if not has_user_permission(user, required):
+        return False
+    return not export or has_user_permission(user, "reports.export_files")
 
 
 # ==============================================================================
@@ -182,7 +198,7 @@ def admin_reports_dashboard(request):
 
 @login_required
 def report_view(request, report_key):
-    if not _ensure_admin(request.user):
+    if not _can_access_report(request.user, report_key):
         messages.error(request, "Access restricted to academic administrators.")
         return redirect("university:dashboard")
 
@@ -252,7 +268,7 @@ def report_view(request, report_key):
 
 @login_required
 def export_report(request, report_key, fmt):
-    if not _ensure_admin(request.user):
+    if not _can_access_report(request.user, report_key, export=True):
         messages.error(request, "Access restricted to academic administrators.")
         return redirect("university:dashboard")
 

@@ -1,0 +1,69 @@
+{% extends 'examinations/base.html' %}
+{% block title %}Eligible Students · {{ item.course.code }} · UMS{% endblock %}
+{% block exam_content %}
+<div class="exam-hero">
+  <div>
+    <h3>Eligible Students — {{ item.course.code }}</h3>
+    <p>{{ item.course.title }} · {{ item.schedule.name }} · {{ item.schedule.program.code }} Year {{ item.schedule.study_year }} Sem {{ item.schedule.semester }}</p>
+    <p>{% if item.exam_date %}{{ item.exam_date|date:'d M Y' }} · {{ item.exam_session }}{% else %}Exam date not yet set{% endif %} · {{ item.center_name }}</p>
+  </div>
+  <div class="d-flex gap-2 no-print">
+    <a class="btn btn-outline-secondary" href="{% url 'examinations:schedule_list' %}"><i class="fa-solid fa-arrow-left me-1"></i>Back to Schedules</a>
+    <a class="btn btn-outline-primary" href="?format=pdf" target="_blank"><i class="fa-solid fa-file-pdf me-1"></i>PDF</a>
+    <a class="btn btn-outline-success" href="?format=xlsx"><i class="fa-solid fa-file-excel me-1"></i>Excel</a>
+    <a class="btn btn-outline-secondary" href="?format=csv"><i class="fa-solid fa-file-csv me-1"></i>CSV</a>
+  </div>
+</div>
+
+<div class="exam-card">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <strong>Total eligible candidates: {{ total }}</strong>
+    {% if not item.exam_id %}
+    <span class="badge bg-warning-subtle text-warning-emphasis border">
+      Derived from course enrollment — no exam sitting linked to this item yet
+    </span>
+    {% endif %}
+    <form method="get" class="d-flex align-items-center gap-2 no-print ms-auto">
+      {% for key, value in request.GET.items %}{% if key != 'page_size' and key != 'page' %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}
+      <label class="small text-muted mb-0 d-flex align-items-center gap-2">Rows per page
+        <select name="page_size" class="form-select form-select-sm" style="width:90px" onchange="this.form.submit()">
+          <option value="25" {% if page_size == 25 %}selected{% endif %}>25</option>
+          <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+          <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+        </select>
+      </label>
+    </form>
+  </div>
+  <div class="table-responsive">
+    <table class="table exam-table">
+      <thead><tr><th>#</th><th>Roll Number</th><th>Student Name</th><th>Programme</th></tr></thead>
+      <tbody>
+        {% for sp in page %}
+        <tr>
+          <td>{{ forloop.counter0|add:page.start_index }}</td>
+          <td>{{ sp.roll_no }}</td>
+          <td>{{ sp.user.display_name }}</td>
+          <td>{{ sp.program.code|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4">No students are currently eligible for this exam. Confirm students are actively enrolled in {{ item.course.code }} for this term.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page.has_other_pages %}
+  <div class="d-flex justify-content-between align-items-center pt-3 no-print">
+    <span class="small text-muted">Showing {{ page.start_index }}–{{ page.end_index }} of {{ total }}</span>
+    <ul class="pagination pagination-sm mb-0">
+      {% if page.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}{% if base_querystring %}&{{ base_querystring }}{% endif %}"><i class="fa-solid fa-chevron-left"></i></a></li>{% endif %}
+      {% for num in page.paginator.page_range %}
+        {% if num == page.number %}<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+        {% elif num == 1 or num == page.paginator.num_pages or num >= page.number|add:'-2' and num <= page.number|add:'2' %}<li class="page-item"><a class="page-link" href="?page={{ num }}{% if base_querystring %}&{{ base_querystring }}{% endif %}">{{ num }}</a></li>{% endif %}
+      {% endfor %}
+      {% if page.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}{% if base_querystring %}&{{ base_querystring }}{% endif %}"><i class="fa-solid fa-chevron-right"></i></a></li>{% endif %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

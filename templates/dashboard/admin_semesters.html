@@ -105,6 +105,11 @@
                 <td>
                   <span class="status {{ sem.status }}">{{ sem.get_status_display }}</span>
                   {% if sem.is_current %}<span class="badge bg-success rounded-pill ms-1">Current</span>{% endif %}
+                  {% if sem.senate_approved_at %}
+                    <span class="badge bg-primary rounded-pill ms-1" title="Senate-approved {{ sem.senate_approved_at|date:'d M Y H:i' }} by {{ sem.senate_approved_by.display_name|default:'—' }}">
+                      <i class="fa-solid fa-gavel me-1"></i>Senate Approved
+                    </span>
+                  {% endif %}
                 </td>
                 <td class="small text-muted">
                   {{ sem.registrations_count }} registrations · {{ sem.enrollments_count }} unit records
@@ -116,6 +121,23 @@
                       {% csrf_token %}
                       <input type="hidden" name="next" value="{% url 'university:admin_semesters' %}">
                       <button class="btn btn-sm btn-outline-success rounded-pill">Set Current</button>
+                    </form>
+                  {% endif %}
+                  {% if sem.senate_approved_at %}
+                    <form method="post" action="{% url 'university:semester_action' sem.pk 'senate_unapprove' %}" class="d-inline" onsubmit="return confirm('Revoke Senate approval for {{ sem.name }}? Documents requiring Senate approval will be blocked again.');">
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{% url 'university:admin_semesters' %}">
+                      <button class="btn btn-sm btn-outline-secondary rounded-pill" title="Revoke Senate approval">
+                        <i class="fa-solid fa-gavel"></i> Revoke
+                      </button>
+                    </form>
+                  {% else %}
+                    <form method="post" action="{% url 'university:semester_action' sem.pk 'senate_approve' %}" class="d-inline" onsubmit="return confirm('Mark {{ sem.name }} as Senate-approved? This releases any documents configured to require Senate approval for this term.');">
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{% url 'university:admin_semesters' %}">
+                      <button class="btn btn-sm btn-outline-primary rounded-pill" title="Record Senate approval">
+                        <i class="fa-solid fa-gavel"></i> Senate Approve
+                      </button>
                     </form>
                   {% endif %}
                 </td>

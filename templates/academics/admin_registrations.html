@@ -36,7 +36,7 @@
     <div class="card card-ums card-lift p-3 h-100 border-0 shadow-sm {% if pending_count > 0 %}border-start border-4 border-warning{% endif %}">
       <div class="d-flex justify-content-between align-items-center">
         <div>
-          <span class="text-muted small text-uppercase fw-semibold">Pending Approval</span>
+          <span class="text-muted small text-uppercase fw-semibold">Draft / Not Yet Submitted</span>
           <h4 class="fw-bold mb-0 mt-1 text-warning">{{ pending_count }}</h4>
         </div>
         <div class="icon-circle" style="background:#fff9db;color:#f59f00"><i class="fa-solid fa-hourglass-half"></i></div>
@@ -117,7 +117,7 @@
       {% endif %}
     </div>
     <div class="col-12 d-flex justify-content-between align-items-center pt-2 border-top mt-2">
-      <span class="small text-muted"><i class="fa-solid fa-circle-info me-1"></i>Use filters to narrow approvals by term, programme, cohort, or status.</span>
+      <span class="small text-muted"><i class="fa-solid fa-circle-info me-1"></i>Use filters to review registrations by term, programme, cohort, or status.</span>
       <label class="small text-muted d-flex align-items-center gap-2">Rows per page
         <select name="page_size" class="form-select form-select-sm" style="width:90px" onchange="this.form.submit()">
           <option value="25" {% if page_size == 25 %}selected{% endif %}>25</option>
@@ -130,16 +130,10 @@
 </div>
 
 <!-- Registrations Table -->
-<form method="post">
-  {% csrf_token %}
   <div class="card card-ums">
     <div class="card-header d-flex justify-content-between align-items-center">
       <div class="d-flex align-items-center gap-3">
         <span class="fw-semibold">Student Registrations</span>
-        <button type="submit" name="action" value="bulk_approve" class="btn btn-sm btn-outline-success rounded-pill py-1 px-3"
-                onclick="return confirm('Approve all selected submitted registrations?');">
-          <i class="fa-solid fa-check-double me-1"></i>Approve Selected
-        </button>
       </div>
       <span class="text-muted small">Showing {{ page.start_index }}–{{ page.end_index }} of {{ page.paginator.count }} registrations</span>
     </div>
@@ -148,9 +142,6 @@
         <thead class="table-light">
           <tr>
             <th class="ps-3 text-center" style="width:52px">#</th>
-            <th class="text-center" style="width:40px">
-              <input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('.reg-check').forEach(cb => cb.checked = this.checked);">
-            </th>
             <th>Roll No</th>
             <th>Student</th>
             <th>Programme</th>
@@ -165,11 +156,6 @@
           {% for reg in page %}
             <tr>
               <td class="ps-3 text-center text-muted fw-semibold">{{ forloop.counter|add:page.start_index|add:"-1" }}</td>
-              <td class="text-center">
-                {% if reg.status == 'SUBMITTED' %}
-                  <input type="checkbox" name="selected_ids" value="{{ reg.pk }}" class="form-check-input reg-check">
-                {% endif %}
-              </td>
               <td class="fw-bold">{{ reg.student.roll_no }}</td>
               <td>
                 <div class="fw-semibold">{{ reg.student.user.display_name }}</div>
@@ -202,7 +188,7 @@
             </tr>
           {% empty %}
             <tr>
-              <td colspan="9" class="text-center py-5 text-muted">
+              <td colspan="8" class="text-center py-5 text-muted">
                 <i class="fa-solid fa-inbox fs-2 mb-2 d-block opacity-50"></i>
                 No semester unit registrations found matching the applied criteria.
               </td>
@@ -227,5 +213,4 @@
       </div>
     {% endif %}
   </div>
-</form>
 {% endblock %}

@@ -329,11 +329,17 @@ class CourseForm(forms.ModelForm):
                   "semester_no", "status", "description", "image_url"]
         widgets = {
             "description": forms.Textarea(attrs={"rows": 3}),
-            "semester_no": forms.Select(choices=[(1, "Semester 1"), (2, "Semester 2"), (3, "Semester 3")]),
         }
 
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
+        # Semester options must cover the longest configured programme (e.g. an
+        # 8-semester degree), not a hardcoded ceiling — a fixed [1,2,3] range
+        # made it impossible to assign courses to semester 4 and beyond.
+        max_semesters = Program.objects.aggregate(models.Max("total_semesters"))["total_semesters__max"] or 8
+        self.fields["semester_no"].widget = forms.Select(
+            choices=[(n, f"Semester {n}") for n in range(1, max_semesters + 1)]
+        )
         _style(self.fields)
 
 
@@ -484,6 +490,7 @@ class SemesterForm(forms.ModelForm):
             "name", "academic_year", "term_type", "semester_number",
             "start_date", "end_date", "registration_start_date",
             "registration_end_date", "exam_start_date", "exam_end_date",
+            "supplementary_registration_start_date", "supplementary_registration_end_date",
             "status", "is_current",
         ]
         widgets = {
@@ -493,6 +500,8 @@ class SemesterForm(forms.ModelForm):
             "registration_end_date": forms.DateInput(attrs={"type": "date"}),
             "exam_start_date": forms.DateInput(attrs={"type": "date"}),
             "exam_end_date": forms.DateInput(attrs={"type": "date"}),
+            "supplementary_registration_start_date": forms.DateInput(attrs={"type": "date"}),
+            "supplementary_registration_end_date": forms.DateInput(attrs={"type": "date"}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -503,6 +512,8 @@ class SemesterForm(forms.ModelForm):
         self.fields["registration_end_date"].required = False
         self.fields["exam_start_date"].required = False
         self.fields["exam_end_date"].required = False
+        self.fields["supplementary_registration_start_date"].required = False
+        self.fields["supplementary_registration_end_date"].required = False
 
     def clean(self):
         cleaned = super().clean()
@@ -530,6 +541,11 @@ class SemesterForm(forms.ModelForm):
 
         if exam_start and exam_end and exam_start > exam_end:
             self.add_error("exam_end_date", "Exam concluding date must be on or after start date.")
+
+        supp_start = cleaned.get("supplementary_registration_start_date")
+        supp_end = cleaned.get("supplementary_registration_end_date")
+        if supp_start and supp_end and supp_start > supp_end:
+            self.add_error("supplementary_registration_end_date", "Supplementary exam application close date must be on or after start date.")
 
         if ay and name:
             duplicate_name = AcademicTerm.objects.filter(
