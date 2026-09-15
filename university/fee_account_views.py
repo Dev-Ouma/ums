@@ -31,6 +31,7 @@ from university.models import (
 )
 from university.upload_security import validate_uploaded_file
 from university.audit_services import log_activity
+from university.institution_domain_services import get_institution_settings
 from university.payment_services import (
     process_payment_confirmation,
     reverse_or_refund_payment,
@@ -86,6 +87,7 @@ def fee_accounts_dashboard(request):
     return render(request, "finance/fee_accounts_dashboard.html", {
         "accounts": accounts,
         "stats": stats,
+        "institution_settings": get_institution_settings(),
     })
 
 

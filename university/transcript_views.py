@@ -44,7 +44,14 @@ def selection(request, student):
         selected = get_object_or_404(terms, pk=raw)
     else:
         selected = terms.first()
-    return terms, selected
+    years = list(dict.fromkeys(terms.values_list('academic_year_id', 'academic_year__name')))
+    raw_year = request.GET.get('academic_year')
+    selected_year = None
+    if raw_year:
+        if not raw_year.isdigit():
+            raise Http404('Invalid academic year')
+        selected_year = get_object_or_404(terms, academic_year_id=raw_year).academic_year
+    return terms, selected, years, selected_year
 
 
 @login_required
@@ -58,8 +65,8 @@ def portal(request, student_id=None):
             Q(user__last_name__icontains=query) | Q(user__username__icontains=query))
         return render(request, 'transcripts/students.html', {'students': Paginator(students,25).get_page(request.GET.get('page')), 'q':query})
     student = student_for(request, student_id)
-    terms, selected = selection(request,student)
-    ctx = build_transcript_context(student)
+    terms, selected, years, selected_year = selection(request,student)
+    ctx = build_transcript_context(student, academic_year=selected_year)
     maximum = max([4] + [float(s['term_gpa']) for s in ctx['semesters'] if s['term_gpa'] is not None])
     count = len(ctx['semesters'])
     trends = []
@@ -69,7 +76,7 @@ def portal(request, student_id=None):
         x = 60 + i * 600 / max(count-1,1)
         trends.append(dict(x=round(x,2),gpa=round(180-float(sem['term_gpa'] or 0)/maximum*150,2),
                            cgpa=round(180-float(sem['cumulative_gpa'] or 0)/maximum*150,2),semester=sem))
-    ctx.update(terms=terms,selected_term=selected, trends=trends, chart_max=maximum,
+    ctx.update(terms=terms,selected_term=selected, academic_years=years, selected_year=selected_year, trends=trends, chart_max=maximum,
                gpa_points=' '.join(f"{p['x']},{p['gpa']}" for p in trends),
                cgpa_points=' '.join(f"{p['x']},{p['cgpa']}" for p in trends))
     return render(request,'transcripts/portal.html',ctx)
@@ -82,7 +89,7 @@ def document(request, student_id, kind):
     if kind not in TITLES:
         raise Http404
     student = student_for(request, student_id)
-    terms, selected = selection(request,student) if kind == 'provisional' else (None,None)
+    terms, selected, years, selected_year = selection(request,student)
 
     # Access control & release window check
     doc_type_map = {
@@ -100,11 +107,13 @@ def document(request, student_id, kind):
             'control': control,
         }, status=403)
 
-    ctx = build_transcript_context(student, selected)
+    ctx = build_transcript_context(student, selected, selected_year)
     if request.GET.get('format') != 'pdf':
         pdf_url = reverse('examinations:transcript_document',args=[student.pk,kind])+'?format=pdf'
         if selected:
             pdf_url += f'&term={selected.pk}'
+        if selected_year:
+            pdf_url += f'&academic_year={selected_year.pk}'
         return render(request,'transcripts/viewer.html',dict(student=student,title=TITLES[kind],pdf_url=pdf_url))
 
     branding = SiteSettings.objects.first()

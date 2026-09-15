@@ -286,21 +286,27 @@ def leadership_dashboard(request, leadership_role):
 @login_required
 def hod_dashboard(request):
     user = request.user
-    from .models import StaffRoleAssignment, Department, Exam, Course
+    from .models import Exam, Course, SemesterRegistration
     from accounts.models import FacultyProfile, StudentProfile
 
-    assignment = StaffRoleAssignment.objects.filter(user=user, is_active=True, role__code='hod').first()
-    dept = assignment.department if (assignment and assignment.department) else None
+    dept = services.resolve_staff_scope(user, 'hod')
+
     if not dept:
-        fp = getattr(user, 'faculty_profile', None)
-        dept = fp.department if fp else None
-    if not dept:
-        dept = Department.objects.filter(code='CSE').first() or Department.objects.first()
+        return render(request, "dashboard/hod_dashboard.html", {
+            "department": None,
+            "cards": [],
+            "no_scope": True,
+        })
 
     dept_courses = Course.objects.filter(department=dept).select_related('faculty__user')
     course_count = dept_courses.count()
     faculty_count = FacultyProfile.objects.filter(department=dept).count()
-    student_count = StudentProfile.objects.filter(program__department=dept).count()
+    dept_students = StudentProfile.objects.filter(program__department=dept)
+    student_count = dept_students.count()
+    registered_count = SemesterRegistration.objects.filter(
+        student__program__department=dept, term__is_current=True
+    ).values('student').distinct().count()
+    unregistered_count = max(0, student_count - registered_count)
 
     pending_exams = Exam.objects.filter(
         course__department=dept,
@@ -313,23 +319,65 @@ def hod_dashboard(request):
     ).select_related('course', 'term').order_by('-hod_approved_at', '-id')[:5]
     exam_status_rows = list(Exam.objects.filter(course__department=dept).values('status').annotate(total=Count('id')))
 
+    perf = services.academic_performance_data(department_id=dept.id)
+
+    queue_items = [{
+        "course_code": e.course.code,
+        "course_title": e.course.title,
+        "exam_name": e.name,
+        "term_name": e.term.name if e.term else None,
+        "actor_label": e.submitted_by.display_name if e.submitted_by else (e.course.faculty.user.display_name if e.course.faculty else "Lecturer"),
+        "date": e.submitted_at.strftime("%b %d, %Y %H:%M") if e.submitted_at else (e.date.strftime("%b %d, %Y") if e.date else ""),
+        "exam_id": e.id,
+        "action_label": "Review & Approve",
+        "action_icon": "fa-magnifying-glass",
+        "action_class": "btn-primary",
+    } for e in pending_exams]
+
+    attention_items = []
+    if pending_exams.count():
+        attention_items.append({"label": "Marks awaiting HoD approval", "count": pending_exams.count(),
+                                 "url": reverse("examinations:index"), "severity": "warning", "icon": "fa-file-pen"})
+    if unregistered_count:
+        attention_items.append({"label": "Students not registered this term", "count": unregistered_count,
+                                 "url": reverse("university:admin_students"), "severity": "warning", "icon": "fa-user-clock"})
+    if perf.get("at_risk_count"):
+        attention_items.append({"label": "Students at risk (low GPA)", "count": perf["at_risk_count"],
+                                 "url": reverse("university:admin_students"), "severity": "critical", "icon": "fa-triangle-exclamation"})
+
     ctx = {
         "department": dept,
+        "term_type_label": services._current_term_type_label(),
         "course_count": course_count,
         "faculty_count": faculty_count,
         "student_count": student_count,
+        "registered_count": registered_count,
+        "unregistered_count": unregistered_count,
         "pending_exams": pending_exams,
         "pending_count": pending_exams.count(),
         "approved_exams": approved_exams,
         "courses": dept_courses[:8],
         "exam_chart_labels": json.dumps([dict(Exam.Status.choices).get(r['status'], r['status']) for r in exam_status_rows]),
         "exam_chart_values": json.dumps([r['total'] for r in exam_status_rows]),
+        "pass_rate": perf.get("pass_rate", 0.0),
+        "avg_gpa": perf.get("avg_gpa", 0.0),
+        "at_risk_count": perf.get("at_risk_count", 0),
+        "grade_labels": json.dumps(perf.get("grade_labels", [])),
+        "grade_values": json.dumps(perf.get("grade_values", [])),
+        "queue_title": "Lecturer Marks Submissions Awaiting HoD Approval",
+        "queue_icon": "fa-inbox",
+        "queue_badge_label": "Pending Action",
+        "queue_items": queue_items,
+        "show_department_column": False,
+        "empty_queue_message": "No lecturer mark submissions are currently pending your departmental approval.",
+        "attention_items": attention_items,
     }
     ctx["cards"] = [
         {"label": "Department Courses", "value": course_count, "sub_label": "Active curriculum units", "icon": "fa-book-open", "grad": "linear-gradient(135deg,#6C5CE7,#8f7bff)"},
         {"label": "Academic Staff", "value": faculty_count, "sub_label": "Lecturers and instructors", "icon": "fa-chalkboard-user", "grad": "linear-gradient(135deg,#009688,#26c6a6)"},
-        {"label": "Department Students", "value": student_count, "sub_label": "Enrolled nominal roll", "icon": "fa-user-graduate", "grad": "linear-gradient(135deg,#0984e3,#48b1f3)"},
+        {"label": "Department Students", "value": student_count, "sub_label": f"{registered_count} registered this term", "icon": "fa-user-graduate", "grad": "linear-gradient(135deg,#0984e3,#48b1f3)"},
         {"label": "Pending HoD Review", "value": pending_exams.count, "sub_label": "Marks awaiting approval", "icon": "fa-file-pen", "grad": "linear-gradient(135deg,#e17055,#f0932b)"},
+        {"label": "Department Pass Rate", "value": f"{perf.get('pass_rate', 0.0)}%", "sub_label": f"Avg GPA {perf.get('avg_gpa', 0.0)}", "icon": "fa-chart-line", "grad": "linear-gradient(135deg,#00b894,#20bf6b)"},
     ]
     return render(request, "dashboard/hod_dashboard.html", ctx)
 
@@ -337,11 +385,19 @@ def hod_dashboard(request):
 @login_required
 def dean_dashboard(request):
     user = request.user
-    from .models import School, Department, Exam, Course
+    from .models import Department, Exam, Course, SemesterRegistration
     from accounts.models import FacultyProfile, StudentProfile
 
-    school = School.objects.filter(code='SCIS').first() or School.objects.first()
-    departments = Department.objects.filter(school=school) if school else Department.objects.all()
+    school = services.resolve_staff_scope(user, 'dean')
+
+    if not school:
+        return render(request, "dashboard/dean_dashboard.html", {
+            "school": None,
+            "cards": [],
+            "no_scope": True,
+        })
+
+    departments = Department.objects.filter(school=school)
     dept_ids = list(departments.values_list('id', flat=True))
 
     course_count = Course.objects.filter(department_id__in=dept_ids).count()
@@ -367,6 +423,11 @@ def dean_dashboard(request):
     registration_counts = [sum(1 for joined in school_student_users if (joined.year, joined.month) == key) for key in month_keys]
     registration_labels = json.dumps([date(y, m, 1).strftime("%b %Y") for y, m in month_keys])
 
+    registered_count = SemesterRegistration.objects.filter(
+        student__program__department_id__in=dept_ids, term__is_current=True
+    ).values('student').distinct().count()
+    unregistered_count = max(0, student_count - registered_count)
+
     pending_publish = Exam.objects.filter(
         course__department_id__in=dept_ids,
         status=Exam.Status.HOD_APPROVED
@@ -380,14 +441,47 @@ def dean_dashboard(request):
     exam_chart_labels = json.dumps([dict(Exam.Status.choices).get(row['status'], row['status']) for row in status_counts])
     exam_chart_values = json.dumps([row['total'] for row in status_counts])
 
+    perf = services.academic_performance_data(department_ids=dept_ids)
+
+    queue_items = [{
+        "course_code": e.course.code,
+        "course_title": e.course.title,
+        "exam_name": e.name,
+        "department_code": e.course.department.code,
+        "term_name": e.term.name if e.term else None,
+        "actor_label": e.hod_approved_by.display_name if e.hod_approved_by else "Department HoD",
+        "date": e.hod_approved_at.strftime("%b %d, %Y %H:%M") if e.hod_approved_at else (e.date.strftime("%b %d, %Y") if e.date else ""),
+        "exam_id": e.id,
+        "action_label": "Review & Publish",
+        "action_icon": "fa-stamp",
+        "action_class": "btn-success",
+    } for e in pending_publish]
+
+    attention_items = []
+    if pending_publish.count():
+        attention_items.append({"label": "Exams awaiting Dean publishing", "count": pending_publish.count(),
+                                 "url": reverse("examinations:index"), "severity": "warning", "icon": "fa-bullhorn"})
+    if unregistered_count:
+        attention_items.append({"label": "Students not registered this term", "count": unregistered_count,
+                                 "url": reverse("university:admin_students"), "severity": "warning", "icon": "fa-user-clock"})
+    if attention_student_count:
+        attention_items.append({"label": "Students needing status review", "count": attention_student_count,
+                                 "url": reverse("university:admin_students"), "severity": "info", "icon": "fa-user-clock"})
+    if perf.get("at_risk_count"):
+        attention_items.append({"label": "Students at risk (low GPA)", "count": perf["at_risk_count"],
+                                 "url": reverse("university:admin_students"), "severity": "critical", "icon": "fa-triangle-exclamation"})
+
     ctx = {
         "school": school,
+        "term_type_label": services._current_term_type_label(),
         "departments": departments,
         "course_count": course_count,
         "faculty_count": faculty_count,
         "student_count": student_count,
         "active_student_count": active_student_count,
         "attention_student_count": attention_student_count,
+        "registered_count": registered_count,
+        "unregistered_count": unregistered_count,
         "pending_publish": pending_publish,
         "pending_count": pending_publish.count(),
         "published_exams": published_exams,
@@ -396,13 +490,26 @@ def dean_dashboard(request):
         "registration_labels": registration_labels,
         "registration_values": json.dumps(registration_counts),
         "latest_registration_count": registration_counts[-1] if registration_counts else 0,
+        "pass_rate": perf.get("pass_rate", 0.0),
+        "avg_gpa": perf.get("avg_gpa", 0.0),
+        "at_risk_count": perf.get("at_risk_count", 0),
+        "grade_labels": json.dumps(perf.get("grade_labels", [])),
+        "grade_values": json.dumps(perf.get("grade_values", [])),
+        "queue_title": "HoD-Approved Marks Awaiting Dean Publishing & Senate Release",
+        "queue_icon": "fa-stamp",
+        "queue_badge_label": "Ready to Publish",
+        "queue_items": queue_items,
+        "show_department_column": True,
+        "empty_queue_message": "All departmental examination results for this school are published and released to Senate and students.",
+        "attention_items": attention_items,
     }
     ctx["cards"] = [
         {"label": "Academic Departments", "value": departments.count, "sub_label": "Departments in school", "icon": "fa-building-columns", "grad": "linear-gradient(135deg,#6C5CE7,#8f7bff)"},
         {"label": "School Courses", "value": course_count, "sub_label": "Degree and diploma units", "icon": "fa-graduation-cap", "grad": "linear-gradient(135deg,#009688,#26c6a6)"},
         {"label": "Faculty Members", "value": faculty_count, "sub_label": "Active teaching staff", "icon": "fa-chalkboard-user", "grad": "linear-gradient(135deg,#0984e3,#48b1f3)"},
         {"label": "Awaiting Dean Publishing", "value": pending_publish.count, "sub_label": "HoD-approved exams ready", "icon": "fa-bullhorn", "grad": "linear-gradient(135deg,#e17055,#f0932b)"},
-        {"label": "Student Population", "value": student_count, "sub_label": "Students in this school", "icon": "fa-users", "grad": "linear-gradient(135deg,#0b7285,#22b8cf)"},
+        {"label": "Student Population", "value": student_count, "sub_label": f"{registered_count} registered this term", "icon": "fa-users", "grad": "linear-gradient(135deg,#0b7285,#22b8cf)"},
+        {"label": "Faculty Pass Rate", "value": f"{perf.get('pass_rate', 0.0)}%", "sub_label": f"Avg GPA {perf.get('avg_gpa', 0.0)}", "icon": "fa-chart-line", "grad": "linear-gradient(135deg,#00b894,#20bf6b)"},
     ]
     return render(request, "dashboard/dean_dashboard.html", ctx)
 
@@ -2208,6 +2315,8 @@ def student_fee_statement_pdf(request):
     if request.user.role == Role.STUDENT:
         sp = get_object_or_404(StudentProfile, user=request.user)
     else:
+        if not (request.user.is_superuser or request.user.role == Role.ADMIN):
+            raise Http404("Statement not found.")
         student_id = request.GET.get("student_id")
         sp = get_object_or_404(StudentProfile, pk=student_id) if student_id else None
         if not sp:
@@ -2292,7 +2401,9 @@ def _timetable_filter_options():
         "faculty_list": FacultyProfile.objects.select_related("user").order_by("user__first_name"),
         "rooms": ExamRoom.objects.filter(active=True),
         "day_choices": ClassSchedule.Day.choices,
-        "semester_choices": [1, 2, 3],
+        "semester_choices": sorted(set(
+            AcademicTerm.objects.values_list("semester_number", flat=True)
+        )) or [1, 2, 3],
     }
 
 

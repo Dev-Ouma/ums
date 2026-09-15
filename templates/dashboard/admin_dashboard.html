@@ -178,12 +178,12 @@
         </select>
       </div>
 
-      <!-- Semester Filter -->
+      <!-- Semester / Term Filter (label follows configured term type from /manage/semester/) -->
       <div class="filter-item">
         <select id="acadFilterSem" class="form-select form-select-sm rounded-pill custom-perf-select">
-          <option value="all">All Semesters</option>
+          <option value="all">All {{ term_type_label }}s</option>
           {% for s in academic_semesters %}
-          <option value="{{ s }}">Semester {{ s }}</option>
+          <option value="{{ s }}">{{ term_type_label }} {{ s }}</option>
           {% endfor %}
         </select>
       </div>
@@ -300,7 +300,7 @@
               <i class="fa-solid fa-arrow-trend-up"></i>
             </span>
             <span class="fw-bold">Academic Performance Trend</span>
-            <span class="badge bg-light text-muted border rounded-pill small" id="trendSubLabel">Normal Distribution</span>
+            <span class="badge bg-light text-muted border rounded-pill small" id="trendSubLabel">Observed Distribution</span>
           </div>
           <div class="chart-actions">
             <button type="button" class="btn-chart-export" onclick="UmsCharts.exportPng('academicTrendChart', 'academic_performance_trend')" title="Download PNG">
@@ -315,7 +315,7 @@
         </div>
         <div class="card-footer bg-transparent py-2 border-top d-flex justify-content-between align-items-center text-muted small">
           <span><i class="fa-solid fa-circle-info me-1 text-primary"></i>Gaussian score distribution across students</span>
-          <span id="trendSummaryBadge" class="fw-semibold text-dark">Bell Curve &bull; Normal Distribution</span>
+          <span id="trendSummaryBadge" class="fw-semibold text-dark">Published results by score bracket</span>
         </div>
       </div>
     </div>
@@ -967,14 +967,15 @@ const acadPerf = initialAcadDataElement ? JSON.parse(initialAcadDataElement.text
 
 // 1. Grade Distribution Chart (Doughnut)
 const gradeCanvas = document.getElementById('gradeDistChart');
-const gradeColorsMap = ['#00b894', '#0984e3', '#f0932b', '#fdcb6e', '#e84393'];
+const gradeLabelsInitial = acadPerf.grade_labels || ['A', 'B', 'C', 'D', 'F'];
+const gradeColorsMap = UmsCharts.palette(gradeLabelsInitial.length);
 
 const gradeDistChartInstance = new Chart(gradeCanvas, {
   type: 'doughnut',
   data: {
-    labels: acadPerf.grade_labels || ['A', 'B', 'C', 'D', 'F'],
+    labels: gradeLabelsInitial,
     datasets: [{
-      data: acadPerf.grade_values || [0, 0, 0, 0, 0],
+      data: acadPerf.grade_values || new Array(gradeLabelsInitial.length).fill(0),
       backgroundColor: gradeColorsMap,
       borderWidth: 2,
       borderColor: '#ffffff',
@@ -1022,7 +1023,7 @@ function updateGradePills(labels, values) {
 }
 updateGradePills(acadPerf.grade_labels || ['A', 'B', 'C', 'D', 'F'], acadPerf.grade_values || [0, 0, 0, 0, 0]);
 
-// 2. Academic Performance Trend Chart (Line / Normal Distribution Curve)
+// 2. Academic Performance Trend Chart (observed score-bracket distribution)
 const trendCanvas = document.getElementById('academicTrendChart');
 const trendCtx = trendCanvas.getContext('2d');
 const trendGrad = UmsCharts.createGradient(trendCtx, '#6C5CE7', 0.32, 0.01);
@@ -1032,7 +1033,7 @@ const academicTrendChartInstance = new Chart(trendCanvas, {
   data: {
     labels: (acadPerf.trend_labels && acadPerf.trend_labels.length) ? acadPerf.trend_labels : ['10%', '20%', '30%', '40%', '50%', '60%', '70%', '80%', '90%', '100%'],
     datasets: [{
-      label: 'Distribution Density (%)',
+      label: 'Results in score bracket (%)',
       data: (acadPerf.trend_values && acadPerf.trend_values.length) ? acadPerf.trend_values : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       borderColor: '#6C5CE7',
       borderWidth: 2.5,
@@ -1069,7 +1070,7 @@ const academicTrendChartInstance = new Chart(trendCanvas, {
         grid: { color: '#f8f9fa' },
         title: {
           display: true,
-          text: 'Score Bracket (%)',
+          text: 'Observed score bracket (%)',
           font: { size: 11, weight: '500' },
           color: '#8c98a4',
           padding: { top: 4 }
@@ -1280,7 +1281,7 @@ async function reloadAcademicData() {
     // Sublabel for trend
     const trendSubLabel = document.getElementById('trendSubLabel');
     if (trendSubLabel) {
-      trendSubLabel.innerText = 'Normal Distribution';
+      trendSubLabel.innerText = 'Observed Distribution';
     }
 
     // Update Academic Trend Chart
@@ -1291,6 +1292,7 @@ async function reloadAcademicData() {
     // Update Grade Distribution Chart
     gradeDistChartInstance.data.labels = data.grade_labels;
     gradeDistChartInstance.data.datasets[0].data = data.grade_values;
+    gradeDistChartInstance.data.datasets[0].backgroundColor = UmsCharts.palette((data.grade_labels || []).length);
     gradeDistChartInstance.update();
     updateGradePills(data.grade_labels, data.grade_values);
 

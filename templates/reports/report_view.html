@@ -143,6 +143,17 @@
           </select>
         </div>
         {% endif %}
+        {% if 'cohort' in meta.filters %}
+        <div class="col-md-3">
+          <label class="form-label">Cohort</label>
+          <select name="cohort" class="form-select">
+            <option value="">All Cohorts</option>
+            {% for c in cohorts %}
+            <option value="{{ c.id }}" {% if selected_cohort == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
 
         {% if 'gender' in meta.filters %}
         <div class="col-md-2">

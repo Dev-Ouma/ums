@@ -350,15 +350,19 @@ def generate_student_statement_pdf(student):
         except Exception:
             pass
 
-    story.append(Paragraph(escape(get_branding()["site_name"].upper()), title_style))
+    branding = get_branding()
+    story.append(Paragraph(escape(branding["site_name"].upper()), title_style))
     story.append(Paragraph("OFFICE OF THE BURSAR · STUDENT FINANCIAL SERVICES", subtitle_style))
-    story.append(Paragraph("STUDENT STATEMENT OF ACCOUNT", ParagraphStyle("Head", parent=title_style, fontSize=13, leading=16, textColor=primary_color)))
+    from university.institution_domain_services import get_institution_settings
+    institution = get_institution_settings()
+    story.append(Paragraph(escape(branding.get("contact_line", "") or institution.get("website_url", "")), subtitle_style))
+    story.append(Paragraph("FEE STATEMENT", ParagraphStyle("Head", parent=title_style, fontSize=13, leading=16, textColor=primary_color)))
     story.append(Spacer(1, 6))
     story.append(HRFlowable(width="100%", thickness=1.5, color=primary_color, spaceAfter=12))
 
     user = student.user
     today_str = timezone.now().strftime("%d %B %Y %H:%M")
-    verify_url = f"https://ums.ac.ke/finance/statement/{student.roll_no}/"
+    verify_url = f"{institution.get('portal_url') or institution.get('website_url') or 'https://localhost'}/finance/statement/{student.roll_no}/"
     qr_drawing = make_qr_drawing(verify_url, size=52.0)
 
     info_data = [

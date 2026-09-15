@@ -28,6 +28,7 @@
           <th>End Date</th>
           <th>Description</th>
           <th>Students</th>
+          <th class="text-end pe-4">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -42,10 +43,11 @@
                 {{ cohort.students.count }} Students
               </span>
             </td>
+            <td class="text-end pe-4"><a href="?edit={{ cohort.pk }}" class="btn btn-sm btn-outline-primary rounded-pill px-3"><i class="fa-solid fa-pen me-1"></i>Edit dates</a></td>
           </tr>
         {% empty %}
           <tr>
-            <td colspan="5" class="text-center py-5 text-muted">No cohorts configured yet.</td>
+            <td colspan="6" class="text-center py-5 text-muted">No cohorts configured yet.</td>
           </tr>
         {% endfor %}
       </tbody>
@@ -58,47 +60,55 @@
   <div class="modal-dialog">
     <div class="modal-content rounded-4 border-0 shadow">
       <div class="modal-header border-0 pb-0">
-        <h5 class="modal-title fw-bold" id="newCohortLabel">Create Cohort</h5>
+        <h5 class="modal-title fw-bold" id="newCohortLabel">{% if edit_cohort %}Edit Cohort Dates{% else %}Create Cohort{% endif %}</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <form method="post" action="{% url 'university:admin_cohorts' %}">
         {% csrf_token %}
+        {% if edit_cohort %}<input type="hidden" name="cohort_id" value="{{ edit_cohort.pk }}">{% endif %}
         <div class="modal-body p-4">
           <div class="row g-2 mb-3">
             <div class="col-6">
               <label class="form-label fw-semibold small">Cohort Month</label>
               <select name="month" class="form-select rounded-3" required>
-                <option value="JAN">January (JAN)</option>
-                <option value="MAY">May (MAY)</option>
-                <option value="SEP">September (SEP)</option>
+                <option value="JAN" {% if edit_month == 'JAN' %}selected{% endif %}>January (JAN)</option>
+                <option value="MAY" {% if edit_month == 'MAY' %}selected{% endif %}>May (MAY)</option>
+                <option value="SEP" {% if edit_month == 'SEP' %}selected{% endif %}>September (SEP)</option>
               </select>
             </div>
             <div class="col-6">
-              <label class="form-label fw-semibold small">Cohort Year</label>
-              <input type="number" name="year" class="form-control rounded-3" placeholder="e.g. 2026" min="2000" max="2100" required>
+              <label class="form-label fw-semibold small">Academic Year</label>
+              <select name="academic_year" class="form-select rounded-3" required>
+                <option value="">Select academic year</option>
+                {% for year in academic_years %}
+                  <option value="{{ year.pk }}" {% if edit_academic_year and edit_academic_year.pk == year.pk %}selected{% endif %}>{{ year.name }}{% if year.is_current %} (Current){% endif %}</option>
+                {% endfor %}
+              </select>
+              <div class="form-text">The cohort year is taken automatically from the academic year start date.</div>
             </div>
           </div>
           <div class="row g-2 mb-3">
             <div class="col-6">
               <label class="form-label fw-semibold small">Start Date (Optional)</label>
-              <input type="date" name="start_date" class="form-control rounded-3">
+              <input type="date" name="start_date" value="{{ edit_cohort.start_date|date:'Y-m-d' }}" class="form-control rounded-3">
             </div>
             <div class="col-6">
               <label class="form-label fw-semibold small">End Date (Optional)</label>
-              <input type="date" name="end_date" class="form-control rounded-3">
+              <input type="date" name="end_date" value="{{ edit_cohort.end_date|date:'Y-m-d' }}" class="form-control rounded-3">
             </div>
           </div>
           <div class="mb-3">
             <label class="form-label fw-semibold small">Description</label>
-            <textarea name="description" class="form-control rounded-3" rows="3" placeholder="Optional notes..."></textarea>
+            <textarea name="description" class="form-control rounded-3" rows="3" placeholder="Optional notes...">{{ edit_cohort.description }}</textarea>
           </div>
         </div>
         <div class="modal-footer border-0 pt-0">
           <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">Save Cohort</button>
+          <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">{% if edit_cohort %}Update Cohort{% else %}Save Cohort{% endif %}</button>
         </div>
       </form>
     </div>
   </div>
 </div>
+{% if edit_cohort %}<script>document.addEventListener('DOMContentLoaded', function () { bootstrap.Modal.getOrCreateInstance(document.getElementById('newCohortModal')).show(); });</script>{% endif %}
 {% endblock %}

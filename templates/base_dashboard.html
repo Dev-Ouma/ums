@@ -183,7 +183,7 @@
       {% if 'finance' in active_modules %}
       <!-- Finance Collapsible -->
       <div class="nav-group">
-        <div class="item item-toggle {% if is_finance_officer or url_name == 'finance' or url_name == 'admin_fees' or url_name == 'fee_preview' or url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' or url_name == 'fee_accounts_dashboard' or url_name == 'fee_account_create' or url_name == 'fee_account_detail' or url_name == 'fee_account_edit' or url_name == 'admin_payments_list' or url_name == 'admin_payment_detail' or url_name == 'fee_reconciliation_dashboard' or url_name == 'payment_go_live_certification' %}active{% endif %}"
+        <div class="item item-toggle {% if is_finance_officer or url_name == 'finance' or url_name == 'admin_fees' or url_name == 'fee_preview' or url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' or url_name == 'fee_accounts_dashboard' or url_name == 'fee_account_create' or url_name == 'fee_account_detail' or url_name == 'fee_account_edit' or url_name == 'admin_payments_list' or url_name == 'admin_payment_detail' or url_name == 'fee_reconciliation_dashboard' or url_name == 'payment_go_live_certification' or url_name == 'admin_institution_settings' %}active{% endif %}"
              data-bs-toggle="collapse" data-bs-target="#adminFinanceSubmenu" role="button"
              aria-expanded="{% if is_finance_officer or url_name == 'finance' or url_name == 'admin_fees' or url_name == 'fee_preview' or url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' or url_name == 'fee_accounts_dashboard' or url_name == 'fee_account_create' or url_name == 'fee_account_detail' or url_name == 'fee_account_edit' or url_name == 'admin_payments_list' or url_name == 'admin_payment_detail' or url_name == 'fee_reconciliation_dashboard' or url_name == 'payment_go_live_certification' %}true{% else %}false{% endif %}"
              aria-controls="adminFinanceSubmenu">
@@ -191,7 +191,7 @@
           <span class="item-label">Finance &amp; Fees</span>
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
-        <div class="collapse submenu {% if is_finance_officer or url_name == 'finance' or url_name == 'admin_fees' or url_name == 'fee_preview' or url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' or url_name == 'fee_accounts_dashboard' or url_name == 'fee_account_create' or url_name == 'fee_account_detail' or url_name == 'fee_account_edit' or url_name == 'admin_payments_list' or url_name == 'admin_payment_detail' or url_name == 'fee_reconciliation_dashboard' or url_name == 'payment_go_live_certification' %}show{% endif %}" id="adminFinanceSubmenu" data-bs-parent="#appSidebar">
+        <div class="collapse submenu {% if is_finance_officer or url_name == 'finance' or url_name == 'admin_fees' or url_name == 'fee_preview' or url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' or url_name == 'fee_accounts_dashboard' or url_name == 'fee_account_create' or url_name == 'fee_account_detail' or url_name == 'fee_account_edit' or url_name == 'admin_payments_list' or url_name == 'admin_payment_detail' or url_name == 'fee_reconciliation_dashboard' or url_name == 'payment_go_live_certification' or url_name == 'admin_institution_settings' %}show{% endif %}" id="adminFinanceSubmenu" data-bs-parent="#appSidebar">
           <a class="item sub-item {% if url_name == 'fee_accounts_dashboard' or url_name == 'fee_account_create' or url_name == 'fee_account_detail' or url_name == 'fee_account_edit' or url_name == 'payment_go_live_certification' %}active{% endif %}" href="{% url 'university:fee_accounts_dashboard' %}">
             <i class="fa-solid fa-building-columns"></i> <span class="item-label">Fee Accounts</span>
           </a>
@@ -206,6 +206,9 @@
           </a>
           <a class="item sub-item {% if url_name == 'admin_fee_structures' or url_name == 'fee_structure_create' or url_name == 'fee_structure_edit' %}active{% endif %}" href="{% url 'university:admin_fee_structures' %}">
             <i class="fa-solid fa-sliders"></i> <span class="item-label">Fee Structures</span>
+          </a>
+          <a class="item sub-item {% if url_name == 'admin_institution_settings' %}active{% endif %}" href="{% url 'university:admin_institution_settings' %}">
+            <i class="fa-solid fa-file-invoice-dollar"></i> <span class="item-label">Fee Statement Template</span>
           </a>
         </div>
       </div>

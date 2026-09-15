@@ -1,0 +1,63 @@
+<!--
+Pending-action queue table. Context:
+  queue_title, queue_icon, queue_badge_label, queue_items, show_department, empty_message
+  queue_items entries: {course_code, course_title, exam_name, department_code, term_name,
+                         actor_label, date, exam_id, action_label, action_icon, action_class}
+-->
+<div class="card card-ums mb-4 border-0 shadow-sm">
+  <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+    <div class="fw-bold fs-6">
+      <i class="fa-solid {{ queue_icon|default:'fa-inbox' }} text-warning me-2"></i>{{ queue_title }}
+    </div>
+    <span class="badge {% if queue_items %}bg-warning text-dark{% else %}bg-secondary{% endif %} rounded-pill px-3 py-2">
+      {{ queue_items|length }} {{ queue_badge_label|default:"Pending Action" }}
+    </span>
+  </div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0 table-hover">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3">Course Unit</th>
+          <th>Assessment / Exam</th>
+          {% if show_department %}<th>Department</th>{% endif %}
+          <th>Term</th>
+          <th>{{ actor_column_label|default:"Submitted By" }}</th>
+          <th>Date</th>
+          <th class="text-end pe-3">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in queue_items %}
+        <tr>
+          <td class="ps-3">
+            <span class="badge bg-light text-dark border me-1">{{ row.course_code }}</span>
+            <strong>{{ row.course_title }}</strong>
+          </td>
+          <td>{{ row.exam_name }}</td>
+          {% if show_department %}<td><span class="badge bg-primary-subtle text-primary">{{ row.department_code }}</span></td>{% endif %}
+          <td><small class="text-muted">{{ row.term_name|default:"Current Term" }}</small></td>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <i class="fa-solid fa-user text-muted"></i>
+              <span>{{ row.actor_label|default:"—" }}</span>
+            </div>
+          </td>
+          <td><small class="text-muted">{{ row.date }}</small></td>
+          <td class="text-end pe-3">
+            <a href="{% url 'examinations:marks' row.exam_id %}" class="btn btn-sm {{ row.action_class|default:'btn-primary' }} rounded-pill px-3">
+              <i class="fa-solid {{ row.action_icon|default:'fa-magnifying-glass' }} me-1"></i>{{ row.action_label|default:"Review" }}
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="text-center py-4 text-muted">
+            <i class="fa-solid fa-circle-check text-success fs-3 mb-2 d-block"></i>
+            {{ empty_message|default:"Nothing pending." }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

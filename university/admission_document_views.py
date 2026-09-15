@@ -46,7 +46,7 @@ def admin_admission_documents_list(request):
         return redirect("university:dashboard")
 
     # Base queryset: applications admitted or enrolled or submitted
-    queryset = Application.objects.all().select_related(
+    queryset = Application.objects.exclude(status=Application.Status.DRAFT).select_related(
         "program", "program__department", "intake", "student"
     ).prefetch_related("issued_documents", "attachments").order_by("-created_at")
 
@@ -63,15 +63,21 @@ def admin_admission_documents_list(request):
             Q(student__roll_no__icontains=q)
         )
 
-    program_id = request.GET.get("program")
+    program_id = request.GET.get("program", "").strip()
+    if program_id in {"None", "null"}:
+        program_id = ""
     if program_id:
         queryset = queryset.filter(program_id=program_id)
 
-    status_filter = request.GET.get("status")
+    status_filter = request.GET.get("status", "").strip()
+    if status_filter in {"None", "null"}:
+        status_filter = ""
     if status_filter:
         queryset = queryset.filter(status=status_filter)
 
-    letter_filter = request.GET.get("letter_status")
+    letter_filter = request.GET.get("letter_status", "").strip()
+    if letter_filter in {"None", "null"}:
+        letter_filter = ""
     if letter_filter == "ISSUED":
         queryset = queryset.filter(issued_documents__is_current_version=True).exclude(issued_documents__status=IssuedAdmissionDocument.Status.REVOKED)
     elif letter_filter == "PENDING":
@@ -90,7 +96,13 @@ def admin_admission_documents_list(request):
     total_attachments = ApplicationAttachment.objects.count()
     verified_attachments = ApplicationAttachment.objects.filter(verification_status=ApplicationAttachment.VerificationStatus.VERIFIED).count()
 
-    paginator = Paginator(queryset, 15)
+    try:
+        page_size = int(request.GET.get("page_size", "15"))
+    except (TypeError, ValueError):
+        page_size = 15
+    if page_size not in {15, 30, 50, 100}:
+        page_size = 15
+    paginator = Paginator(queryset, page_size)
     page_number = request.GET.get("page", 1)
     page_obj = paginator.get_page(page_number)
 
@@ -111,6 +123,7 @@ def admin_admission_documents_list(request):
         "total_resent": total_resent,
         "total_attachments": total_attachments,
         "verified_attachments": verified_attachments,
+        "page_size": page_size,
     }
     return render(request, "admissions/admin_documents_list.html", context)
 

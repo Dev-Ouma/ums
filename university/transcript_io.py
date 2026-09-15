@@ -29,7 +29,7 @@ NOTES = ('Only complete, published course results are included in certified reco
          'grading scale.')
 
 
-def build_transcript_context(student, term=None):
+def build_transcript_context(student, term=None, academic_year=None):
     statement = workflow.student_statement(student)
     complete = [g for g in statement.groups if g['complete']]
     by_term = {}
@@ -47,7 +47,7 @@ def build_transcript_context(student, term=None):
         semesters.append(dict(term=groups[0]['term'], groups=groups,
             term_gpa=workflow.weighted_gpa(groups), cumulative_gpa=workflow.weighted_gpa(running),
             credits_attempted=sum(g['course'].credits for g in groups), credits_completed=new_credits))
-    visible = [s for s in semesters if not term or (s['term'] and s['term'].pk == term.pk)]
+    visible = [s for s in semesters if (not term or (s['term'] and s['term'].pk == term.pk)) and (not academic_year or (s['term'] and s['term'].academic_year_id == academic_year.pk))]
     selected = [g for s in visible for g in s['groups']]
     legends = []
     for g in selected:
@@ -114,9 +114,59 @@ def number(value):
     return '—' if value is None else f'{value:.2f}'
 
 
+def _export_reference_transcript_pdf(student, ctx, site_name, site_address, site_email, site_phone, logo_path, record_title):
+    """Render the compact one-page transcript format supplied by the Registry."""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=50, rightMargin=50, topMargin=28, bottomMargin=34, invariant=1)
+    width = doc.width
+    serif = 'Times-Roman'
+    bold = 'Times-Bold'
+    normal = ParagraphStyle('ReferenceNormal', fontName=serif, fontSize=8.2, leading=10)
+    strong = ParagraphStyle('ReferenceStrong', parent=normal, fontName=bold)
+    center = ParagraphStyle('ReferenceCenter', parent=normal, alignment=1)
+    title = ParagraphStyle('ReferenceTitle', parent=center, fontName=serif, fontSize=12, leading=14)
+    story = []
+    contact_left = '<br/>'.join(escape(x) for x in site_address.splitlines() if x) or 'P.O. Box Private Bag'
+    contact_right = '<br/>'.join(escape(x) for x in [f'Tel: {site_phone}' if site_phone else '', f'Email: {site_email}' if site_email else ''] if x)
+    logo = Image(logo_path, width=70, height=70) if logo_path else Spacer(70, 70)
+    header = Table([[Paragraph(contact_left, normal), logo, Paragraph(contact_right, normal)]], colWidths=[width/3, width/3, width/3])
+    header.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('ALIGN',(1,0),(1,0),'CENTER'),('ALIGN',(2,0),(2,0),'RIGHT'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
+    story.append(header)
+    story += [Spacer(1, 2), Paragraph(escape(site_name), ParagraphStyle('ReferenceName', parent=center, fontName='Times-Italic', fontSize=19, leading=21)), Paragraph(escape(record_title), title), Spacer(1, 3)]
+    program = student.program
+    school = program.department.name if program and program.department else 'Not recorded'
+    profile = [
+        [Paragraph('<b>Reg. Number:</b> ' + escape(student.roll_no), normal), Paragraph('<b>Name:</b> ' + escape(student.user.display_name), normal)],
+        [Paragraph('<b>Year of Study:</b> ' + str((student.current_semester + 1) // 2), normal), Paragraph('<b>Academic Year:</b> ' + escape(str(ctx['semesters'][0]['term'].academic_year) if ctx['semesters'] and ctx['semesters'][0]['term'] and getattr(ctx['semesters'][0]['term'], 'academic_year', None) else 'Not recorded'), normal)],
+        [Paragraph('<b>Faculty:</b> ' + escape(school), normal), Paragraph('<b>Programme:</b> ' + escape(program.name if program else 'Not recorded'), normal)],
+    ]
+    pt = Table(profile, colWidths=[width/2, width/2])
+    pt.setStyle(TableStyle([('BOX',(0,0),(-1,-1),0.8,colors.black),('INNERGRID',(0,0),(-1,-1),0.5,colors.black),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),4),('RIGHTPADDING',(0,0),(-1,-1),4),('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3)]))
+    story.append(pt)
+    rows = [[Paragraph('<b>COURSE CODE</b>', normal), Paragraph('<b>COURSE TITLE</b>', normal), Paragraph('<b>UNITS</b>', center), Paragraph('<b>GRADE</b>', center)]]
+    groups = [g for sem in ctx['semesters'] for g in sem['groups']]
+    for g in groups:
+        rows.append([Paragraph(escape(g['course'].code), normal), Paragraph(escape(g['course'].title), normal), Paragraph(str(g['course'].credits), center), Paragraph(escape(g['grade']), center)])
+    average = sum(float(g['total']) * g['course'].credits for g in groups) / sum(g['course'].credits for g in groups) if groups and sum(g['course'].credits for g in groups) else None
+    rows.append([Paragraph('<b>CURRENT AVERAGE:</b>', strong), '', '', Paragraph(f'<b>{average:.0f}</b>' if average is not None else '—', center)])
+    table = Table(rows, colWidths=[width*.19, width*.56, width*.13, width*.12], repeatRows=1)
+    table.setStyle(TableStyle([('BOX',(0,0),(-1,-1),0.8,colors.black),('INNERGRID',(0,0),(-1,-1),0.5,colors.black),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),4),('RIGHTPADDING',(0,0),(-1,-1),4),('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('SPAN',(0,-1),(2,-1))]))
+    story.append(table)
+    story += [Table([[Paragraph('<b>RECOMMENDATION:</b> ' + escape(ctx['overall_standing']), normal)]], colWidths=[width], style=TableStyle([('BOX',(0,0),(-1,-1),0.8,colors.black),('LEFTPADDING',(0,0),(-1,-1),4),('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3)])), Spacer(1, 3), Paragraph('<b>Legend:</b> &nbsp;&nbsp;&nbsp; 70%-100% &nbsp; A &nbsp; EXCELLENT &nbsp;&nbsp;&nbsp; 50%-59% &nbsp; C &nbsp; GOOD &nbsp;&nbsp;&nbsp; 0%-39% &nbsp; E &nbsp; FAIL<br/>60%-69% &nbsp;&nbsp;&nbsp;&nbsp; B &nbsp; VERY GOOD &nbsp;&nbsp; 40%-49% &nbsp; D &nbsp; FAIR &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # &nbsp; AUDITED', normal), Spacer(1, 8)]
+    dean = escape(school)
+    footer = Table([[Paragraph('<b>SIGNED:</b><br/><br/>.......................................................<br/><b>Dean, ' + dean + '</b>', normal), Paragraph('<b>Date Issued:</b> ___________________________<br/><br/><b>Date Printed:</b> ' + timezone.localdate().strftime('%A, %d %B, %Y'), normal)]], colWidths=[width*.58, width*.42])
+    footer.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
+    story.append(footer)
+    doc.build(story, canvasmaker=TranscriptCanvas)
+    return buffer.getvalue()
+
+
 def export_transcript_pdf(student, ctx, kind='provisional', site_name='University Management System',
                           site_address='', site_email='', site_phone='', logo_path=None,
                           verify_url=None, tracking_info=None):
+    if kind in {'provisional', 'academic', 'official'}:
+        record_title = 'PROVISIONAL ACADEMIC TRANSCRIPT' if kind == 'provisional' else 'OFFICIAL TRANSCRIPT OF ACADEMIC RECORD'
+        return _export_reference_transcript_pdf(student, ctx, site_name, site_address, site_email, site_phone, logo_path, record_title)
     buffer = io.BytesIO()
     doc_titles = {
         'provisional': 'PROVISIONAL TRANSCRIPT OF RESULTS',
@@ -442,4 +492,3 @@ def export_transcript_pdf(student, ctx, kind='provisional', site_name='Universit
 
     doc.build(story, canvasmaker=canvas_factory, onLaterPages=continued_header)
     return buffer.getvalue()
-

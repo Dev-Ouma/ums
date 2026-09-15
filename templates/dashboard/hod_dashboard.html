@@ -4,12 +4,18 @@
 <div class="page-head d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
   <div>
     <h4 class="mb-1 text-primary"><i class="fa-solid fa-sitemap me-2"></i>Head of Department (HoD) Dashboard</h4>
+    {% if department %}
     <small class="text-muted fw-semibold">Department of {{ department.name }} ({{ department.code }}) · {{ department.faculty_name }}</small>
+    {% endif %}
   </div>
   <div class="breadcrumb-chip">
     <i class="fa-solid fa-house me-1"></i> Home <i class="fa-solid fa-angle-right mx-1"></i> HoD Desk
   </div>
 </div>
+
+{% if no_scope %}
+{% include 'dashboard/_empty_state.html' with icon='fa-sitemap' title='No department currently assigned' message='Your account has the HoD role but is not yet scoped to a department. Contact the ICT Director or System Admin to complete your assignment.' %}
+{% else %}
 
 <!-- KPI Metric Cards -->
 {% include 'dashboard/_cards.html' %}
@@ -17,68 +23,10 @@
   <div class="col-lg-8"><div class="card card-ums h-100"><div class="card-header"><i class="fa-solid fa-chart-column me-2 text-primary"></i>Department Examination Workflow</div><div class="card-body"><canvas id="hodExamChart" height="125"></canvas></div></div></div>
   <div class="col-lg-4"><div class="card card-ums h-100"><div class="card-header"><i class="fa-solid fa-chart-pie me-2 text-success"></i>Workflow Distribution</div><div class="card-body"><canvas id="hodExamMix" height="145"></canvas></div></div></div>
 </div>
-{% if false %}
-<div class="row g-3 mb-4 hod-actions">
-  <div class="col-sm-6 col-xl-3">
-    <div class="card card-ums p-3 border-0 shadow-sm">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <div class="text-muted small text-uppercase fw-bold">Department Courses</div>
-          <div class="fs-3 fw-bold text-dark mt-1">{{ course_count }}</div>
-          <small class="text-muted">Active curriculum units</small>
-        </div>
-        <div class="rounded-circle p-3 bg-primary bg-opacity-10 text-primary">
-          <i class="fa-solid fa-book-open fs-4"></i>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-sm-6 col-xl-3">
-    <div class="card card-ums p-3 border-0 shadow-sm">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <div class="text-muted small text-uppercase fw-bold">Academic Staff</div>
-          <div class="fs-3 fw-bold text-dark mt-1">{{ faculty_count }}</div>
-          <small class="text-muted">Lecturers &amp; instructors</small>
-        </div>
-        <div class="rounded-circle p-3 bg-success bg-opacity-10 text-success">
-          <i class="fa-solid fa-chalkboard-user fs-4"></i>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-sm-6 col-xl-3">
-    <div class="card card-ums p-3 border-0 shadow-sm">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <div class="text-muted small text-uppercase fw-bold">Department Students</div>
-          <div class="fs-3 fw-bold text-dark mt-1">{{ student_count }}</div>
-          <small class="text-muted">Enrolled nominal roll</small>
-        </div>
-        <div class="rounded-circle p-3 bg-info bg-opacity-10 text-info">
-          <i class="fa-solid fa-user-graduate fs-4"></i>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-sm-6 col-xl-3">
-    <div class="card card-ums p-3 border-0 shadow-sm {% if pending_count > 0 %}border border-warning{% endif %}">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <div class="text-muted small text-uppercase fw-bold">Pending HoD Review</div>
-          <div class="fs-3 fw-bold text-warning mt-1">{{ pending_count }}</div>
-          <small class="text-muted">Marks submissions awaiting approval</small>
-        </div>
-        <div class="rounded-circle p-3 bg-warning bg-opacity-10 text-warning">
-          <i class="fa-solid fa-file-pen fs-4"></i>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>{% endif %}
+<div class="row g-4 mb-4">
+  <div class="col-lg-6"><div class="card card-ums h-100"><div class="card-header"><i class="fa-solid fa-layer-group me-2 text-primary"></i>Grade Distribution</div><div class="card-body">{% if grade_values != "[]" %}<canvas id="hodGradeChart" height="125"></canvas>{% else %}{% include 'dashboard/_empty_state.html' with icon='fa-chart-simple' title='No published results yet' message='Grade distribution will appear once departmental results are published.' %}{% endif %}</div></div></div>
+  <div class="col-lg-6">{% include 'dashboard/_attention_panel.html' %}</div>
+</div>
 
 <div class="row g-3 mb-4">
   <div class="col-6 col-lg-3"><a class="card card-ums h-100 text-decoration-none card-lift border-0 shadow-sm" href="{% url 'examinations:index' %}"><div class="card-body"><span class="icon-circle bg-primary bg-opacity-10 text-primary mb-3"><i class="fa-solid fa-file-pen"></i></span><div class="fw-bold text-dark">Exam Reviews</div><small class="text-muted">Department marks workflow</small></div></a></div>
@@ -86,66 +34,7 @@
   <div class="col-6 col-lg-3"><a class="card card-ums h-100 text-decoration-none card-lift border-0 shadow-sm" href="{% url 'examinations:index' %}"><div class="card-body"><span class="icon-circle bg-info bg-opacity-10 text-info mb-3"><i class="fa-solid fa-chart-line"></i></span><div class="fw-bold text-dark">Assessment Reports</div><small class="text-muted">Review departmental assessment activity</small></div></a></div>
 </div>
 
-<!-- Pending Marks Submissions Queue (Priority Alert Section) -->
-<div class="card card-ums mb-4 border-0 shadow-sm">
-  <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-    <div class="fw-bold fs-6">
-      <i class="fa-solid fa-inbox text-warning me-2"></i>Lecturer Marks Submissions Awaiting HoD Approval
-    </div>
-    <span class="badge {% if pending_count > 0 %}bg-warning text-dark{% else %}bg-secondary{% endif %} rounded-pill px-3 py-2">
-      {{ pending_count }} Pending Action
-    </span>
-  </div>
-  <div class="table-responsive">
-    <table class="table align-middle mb-0 table-hover">
-      <thead class="table-light">
-        <tr>
-          <th class="ps-3">Course Unit</th>
-          <th>Assessment / Exam</th>
-          <th>Term</th>
-          <th>Submitted By</th>
-          <th>Submission Date</th>
-          <th>Status</th>
-          <th class="text-end pe-3">Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for exam in pending_exams %}
-        <tr>
-          <td class="ps-3">
-            <span class="badge bg-light text-dark border me-1">{{ exam.course.code }}</span>
-            <strong>{{ exam.course.title }}</strong>
-          </td>
-          <td>{{ exam.name }}</td>
-          <td><span class="small text-muted">{{ exam.term.name|default:"Current Term" }}</span></td>
-          <td>
-            <div class="d-flex align-items-center gap-2">
-              <i class="fa-solid fa-user text-muted"></i>
-              <span>{{ exam.submitted_by.display_name|default:exam.course.faculty.user.display_name|default:"Lecturer" }}</span>
-            </div>
-          </td>
-          <td><small class="text-muted">{{ exam.submitted_at|date:"M d, Y H:i"|default:exam.date|date:"M d, Y" }}</small></td>
-          <td>
-            <span class="badge bg-warning text-dark"><i class="fa-solid fa-clock me-1"></i>Submitted to HoD</span>
-          </td>
-          <td class="text-end pe-3">
-            <a href="{% url 'examinations:marks' exam.id %}" class="btn btn-sm btn-primary rounded-pill px-3">
-              <i class="fa-solid fa-magnifying-glass me-1"></i>Review &amp; Approve
-            </a>
-          </td>
-        </tr>
-        {% empty %}
-        <tr>
-          <td colspan="7" class="text-center py-4 text-muted">
-            <i class="fa-solid fa-circle-check text-success fs-3 mb-2 d-block"></i>
-            No lecturer mark submissions are currently pending your departmental approval. All submissions are up to date.
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
+{% include 'dashboard/_pending_queue_table.html' with show_department=show_department_column empty_message=empty_queue_message %}
 
 <!-- Department Courses & Teaching Allocations -->
 <div class="row g-4">
@@ -161,7 +50,7 @@
             <tr>
               <th class="ps-3">Code &amp; Title</th>
               <th>Assigned Lecturer</th>
-              <th>Semester</th>
+              <th>{{ term_type_label }}</th>
               <th class="text-end pe-3">Action</th>
             </tr>
           </thead>
@@ -179,7 +68,7 @@
                   <span class="badge bg-danger-subtle text-danger">Unassigned</span>
                 {% endif %}
               </td>
-              <td><span class="badge bg-light text-dark border">Sem {{ c.semester }}</span></td>
+              <td><span class="badge bg-light text-dark border">{{ term_type_label }} {{ c.semester_no }}</span></td>
               <td class="text-end pe-3">
                 <span class="badge bg-secondary-subtle text-secondary">In department scope</span>
               </td>
@@ -224,5 +113,7 @@
     </div>
   </div>
 </div>
+{% endif %}
 {% endblock %}
-{% block extra_js %}<script>const hLabels={{ exam_chart_labels|safe }},hValues={{ exam_chart_values|safe }};new Chart(document.getElementById('hodExamChart'),{type:'bar',data:{labels:hLabels,datasets:[{data:hValues,backgroundColor:['#6C5CE7','#00a896','#0984e3','#f0932b','#e17055'],borderRadius:10,maxBarThickness:58}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{grid:{display:false}}}}});new Chart(document.getElementById('hodExamMix'),{type:'doughnut',data:{labels:hLabels,datasets:[{data:hValues,backgroundColor:['#6C5CE7','#00a896','#0984e3','#f0932b','#e17055'],borderColor:'#fff',borderWidth:3}]},options:{cutout:'62%',plugins:{legend:{position:'bottom',labels:{usePointStyle:true,padding:10}}}}});</script>{% endblock %}
+{% block extra_js %}{% if not no_scope %}<script>const hLabels={{ exam_chart_labels|safe }},hValues={{ exam_chart_values|safe }},hColors=UmsCharts.palette(hLabels.length);new Chart(document.getElementById('hodExamChart'),{type:'bar',data:{labels:hLabels,datasets:[{data:hValues,backgroundColor:hColors,borderRadius:10,maxBarThickness:58}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{grid:{display:false}}}}});new Chart(document.getElementById('hodExamMix'),{type:'doughnut',data:{labels:hLabels,datasets:[{data:hValues,backgroundColor:hColors,borderColor:'#fff',borderWidth:3}]},options:{cutout:'62%',plugins:{legend:{position:'bottom',labels:{usePointStyle:true,padding:10}}}}});
+const hodGradeCanvas=document.getElementById('hodGradeChart');if(hodGradeCanvas){const gLabels={{ grade_labels|safe }};new Chart(hodGradeCanvas,{type:'bar',data:{labels:gLabels,datasets:[{data:{{ grade_values|safe }},backgroundColor:UmsCharts.palette(gLabels.length),borderRadius:8,maxBarThickness:48}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{grid:{display:false}}}}});}</script>{% endif %}{% endblock %}

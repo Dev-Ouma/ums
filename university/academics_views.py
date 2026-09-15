@@ -22,7 +22,7 @@ from .examination_operations import generate_exam_card_pdf, generate_nominal_rol
 from .examination_services import is_admin
 from .financial_services import check_financial_clearance, get_or_create_semester_invoice
 from .models import (
-    AcademicTerm, Course, Department, Enrollment, Exam, FeeInvoice,
+    AcademicTerm, Course, Department, Enrollment, Exam, FeeInvoice, Cohort,
     Program, Result, SemesterRegistration, SupplementaryExamRegistration, StudentTransferRequest,
     DocumentReleaseControl, AuditLog
 )
@@ -321,6 +321,7 @@ def admin_unit_registrations(request):
     department_id = request.GET.get("department", "")
     term_id = request.GET.get("term", "")
     status_filter = request.GET.get("status", "")
+    cohort_id = request.GET.get("cohort", "")
 
     registrations_qs = SemesterRegistration.objects.select_related(
         "student__user", "student__program__department", "term"
@@ -341,6 +342,8 @@ def admin_unit_registrations(request):
         registrations_qs = registrations_qs.filter(term_id=term_id)
     if status_filter:
         registrations_qs = registrations_qs.filter(status=status_filter)
+    if cohort_id.isdigit():
+        registrations_qs = registrations_qs.filter(student__cohort_id=cohort_id)
 
     # Batch action
     if request.method == "POST":
@@ -405,6 +408,8 @@ def admin_unit_registrations(request):
         "selected_program": program_id,
         "selected_department": department_id,
         "selected_status": status_filter,
+        "cohorts": Cohort.objects.all().order_by("-start_date", "name"),
+        "selected_cohort": cohort_id,
     })
 
 
@@ -496,8 +501,11 @@ def admin_provisional_transcripts(request):
 
     query = request.GET.get("q", "").strip()
     term_id = request.GET.get("term", "")
+    cohort_id = request.GET.get("cohort", "")
 
     students = StudentProfile.objects.select_related("user", "program__department")
+    if cohort_id.isdigit():
+        students = students.filter(cohort_id=cohort_id)
     if query:
         students = students.filter(
             Q(roll_no__icontains=query) |
@@ -514,6 +522,8 @@ def admin_provisional_transcripts(request):
         "q": query,
         "terms": terms,
         "selected_term": term_id,
+        "cohorts": Cohort.objects.all().order_by("-start_date", "name"),
+        "selected_cohort": cohort_id,
         "kind": "provisional",
         "title": "Provisional Transcripts Management",
         "subtitle": "Generate and review official term-by-term provisional transcripts for registered students.",
@@ -527,7 +537,10 @@ def admin_academic_transcripts(request):
         raise PermissionDenied
 
     query = request.GET.get("q", "").strip()
+    cohort_id = request.GET.get("cohort", "")
     students = StudentProfile.objects.select_related("user", "program__department")
+    if cohort_id.isdigit():
+        students = students.filter(cohort_id=cohort_id)
     if query:
         students = students.filter(
             Q(roll_no__icontains=query) |
@@ -544,6 +557,8 @@ def admin_academic_transcripts(request):
         "kind": "academic",
         "title": "Official Academic Transcripts Management",
         "subtitle": "Generate and certify comprehensive multi-year permanent academic transcripts.",
+        "cohorts": Cohort.objects.all().order_by("-start_date", "name"),
+        "selected_cohort": cohort_id,
     })
 
 

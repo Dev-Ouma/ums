@@ -632,6 +632,17 @@ def build_admission_letter_pdf_bytes(issued_document):
     context = issued_document.rendered_context or {}
     tmpl = issued_document.template
 
+    def emphasize(text):
+        """Bold only approved labels/key phrases; preserve all letter wording."""
+        phrases = (
+            "You have been admitted", "When reporting", "Proof of payment of tuition fees",
+            "TUITION FEES", "FEE PAYMENT", "COMMENCEMENT DATE", "OTHER IMPORTANT INFORMATION",
+            "Admission to the University", "This admission offer is subject to",
+        )
+        for phrase in phrases:
+            text = text.replace(phrase, f"<b>{phrase}</b>")
+        return text
+
     # 1. Official Crest
     crest_path = os.path.join(settings.BASE_DIR, "static", "img", "branding", "ums-lion-academy.png")
     if not os.path.exists(crest_path):
@@ -655,13 +666,13 @@ def build_admission_letter_pdf_bytes(issued_document):
 
     # 3. Two-Column Institutional Contact Header (Clean, Zero Obsolete Lines)
     header_left_html = (
-        f'Telephone: {escape(context.get("university_phone", "+254 (0) 20 123 4567"))}<br/>'
-        f'Email: {escape(context.get("university_email", "admissions@ums.ac.ke"))}<br/>'
-        f'Website: {escape(context.get("website_url", "www.ums.ac.ke"))}'
+        f'<b>Telephone:</b> {escape(context.get("university_phone", "+254 (0) 20 123 4567"))}<br/>'
+        f'<b>Email:</b> {escape(context.get("university_email", "admissions@ums.ac.ke"))}<br/>'
+        f'<b>Website:</b> {escape(context.get("website_url", "www.ums.ac.ke"))}'
     )
     header_right_html = (
-        f'{escape(context.get("university_address", "P.O. Box 90100 - 00100, GPO"))}<br/>'
-        f'Admissions: {escape(context.get("admissions_email", "admissions@ums.ac.ke"))}'
+        f'<b>{escape(context.get("university_address", "P.O. Box 90100 - 00100, GPO"))}</b><br/>'
+        f'<b>Admissions:</b> {escape(context.get("admissions_email", "admissions@ums.ac.ke"))}'
     )
     contact_table = Table(
         [[Paragraph(header_left_html, contact_left), Paragraph(header_right_html, contact_right)]],
@@ -678,8 +689,8 @@ def build_admission_letter_pdf_bytes(issued_document):
     story.append(Spacer(1, 4))
 
     # 4. Reference & Date
-    story.append(Paragraph(f"Your Ref: <b>{escape(issued_document.document_reference)}</b>", ref_style))
-    story.append(Paragraph(f"Date: <b>{escape(context.get('issue_date', ''))}</b>", ref_style))
+    story.append(Paragraph(f"<b>Your Ref:</b> <b>{escape(issued_document.document_reference)}</b>", ref_style))
+    story.append(Paragraph(f"<b>Date:</b> <b>{escape(context.get('issue_date', ''))}</b>", ref_style))
     story.append(Spacer(1, 2))
 
     # 5. Salutation with Inline Admission Number
@@ -687,6 +698,7 @@ def build_admission_letter_pdf_bytes(issued_document):
     if "Admission Number" not in salutation_template:
         salutation_template = f"{salutation_template.rstrip(',')} , Admission Number: {{{{registration_number}}}}"
     salutation_rendered = render_template_text(salutation_template, context)
+    salutation_rendered = salutation_rendered.replace("Admission Number:", "<b>Admission Number:</b>")
     story.append(Paragraph(salutation_rendered, salutation_style))
 
     # 6. Subject Line
@@ -704,9 +716,9 @@ def build_admission_letter_pdf_bytes(issued_document):
             lines = [ln.strip() for ln in block.strip().split("\n") if ln.strip()]
             for line in lines:
                 if re.match(r"^(?:<[^>]+>)*\s*\d+\.\s*", line):
-                    story.append(Paragraph(line, list_item_style))
+                    story.append(Paragraph(emphasize(line), list_item_style))
                 else:
-                    story.append(Paragraph(line, body_style))
+                    story.append(Paragraph(emphasize(line), body_style))
             story.append(Spacer(1, 1))
 
     # 8. Tuition Fees & Fee Payment
@@ -719,9 +731,9 @@ def build_admission_letter_pdf_bytes(issued_document):
                 if i == 0 and ("TUITION FEES" in line.upper() or "FEE PAYMENT" in line.upper() or "SCHEDULE" in line.upper()):
                     story.append(Paragraph(line, section_head_style))
                 elif re.match(r"^(?:<[^>]+>)*\s*\d+\.\s*", line) or line.startswith("•") or line.startswith("-"):
-                    story.append(Paragraph(line, list_item_style))
+                    story.append(Paragraph(emphasize(line), list_item_style))
                 else:
-                    story.append(Paragraph(line, body_style))
+                    story.append(Paragraph(emphasize(line), body_style))
             story.append(Spacer(1, 1))
 
     # 9. Commencement Date & Other Important Information
@@ -734,9 +746,9 @@ def build_admission_letter_pdf_bytes(issued_document):
                 if i == 0 and ("COMMENCEMENT" in line.upper() or "IMPORTANT INFORMATION" in line.upper() or "CONDITIONS" in line.upper() or "REPORTING" in line.upper()):
                     story.append(Paragraph(line, section_head_style))
                 elif re.match(r"^(?:<[^>]+>)*\s*(?:[ivx]+|[a-z]|\d+)\.\s*", line, re.IGNORECASE) or line.startswith("•") or line.startswith("-"):
-                    story.append(Paragraph(line, list_item_style))
+                    story.append(Paragraph(emphasize(line), list_item_style))
                 else:
-                    story.append(Paragraph(line, body_style))
+                    story.append(Paragraph(emphasize(line), body_style))
     # 10. Closing & Sign-off Block
     story.append(Paragraph(
         f"We look forward to welcoming you to {escape(context.get('university_name', 'University Management System'))} and supporting you on your academic journey.",

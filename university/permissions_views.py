@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 from accounts.models import User, Role, FacultyProfile
 from university.models import (
     Department,
+    School,
     SystemPermission,
     StaffRole,
     StaffRoleAssignment,
@@ -186,7 +187,8 @@ def staff_user_access_detail(request, user_id):
 
     all_roles = StaffRole.objects.all().order_by("name")
     departments = Department.objects.all().order_by("name")
-    active_assignments = staff_user.staff_role_assignments.filter(is_active=True).select_related("role", "department")
+    schools = School.objects.all().order_by("name")
+    active_assignments = staff_user.staff_role_assignments.filter(is_active=True).select_related("role", "department", "school")
 
     context = {
         "staff_user": staff_user,
@@ -194,6 +196,7 @@ def staff_user_access_detail(request, user_id):
         "grouped_perms": grouped_perms,
         "all_roles": all_roles,
         "departments": departments,
+        "schools": schools,
         "active_assignments": active_assignments,
         "overrides_count": staff_user.permission_overrides.count(),
     }
@@ -258,6 +261,7 @@ def staff_role_assignment_action(request, user_id):
     action = request.POST.get("action", "assign")
     role_id = request.POST.get("role_id")
     dept_id = request.POST.get("department_id") or None
+    school_id = request.POST.get("school_id") or None
 
     if action == "assign":
         if not role_id:
@@ -269,6 +273,7 @@ def staff_role_assignment_action(request, user_id):
                 user=staff_user,
                 role_id_or_code=role_id,
                 department_id=dept_id,
+                school_id=school_id,
                 actor=request.user,
                 request=request
             )

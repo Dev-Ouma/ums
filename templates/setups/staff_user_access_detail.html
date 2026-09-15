@@ -88,6 +88,10 @@
                 <span class="badge bg-light text-muted border rounded-pill small ms-1">
                   {{ asgn.department.code }}
                 </span>
+                {% elif asgn.school %}
+                <span class="badge bg-light text-muted border rounded-pill small ms-1">
+                  {{ asgn.school.code }}
+                </span>
                 {% endif %}
               </div>
               <form method="post" action="{% url 'university:staff_role_assignment_action' staff_user.id %}" onsubmit="return confirm('Remove role {{ asgn.role.name }} from this staff member?');">
@@ -274,6 +278,17 @@
               {% endfor %}
             </select>
             <small class="text-muted" style="font-size:.76rem;">Scope this role to a specific department (e.g. HOD of SCIT).</small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-bold">School / Faculty Scope (Optional)</label>
+            <select name="school_id" class="form-select">
+              <option value="">-- Institution-Wide (All Schools) --</option>
+              {% for s in schools %}
+              <option value="{{ s.id }}">{{ s.name }} ({{ s.code }})</option>
+              {% endfor %}
+            </select>
+            <small class="text-muted" style="font-size:.76rem;">Scope this role to a specific school/faculty (e.g. Dean of Faculty of Science).</small>
           </div>
         </div>
 

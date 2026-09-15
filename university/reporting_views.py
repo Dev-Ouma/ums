@@ -13,6 +13,7 @@ from university.models import (
     AcademicTerm,
     Course,
     SemesterRegistration,
+    Cohort,
     Exam,
     Result,
     AuditLog,
@@ -229,12 +230,14 @@ def report_view(request, report_key):
         "programs": programs,
         "courses": courses,
         "faculty_list": faculty_list,
+        "cohorts": Cohort.objects.all().order_by("-start_date", "name"),
         "selected_term": request.GET.get("term", ""),
         "selected_department": request.GET.get("department", ""),
         "selected_program": request.GET.get("program", ""),
         "selected_course": request.GET.get("course", ""),
         "selected_faculty": request.GET.get("faculty", ""),
         "selected_semester": request.GET.get("semester", ""),
+        "selected_cohort": request.GET.get("cohort", ""),
         "selected_gender": request.GET.get("gender", ""),
         "date_from": request.GET.get("date_from", ""),
         "date_to": request.GET.get("date_to", ""),
@@ -486,4 +489,3 @@ def student_download_attachment(request, attachment_id):
     response = FileResponse(f, content_type=mime)
     response["Content-Disposition"] = f'attachment; filename="{att.file_name or os.path.basename(att.file.name)}"'
     return response
-

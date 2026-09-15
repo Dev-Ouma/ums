@@ -369,6 +369,20 @@ const UmsCharts = {
 
   formatCurrency(val) {
     return 'KES ' + Number(val || 0).toLocaleString('en-KE');
+  },
+
+  // Base UMS chart palette, cycled (with a hue shift on each extra lap) so
+  // any number of real categories gets a distinct-enough color instead of
+  // colors silently running out on a fixed-size hardcoded array.
+  palette(n) {
+    const base = ['#6C5CE7', '#00a896', '#0984e3', '#f0932b', '#e17055', '#00b894', '#e84393', '#636e72', '#fdcb6e', '#4dabf7'];
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const lap = Math.floor(i / base.length);
+      const color = base[i % base.length];
+      out.push(lap === 0 ? color : hexToRgba(color, Math.max(0.35, 1 - lap * 0.2)));
+    }
+    return out;
   }
 };
 

@@ -2291,6 +2291,9 @@ class StaffRoleAssignment(models.Model):
     department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True,
                                    related_name="staff_role_assignments",
                                    help_text="Optional departmental scope (e.g. HOD of SCIT)")
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True,
+                               related_name="staff_role_assignments",
+                               help_text="Optional school/faculty scope (e.g. Dean of Faculty of Science)")
     assigned_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
                                     null=True, blank=True, related_name="+")
     assigned_at = models.DateTimeField(auto_now_add=True)
@@ -2298,11 +2301,11 @@ class StaffRoleAssignment(models.Model):
 
     class Meta:
         ordering = ["-assigned_at"]
-        unique_together = [("user", "role", "department")]
+        unique_together = [("user", "role", "department", "school")]
 
     def __str__(self):
-        dept_str = f" @ {self.department.code}" if self.department else ""
-        return f"{self.user.get_full_name() or self.user.username} -> {self.role.name}{dept_str}"
+        scope_str = f" @ {self.department.code}" if self.department else (f" @ {self.school.code}" if self.school else "")
+        return f"{self.user.get_full_name() or self.user.username} -> {self.role.name}{scope_str}"
 
 
 class UserPermissionOverride(models.Model):

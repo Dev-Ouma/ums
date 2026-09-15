@@ -33,6 +33,12 @@
         </select>
       </div>
     {% endif %}
+    <div class="col-md-3">
+      <select name="cohort" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Cohorts</option>
+        {% for c in cohorts %}<option value="{{ c.pk }}" {% if selected_cohort == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+      </select>
+    </div>
     <div class="col-md-3 d-flex gap-2">
       <button type="submit" class="btn btn-sm btn-primary rounded-pill flex-fill">Search</button>
       <a href="?" class="btn btn-sm btn-outline-secondary rounded-pill">Reset</a>
@@ -76,11 +82,11 @@
             <td><span class="badge-soft badge rounded-pill">Semester {{ s.current_semester }}</span></td>
             <td class="text-end pe-3">
               <div class="btn-group btn-group-sm">
-                <a href="{% url 'examinations:transcript_document' s.pk kind %}{% if selected_term %}?term={{ selected_term }}{% endif %}" 
+                <a href="{% url 'examinations:transcript_document' s.pk kind %}{% if selected_term or selected_cohort %}?{% if selected_term %}term={{ selected_term }}{% endif %}{% if selected_term and selected_cohort %}&{% endif %}{% if selected_cohort %}cohort={{ selected_cohort }}{% endif %}{% endif %}"
                    class="btn btn-primary rounded-pill px-3 me-1">
                   <i class="fa-solid fa-eye me-1"></i>View
                 </a>
-                <a href="{% url 'examinations:transcript_document' s.pk kind %}?format=pdf&download=1{% if selected_term %}&term={{ selected_term }}{% endif %}" 
+                <a href="{% url 'examinations:transcript_document' s.pk kind %}?format=pdf&download=1{% if selected_term %}&term={{ selected_term }}{% endif %}{% if selected_cohort %}&cohort={{ selected_cohort }}{% endif %}"
                    class="btn btn-outline-primary rounded-pill px-2 me-1" title="Download PDF">
                   <i class="fa-solid fa-download"></i>
                 </a>
@@ -108,11 +114,11 @@
       <span class="small text-muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
       <ul class="pagination pagination-sm mb-0">
         {% if page.has_previous %}
-          <li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if selected_term %}&term={{ selected_term }}{% endif %}">Previous</a></li>
+          <li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if selected_term %}&term={{ selected_term }}{% endif %}{% if selected_cohort %}&cohort={{ selected_cohort }}{% endif %}">Previous</a></li>
         {% endif %}
         <li class="page-item active"><span class="page-link">{{ page.number }}</span></li>
         {% if page.has_next %}
-          <li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if selected_term %}&term={{ selected_term }}{% endif %}">Next</a></li>
+          <li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if selected_term %}&term={{ selected_term }}{% endif %}{% if selected_cohort %}&cohort={{ selected_cohort }}{% endif %}">Next</a></li>
         {% endif %}
       </ul>
     </div>

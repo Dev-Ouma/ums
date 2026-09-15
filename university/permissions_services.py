@@ -6,6 +6,7 @@ Supports role definitions, permission catalogs, and explicit user-level Grant/De
 from django.db import transaction
 from university.models import (
     Department,
+    School,
     SystemPermission,
     StaffRole,
     StaffRoleAssignment,
@@ -510,9 +511,10 @@ def remove_user_permission_override(user, permission_code, actor=None, request=N
 
 
 @transaction.atomic
-def assign_staff_role(user, role_id_or_code, department_id=None, actor=None, request=None):
+def assign_staff_role(user, role_id_or_code, department_id=None, school_id=None, actor=None, request=None):
     """
-    Assigns a StaffRole to a user.
+    Assigns a StaffRole to a user, with an optional Department or School/Faculty
+    scope (e.g. HOD of a Department, Dean of a School).
     """
     if isinstance(role_id_or_code, int) or str(role_id_or_code).isdigit():
         role = StaffRole.objects.get(id=int(role_id_or_code))
@@ -520,11 +522,13 @@ def assign_staff_role(user, role_id_or_code, department_id=None, actor=None, req
         role = StaffRole.objects.get(code=role_id_or_code)
 
     dept = Department.objects.filter(id=department_id).first() if department_id else None
+    school = School.objects.filter(id=school_id).first() if school_id else None
 
     assignment, created = StaffRoleAssignment.objects.update_or_create(
         user=user,
         role=role,
         department=dept,
+        school=school,
         defaults={
             "assigned_by": actor,
             "is_active": True,
@@ -533,14 +537,14 @@ def assign_staff_role(user, role_id_or_code, department_id=None, actor=None, req
     from university.identity_services import invalidate_user_sessions
     invalidate_user_sessions(user)
 
-    dept_str = f" in {dept.code}" if dept else ""
+    scope_str = f" in {dept.code}" if dept else (f" for {school.code}" if school else "")
     log_activity(
         request=request,
         user=actor or user,
         action=AuditLog.Action.CREATE if created else AuditLog.Action.UPDATE,
         module=AuditLog.Module.CONFIG,
         entity=f"Staff Role: {user.username}",
-        description=f"Assigned role '{role.name}'{dept_str} to staff user {user.username}.",
+        description=f"Assigned role '{role.name}'{scope_str} to staff user {user.username}.",
     )
     return assignment
 

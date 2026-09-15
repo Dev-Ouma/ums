@@ -35,6 +35,7 @@ from university.models import (
     AcademicTerm,
     Course,
     SemesterRegistration,
+    Cohort,
     Enrollment,
     Attendance,
     Exam,
@@ -154,7 +155,7 @@ REPORT_REGISTRY = {
         "description": "Complete nominal register of active and admitted students with programme and semester details.",
         "icon": "fa-address-book",
         "orientation": "landscape",
-        "filters": ["department", "program", "semester", "gender", "status", "q"]
+        "filters": ["department", "program", "semester", "gender", "status", "cohort", "q"]
     },
     "student_demographics": {
         "key": "student_demographics",
@@ -250,7 +251,7 @@ REPORT_REGISTRY = {
         "description": "Audited tallies of registered, pending approval, and unregistered students for the current academic session.",
         "icon": "fa-clipboard-user",
         "orientation": "portrait",
-        "filters": ["term", "department", "program", "semester"]
+        "filters": ["term", "department", "program", "semester", "cohort"]
     },
     "unit_enrollment_counts": {
         "key": "unit_enrollment_counts",
@@ -378,6 +379,10 @@ def _query_student_register(params, user):
     qs = StudentProfile.objects.select_related("user", "program", "program__department").all()
 
     applied_filters = []
+    if params.get("cohort"):
+        qs = qs.filter(cohort_id=params["cohort"])
+        cohort = Cohort.objects.filter(pk=params["cohort"]).first()
+        if cohort: applied_filters.append(f"Cohort: {cohort.name}")
     if params.get("department"):
         qs = qs.filter(program__department_id=params["department"])
         dept = Department.objects.filter(pk=params["department"]).first()
@@ -899,6 +904,10 @@ def _query_missing_marks_audit(params, user):
 def _query_registration_summary(params, user):
     qs = SemesterRegistration.objects.select_related("student", "student__user", "student__program", "term").all()
     applied_filters = []
+    if params.get("cohort"):
+        qs = qs.filter(student__cohort_id=params["cohort"])
+        cohort = Cohort.objects.filter(pk=params["cohort"]).first()
+        if cohort: applied_filters.append(f"Cohort: {cohort.name}")
 
     if params.get("term"):
         qs = qs.filter(term_id=params["term"])

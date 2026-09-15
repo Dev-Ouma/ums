@@ -674,6 +674,15 @@ SYSTEM_MODULES_CATALOG = [
                 "route_names": ["student_fee_statement", "student_fee_statement_pdf"],
                 "path_patterns": ["/me/fees/statement/"],
             },
+            {
+                "code": "fee_statement_template",
+                "name": "Fee Statement Template & Branding",
+                "description": "Manage the university identity, logo, contact details, website domain, and statement verification branding used system-wide.",
+                "icon": "fa-solid fa-file-invoice-dollar",
+                "is_critical": False,
+                "route_names": ["admin_institution_settings"],
+                "path_patterns": ["/manage/setups/institution/"],
+            },
         ],
     },
     {

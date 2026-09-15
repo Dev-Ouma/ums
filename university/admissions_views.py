@@ -902,6 +902,23 @@ def _serve_admission_letter(request, pk, as_attachment=False):
                 f"{reverse('university:admissions_status')}?access={application_access_token(app)}"
             )
 
+    # Existing letters are stored as immutable PDF snapshots. When an admin
+    # revises the assigned template, issue a new current version on the next
+    # student request so the student never remains on stale letter content.
+    if doc and doc.template and doc.version < doc.template.version:
+        try:
+            doc = generate_admission_document(
+                app,
+                template=doc.template,
+                user=request.user if is_staff else None,
+                reason=f"Automatically regenerated after template revision to version {doc.template.version}",
+                issue_as_new_version=True,
+            )
+        except (SignatureRequiredError, SignatureAuthorizationError) as exc:
+            if is_staff:
+                messages.error(request, f"Admission letter cannot be regenerated: {exc}")
+                return redirect("university:admin_admission_document_detail", pk=app.pk)
+
     if not doc.pdf_file:
         pdf_data = build_admission_letter_pdf_bytes(doc)
     else:
@@ -1023,7 +1040,7 @@ def admin_admissions_list(request):
     central_admin, school_ids = _admissions_scope(request.user)
     if not central_admin and not school_ids:
         raise PermissionDenied
-    qs = Application.objects.select_related("program", "intake", "student").order_by("-created_at")
+    qs = Application.objects.exclude(status=Application.Status.DRAFT).select_related("program", "intake", "student").order_by("-created_at")
     if not central_admin:
         qs = qs.filter(program__department__school_id__in=school_ids)
 
@@ -1058,7 +1075,7 @@ def admin_admissions_list(request):
         qs = qs.filter(intake_id=intake_id)
 
     # Stats
-    all_apps = Application.objects.all() if central_admin else qs.model.objects.filter(program__department__school_id__in=school_ids)
+    all_apps = Application.objects.exclude(status=Application.Status.DRAFT) if central_admin else qs.model.objects.exclude(status=Application.Status.DRAFT).filter(program__department__school_id__in=school_ids)
     stats = {
         "total": all_apps.count(),
         "submitted": all_apps.filter(status=Application.Status.SUBMITTED).count(),
@@ -1068,7 +1085,13 @@ def admin_admissions_list(request):
         "rejected": all_apps.filter(status=Application.Status.REJECTED).count(),
     }
 
-    paginator = Paginator(qs, 20)
+    try:
+        page_size = int(request.GET.get("page_size", "20"))
+    except (TypeError, ValueError):
+        page_size = 20
+    if page_size not in {20, 50, 100, 200}:
+        page_size = 20
+    paginator = Paginator(qs, page_size)
     page_obj = paginator.get_page(request.GET.get("page", 1))
 
     return render(request, "admissions/admin_list.html", {
@@ -1081,6 +1104,7 @@ def admin_admissions_list(request):
         "selected_program": program_id,
         "selected_intake": intake_id,
         "q": q,
+        "page_size": page_size,
     })
 
 
@@ -1325,10 +1349,14 @@ def admin_cohorts(request):
     """Admin: Manage university cohorts."""
     from datetime import date
     cohorts = Cohort.objects.all().order_by("-start_date", "-created_at")
+    academic_years = AcademicYear.objects.exclude(
+        status__in=[AcademicYear.Status.CLOSED, AcademicYear.Status.ARCHIVED]
+    ).order_by("-start_date", "name")
 
     if request.method == "POST":
+        cohort_id = request.POST.get("cohort_id", "").strip()
         month = request.POST.get("month", "").strip().upper()
-        year = request.POST.get("year", "").strip()
+        academic_year_id = request.POST.get("academic_year", "").strip()
         start_date = request.POST.get("start_date")
         end_date = request.POST.get("end_date")
         description = request.POST.get("description", "").strip()
@@ -1337,13 +1365,31 @@ def admin_cohorts(request):
             messages.error(request, "Cohorts can only be in January, May, or September.")
             return redirect("university:admin_cohorts")
         
-        if not year.isdigit() or len(year) != 4:
-            messages.error(request, "Enter a valid 4-digit year.")
+        academic_year = academic_years.filter(pk=academic_year_id).first()
+        if not academic_year:
+            messages.error(request, "Select a valid academic year from the configured academic years.")
             return redirect("university:admin_cohorts")
 
+        year = str(academic_year.start_date.year)
         name = f"{month}-{year}"
 
-        if Cohort.objects.filter(name=name).exists():
+        existing = Cohort.objects.filter(pk=cohort_id).first() if cohort_id.isdigit() else None
+        if existing:
+            try:
+                parsed_start = date.fromisoformat(start_date) if start_date else None
+                parsed_end = date.fromisoformat(end_date) if end_date else None
+            except ValueError:
+                parsed_start = parsed_end = None
+            if parsed_start and parsed_end and parsed_end < parsed_start:
+                messages.error(request, "Cohort end date cannot be before its start date.")
+            else:
+                existing.start_date = parsed_start
+                existing.end_date = parsed_end
+                existing.description = description
+                existing.save(update_fields=["start_date", "end_date", "description"])
+                messages.success(request, f"Cohort '{existing.name}' updated successfully.")
+                return redirect("university:admin_cohorts")
+        elif Cohort.objects.filter(name=name).exists():
             messages.error(request, "A cohort with this name already exists.")
         else:
             try:
@@ -1364,6 +1410,12 @@ def admin_cohorts(request):
             messages.success(request, f"Cohort '{name}' created successfully.")
             return redirect("university:admin_cohorts")
 
+    edit_id = request.GET.get("edit", "").strip()
+    edit_cohort = Cohort.objects.filter(pk=edit_id).first() if edit_id.isdigit() else None
+    edit_month, edit_year = (edit_cohort.name.split("-", 1) if edit_cohort and "-" in edit_cohort.name else ("SEP", ""))
+    edit_academic_year = academic_years.filter(start_date__year=edit_year).first() if edit_year.isdigit() else None
     return render(request, "admissions/admin_cohorts.html", {
-        "cohorts": cohorts,
+        "cohorts": cohorts, "edit_cohort": edit_cohort,
+        "edit_month": edit_month, "edit_year": edit_year,
+        "academic_years": academic_years, "edit_academic_year": edit_academic_year,
     })

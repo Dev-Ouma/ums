@@ -92,6 +92,48 @@ def student_stats(student) -> dict:
 
 
 # --------------------------------------------------------------------------
+# Staff scope resolution — single source of truth for role-scoped dashboards
+# --------------------------------------------------------------------------
+def resolve_staff_scope(user, role_code):
+    """
+    Return the organizational object a user's active StaffRoleAssignment for
+    role_code is scoped to, or None if unassigned/unscoped.
+
+    role_code == 'dean' -> returns a School instance (or None)
+    role_code == 'hod'  -> returns a Department instance (or None)
+    any other role_code -> returns None (no scope concept defined yet)
+    """
+    from .models import StaffRoleAssignment
+
+    assignment = (StaffRoleAssignment.objects
+                  .filter(user=user, role__code=role_code, is_active=True)
+                  .select_related("school", "department")
+                  .first())
+
+    if role_code == "dean":
+        return assignment.school if assignment else None
+
+    if role_code == "hod":
+        if assignment and assignment.department:
+            return assignment.department
+        fp = getattr(user, "faculty_profile", None)
+        return fp.department if fp else None
+
+    return None
+
+
+def _grade_bucket_keys():
+    """
+    Ordered list of grade letters to bucket results into, read from the
+    institution's configured GradingScale (active grades, in display order)
+    instead of a hardcoded A-F assumption.
+    """
+    from .models import GradingScale
+    grades = list(GradingScale.objects.filter(is_active=True).order_by("order").values_list("grade", flat=True))
+    return grades or ["A", "B", "C", "D", "F"]
+
+
+# --------------------------------------------------------------------------
 # Dashboard context builders
 # --------------------------------------------------------------------------
 def _month_labels(n=12):
@@ -254,8 +296,26 @@ def admin_dashboard():
         "academic_terms": AcademicTerm.objects.all().order_by("-start_date"),
         "academic_departments": Department.objects.all().order_by("name"),
         "academic_programs": Program.objects.all().order_by("name"),
-        "academic_semesters": [1, 2, 3, 4, 5, 6, 7, 8],
+        "academic_semesters": sorted(set(
+            AcademicTerm.objects.values_list("semester_number", flat=True)
+        )) or [1, 2, 3],
+        "term_type_label": _current_term_type_label(),
     }
+
+
+def _current_term_type_label():
+    """
+    The institution's configured term vocabulary ("Semester", "Term",
+    "Trimester", ...), read from the currently-active AcademicTerm so
+    dashboard filter labels follow whatever was configured at
+    /manage/semester/ instead of being hardcoded to "Semester".
+    """
+    from .academic_calendar_services import get_current_semester
+    current = get_current_semester()
+    if current:
+        return current.get_term_type_display()
+    latest = AcademicTerm.objects.order_by("-start_date").first()
+    return latest.get_term_type_display() if latest else "Semester"
 
 
 def faculty_dashboard(faculty):
@@ -277,7 +337,7 @@ def faculty_dashboard(faculty):
         course_att.append(round(p / t * 100, 1) if t else 0)
 
     # grade distribution across faculty courses
-    grade_buckets = {"A": 0, "B": 0, "C": 0, "D": 0, "F": 0}
+    grade_buckets = {g: 0 for g in _grade_bucket_keys()}
     for r in Result.objects.filter(exam__status=Exam.Status.PUBLISHED, exam__course_id__in=course_ids):
         if r.grade in grade_buckets:
             grade_buckets[r.grade] += 1
@@ -359,7 +419,7 @@ def student_dashboard(student):
 # --------------------------------------------------------------------------
 # Academic Performance analytics (admin dashboard)
 # --------------------------------------------------------------------------
-def academic_performance_data(term_id=None, department_id=None, program_id=None, semester=None):
+def academic_performance_data(term_id=None, department_id=None, program_id=None, semester=None, department_ids=None):
     """
     Aggregates real academic performance data from published exam results.
     Returns grade distribution, pass/fail rates, GPA, trend data, at-risk
@@ -387,6 +447,8 @@ def academic_performance_data(term_id=None, department_id=None, program_id=None,
         base_qs = base_qs.filter(exam__term_id=term_id)
     if department_id and str(department_id).lower() not in ("all", "", "none"):
         base_qs = base_qs.filter(exam__course__department_id=department_id)
+    if department_ids is not None:
+        base_qs = base_qs.filter(exam__course__department_id__in=list(department_ids))
     if program_id and str(program_id).lower() not in ("all", "", "none"):
         base_qs = base_qs.filter(exam__course__program_id=program_id)
     if semester and str(semester).lower() not in ("all", "", "none"):
@@ -396,7 +458,7 @@ def academic_performance_data(term_id=None, department_id=None, program_id=None,
     total_results = len(results_list)
 
     # --- 1. Grade Distribution & Pass / Fail ---
-    grade_dist = {"A": 0, "B": 0, "C": 0, "D": 0, "F": 0}
+    grade_dist = {g: 0 for g in _grade_bucket_keys()}
     pass_count = 0
     fail_count = 0
     total_gp = Decimal("0")
@@ -432,9 +494,9 @@ def academic_performance_data(term_id=None, department_id=None, program_id=None,
     at_risk_count = len(at_risk_ids)
     total_students = len(student_gps)
 
-    # --- 3. Academic Trend (Score Distribution Bell Curve) ---
-    # Model student score performance as a smooth normal distribution (bell curve)
-    # centered around the empirical mean performance and standard deviation.
+    # --- 3. Academic Trend (actual score-bracket distribution) ---
+    # Count published result percentages in ten-point brackets. This is an
+    # observed distribution, not a synthetic normal-distribution curve.
     trend_labels = []
     trend_values = []
     all_pcts = [r.percentage for r in results_list]
@@ -445,17 +507,12 @@ def academic_performance_data(term_id=None, department_id=None, program_id=None,
         trend_labels.append(f"{x}%")
 
     if all_pcts:
-        mu = sum(all_pcts) / len(all_pcts)
-        if len(all_pcts) > 1:
-            variance = sum((p - mu) ** 2 for p in all_pcts) / (len(all_pcts) - 1)
-            sigma = math.sqrt(variance)
-        else:
-            sigma = 14.0
-        sigma = max(sigma, 10.0)
-        peak = 85.0
-        for x in x_vals:
-            val = round(peak * math.exp(-((x - mu) ** 2) / (2 * (sigma ** 2))), 1)
-            trend_values.append(val)
+        bracket_counts = {x: 0 for x in x_vals}
+        for percentage in all_pcts:
+            bracket = min(100, max(10, int(math.ceil(float(percentage) / 10.0) * 10)))
+            bracket_counts[bracket] += 1
+        total_results_for_chart = len(all_pcts)
+        trend_values = [round(bracket_counts[x] / total_results_for_chart * 100, 1) for x in x_vals]
     else:
         trend_values = [0.0] * len(x_vals)
 
@@ -530,4 +587,3 @@ def academic_performance_data(term_id=None, department_id=None, program_id=None,
         "at_risk_details": at_risk_details,
         "top_students": top_students,
     }
-

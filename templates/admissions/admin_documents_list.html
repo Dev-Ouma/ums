@@ -144,6 +144,14 @@
           <a href="{% url 'university:admin_admission_documents_list' %}" class="btn btn-light border rounded-3" title="Reset"><i class="fa-solid fa-rotate-left"></i></a>
         {% endif %}
       </div>
+      <div class="col-md-2">
+        <select name="page_size" class="form-select bg-light" aria-label="Records per page" onchange="this.form.submit()">
+          <option value="15" {% if page_size == 15 %}selected{% endif %}>15 per page</option>
+          <option value="30" {% if page_size == 30 %}selected{% endif %}>30 per page</option>
+          <option value="50" {% if page_size == 50 %}selected{% endif %}>50 per page</option>
+          <option value="100" {% if page_size == 100 %}selected{% endif %}>100 per page</option>
+        </select>
+      </div>
     </form>
   </div>
 </div>
@@ -154,7 +162,8 @@
     <table class="table table-hover align-middle mb-0">
       <thead class="bg-light small text-uppercase text-muted">
         <tr>
-          <th class="ps-4">Applicant / Student</th>
+          <th class="ps-4" style="width: 3.5rem;">#</th>
+          <th>Applicant / Student</th>
           <th>App Ref / Reg No</th>
           <th>Programme & Intake</th>
           <th>Admission Letter</th>
@@ -166,7 +175,8 @@
         {% for app in page_obj %}
           {% with active_doc=app.active_admission_document %}
           <tr>
-            <td class="ps-4">
+            <td class="ps-4 fw-semibold text-muted">{{ page_obj.start_index|add:forloop.counter0 }}</td>
+            <td>
               <div class="d-flex align-items-center gap-2.5">
                 <div class="rounded-circle bg-primary bg-opacity-10 text-primary fw-bold d-flex align-items-center justify-content-center" style="width:38px;height:38px;">
                   {{ app.first_name|slice:":1" }}{{ app.last_name|slice:":1" }}
@@ -251,7 +261,7 @@
           {% endwith %}
         {% empty %}
           <tr>
-            <td colspan="6" class="text-center py-5">
+            <td colspan="7" class="text-center py-5">
               <div class="rounded-circle bg-light text-muted d-inline-flex align-items-center justify-content-center mb-3" style="width:56px;height:56px;">
                 <i class="fa-solid fa-magnifying-glass fa-2x"></i>
               </div>
@@ -273,11 +283,11 @@
       <nav>
         <ul class="pagination pagination-sm mb-0">
           {% if page_obj.has_previous %}
-            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ q }}&program={{ selected_program }}&status={{ selected_status }}&letter_status={{ selected_letter }}"><i class="fa-solid fa-angle-left"></i></a></li>
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ q|urlencode }}&program={{ selected_program }}&status={{ selected_status }}&letter_status={{ selected_letter }}&page_size={{ page_size }}"><i class="fa-solid fa-angle-left"></i></a></li>
           {% endif %}
           <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
           {% if page_obj.has_next %}
-            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ q }}&program={{ selected_program }}&status={{ selected_status }}&letter_status={{ selected_letter }}"><i class="fa-solid fa-angle-right"></i></a></li>
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ q|urlencode }}&program={{ selected_program }}&status={{ selected_status }}&letter_status={{ selected_letter }}&page_size={{ page_size }}"><i class="fa-solid fa-angle-right"></i></a></li>
           {% endif %}
         </ul>
       </nav>
