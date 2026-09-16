@@ -453,3 +453,164 @@ class BackupScheduleAuditAndPermissionTests(TestCase):
         res = self.client.post(reverse("university:backup_schedule_delete", args=[schedule.pk]))
         self.assertEqual(res.status_code, 302)
         self.assertTrue(BackupSchedule.objects.filter(pk=schedule.pk).exists())
+
+
+class DeadSettingsWiredUpTests(TestCase):
+    """
+    Regression guard for settings that were stored/editable in the Setups UI
+    but never actually read anywhere -- an admin "changing" them saw success
+    with no effect on real behaviour. Each of these now has a real consumer.
+    """
+    def test_admissions_portal_toggle_actually_closes_the_portal(self):
+        from university.settings_services import seed_default_settings, set_setting
+        seed_default_settings()
+        set_setting("admissions_portal_active", False)
+        res = self.client.get(reverse("university:admissions_apply"))
+        self.assertEqual(res.status_code, 503)
+
+    def test_admissions_portal_open_by_default(self):
+        from university.settings_services import seed_default_settings, set_setting
+        seed_default_settings()
+        set_setting("admissions_portal_active", True)
+        res = self.client.get(reverse("university:admissions_apply"))
+        self.assertEqual(res.status_code, 200)
+
+    def test_require_strong_passwords_on_defers_to_granular_settings(self):
+        """The toggle being on (the shipped default) must never be stricter
+        than what the install's own granular settings already specify."""
+        from university.identity_services import get_password_policy
+        from university.settings_services import seed_default_settings, set_setting
+        seed_default_settings()
+        set_setting("require_strong_passwords", True)
+        set_setting("password_require_special", False)
+        policy = get_password_policy()
+        self.assertFalse(policy["require_special"])
+        set_setting("password_require_special", True)
+        policy = get_password_policy()
+        self.assertTrue(policy["require_special"])
+
+    def test_require_strong_passwords_off_disables_every_complexity_rule(self):
+        from university.identity_services import get_password_policy
+        from university.settings_services import seed_default_settings, set_setting
+        seed_default_settings()
+        set_setting("require_strong_passwords", False)
+        set_setting("password_require_special", True)
+        policy = get_password_policy()
+        self.assertFalse(policy["require_special"])
+        self.assertFalse(policy["require_upper"])
+        self.assertFalse(policy["require_lower"])
+        self.assertFalse(policy["require_digit"])
+
+    def test_venue_clash_detection_toggle_controls_whether_conflicts_block_import(self):
+        from university.timetable_io import validate_timetable_import_rows
+        from university.models import AcademicTerm, Course, Department, ExamRoom, Program
+        from university.settings_services import seed_default_settings, set_setting
+        seed_default_settings()
+
+        dept = Department.objects.create(name="Clash Dept", code="CLSH")
+        program = Program.objects.create(name="BSc Clash", code="BSC-CLSH", department=dept, level="UG")
+        term = AcademicTerm.objects.create(
+            name="Clash Term", start_date=timezone.now().date(),
+            end_date=timezone.now().date() + timezone.timedelta(days=90))
+        room = ExamRoom.objects.create(name="Room C1", capacity=50)
+        course_a = Course.objects.create(
+            code="CLC101", title="Clash Course A", department=dept, program=program, semester_no=1)
+        other_program = Program.objects.create(
+            name="BSc Clash Other", code="BSC-CLSH2", department=dept, level="UG")
+        course_b = Course.objects.create(
+            code="CLC102", title="Clash Course B", department=dept, program=other_program, semester_no=2)
+
+        rows = [
+            {"term_name": term.name, "day": "MON", "start_time": "09:00", "end_time": "10:00",
+             "course_code": course_a.code, "room_name": room.name, "faculty": "", "session_type": "LECTURE"},
+            {"term_name": term.name, "day": "MON", "start_time": "09:30", "end_time": "10:30",
+             "course_code": course_b.code, "room_name": room.name, "faculty": "", "session_type": "LECTURE"},
+        ]
+
+        set_setting("enforce_venue_clash_detection", True)
+        result = validate_timetable_import_rows(rows)
+        self.assertEqual(result["items"][1]["status"], "conflict")
+
+        set_setting("enforce_venue_clash_detection", False)
+        result = validate_timetable_import_rows(rows)
+        self.assertEqual(result["items"][1]["status"], "valid")
+
+    def test_audit_retention_deletes_entries_older_than_the_configured_window(self):
+        from university.audit_services import apply_audit_retention
+        from university.settings_services import seed_default_settings, set_setting
+        seed_default_settings()
+        set_setting("audit_retention_days", 30)
+
+        old_log = AuditLog.objects.create(
+            action=AuditLog.Action.UPDATE, module=AuditLog.Module.CONFIG,
+            description="Old entry")
+        AuditLog.objects.filter(pk=old_log.pk).update(
+            timestamp=timezone.now() - timezone.timedelta(days=400))
+        recent_log = AuditLog.objects.create(
+            action=AuditLog.Action.UPDATE, module=AuditLog.Module.CONFIG,
+            description="Recent entry")
+
+        deleted = apply_audit_retention()
+        self.assertEqual(deleted, 1)
+        self.assertFalse(AuditLog.objects.filter(pk=old_log.pk).exists())
+        self.assertTrue(AuditLog.objects.filter(pk=recent_log.pk).exists())
+
+    def test_audit_retention_zero_means_keep_forever(self):
+        from university.audit_services import apply_audit_retention
+        from university.settings_services import seed_default_settings, set_setting
+        seed_default_settings()
+        set_setting("audit_retention_days", 0)
+
+        old_log = AuditLog.objects.create(
+            action=AuditLog.Action.UPDATE, module=AuditLog.Module.CONFIG,
+            description="Ancient entry")
+        AuditLog.objects.filter(pk=old_log.pk).update(
+            timestamp=timezone.now() - timezone.timedelta(days=4000))
+
+        deleted = apply_audit_retention()
+        self.assertEqual(deleted, 0)
+        self.assertTrue(AuditLog.objects.filter(pk=old_log.pk).exists())
+
+
+class NoticeEventFullRestoreTests(TestCase):
+    """
+    Notice/Event recycle-bin restore previously only repopulated 3-4 fields
+    out of Notice's ~20 (dropping banner styling, scheduling window, pinning)
+    and Event's date+location only. Both now go through the generic restore
+    fallback, which reconstructs every concrete field from the full snapshot.
+    """
+    def test_notice_restore_preserves_more_than_the_original_four_fields(self):
+        from university.models import Notice
+        notice = Notice.objects.create(
+            title="Exam Week Notice", body="Details here", audience="STUDENT",
+            is_pinned=True, message_type="WARNING", priority="HIGH",
+            banner_mode="STATIC", animation_enabled=False, dismissible=False,
+            action_url="https://example.com", action_label="Learn more",
+        )
+        item = move_to_recycle_bin(notice, user=None, request=None)
+
+        restored, message = restore_from_recycle_bin(item.pk, user=None)
+        self.assertIsNotNone(restored, message)
+        restored.refresh_from_db()
+        self.assertEqual(restored.message_type, "WARNING")
+        self.assertEqual(restored.priority, "HIGH")
+        self.assertEqual(restored.banner_mode, "STATIC")
+        self.assertFalse(restored.animation_enabled)
+        self.assertFalse(restored.dismissible)
+        self.assertEqual(restored.action_url, "https://example.com")
+
+    def test_event_restore_preserves_category_image_and_icon(self):
+        from university.models import Event
+        event = Event.objects.create(
+            title="Open Day", description="Campus open day", category="Admissions",
+            location="Main Hall", date=timezone.now().date(),
+            image_url="https://example.com/banner.png", icon="fa-graduation-cap",
+        )
+        item = move_to_recycle_bin(event, user=None, request=None)
+
+        restored, message = restore_from_recycle_bin(item.pk, user=None)
+        self.assertIsNotNone(restored, message)
+        restored.refresh_from_db()
+        self.assertEqual(restored.category, "Admissions")
+        self.assertEqual(restored.image_url, "https://example.com/banner.png")
+        self.assertEqual(restored.icon, "fa-graduation-cap")

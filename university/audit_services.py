@@ -321,3 +321,23 @@ def export_audit_pdf(queryset, site_name="University Management System"):
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
+
+
+def apply_audit_retention():
+    """
+    Delete AuditLog entries older than the configured retention window.
+
+    "Audit Trail Retention Period (Days)" was a Setups setting that was
+    never actually read anywhere -- audit logs grew unbounded regardless of
+    what an admin configured. Called from control_services.tick() (the same
+    background-job hook backup_tick() already uses), so it runs on the same
+    cadence as the rest of the system's scheduled maintenance.
+    A value of 0 or less means "keep forever" (no deletion).
+    """
+    from university.settings_services import get_setting
+    retention_days = int(get_setting("audit_retention_days", 365) or 0)
+    if retention_days <= 0:
+        return 0
+    cutoff = timezone.now() - timezone.timedelta(days=retention_days)
+    deleted, _ = AuditLog.objects.filter(timestamp__lt=cutoff).delete()
+    return deleted

@@ -21,6 +21,7 @@ from reportlab.platypus import (
 
 from accounts.models import FacultyProfile
 from university.models import AcademicTerm, ClassSchedule, Course, ExamRoom
+from university.settings_services import get_setting
 from university.student_io import NumberedCanvas
 
 
@@ -396,6 +397,12 @@ def validate_timetable_import_rows(raw_rows):
     Row status: 'error' (missing/invalid data) > 'duplicate' (identical entry
     already exists) > 'conflict' (room, faculty or cohort double-booking) > 'valid'.
     """
+    # "Strict Venue Clash Detection" was a Setups toggle that was never
+    # actually read -- room clashes were always blocked regardless of its
+    # value. When disabled, a room double-booking is still surfaced to the
+    # admin as an informational note, but no longer blocks the row from
+    # being imported (faculty/cohort clashes still always block either way).
+    enforce_venue_clash = bool(get_setting("enforce_venue_clash_detection", True))
     terms_by_name = {t.name.lower(): t for t in AcademicTerm.objects.all()}
     courses_by_code = {c.code.upper(): c for c in
                        Course.objects.select_related("department", "program", "faculty__user").all()}
@@ -498,8 +505,11 @@ def validate_timetable_import_rows(raw_rows):
             overlapping = [e for e in accepted if e["term_id"] == term_obj.id and e["day"] == day_code
                           and e["start"] < end_t and e["end"] > start_t and e["course_id"] != course_obj.id]
             room_clash = next((e for e in overlapping if e["room_id"] == room_obj.id), None)
-            if room_clash:
+            if room_clash and enforce_venue_clash:
                 conflict_reasons.append(f"Venue '{room_obj.name}' already booked for {room_clash['code']} at that time.")
+            elif room_clash:
+                errors.append(f"Note: venue '{room_obj.name}' is already booked for "
+                              f"{room_clash['code']} at that time (venue clash detection is disabled).")
             if effective_faculty_id:
                 faculty_clash = next((e for e in overlapping if e["faculty_id"] == effective_faculty_id), None)
                 if faculty_clash:

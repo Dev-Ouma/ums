@@ -538,6 +538,12 @@ def apply(request):
     Prospective student application form with real-time draft auto-save & state recovery.
     Hydrates existing draft data on load and delegates strict validation on submission.
     """
+    if not bool(get_setting("admissions_portal_active", True)):
+        # The Setups UI let an admin "close" the admissions portal, but this
+        # toggle was never actually read anywhere -- the portal stayed open
+        # regardless. It now genuinely blocks new applications while it's off.
+        return render(request, "admissions/portal_closed.html", status=503)
+
     intakes_data = get_available_intakes_data()
     active_intake = get_default_active_intake()
     programs = Program.objects.filter(status=Program.Status.ACTIVE).select_related("department", "department__school")

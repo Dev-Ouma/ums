@@ -573,10 +573,13 @@ IDENTITY_SETTINGS = [
          "Generate an institutional address whenever an account is created.", _BOOL),
 
     # --- Email identity ---
-    _sec("email_student_domain", "Student Email Domain", "students.university.edu",
-         "Domain used for generated student addresses."),
-    _sec("email_staff_domain", "Staff Email Domain", "university.edu",
-         "Domain used for generated staff addresses."),
+    # email_student_domain / email_staff_domain are defined once, under the
+    # UNIVERSITY category above -- they used to be redefined here too with
+    # different values ("university.edu" vs the UNIVERSITY category's
+    # "ums.ac.ke"). seed_default_settings()'s get_or_create means whichever
+    # definition runs first silently wins and the second is dead, so the two
+    # disagreeing values were misleading rather than actually conflicting in
+    # practice. Kept as one definition to avoid that trap recurring.
     _sec("email_admin_domain", "Administrator Email Domain", "university.edu",
          "Domain used for generated administrator addresses."),
     _sec("email_student_format", "Student Email Format", "{REGNO}",

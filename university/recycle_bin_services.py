@@ -314,21 +314,15 @@ def restore_from_recycle_bin(item_id, user=None, request=None):
         restored_obj.updated_by = actor
         restored_obj.save(update_fields=['status', 'updated_by', 'updated_at'])
 
-    elif content_type == "Notice":
-        restored_obj = Notice.objects.create(
-            title=data.get("title", "Restored Notice"),
-            body=data.get("body", ""),
-            audience=data.get("audience", "ALL"),
-            is_pinned=data.get("is_pinned", False),
-        )
-
-    elif content_type == "Event":
-        restored_obj = Event.objects.create(
-            title=data.get("title", "Restored Event"),
-            description=data.get("description", ""),
-            location=data.get("location", "Main Auditorium"),
-            date=data.get("date") or timezone.now().date(),
-        )
+    # Notice and Event previously had hand-written restore branches here that
+    # only repopulated 3-4 of Notice's ~20 fields / Event's date+location
+    # (dropping banner styling, scheduling window, pinning, etc.) — a
+    # misleadingly incomplete "restore" versus the full snapshot
+    # serialize_model_instance() actually captured. Both now fall through to
+    # the generic fallback below, which reconstructs every concrete field
+    # (M2M relations like Notice.target_roles/departments/recipients are the
+    # one thing that fallback can't restore, the same limitation every other
+    # unmapped content_type already has).
 
     elif content_type == "FeeStructure":
         prog = Program.objects.filter(pk=data.get("program")).first()

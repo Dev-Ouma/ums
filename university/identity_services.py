@@ -195,13 +195,21 @@ def _username_taken(candidate, exclude_user=None):
 
 def get_password_policy():
     """All password rules are configuration, never constants in code."""
+    # A master "strong passwords" toggle existed in the Setups UI but was
+    # never actually read anywhere -- an admin disabling it saw success with
+    # no change in enforced behaviour. It now genuinely disables every
+    # complexity rule when off (useful for a low-friction test/staging
+    # deploy); when on (the shipped default) it changes nothing, so it can
+    # never make an already-configured install stricter than what its own
+    # granular password_require_* settings already specify.
+    require_strong = bool(get_setting("require_strong_passwords", True))
     return {
         "min_length": int(get_setting("password_min_length", 8) or 8),
         "max_length": int(get_setting("password_max_length", 128) or 128),
-        "require_upper": bool(get_setting("password_require_uppercase", True)),
-        "require_lower": bool(get_setting("password_require_lowercase", True)),
-        "require_digit": bool(get_setting("password_require_number", True)),
-        "require_special": bool(get_setting("password_require_special", False)),
+        "require_upper": require_strong and bool(get_setting("password_require_uppercase", True)),
+        "require_lower": require_strong and bool(get_setting("password_require_lowercase", True)),
+        "require_digit": require_strong and bool(get_setting("password_require_number", True)),
+        "require_special": require_strong and bool(get_setting("password_require_special", False)),
         "history_depth": int(get_setting("password_history_depth", 5) or 0),
         "expiry_days": int(get_setting("password_expiry_days", 0) or 0),
         "temp_expiry_hours": int(get_setting("temporary_password_expiry_hours", 48) or 48),

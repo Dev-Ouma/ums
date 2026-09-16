@@ -389,6 +389,11 @@ def tick():
         backup_tick()
     except Exception:
         pass
+    try:
+        from .audit_services import apply_audit_retention
+        apply_audit_retention()
+    except Exception:
+        pass
 
 
 @transaction.atomic
