@@ -571,6 +571,10 @@ def set_account_status(user, new_status, actor=None, request=None, reason="", no
         from university.email_services import notify_account_status
         notify_account_status(user, account.get_status_display(), reason, request=request)
 
+    from university.events import account_status_changed, dispatch_event
+    dispatch_event(account_status_changed, sender=set_account_status, request=request,
+                   user=user, old_status=old_status, new_status=new_status, actor=actor)
+
     return True, f"Account is now {account.get_status_display()}.", account
 
 

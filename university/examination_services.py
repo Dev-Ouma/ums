@@ -639,6 +639,11 @@ def transition(user, exam_id, action, reason='', revision=None,
 
     exam.revision += 1
     exam.save()
+
+    if action == 'publish':
+        from university.events import dispatch_event, exam_marks_published
+        dispatch_event(exam_marks_published, sender=transition, exam=exam, published_by=user)
+
     return exam
 
 

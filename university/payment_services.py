@@ -352,6 +352,10 @@ def process_payment_confirmation(
         description=f"Confirmed payment of {payment.currency} {payment.amount:,.2f} for {payment.student.roll_no}. Receipt: {receipt.receipt_number}.",
     )
 
+    from university.events import dispatch_event, fee_payment_confirmed
+    dispatch_event(fee_payment_confirmed, sender=process_payment_confirmation, request=request,
+                   payment=payment, fee_account=payment.fee_account)
+
     return receipt
 
 

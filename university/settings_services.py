@@ -5,6 +5,14 @@ from university.models import SystemSetting, AuditLog
 from university.audit_services import log_activity
 
 
+# Keys whose value is a credential/secret. Used by settings screens (e.g.
+# identity_views.py's user_settings) to refuse to echo the stored value back
+# to the browser. Was previously only defined in email_services.py (email
+# secrets only); centralized here since it's a settings-layer concern that
+# now spans more than one provider (email, SMS, ...).
+SECRET_SETTING_KEYS = {"email_host_password", "email_provider_api_key", "sms_api_key"}
+
+
 DEFAULT_SETTINGS = [
     # ACADEMIC
     {
@@ -613,6 +621,23 @@ IDENTITY_SETTINGS = [
          "Ask the provider API to create mailboxes. Requires a provider driver.", _BOOL),
     _sec("site_base_url", "System Base URL", "",
          "Absolute base URL used in emailed links when no request context exists."),
+
+    # --- SMS provider ---
+    # Previously read from Django `settings`/env vars only (AFRICASTALKING_*
+    # / SMS_*), inconsistent with every other provider in the system. Now
+    # SystemSetting-driven like email above, so it's admin-editable from the
+    # Setups UI without a redeploy; env vars remain the seeded default so an
+    # install that already relies on them keeps working unchanged.
+    _sec("sms_provider", "SMS Provider", "AFRICASTALKING",
+         "AFRICASTALKING or a generic HTTP gateway."),
+    _sec("sms_username", "SMS Account Username", "",
+         "Authentication username for the SMS gateway."),
+    _sec("sms_api_key", "SMS API Key", "",
+         "Provider secret. Never rendered back to the browser."),
+    _sec("sms_sender_id", "SMS Sender ID", "UMS",
+         "Sender name/ID shown on delivered messages."),
+    _sec("sms_backend_debug", "SMS Sandbox Mode", "true",
+         "Log messages instead of sending them for real. Disable once real credentials are set.", _BOOL),
 
     # --- Notifications ---
     _sec("notify_account_created", "Notify On Account Creation", "true",

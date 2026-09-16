@@ -37,8 +37,9 @@ class Provider:
     ]
 
 
-# Secrets are listed explicitly so the settings UI can refuse to echo them back.
-SECRET_SETTING_KEYS = {"email_host_password", "email_provider_api_key"}
+# Moved to settings_services.py (now covers SMS secrets too, not just email)
+# and re-exported here for backward compatibility with any existing import.
+from university.settings_services import SECRET_SETTING_KEYS  # noqa: F401
 
 
 def get_email_config():

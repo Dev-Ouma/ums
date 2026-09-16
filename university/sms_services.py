@@ -3,17 +3,17 @@ Automated SMS Notification Service for University Management System.
 Dispatches critical transactional SMS (Fee Receipts, Registration Alerts, Exam Clearances)
 via Africa's Talking, Advanta Africa, or local SMS gateways with automatic Kenyan number formatting
 and resilient sandbox/fallback logging.
+
+The actual provider call now goes through SmsProviderAdapter
+(university/integrations/sms.py), which sources config from SystemSetting
+instead of Django settings/env vars -- see that module's docstring. send_sms()
+keeps its exact original signature and return shape so its existing callers
+need no changes.
 """
 
 import logging
 import re
 from typing import Any, Dict, Optional
-import urllib.parse
-import urllib.request
-import json
-
-from django.conf import settings
-from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -62,57 +62,27 @@ def send_sms(
     Dispatches an SMS to a single recipient phone number.
     Supports Africa's Talking / HTTP REST gateway or developer sandbox logging.
     """
+    from university.integrations.sms import SmsProviderAdapter
+
     formatted_phone = format_kenyan_phone_number(phone_number)
     if not formatted_phone:
         logger.warning(f"SMS dispatch skipped: Invalid phone number '{phone_number}'")
         return {"success": False, "error": f"Invalid phone number '{phone_number}'"}
 
-    # Determine SMS credentials
-    username = getattr(settings, "AFRICASTALKING_USERNAME", getattr(settings, "SMS_USERNAME", None))
-    api_key = getattr(settings, "AFRICASTALKING_API_KEY", getattr(settings, "SMS_API_KEY", None))
-    sender = sender_id or getattr(settings, "SMS_SENDER_ID", "UMS")
+    result = SmsProviderAdapter().send(formatted_phone, message, sender_id=sender_id)
 
-    # If credentials are not configured or in testing environment, operate in Sandbox/Log mode
-    if not api_key or not username or username in ["sandbox", "test"] or getattr(settings, "SMS_BACKEND_DEBUG", True):
-        logger.info(
-            f"[SMS SANDBOX DISPATCH] To: {formatted_phone} | From: {sender} | Msg: {message}"
-        )
+    if result.status == "SENT_SANDBOX":
         return {
             "success": True,
             "status": "SENT_SANDBOX",
-            "recipient": formatted_phone,
-            "sender": sender,
-            "message": message,
-            "dispatched_at": timezone.now().isoformat(),
+            "recipient": result.raw_response["recipient"],
+            "sender": result.raw_response["sender"],
+            "message": result.raw_response["message"],
+            "dispatched_at": result.raw_response["dispatched_at"],
         }
-
-    # Production Africa's Talking / HTTP Gateway
-    try:
-        url = "https://api.africastalking.com/version1/messaging"
-        data = urllib.parse.urlencode({
-            "username": username,
-            "to": formatted_phone,
-            "message": message,
-            "from": sender,
-        }).encode("utf-8")
-
-        req = urllib.request.Request(
-            url,
-            data=data,
-            headers={
-                "apikey": api_key,
-                "Accept": "application/json",
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-        )
-        with urllib.request.urlopen(req, timeout=10) as response:
-            resp_body = response.read().decode("utf-8")
-            result = json.loads(resp_body)
-            logger.info(f"SMS successfully dispatched to {formatted_phone}: {result}")
-            return {"success": True, "status": "DELIVERED", "raw_response": result}
-    except Exception as e:
-        logger.error(f"Failed to dispatch SMS to {formatted_phone}: {e}")
-        return {"success": False, "error": str(e)}
+    if result.success:
+        return {"success": True, "status": result.status, "raw_response": result.raw_response}
+    return {"success": False, "error": result.message}
 
 
 def send_payment_confirmation_sms(payment, receipt, remaining_balance) -> Dict[str, Any]:
