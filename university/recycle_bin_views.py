@@ -7,24 +7,13 @@ from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from accounts.models import Role
+from university.decorators import permission_required
 from university.models import RecycleBinItem
 from university.recycle_bin_services import (
     bulk_purge, bulk_restore, purge_recycle_item, restore_from_recycle_bin
 )
 
-
-def _admin_required(view_func):
-    """Ensure user is an active Administrator or Staff member."""
-    def _wrapped(request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return redirect("accounts:login")
-        user_role = getattr(request.user, "role", "")
-        if not (request.user.is_staff or request.user.is_superuser or user_role in (Role.ADMIN, "ADMIN")):
-            messages.error(request, "Access restricted. System Administrator privileges required.")
-            return redirect("university:dashboard")
-        return view_func(request, *args, **kwargs)
-    return _wrapped
+_admin_required = permission_required("admin.manage_recycle_bin")
 
 
 @login_required

@@ -5,12 +5,14 @@ Storage Targets, Cryptographic Verification, Safe Restoration, and Operational L
 """
 
 import csv
+import hashlib
 import io
 from datetime import datetime
 import json
 import logging
 import os
 import shutil
+import time
 from typing import Any, Dict
 
 from django.conf import settings
@@ -64,6 +66,30 @@ def _backup_admin_required(view_func):
             return redirect("university:dashboard")
         return view_func(request, *args, **kwargs)
     return wrapped
+
+
+def _backup_permission_required(code, redirect_to="university:backup_schedules"):
+    """
+    Narrower gate than _backup_admin_required's blanket `backups.view`: the
+    distinct backups.manage_schedules / manage_storage / manage_settings /
+    verify grants existed in the permission catalogue but were never actually
+    enforced anywhere, so anyone with read-only `backups.view` could also
+    create/delete schedules, retarget storage, or change DR policy.
+    """
+    def decorator(view_func):
+        def wrapped(request, *args, **kwargs):
+            if not request.user.is_authenticated:
+                return redirect("accounts:login")
+            if not (request.user.is_admin_role or request.user.is_superuser
+                    or has_user_permission(request.user, code)):
+                messages.error(request, "Access restricted. You don't have permission for that action.")
+                return redirect(redirect_to)
+            return view_func(request, *args, **kwargs)
+        return wrapped
+    return decorator
+
+
+_backup_manage_required = _backup_permission_required("backups.manage_schedules")
 
 
 # ==============================================================================
@@ -131,7 +157,7 @@ def backup_schedules(request):
 
 
 @login_required
-@_backup_admin_required
+@_backup_manage_required
 def backup_schedule_create(request):
     """Create a new recurring backup schedule."""
     if request.method == "POST":
@@ -179,6 +205,9 @@ def backup_schedule_create(request):
         schedule.next_run_at = calculate_next_run(schedule)
         schedule.save()
 
+        log_activity(request=request, user=request.user, action=AuditLog.Action.CREATE,
+                     module=AuditLog.Module.BACKUPS, entity="BackupSchedule", entity_id=schedule.pk,
+                     description=f"Created backup schedule '{schedule.name}' ({schedule.frequency}).")
         messages.success(request, f"Backup schedule '{schedule.name}' created. Next execution at {schedule.next_run_at.strftime('%d %b %Y %H:%M')}.")
         return redirect("university:backup_schedules")
 
@@ -192,7 +221,7 @@ def backup_schedule_create(request):
 
 
 @login_required
-@_backup_admin_required
+@_backup_manage_required
 def backup_schedule_edit(request, pk):
     """Edit an existing backup schedule."""
     schedule = get_object_or_404(BackupSchedule, pk=pk)
@@ -218,6 +247,9 @@ def backup_schedule_edit(request, pk):
         schedule.next_run_at = calculate_next_run(schedule)
         schedule.save()
 
+        log_activity(request=request, user=request.user, action=AuditLog.Action.UPDATE,
+                     module=AuditLog.Module.BACKUPS, entity="BackupSchedule", entity_id=schedule.pk,
+                     description=f"Updated backup schedule '{schedule.name}'.")
         messages.success(request, f"Backup schedule '{schedule.name}' updated.")
         return redirect("university:backup_schedules")
 
@@ -232,7 +264,7 @@ def backup_schedule_edit(request, pk):
 
 
 @login_required
-@_backup_admin_required
+@_backup_manage_required
 @require_POST
 def backup_schedule_toggle(request, pk):
     """Toggles active state of a schedule."""
@@ -243,12 +275,15 @@ def backup_schedule_toggle(request, pk):
     schedule.save(update_fields=["is_active", "next_run_at"])
     
     state_str = "activated" if schedule.is_active else "paused"
+    log_activity(request=request, user=request.user, action=AuditLog.Action.UPDATE,
+                 module=AuditLog.Module.BACKUPS, entity="BackupSchedule", entity_id=schedule.pk,
+                 description=f"Backup schedule '{schedule.name}' {state_str}.")
     messages.info(request, f"Schedule '{schedule.name}' {state_str}.")
     return redirect("university:backup_schedules")
 
 
 @login_required
-@_backup_admin_required
+@_backup_manage_required
 @require_POST
 def backup_schedule_run_now(request, pk):
     """Immediately triggers execution of a scheduled backup."""
@@ -265,18 +300,25 @@ def backup_schedule_run_now(request, pk):
     schedule.next_run_at = calculate_next_run(schedule)
     schedule.save(update_fields=["last_run_at", "next_run_at"])
 
+    log_activity(request=request, user=request.user, action=AuditLog.Action.UPDATE,
+                 module=AuditLog.Module.BACKUPS, entity="BackupSchedule", entity_id=schedule.pk,
+                 description=f"Manually ran backup schedule '{schedule.name}' now ({job.backup_id}).")
     messages.success(request, f"Scheduled backup '{schedule.name}' executed: {job.backup_id}.")
     return redirect("university:backup_detail", pk=job.pk)
 
 
 @login_required
-@_backup_admin_required
+@_backup_manage_required
 @require_POST
 def backup_schedule_delete(request, pk):
     """Deletes a backup schedule."""
     schedule = get_object_or_404(BackupSchedule, pk=pk)
     name = schedule.name
+    schedule_pk = schedule.pk
     schedule.delete()
+    log_activity(request=request, user=request.user, action=AuditLog.Action.DELETE,
+                 module=AuditLog.Module.BACKUPS, entity="BackupSchedule", entity_id=schedule_pk,
+                 description=f"Deleted backup schedule '{name}'.")
     messages.success(request, f"Backup schedule '{name}' removed.")
     return redirect("university:backup_schedules")
 
@@ -381,7 +423,7 @@ def backup_detail(request, pk):
 
 
 @login_required
-@_backup_admin_required
+@_backup_permission_required("backups.verify", redirect_to="university:backup_history")
 @require_POST
 def backup_verify(request, pk):
     """Triggers on-demand cryptographic and structural integrity verification."""
@@ -494,7 +536,7 @@ def backup_storage(request):
 
 
 @login_required
-@_backup_admin_required
+@_backup_permission_required("backups.manage_storage", redirect_to="university:backup_storage")
 @require_POST
 def backup_storage_test(request, pk):
     """Tests connection to a specific storage target."""
@@ -592,11 +634,11 @@ def backup_restore_start(request):
 # ==============================================================================
 
 @login_required
-@_backup_admin_required
+@_backup_permission_required("backups.manage_settings", redirect_to="university:backup_settings")
 def backup_settings(request):
     """Configures global backup policies, retention rules, and notification alerts."""
     settings_obj = BackupSetting.get_settings()
-    
+
     if request.method == "POST":
         storage_id = request.POST.get("default_storage")
         retention_id = request.POST.get("default_retention")
@@ -614,6 +656,9 @@ def backup_settings(request):
         settings_obj.notification_emails = request.POST.get("notification_emails", "").strip()
         settings_obj.save()
 
+        log_activity(request=request, user=request.user, action=AuditLog.Action.UPDATE,
+                     module=AuditLog.Module.BACKUPS, entity="BackupSetting", entity_id=settings_obj.pk,
+                     description="Updated global backup & disaster recovery policy settings.")
         messages.success(request, "Backup global settings saved.")
         return redirect("university:backup_settings")
 

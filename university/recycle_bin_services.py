@@ -260,26 +260,35 @@ def restore_from_recycle_bin(item_id, user=None, request=None):
 
     elif content_type == "Program":
         dept = Department.objects.filter(pk=data.get("department")).first()
-        restored_obj, _ = Program.objects.update_or_create(
-            code=data.get("code"),
-            defaults={
-                "name": data.get("name"),
-                "department": dept or Department.objects.first(),
-                "program_type": data.get("program_type", Program.ProgramType.DEGREE),
-                "level": data.get("level", "UG"),
-                "award_title": data.get("award_title", ""),
-                "study_mode": data.get("study_mode", Program.StudyMode.FULL_TIME),
-                "duration_value": data.get("duration_value", data.get("duration_years", 4)),
-                "duration_unit": data.get("duration_unit", Program.DurationUnit.YEARS),
-                "duration_years": data.get("duration_years", 4),
-                "min_credits": data.get("min_credits", 120),
-                "max_credits": data.get("max_credits"),
-                "total_seats": data.get("total_seats", 120),
-                "status": data.get("status", Program.Status.ACTIVE),
-                "description": data.get("description", ""),
-                "career_prospects": data.get("career_prospects", ""),
-            }
-        )
+        # Any cascade-deleted child recycle-binned alongside this Program
+        # (ExamSchedule/Application/FeeStructure) still references it by its
+        # *original* pk, so preserve that pk on restore when it's free rather
+        # than letting update_or_create's natural-key match hand it a new one
+        # — otherwise those children's FK columns would dangle once restored.
+        original_pk = data.get("id")
+        defaults = {
+            "name": data.get("name"),
+            "department": dept or Department.objects.first(),
+            "program_type": data.get("program_type", Program.ProgramType.DEGREE),
+            "level": data.get("level", "UG"),
+            "award_title": data.get("award_title", ""),
+            "study_mode": data.get("study_mode", Program.StudyMode.FULL_TIME),
+            "duration_value": data.get("duration_value", data.get("duration_years", 4)),
+            "duration_unit": data.get("duration_unit", Program.DurationUnit.YEARS),
+            "duration_years": data.get("duration_years", 4),
+            "min_credits": data.get("min_credits", 120),
+            "max_credits": data.get("max_credits"),
+            "total_seats": data.get("total_seats", 120),
+            "status": data.get("status", Program.Status.ACTIVE),
+            "description": data.get("description", ""),
+            "career_prospects": data.get("career_prospects", ""),
+        }
+        if original_pk is not None and not Program.objects.filter(pk=original_pk).exists():
+            defaults["code"] = data.get("code")
+            restored_obj = Program.objects.create(pk=original_pk, **defaults)
+        else:
+            restored_obj, _ = Program.objects.update_or_create(
+                code=data.get("code"), defaults=defaults)
 
     elif content_type == "ClassSchedule":
         course = Course.objects.filter(pk=data.get("course")).first()
@@ -373,6 +382,43 @@ def restore_from_recycle_bin(item_id, user=None, request=None):
                 "is_current": data.get("is_current", False),
             }
         )
+
+    if restored_obj is None:
+        # Generic fallback for any content_type with no hand-written branch
+        # above. serialize_model_instance() already captures every concrete
+        # field (FK values as their pk), so any model can be reconstructed
+        # from it directly. Before this fallback existed, an unmatched
+        # content_type fell straight through the if/elif chain, still got
+        # marked is_restored=True below, and still returned "Successfully
+        # restored record." with nothing actually recreated — a false-success
+        # report on exactly the class of bug already fixed elsewhere this
+        # session for other silent failures.
+        try:
+            model_cls = apps.get_model("university", content_type)
+        except LookupError:
+            model_cls = None
+        if model_cls is None:
+            return None, (
+                f"Cannot restore: no restore handler is registered for "
+                f"'{content_type}'. The original data is preserved in the "
+                f"Recycle Bin, but no record was recreated."
+            )
+        kwargs = {}
+        pk_field = model_cls._meta.pk
+        for field in model_cls._meta.fields:
+            if field.primary_key or field.name not in data:
+                continue
+            kwargs[field.attname] = data[field.name]
+        # Any other cascade-deleted sibling restored earlier may already
+        # reference this object by its *original* pk (serialize_model_instance
+        # captures FK values as the referenced row's pk) — so restoring with a
+        # freshly auto-assigned pk would leave those FK columns dangling.
+        # Reuse the original pk when it's free; only auto-assign if it's been
+        # taken by something else since deletion.
+        original_pk = data.get(pk_field.name)
+        if original_pk is not None and not model_cls.objects.filter(pk=original_pk).exists():
+            kwargs[pk_field.attname] = original_pk
+        restored_obj = model_cls.objects.create(**kwargs)
 
     item.is_restored = True
     item.restored_at = timezone.now()

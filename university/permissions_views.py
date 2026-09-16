@@ -29,20 +29,10 @@ from university.permissions_services import (
     has_user_permission,
 )
 from university.audit_services import log_activity
+from university.decorators import permission_required
 from university.identity_services import invalidate_user_sessions
 
-
-def _admin_required(view_func):
-    """Ensure user is an active Administrator or Staff member."""
-    def _wrapped(request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return redirect("accounts:login")
-        user_role = getattr(request.user, "role", "")
-        if not (request.user.is_staff or request.user.is_superuser or user_role in (Role.ADMIN, "ADMIN")):
-            messages.error(request, "Access restricted. System Administrator privileges required.")
-            return redirect("university:dashboard")
-        return view_func(request, *args, **kwargs)
-    return _wrapped
+_admin_required = permission_required("admin.manage_roles_permissions")
 
 
 # ==============================================================================

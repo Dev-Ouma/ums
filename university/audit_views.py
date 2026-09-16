@@ -12,20 +12,10 @@ from accounts.models import Role
 from university.audit_services import (
     export_audit_csv, export_audit_excel, export_audit_pdf
 )
+from university.decorators import permission_required
 from university.models import AuditLog
 
-
-def _admin_required(view_func):
-    """Ensure user is an active Administrator or Staff member."""
-    def _wrapped(request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return redirect("accounts:login")
-        user_role = getattr(request.user, "role", "")
-        if not (request.user.is_staff or request.user.is_superuser or user_role in (Role.ADMIN, "ADMIN")):
-            messages.error(request, "Access restricted. System Administrator privileges required.")
-            return redirect("university:dashboard")
-        return view_func(request, *args, **kwargs)
-    return _wrapped
+_admin_required = permission_required("admin.view_audit_logs")
 
 
 def _apply_audit_filters(request, qs):

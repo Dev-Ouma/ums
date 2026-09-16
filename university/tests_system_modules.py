@@ -233,7 +233,7 @@ class SystemModulesTestCase(TestCase):
         self.client.logout()
         self.client.login(username="student_sys", password="password123")
         res_student = self.client.get(reverse("university:recycle_bin_dashboard"))
-        self.assertEqual(res_student.status_code, 302)
+        self.assertEqual(res_student.status_code, 403)
 
     def test_audit_trails_view_access(self):
         """Test admin can access audit trails dashboard and exports."""
@@ -273,3 +273,183 @@ class SystemModulesTestCase(TestCase):
         # Verify values changed
         self.assertEqual(get_setting("pass_mark"), 50)
         self.assertEqual(get_setting("academic_year_current"), "2026/2027")
+
+
+class SystemsAdminGranularPermissionTests(TestCase):
+    """
+    Regression guard: Settings/Permissions/Audit/Recycle-Bin were gated by a
+    copy-pasted `is_staff or role == ADMIN` check that ignored the granular
+    admin.* permission codes entirely -- any is_staff account could reach all
+    four consoles regardless of what StaffRole they actually held. They now
+    route through has_user_permission with the specific admin.* code, same
+    as every other module's permission_required usage.
+    """
+    def setUp(self):
+        from university.permissions_services import seed_default_permissions_and_roles
+        seed_default_permissions_and_roles()
+        # is_staff=True but role=FACULTY (not ADMIN) and no admin.* grant --
+        # this is exactly the account type that used to slip through.
+        self.staff_only_user = User.objects.create_user(
+            username="staff.only", email="staff.only@test.com", password="password123",
+            role=Role.FACULTY, is_staff=True,
+        )
+
+    def test_staff_without_admin_permission_cannot_reach_settings(self):
+        self.client.login(username="staff.only", password="password123")
+        res = self.client.get(reverse("university:admin_setups_dashboard"))
+        self.assertEqual(res.status_code, 403)
+
+    def test_staff_without_admin_permission_cannot_reach_permissions_console(self):
+        self.client.login(username="staff.only", password="password123")
+        res = self.client.get(reverse("university:staff_permissions_dashboard"))
+        self.assertEqual(res.status_code, 403)
+
+    def test_staff_without_admin_permission_cannot_reach_audit_dashboard(self):
+        self.client.login(username="staff.only", password="password123")
+        res = self.client.get(reverse("university:audit_dashboard"))
+        self.assertEqual(res.status_code, 403)
+
+    def test_staff_without_admin_permission_cannot_reach_recycle_bin(self):
+        self.client.login(username="staff.only", password="password123")
+        res = self.client.get(reverse("university:recycle_bin_dashboard"))
+        self.assertEqual(res.status_code, 403)
+
+    def test_a_narrowly_scoped_admin_permission_grants_only_that_console(self):
+        """A role holding only admin.view_audit_logs reaches audit logs but not settings."""
+        from university.models import StaffRole, StaffRoleAssignment, SystemPermission
+        role = StaffRole.objects.create(name="Compliance Auditor", code="compliance_auditor_test")
+        role.permissions.add(SystemPermission.objects.get(code="admin.view_audit_logs"))
+        StaffRoleAssignment.objects.create(
+            user=self.staff_only_user, role=role, department=None, school=None, is_active=True)
+
+        self.client.login(username="staff.only", password="password123")
+        res_audit = self.client.get(reverse("university:audit_dashboard"))
+        self.assertEqual(res_audit.status_code, 200)
+
+        res_settings = self.client.get(reverse("university:admin_setups_dashboard"))
+        self.assertEqual(res_settings.status_code, 403)
+
+
+class RecycleBinGenericRestoreFallbackTests(TestCase):
+    """
+    Regression guard: restore_from_recycle_bin's if/elif dispatch left
+    `restored_obj = None` for any content_type with no hand-written branch,
+    then still marked the item is_restored=True and returned "Successfully
+    restored record." -- a false-success report with nothing recreated. It
+    now falls back to a generic field-by-field reconstruction using the
+    same complete field snapshot serialize_model_instance() already
+    captures, instead of silently doing nothing.
+    """
+    def test_unmapped_content_type_is_genuinely_reconstructed_not_silently_skipped(self):
+        from university.models import Cohort
+        cohort = Cohort.objects.create(name="Cascade Test Cohort", description="Test cohort")
+        item = move_to_recycle_bin(cohort, user=None, request=None)
+
+        restored, message = restore_from_recycle_bin(item.pk, user=None)
+        self.assertIsNotNone(restored, message)
+        self.assertTrue(Cohort.objects.filter(name="Cascade Test Cohort").exists())
+
+
+class ProgramCascadeDeleteRollbackTests(TestCase):
+    """
+    Program -> ExamSchedule/Application/FeeStructure are CASCADE on_delete,
+    the same bug class already fixed for Department -> Program/Course.
+    Deleting a Program must still proceed immediately (auto-approved) but
+    every cascaded child must be independently recoverable.
+    """
+    def setUp(self):
+        from university.models import ExamSchedule, FeeStructure
+        self.admin_user = User.objects.create_user(
+            username="prog.cascade.admin", email="prog.cascade.admin@test.com",
+            password="password123", role=Role.ADMIN, is_staff=True, is_superuser=True)
+        self.dept = Department.objects.create(name="Cascade Dept", code="PCASC")
+        self.program = Program.objects.create(
+            name="BSc Program Cascade", code="BSC-PCASC", department=self.dept, level="UG")
+        self.exam_schedule = ExamSchedule.objects.create(
+            name="AUGUST-2026-EXAM", program=self.program, study_year=1, semester=1)
+        self.fee_structure = FeeStructure.objects.create(
+            program=self.program, year_of_study=1, semester=1,
+            tuition_fee=Decimal("50000.00"))
+
+    def test_confirm_page_warns_about_dependents(self):
+        self.client.login(username="prog.cascade.admin", password="password123")
+        res = self.client.get(reverse("university:program_delete", args=[self.program.pk]))
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "exam schedule")
+
+    def test_delete_proceeds_and_children_are_individually_restorable(self):
+        from university.models import ExamSchedule, FeeStructure
+        self.client.login(username="prog.cascade.admin", password="password123")
+        res = self.client.post(reverse("university:program_delete", args=[self.program.pk]))
+        self.assertEqual(res.status_code, 302)
+
+        self.assertFalse(Program.objects.filter(pk=self.program.pk).exists())
+        self.assertFalse(ExamSchedule.objects.filter(pk=self.exam_schedule.pk).exists())
+        self.assertFalse(FeeStructure.objects.filter(pk=self.fee_structure.pk).exists())
+
+        program_item = RecycleBinItem.objects.get(
+            content_type="Program", object_id=str(self.program.pk))
+        exam_item = RecycleBinItem.objects.get(
+            content_type="ExamSchedule", object_id=str(self.exam_schedule.pk))
+        fee_item = RecycleBinItem.objects.get(
+            content_type="FeeStructure", object_id=str(self.fee_structure.pk))
+
+        # Parent must come back before its FK-dependent children can.
+        restore_from_recycle_bin(program_item.pk, user=self.admin_user)
+        restored_exam, msg1 = restore_from_recycle_bin(exam_item.pk, user=self.admin_user)
+        restored_fee, msg2 = restore_from_recycle_bin(fee_item.pk, user=self.admin_user)
+        self.assertIsNotNone(restored_exam, msg1)
+        self.assertIsNotNone(restored_fee, msg2)
+        self.assertTrue(ExamSchedule.objects.filter(name="AUGUST-2026-EXAM").exists())
+
+
+class BackupScheduleAuditAndPermissionTests(TestCase):
+    """
+    Backup schedule create/edit/toggle/run-now/delete had zero audit logging
+    (undermining forensics for the one subsystem where that trail matters
+    most for disaster recovery), and were gated only by the broad
+    `backups.view` read permission rather than the distinct
+    `backups.manage_schedules` grant already defined in the permission
+    catalogue.
+    """
+    def setUp(self):
+        from university.permissions_services import seed_default_permissions_and_roles
+        from university.backup_services import ensure_default_storage_and_retention
+        seed_default_permissions_and_roles()
+        ensure_default_storage_and_retention()
+        self.admin_user = User.objects.create_user(
+            username="backup.admin", email="backup.admin@test.com", password="password123",
+            role=Role.ADMIN, is_staff=True, is_superuser=True)
+        self.view_only_user = User.objects.create_user(
+            username="backup.viewer", email="backup.viewer@test.com", password="password123",
+            role=Role.FACULTY, is_staff=True)
+
+    def test_schedule_delete_is_audited(self):
+        from university.models import BackupSchedule
+        self.client.login(username="backup.admin", password="password123")
+        schedule = BackupSchedule.objects.create(
+            name="Nightly Full Backup", backup_type=BackupSchedule.BackupType.FULL,
+            frequency=BackupSchedule.Frequency.DAILY, start_date=timezone.now().date(),
+            start_time=timezone.now().time(), created_by=self.admin_user)
+        res = self.client.post(reverse("university:backup_schedule_delete", args=[schedule.pk]))
+        self.assertEqual(res.status_code, 302)
+        self.assertTrue(AuditLog.objects.filter(
+            entity="BackupSchedule", action=AuditLog.Action.DELETE,
+            description__icontains="Nightly Full Backup").exists())
+
+    def test_view_only_user_cannot_delete_a_schedule(self):
+        from university.models import BackupSchedule, StaffRole, StaffRoleAssignment, SystemPermission
+        role = StaffRole.objects.create(name="Backup Viewer", code="backup_viewer_test")
+        role.permissions.add(SystemPermission.objects.get(code="backups.view"))
+        StaffRoleAssignment.objects.create(
+            user=self.view_only_user, role=role, department=None, school=None, is_active=True)
+
+        schedule = BackupSchedule.objects.create(
+            name="Weekly Incremental", backup_type=BackupSchedule.BackupType.FILES,
+            frequency=BackupSchedule.Frequency.WEEKLY, start_date=timezone.now().date(),
+            start_time=timezone.now().time(), created_by=self.admin_user)
+
+        self.client.login(username="backup.viewer", password="password123")
+        res = self.client.post(reverse("university:backup_schedule_delete", args=[schedule.pk]))
+        self.assertEqual(res.status_code, 302)
+        self.assertTrue(BackupSchedule.objects.filter(pk=schedule.pk).exists())

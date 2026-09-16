@@ -1536,11 +1536,30 @@ def program_edit(request, pk):
                         "university:admin_programs")
 
 
+def _cascade_recycle_program_children(program, request):
+    """
+    Program -> ExamSchedule, Program -> Application, and Program ->
+    FeeStructure are all CASCADE on_delete, so deleting a Program would
+    otherwise permanently destroy every exam schedule, admission
+    application, and fee structure tied to it with no way to roll back —
+    the same bug class already fixed for Department -> Program/Course.
+    Move each one to the Recycle Bin individually first, same pattern as
+    _cascade_recycle_department_children.
+    """
+    for exam_schedule in list(program.exam_schedules.all()):
+        move_to_recycle_bin(exam_schedule, user=request.user, request=request)
+    for application in list(program.applications.all()):
+        move_to_recycle_bin(application, user=request.user, request=request)
+    for fee_structure in list(program.fee_structures.all()):
+        move_to_recycle_bin(fee_structure, user=request.user, request=request)
+
+
 @role_required(Role.ADMIN)
 def program_delete(request, pk):
     p = get_object_or_404(Program, pk=pk)
     if request.method == "POST":
         name = str(p)
+        _cascade_recycle_program_children(p, request)
         move_to_recycle_bin(p, user=request.user, request=request)
         log_activity(
             request=request,
@@ -1554,7 +1573,14 @@ def program_delete(request, pk):
         )
         messages.success(request, f"Moved programme '{name}' to Recycle Bin.")
         return redirect("university:admin_programs")
-    return _confirm_delete(request, p, "programme", "university:admin_programs")
+    dependents = []
+    if p.exam_schedules.exists():
+        dependents.append((f"{p.exam_schedules.count()} exam schedule(s)", p.exam_schedules.all()))
+    if p.applications.exists():
+        dependents.append((f"{p.applications.count()} admission application(s)", p.applications.all()))
+    if p.fee_structures.exists():
+        dependents.append((f"{p.fee_structures.count()} fee structure(s)", p.fee_structures.all()))
+    return _confirm_delete(request, p, "programme", "university:admin_programs", dependents=dependents)
 
 
 @role_required(Role.ADMIN)

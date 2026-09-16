@@ -268,7 +268,7 @@ class StaffPermissionsAndOverridesTestCase(TestCase):
         self.client.force_login(self.student_user)
         url = reverse("university:staff_permissions_dashboard")
         res = self.client.get(url)
-        self.assertEqual(res.status_code, 302)
+        self.assertEqual(res.status_code, 403)
 
 
 class ScopedPermissionTests(TestCase):
