@@ -73,13 +73,16 @@ def admin_student_requests(request):
 
     qs = StudentRequest.objects.select_related("student__user", "reviewed_by")
     # A department-scoped StaffRoleAssignment (e.g. HOD) sees only requests
-    # from students in that department; an institution-wide grant (unscoped
-    # assignment, or ADMIN default) sees everything, unchanged from before.
-    if not has_scoped_permission(request.user, "academics.manage_requests"):
-        qs = qs.filter(student__program__department__in=[
-            d for d in Department.objects.all()
-            if has_scoped_permission(request.user, "academics.manage_requests", department=d)
-        ])
+    # from students in that department. An unscoped/admin grant naturally
+    # passes has_scoped_permission(department=d) for every d (it always
+    # matches its own department=None/school=None row), so this loop needs
+    # no separate "is this user scoped" pre-check -- has_scoped_permission(user,
+    # code) with NO department passed degenerates to the institution-wide
+    # has_user_permission check and can't be used to decide that.
+    qs = qs.filter(student__program__department__in=[
+        d for d in Department.objects.all()
+        if has_scoped_permission(request.user, "academics.manage_requests", department=d)
+    ])
     if query:
         qs = qs.filter(Q(student__roll_no__icontains=query) | Q(student__user__first_name__icontains=query) |
                        Q(student__user__last_name__icontains=query))

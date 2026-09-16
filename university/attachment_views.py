@@ -22,15 +22,16 @@ from university.attachment_services import (
 from university.upload_security import validate_uploaded_file
 from university.models import (
     AcademicTerm, AttachmentAssessment, AttachmentLogbookEntry,
-    AttachmentPlacement
+    AttachmentPlacement, Department
 )
-from university.permissions_services import has_user_permission
+from university.permissions_services import has_scoped_permission, has_user_permission
 
 User = get_user_model()
 
 
-def _is_admin(user):
-    return user.is_authenticated and has_user_permission(user, "academics.manage_attachments")
+def _is_admin(user, department=None):
+    return user.is_authenticated and has_scoped_permission(
+        user, "academics.manage_attachments", department=department)
 
 
 def _is_faculty(user):
@@ -322,8 +323,18 @@ def admin_attachment_dashboard(request):
         raise PermissionDenied("Administrator access required.")
 
     placements = AttachmentPlacement.objects.all().select_related(
-        "student__user", "student__program", "academic_supervisor__user"
+        "student__user", "student__program__department", "academic_supervisor__user"
     )
+
+    # A department-scoped grant only sees placements for students in that
+    # department. An unscoped/admin grant naturally passes
+    # has_scoped_permission(department=d) for every d, so this loop needs no
+    # separate "is this user scoped" pre-check.
+    visible_departments = [
+        d for d in Department.objects.all()
+        if has_scoped_permission(request.user, "academics.manage_attachments", department=d)
+    ]
+    placements = placements.filter(student__program__department__in=visible_departments)
 
     q = request.GET.get("q", "").strip()
     if q:
@@ -363,10 +374,14 @@ def admin_attachment_dashboard(request):
 @login_required
 def admin_attachment_action(request, pk):
     """Admin actions: approve, reject, or assign supervisor."""
-    if request.method != "POST" or not _is_admin(request.user):
+    if request.method != "POST":
         raise PermissionDenied("Admin authorization required.")
 
-    placement = get_object_or_404(AttachmentPlacement, id=pk)
+    placement = get_object_or_404(
+        AttachmentPlacement.objects.select_related("student__program__department"), id=pk)
+    department = placement.student.program.department if placement.student.program_id else None
+    if not _is_admin(request.user, department=department):
+        raise PermissionDenied("Admin authorization required.")
     action = request.POST.get("action", "")
 
     try:

@@ -339,6 +339,19 @@ def admin_unit_registrations(request):
         "student__user", "student__program__department", "term"
     ).prefetch_related("enrollments__course")
 
+    # A department-scoped grant (e.g. HOD) only sees registrations for
+    # students in that department. has_scoped_permission(user, code) with no
+    # department passed degenerates to the institution-wide has_user_permission
+    # check (it ignores StaffRoleAssignment scope entirely), so it can't be
+    # used here to decide *whether* to filter -- an unscoped/admin grant
+    # naturally satisfies has_scoped_permission(department=d) for every d, so
+    # this loop is already a no-op for them without needing a separate check.
+    visible_departments = [
+        d for d in Department.objects.all()
+        if has_scoped_permission(request.user, "academics.unit_registration", department=d)
+    ]
+    registrations_qs = registrations_qs.filter(student__program__department__in=visible_departments)
+
     if query:
         registrations_qs = registrations_qs.filter(
             Q(student__roll_no__icontains=query) |
@@ -427,15 +440,15 @@ def admin_unit_registrations(request):
 @login_required
 def admin_unit_registration_detail(request, pk):
     """Admin view and management of an individual student's unit registration."""
-    if not has_user_permission(request.user, "academics.unit_registration"):
-        raise PermissionDenied("Only administrative staff can manage unit registrations.")
-
     registration = get_object_or_404(
         SemesterRegistration.objects.select_related(
             "student__user", "student__program__department", "term", "approved_by"
         ),
         pk=pk
     )
+    department = registration.student.program.department if registration.student.program_id else None
+    if not has_scoped_permission(request.user, "academics.unit_registration", department=department):
+        raise PermissionDenied("Only administrative staff can manage unit registrations.")
 
     if request.method == "POST":
         action = request.POST.get("action")
@@ -815,15 +828,16 @@ def admin_student_transfers(request):
         raise PermissionDenied
     applications = StudentTransferRequest.objects.select_related("student__user", "from_program", "to_program", "reviewed_by")
     # A department-scoped grant (e.g. HOD) only sees transfers touching their
-    # own department, either as the origin or the destination programme.
-    if not has_scoped_permission(request.user, "academics.manage_transfers"):
-        visible_departments = [
-            d for d in Department.objects.all()
-            if has_scoped_permission(request.user, "academics.manage_transfers", department=d)
-        ]
-        applications = applications.filter(
-            Q(from_program__department__in=visible_departments)
-            | Q(to_program__department__in=visible_departments))
+    # own department, either as the origin or the destination programme. An
+    # unscoped/admin grant naturally passes has_scoped_permission(department=d)
+    # for every d, so this loop needs no separate "is this user scoped" check.
+    visible_departments = [
+        d for d in Department.objects.all()
+        if has_scoped_permission(request.user, "academics.manage_transfers", department=d)
+    ]
+    applications = applications.filter(
+        Q(from_program__department__in=visible_departments)
+        | Q(to_program__department__in=visible_departments))
     return render(request, "academics/admin_student_transfers.html", {"applications": applications})
 
 

@@ -387,7 +387,9 @@ class ScopedTransferAndRequestViewTests(TestCase):
         cls.hod_role = StaffRole.objects.create(name="Dept Reviewer", code="dept_reviewer_scope_test")
         cls.hod_role.permissions.add(
             SystemPermission.objects.get(code="academics.manage_transfers"),
-            SystemPermission.objects.get(code="academics.manage_requests"))
+            SystemPermission.objects.get(code="academics.manage_requests"),
+            SystemPermission.objects.get(code="academics.unit_registration"),
+            SystemPermission.objects.get(code="academics.manage_attachments"))
         cls.hod_a = User.objects.create_user(
             username="hod.a", email="hod.a@example.com", password="pass12345", role=Role.FACULTY)
         StaffRoleAssignment.objects.create(
@@ -406,6 +408,38 @@ class ScopedTransferAndRequestViewTests(TestCase):
         client.force_login(self.hod_a)
         res = client.get(reverse("university:admin_student_request_detail", args=[req.pk]))
         self.assertEqual(res.status_code, 403)
+
+    def test_student_requests_list_only_shows_the_hods_own_department(self):
+        """
+        Regression guard: has_scoped_permission(user, code) called with NO
+        department/school degenerates to the institution-wide
+        has_user_permission check (it can't evaluate scope without a scope
+        to compare against) -- so using it as a bare "if not
+        has_scoped_permission(user, code): filter" pre-check is always False
+        for anyone who holds the permission via ANY assignment, scoped or
+        not, silently skipping the filter entirely. The fix removes that
+        pre-check and always computes the per-department visible list.
+        """
+        from accounts.models import StudentProfile
+        own_student_user = User.objects.create_user(
+            username="own.dept.student3", email="own.dept.student3@example.com", password="pass12345",
+            role=Role.STUDENT)
+        own_student = StudentProfile.objects.create(
+            user=own_student_user, roll_no="STU-SCOPE-4", program=self.program_a, current_semester=1)
+        own_req = self.StudentRequest.objects.create(
+            student=own_student, request_type=self.StudentRequest.Type.DEFERMENT,
+            reason="Medical", status=self.StudentRequest.Status.PENDING)
+        other_req = self.StudentRequest.objects.create(
+            student=self.student, request_type=self.StudentRequest.Type.WITHDRAWAL,
+            reason="Personal", status=self.StudentRequest.Status.PENDING)
+
+        client = Client()
+        client.force_login(self.hod_a)
+        res = client.get(reverse("university:admin_student_requests"))
+        self.assertEqual(res.status_code, 200)
+        body = res.content.decode()
+        self.assertIn(own_student.roll_no, body)
+        self.assertNotIn(other_req.student.roll_no, body)
 
     def test_hod_cannot_decide_a_transfer_touching_only_another_department(self):
         transfer = self.StudentTransferRequest.objects.create(
@@ -431,3 +465,117 @@ class ScopedTransferAndRequestViewTests(TestCase):
         self.assertEqual(res.status_code, 302)
         transfer.refresh_from_db()
         self.assertEqual(transfer.status, self.StudentTransferRequest.Status.APPROVED)
+
+    def test_hod_cannot_view_a_unit_registration_from_a_different_department(self):
+        from university.models import AcademicTerm, SemesterRegistration
+        term = AcademicTerm.objects.create(
+            name="Scope Term", start_date="2026-01-01", end_date="2026-04-30")
+        reg = SemesterRegistration.objects.create(
+            student=self.student, term=term, status=SemesterRegistration.SUBMITTED)
+        client = Client()
+        client.force_login(self.hod_a)
+        res = client.get(reverse("university:admin_unit_registration_detail", args=[reg.pk]))
+        self.assertEqual(res.status_code, 403)
+
+    def test_hod_can_view_a_unit_registration_in_their_own_department(self):
+        from university.models import AcademicTerm, SemesterRegistration
+        from accounts.models import StudentProfile
+        term = AcademicTerm.objects.create(
+            name="Scope Term 2", start_date="2026-01-01", end_date="2026-04-30")
+        own_student_user = User.objects.create_user(
+            username="own.dept.student", email="own.dept.student@example.com", password="pass12345",
+            role=Role.STUDENT)
+        own_student = StudentProfile.objects.create(
+            user=own_student_user, roll_no="STU-SCOPE-2", program=self.program_a, current_semester=1)
+        reg = SemesterRegistration.objects.create(
+            student=own_student, term=term, status=SemesterRegistration.SUBMITTED)
+        client = Client()
+        client.force_login(self.hod_a)
+        res = client.get(reverse("university:admin_unit_registration_detail", args=[reg.pk]))
+        self.assertEqual(res.status_code, 200)
+
+    def test_unit_registration_list_only_shows_the_hods_own_department(self):
+        from university.models import AcademicTerm, SemesterRegistration
+        from accounts.models import StudentProfile
+        term = AcademicTerm.objects.create(
+            name="Scope Term 3", start_date="2026-01-01", end_date="2026-04-30")
+        own_student_user = User.objects.create_user(
+            username="own.dept.student2", email="own.dept.student2@example.com", password="pass12345",
+            role=Role.STUDENT)
+        own_student = StudentProfile.objects.create(
+            user=own_student_user, roll_no="STU-SCOPE-3", program=self.program_a, current_semester=1)
+        own_reg = SemesterRegistration.objects.create(
+            student=own_student, term=term, status=SemesterRegistration.SUBMITTED)
+        other_reg = SemesterRegistration.objects.create(
+            student=self.student, term=term, status=SemesterRegistration.SUBMITTED)
+
+        client = Client()
+        client.force_login(self.hod_a)
+        res = client.get(reverse("university:admin_unit_registrations"))
+        self.assertEqual(res.status_code, 200)
+        body = res.content.decode()
+        self.assertIn(own_student.roll_no, body)
+        self.assertNotIn(other_reg.student.roll_no, body)
+
+    def test_student_transfers_list_only_shows_transfers_touching_the_hods_own_department(self):
+        from accounts.models import StudentProfile
+        own_student_user = User.objects.create_user(
+            username="own.dept.student4", email="own.dept.student4@example.com", password="pass12345",
+            role=Role.STUDENT)
+        own_student = StudentProfile.objects.create(
+            user=own_student_user, roll_no="STU-SCOPE-5", program=self.program_a, current_semester=1)
+        own_transfer = self.StudentTransferRequest.objects.create(
+            student=own_student, from_program=self.program_a, to_program=self.program_a,
+            reason="Test reason with enough length")
+        other_transfer = self.StudentTransferRequest.objects.create(
+            student=self.student, from_program=self.program_b, to_program=self.program_b,
+            reason="Test reason with enough length")
+
+        client = Client()
+        client.force_login(self.hod_a)
+        res = client.get(reverse("university:admin_student_transfers"))
+        self.assertEqual(res.status_code, 200)
+        body = res.content.decode()
+        self.assertIn(own_student.roll_no, body)
+        self.assertNotIn(other_transfer.student.roll_no, body)
+
+    def test_hod_cannot_act_on_an_attachment_placement_from_a_different_department(self):
+        from university.models import AttachmentPlacement
+        placement = AttachmentPlacement.objects.create(
+            student=self.student, company_name="Other Dept Co",
+            company_supervisor_name="Jane Supervisor", company_supervisor_phone="+254700000000",
+            start_date="2026-06-01", end_date="2026-08-31",
+            status=AttachmentPlacement.Status.SUBMITTED)
+        client = Client()
+        client.force_login(self.hod_a)
+        res = client.post(
+            reverse("university:admin_attachment_action", args=[placement.pk]),
+            {"action": "approve"})
+        self.assertEqual(res.status_code, 403)
+
+    def test_attachment_dashboard_list_only_shows_the_hods_own_department(self):
+        from university.models import AttachmentPlacement
+        from accounts.models import StudentProfile
+        own_student_user = User.objects.create_user(
+            username="own.dept.student5", email="own.dept.student5@example.com", password="pass12345",
+            role=Role.STUDENT)
+        own_student = StudentProfile.objects.create(
+            user=own_student_user, roll_no="STU-SCOPE-6", program=self.program_a, current_semester=1)
+        AttachmentPlacement.objects.create(
+            student=own_student, company_name="Own Dept Co",
+            company_supervisor_name="Jane Supervisor", company_supervisor_phone="+254700000000",
+            start_date="2026-06-01", end_date="2026-08-31",
+            status=AttachmentPlacement.Status.SUBMITTED)
+        other_placement = AttachmentPlacement.objects.create(
+            student=self.student, company_name="Other Dept Co",
+            company_supervisor_name="Jane Supervisor", company_supervisor_phone="+254700000000",
+            start_date="2026-06-01", end_date="2026-08-31",
+            status=AttachmentPlacement.Status.SUBMITTED)
+
+        client = Client()
+        client.force_login(self.hod_a)
+        res = client.get(reverse("university:admin_attachment_dashboard"))
+        self.assertEqual(res.status_code, 200)
+        body = res.content.decode()
+        self.assertIn(own_student.roll_no, body)
+        self.assertNotIn(other_placement.student.roll_no, body)
