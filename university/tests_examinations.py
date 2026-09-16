@@ -45,6 +45,12 @@ class ExaminationTestBase(TestCase):
             cls.students.append(profile)
 
     def make_exam(self, kind, name, weight, day_offset=0, **extra):
+        # An external examiner is now required before publication (see
+        # external_examiner_workflow in settings_services.py, enforced in
+        # examination_services.py's 'publish' transition) -- give every exam
+        # one by default so these fixtures reflect the shipped default
+        # policy, unless a specific test wants to exercise the gate itself.
+        extra.setdefault("external_examiner_name", "Prof. External Examiner")
         exam = Exam.objects.create(
             course=self.course, term=self.term, name=name, kind=kind, weight=weight,
             date=self.today + timedelta(days=day_offset), start_time=time(9, 0),
@@ -698,3 +704,67 @@ class MarksReadOnlyViewingTests(ExaminationTestBase):
         self.client.force_login(self.other_faculty.user)
         response = self.client.get(reverse('examinations:marks', args=[exam.pk]))
         self.assertEqual(response.status_code, 404)
+
+
+class ExaminerWorkflowSettingsTests(ExaminationTestBase):
+    """
+    external_examiner_workflow / internal_examiner_workflow were Setups
+    settings that were never actually read anywhere -- an exam could be
+    published or submitted for internal review with no examiner assigned
+    regardless of the toggle. They're now enforced as gates on the
+    'publish' / 'submit_internal' transitions.
+    """
+    def _exam_ready_to_publish(self, **extra):
+        exam = self.make_exam(Exam.Kind.FINAL, "Final", 100, **extra)
+        self.drive_to_marking(exam)
+        self.enter_marks(exam, [80, 50, 30])
+        workflow.transition(self.lecturer, exam.pk, "submit")
+        exam.refresh_from_db()
+        workflow.transition(self.admin, exam.pk, "hod_approve")
+        exam.refresh_from_db()
+        return exam
+
+    def test_publish_is_blocked_without_an_external_examiner_when_policy_requires_one(self):
+        from university.settings_services import seed_default_settings, set_setting
+        seed_default_settings()
+        set_setting("external_examiner_workflow", True)
+
+        exam = self._exam_ready_to_publish(external_examiner_name="")
+        with self.assertRaises(ValidationError):
+            workflow.transition(self.admin, exam.pk, "publish")
+
+    def test_publish_succeeds_without_an_external_examiner_when_policy_does_not_require_one(self):
+        from university.settings_services import seed_default_settings, set_setting
+        seed_default_settings()
+        set_setting("external_examiner_workflow", False)
+
+        exam = self._exam_ready_to_publish(external_examiner_name="")
+        workflow.transition(self.admin, exam.pk, "publish")
+        exam.refresh_from_db()
+        self.assertEqual(exam.status, Exam.Status.PUBLISHED)
+
+    def test_submit_internal_is_blocked_without_an_internal_examiner_when_policy_requires_one(self):
+        from university.settings_services import seed_default_settings, set_setting
+        seed_default_settings()
+        set_setting("internal_examiner_workflow", True)
+
+        exam = self.make_exam(Exam.Kind.FINAL, "Final", 100)
+        self.drive_to_marking(exam)
+        # check_schedule() auto-assigns internal_examiner from course.faculty
+        # during the 'schedule' transition inside drive_to_marking() above --
+        # clear it back out to actually exercise "no examiner assigned".
+        exam.internal_examiner = None
+        exam.save(update_fields=["internal_examiner"])
+        self.enter_marks(exam, [80, 50, 30])
+        with self.assertRaises(ValidationError):
+            workflow.transition(self.lecturer, exam.pk, "submit_internal")
+
+    def test_exam_max_marks_default_to_the_configured_weight_split(self):
+        from university.settings_services import seed_default_settings, set_setting
+        seed_default_settings()
+        set_setting("cat_weight_percent", 40)
+        set_setting("exam_weight_percent", 60)
+
+        exam = self.make_exam(Exam.Kind.FINAL, "Weighted", 100)
+        self.assertEqual(exam.cat_max_marks, 40)
+        self.assertEqual(exam.exam_max_marks, 60)

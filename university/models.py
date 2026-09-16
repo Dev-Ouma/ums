@@ -634,6 +634,20 @@ class ClassSchedule(models.Model):
                f"{self.start_time.strftime('%H:%M')}–{self.end_time.strftime('%H:%M')}")
 
 
+def _default_cat_max_marks():
+    # Deferred import: settings_services imports this module, so importing
+    # it back at module load time would be circular. Safe here since this
+    # callable only runs at Exam instantiation, long after both modules
+    # have finished loading.
+    from university.settings_services import get_setting
+    return Decimal(str(get_setting("cat_weight_percent", 30) or 30))
+
+
+def _default_exam_max_marks():
+    from university.settings_services import get_setting
+    return Decimal(str(get_setting("exam_weight_percent", 70) or 70))
+
+
 class Exam(models.Model):
     class Status(models.TextChoices):
         DRAFT = "DRAFT", "Draft"
@@ -693,9 +707,9 @@ class Exam(models.Model):
     date = models.DateField(default=timezone.now)
     max_marks = models.PositiveSmallIntegerField(default=100, validators=[MinValueValidator(1), MaxValueValidator(999)])
 
-    cat_max_marks = models.DecimalField(max_digits=5, decimal_places=2, default=30,
+    cat_max_marks = models.DecimalField(max_digits=5, decimal_places=2, default=_default_cat_max_marks,
                                       validators=[MinValueValidator(0), MaxValueValidator(999)])
-    exam_max_marks = models.DecimalField(max_digits=5, decimal_places=2, default=70,
+    exam_max_marks = models.DecimalField(max_digits=5, decimal_places=2, default=_default_exam_max_marks,
                                        validators=[MinValueValidator(0), MaxValueValidator(999)])
     internal_examiner = models.ForeignKey("accounts.FacultyProfile", null=True, blank=True,
                                         on_delete=models.SET_NULL, related_name="internal_examined_exams")

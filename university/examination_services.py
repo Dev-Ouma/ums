@@ -6,6 +6,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from .settings_services import get_setting
 from .models import (
     Course, Enrollment, Exam, ExamAppeal, ExamAudit, Result, grade_point_for,
     MarksVersion, MarksWorkflowEvent
@@ -559,6 +560,19 @@ def transition(user, exam_id, action, reason='', revision=None,
 
     elif action == 'publish' and before in (Exam.Status.HOD_APPROVED, Exam.Status.DEAN_REVIEW, Exam.Status.APPROVED):
         check_complete(exam)
+        # "Require External Examiner Approval" was a Setups toggle that was
+        # never actually read anywhere -- an exam could be published with no
+        # external examiner on record regardless of the setting. Enforced
+        # here as a publish-time gate rather than restructuring the review
+        # state machine itself, since the state machine is already correct
+        # (external review already only runs when an examiner IS assigned)
+        # and this is the highest-stakes workflow in the system to touch.
+        if bool(get_setting('external_examiner_workflow', True)) and not (
+            exam.external_examiner_id or exam.external_examiner_name
+        ):
+            raise ValidationError(
+                'An external examiner must be assigned before results can be published '
+                '(External Examiner Approval is required by system policy).')
         exam.dean_published_by = user
         exam.published_at = timezone.now()
         snapshot_marks(exam, user, notes=f'Official publication of version {exam.current_version}')
@@ -620,6 +634,13 @@ def transition(user, exam_id, action, reason='', revision=None,
 
     elif action == 'submit_internal' and before == Exam.Status.MARKING:
         check_complete(exam)
+        # "Require Internal Examiner Review" -- same reasoning as the
+        # external-examiner gate below: enforced as a submission-time check
+        # rather than removing the INTERNAL_REVIEW state itself.
+        if bool(get_setting('internal_examiner_workflow', True)) and not exam.internal_examiner_id:
+            raise ValidationError(
+                'An internal examiner must be assigned before marks can be submitted for review '
+                '(Internal Examiner Review is required by system policy).')
         exam.status = Exam.Status.INTERNAL_REVIEW
     elif action == 'review_internal' and before == Exam.Status.INTERNAL_REVIEW:
         check_complete(exam)

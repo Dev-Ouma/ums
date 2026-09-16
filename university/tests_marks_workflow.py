@@ -66,7 +66,11 @@ class MarksWorkflowTests(TestCase):
             kind=Exam.Kind.FINAL, weight=100, date=self.today,
             start_time=time(9, 0), end_time=time(12, 0),
             room=self.room, invigilator=self.course.faculty,
-            max_marks=100, pass_mark=40
+            max_marks=100, pass_mark=40,
+            # external_examiner_workflow (settings_services.py) is now
+            # enforced before publication -- see examination_services.py's
+            # 'publish' transition.
+            external_examiner_name="Prof. External Examiner",
         )
         workflow.transition(self.admin, exam.pk, "schedule")
         workflow.transition(self.admin, exam.pk, "start")
