@@ -247,12 +247,12 @@ _CSP_DIRECTIVES = [
     "form-action 'self'",
     "frame-ancestors 'none'",
     "object-src 'none'",
-    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com",
-    "font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.gstatic.com data:",
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com",
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://unpkg.com",
+    "font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.gstatic.com https://unpkg.com data:",
     "img-src 'self' data: https:",
     "frame-src 'self' https://maps.google.com https://www.openstreetmap.org",
-    "connect-src 'self'",
+    "connect-src 'self' https://*.tile.openstreetmap.org",
 ]
 if not DEBUG:
     _CSP_DIRECTIVES.append("upgrade-insecure-requests")

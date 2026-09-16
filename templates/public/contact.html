@@ -32,32 +32,85 @@
       </div>
     </div>
   </div>
-  <!-- Map Section -->
+  <!-- Map Section - Leaflet.js -->
   <div class="row mt-5">
     <div class="col-12">
+      <!-- Leaflet CSS & JS -->
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
       <div class="card card-ums p-4" style="font-family: 'Quicksand', sans-serif; background-color: #ffffff; border-top: 4px solid #0d6efd;">
         <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
           <div>
-            <h4 class="fw-bold mb-1" style="color: #0d6efd;">Visit STACKGee Technologies</h4>
+            <h4 class="fw-bold mb-1" style="color: #0d6efd;"><i class="fa-solid fa-location-dot me-2" style="color:#e74c3c"></i>Visit STACKGee Technologies</h4>
             <p class="text-muted mb-0">Find us at Imara Daima Mall, Nairobi, Kenya.</p>
           </div>
-          <a href="https://www.google.com/maps/dir/?api=1&destination=-1.3279,36.88139" target="_blank" class="btn text-white px-4 py-2 shadow-sm" style="background-color: #198754; border-radius: 50rem;">
-            <i class="fa-solid fa-directions me-2"></i>Get Directions
+          <a href="https://www.google.com/maps/dir/?api=1&destination=-1.3279,36.88139&destination_place_id=Imara+Daima+Mall" target="_blank" rel="noopener" class="btn text-white px-4 py-2 shadow-sm" style="background-color: #198754; border-radius: 50rem;">
+            <i class="fa-solid fa-route me-2"></i>Get Directions
           </a>
         </div>
-        <div class="map-container" style="position: relative; padding-bottom: 45%; height: 0; overflow: hidden; border-radius: 0.75rem; box-shadow: inset 0 0 10px rgba(0,0,0,0.1); background-color: #f8f9fa;">
-          <iframe 
-            src="https://www.openstreetmap.org/export/embed.html?bbox=36.87139,-1.3379,36.89139,-1.3179&layer=mapnik&marker=-1.3279,36.88139" 
-            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" 
-            allowfullscreen="" 
-            loading="lazy" 
-            title="STACKGee Technologies Location Map">
-            <p class="p-3 text-center">Sorry, the map could not be loaded. Please click 'Get Directions' to view our location on Google Maps.</p>
-          </iframe>
+        <!-- Map container -->
+        <div id="stackgee-map" style="height: 420px; border-radius: 0.75rem; overflow: hidden; border: 1px solid #dee2e6;" 
+             aria-label="Interactive map showing STACKGee Technologies at Imara Daima Mall, Nairobi, Kenya"
+             role="region">
+          <noscript>
+            <div class="p-4 text-center text-muted">
+              <i class="fa-solid fa-map-location-dot fa-3x mb-3 d-block" style="color:#0d6efd"></i>
+              JavaScript is required to load this map. <a href="https://www.google.com/maps?q=-1.3279,36.88139" target="_blank">View on Google Maps</a>.
+            </div>
+          </noscript>
         </div>
+        <!-- Leaflet init script -->
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script>
+          (function() {
+            var LAT = -1.3279, LNG = 36.88139;
+
+            var map = L.map('stackgee-map', { zoomControl: true, scrollWheelZoom: false }).setView([LAT, LNG], 16);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+              maxZoom: 19
+            }).addTo(map);
+
+            /* Big custom pin using DivIcon */
+            var bigPin = L.divIcon({
+              className: '',
+              html: '<div style="display:flex;flex-direction:column;align-items:center;transform:translateX(-50%)">' +
+                      '<div style="background:#0d6efd;color:#fff;font-family:Quicksand,sans-serif;font-weight:700;' +
+                           'font-size:13px;padding:6px 12px;border-radius:8px;white-space:nowrap;' +
+                           'box-shadow:0 4px 15px rgba(13,110,253,0.45);margin-bottom:4px;">' +
+                        '<i class="fa-solid fa-building" style="margin-right:5px"></i>STACKGee Technologies' +
+                      '</div>' +
+                      '<svg xmlns="http://www.w3.org/2000/svg" width="42" height="60" viewBox="0 0 24 34">' +
+                        '<path d="M12 0C7.03 0 3 4.03 3 9c0 6.75 9 17 9 17s9-10.25 9-17c0-4.97-4.03-9-9-9z" fill="#e74c3c"/>' +
+                        '<circle cx="12" cy="9" r="4" fill="#fff"/>' +
+                      '</svg>' +
+                    '</div>',
+              iconAnchor: [0, 64],
+              popupAnchor: [0, -68]
+            });
+
+            var marker = L.marker([LAT, LNG], { icon: bigPin }).addTo(map);
+            marker.bindPopup(
+              '<div style="font-family:Quicksand,sans-serif;min-width:200px;text-align:center;padding:4px">' +
+                '<strong style="color:#0d6efd;font-size:15px">STACKGee Technologies</strong><br>' +
+                '<span style="color:#555;font-size:13px">Imara Daima Mall, Nairobi, Kenya</span><br>' +
+                '<a href="https://www.google.com/maps/dir/?api=1&destination=-1.3279,36.88139" target="_blank" ' +
+                   'style="display:inline-block;margin-top:8px;background:#198754;color:#fff;padding:5px 14px;' +
+                          'border-radius:50rem;font-size:12px;text-decoration:none;">' +
+                  '&#x1F9ED; Get Directions' +
+                '</a>' +
+              '</div>',
+              { maxWidth: 260 }
+            ).openPopup();
+
+            /* Re-enable scroll zoom on click */
+            map.once('click', function() { map.scrollWheelZoom.enable(); });
+          })();
+        </script>
       </div>
     </div>
   </div>
 </div>
 {% endblock %}
+
