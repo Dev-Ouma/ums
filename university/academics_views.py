@@ -196,7 +196,12 @@ def student_register_units(request):
 
         if action == "add_unit":
             course_id = request.POST.get("course_id")
-            course = get_object_or_404(Course, pk=course_id)
+            allowed_courses = Course.objects.filter(status=Course.STATUS_ACTIVE)
+            if sp.program_id:
+                allowed_courses = allowed_courses.filter(
+                    Q(program=sp.program) | Q(department=sp.program.department)
+                )
+            course = get_object_or_404(allowed_courses, pk=course_id)
 
             # Check duplicate
             if Enrollment.objects.filter(student=sp, course=course).exclude(status=Enrollment.DROPPED).exists():
@@ -320,7 +325,7 @@ def admin_unit_registrations(request):
     """Admin Unit Registration Management submodule.
     Monitor, filter, search, and approve student unit registrations by semester/program.
     """
-    if not (is_admin(request.user) or request.user.is_superuser):
+    if not has_user_permission(request.user, "academics.unit_registration"):
         raise PermissionDenied("Only administrative staff can manage unit registrations.")
 
     query = request.GET.get("q", "").strip()
@@ -388,7 +393,7 @@ def admin_unit_registrations(request):
 
     try:
         page_size = int(request.GET.get("page_size", 25))
-    except ValueError:
+    except (TypeError, ValueError):
         page_size = 25
     page_size = page_size if page_size in (25, 50, 100) else 25
 
@@ -422,7 +427,7 @@ def admin_unit_registrations(request):
 @login_required
 def admin_unit_registration_detail(request, pk):
     """Admin view and management of an individual student's unit registration."""
-    if not (is_admin(request.user) or request.user.is_superuser):
+    if not has_user_permission(request.user, "academics.unit_registration"):
         raise PermissionDenied("Only administrative staff can manage unit registrations.")
 
     registration = get_object_or_404(
@@ -571,7 +576,7 @@ def admin_academic_transcripts(request):
 @login_required
 def admin_academics_dashboard(request):
     """Admin Academics overview hub redirecting to registrations."""
-    if not (is_admin(request.user) or request.user.is_superuser):
+    if not has_user_permission(request.user, "academics.unit_registration"):
         raise PermissionDenied
     return redirect("university:admin_unit_registrations")
 
@@ -612,7 +617,12 @@ def student_exam_card(request):
     # Attach exam dates if scheduled
     courses_with_exams = []
     for c in courses:
-        ex = Exam.objects.filter(course=c).first()
+        exam_qs = Exam.objects.filter(course=c).exclude(
+            status__in=[Exam.Status.DRAFT, Exam.Status.CANCELLED]
+        ).order_by("date", "start_time", "pk")
+        if active_term:
+            exam_qs = exam_qs.filter(term=active_term)
+        ex = exam_qs.first()
         courses_with_exams.append({"course": c, "exam": ex})
 
     return render(request, "academics/exam_card.html", {
@@ -744,6 +754,21 @@ def student_supplementary_apply(request, course_id):
         messages.error(request, window_message)
         return redirect("university:student_supplementary")
 
+    eligible_result = Result.objects.filter(
+        student=sp,
+        exam__course=course,
+        exam__status=Exam.Status.PUBLISHED,
+    ).select_related("exam").first()
+    is_failed = bool(eligible_result and eligible_result.outcome == "Fail")
+    is_absent_special = bool(
+        eligible_result
+        and exam_type == SupplementaryExamRegistration.ExamType.SPECIAL
+        and eligible_result.attendance == "ABSENT"
+    )
+    if not (is_failed or is_absent_special):
+        messages.error(request, f"{course.code} is not eligible because no published failing or absent result was found.")
+        return redirect("university:student_supplementary")
+
     reg, created = SupplementaryExamRegistration.objects.get_or_create(
         student=sp,
         course=course,
@@ -786,7 +811,7 @@ def student_transfer(request):
 
 @login_required
 def admin_student_transfers(request):
-    if not (is_admin(request.user) or request.user.is_superuser):
+    if not has_user_permission(request.user, "academics.manage_transfers"):
         raise PermissionDenied
     applications = StudentTransferRequest.objects.select_related("student__user", "from_program", "to_program", "reviewed_by")
     return render(request, "academics/admin_student_transfers.html", {"applications": applications})
@@ -795,7 +820,7 @@ def admin_student_transfers(request):
 @login_required
 @require_POST
 def admin_student_transfer_decision(request, pk):
-    if not (is_admin(request.user) or request.user.is_superuser):
+    if not has_user_permission(request.user, "academics.manage_transfers"):
         raise PermissionDenied
     application = get_object_or_404(StudentTransferRequest, pk=pk, status=StudentTransferRequest.Status.PENDING)
     decision = request.POST.get("decision")
@@ -833,7 +858,7 @@ def admin_student_transfer_decision(request, pk):
 @login_required
 def admin_supplementary_list(request):
     """Admin: Overview of all Supplementary and Special Exam applications."""
-    if not (is_admin(request.user) or request.user.is_superuser):
+    if not has_user_permission(request.user, "exams.create_exam"):
         raise PermissionDenied
 
     qs = SupplementaryExamRegistration.objects.select_related("student__user", "course", "term", "fee_invoice").order_by("-created_at")
@@ -877,10 +902,14 @@ def admin_supplementary_list(request):
 @require_POST
 def admin_supplementary_decision(request, pk):
     """Admin: Approve or reject supplementary exam registration and auto-bill fee."""
-    if not (is_admin(request.user) or request.user.is_superuser):
+    if not has_user_permission(request.user, "exams.create_exam"):
         raise PermissionDenied
 
-    reg = get_object_or_404(SupplementaryExamRegistration, pk=pk)
+    reg = get_object_or_404(
+        SupplementaryExamRegistration,
+        pk=pk,
+        status=SupplementaryExamRegistration.Status.PENDING,
+    )
     action = request.POST.get("action")
 
     if action == "approve":
@@ -962,9 +991,9 @@ def admin_progressive_reports(request):
             Q(user__last_name__icontains=query) |
             Q(user__email__icontains=query)
         )
-    if dept_id and str(dept_id).lower() not in ("all", "", "none"):
+    if str(dept_id).isdigit():
         students = students.filter(program__department_id=dept_id)
-    if prog_id and str(prog_id).lower() not in ("all", "", "none"):
+    if str(prog_id).isdigit():
         students = students.filter(program_id=prog_id)
 
     departments = Department.objects.all().order_by("name")

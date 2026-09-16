@@ -230,16 +230,38 @@ def unpublish_academic_year(year_id, user=None, request=None):
     return ay
 
 
+@transaction.atomic
 def close_academic_year(year_id, user=None, request=None):
-    """Mark Academic Year as CLOSED."""
-    ay = AcademicYear.objects.get(pk=year_id)
+    """
+    Mark Academic Year as CLOSED, along with any still-open child semesters.
+
+    This always proceeds immediately (no separate approval step) — it is
+    fully reversible via reopen_academic_year(), which restores PUBLISHED
+    status. If open registrations or in-flight (unpublished) exams exist
+    under this year, closing still happens, but a non-blocking warning is
+    returned for the caller to surface, since this action does not gate on
+    that state — it just needs to be visible and undoable.
+    """
+    ay = AcademicYear.objects.select_for_update().get(pk=year_id)
+
+    from .models import SemesterRegistration, Exam
+    open_terms = list(ay.semesters.filter(
+        status__in=[AcademicYear.Status.CURRENT, AcademicYear.Status.PUBLISHED]
+    ).values_list("id", flat=True))
+    open_registration_count = SemesterRegistration.objects.filter(
+        term_id__in=open_terms, status__in=[SemesterRegistration.DRAFT, SemesterRegistration.REGISTERED]
+    ).count() if open_terms else 0
+    in_progress_exam_count = Exam.objects.filter(term_id__in=open_terms).exclude(
+        status__in=[Exam.Status.DRAFT, Exam.Status.CANCELLED, Exam.Status.PUBLISHED]
+    ).count() if open_terms else 0
+
     ay.status = AcademicYear.Status.CLOSED
     ay.is_current = False
     ay.closed_at = timezone.now()
     ay.save()
 
     # Also close child semesters
-    ay.semesters.filter(status__in=[AcademicYear.Status.CURRENT, AcademicYear.Status.PUBLISHED]).update(
+    ay.semesters.filter(id__in=open_terms).update(
         status=AcademicYear.Status.CLOSED, is_current=False, closed_at=timezone.now()
     )
 
@@ -253,7 +275,19 @@ def close_academic_year(year_id, user=None, request=None):
         description=f"Closed Academic Year '{ay.name}'.",
         new_state={"status": ay.status, "closed_at": str(ay.closed_at)},
     )
-    return ay
+
+    warning = None
+    parts = []
+    if open_registration_count:
+        parts.append(f"{open_registration_count} in-progress semester registration(s)")
+    if in_progress_exam_count:
+        parts.append(f"{in_progress_exam_count} unpublished exam(s)")
+    if parts:
+        warning = (
+            f"Closed with {' and '.join(parts)} still in progress under this year. "
+            f"Use Reopen if this needs to be undone."
+        )
+    return ay, warning
 
 
 def reopen_academic_year(year_id, user=None, request=None):
@@ -324,9 +358,24 @@ def unpublish_semester(semester_id, user=None, request=None):
     return sem
 
 
+@transaction.atomic
 def close_semester(semester_id, user=None, request=None):
-    """Close a Semester."""
-    sem = AcademicTerm.objects.get(pk=semester_id)
+    """
+    Close a Semester. Always proceeds immediately (no separate approval
+    step) and is fully reversible via reopen_semester(). If open
+    registrations or in-flight exams exist, closing still happens, but a
+    non-blocking warning is returned for the caller to surface.
+    """
+    sem = AcademicTerm.objects.select_for_update().get(pk=semester_id)
+
+    from .models import SemesterRegistration, Exam
+    open_registration_count = SemesterRegistration.objects.filter(
+        term=sem, status__in=[SemesterRegistration.DRAFT, SemesterRegistration.REGISTERED]
+    ).count()
+    in_progress_exam_count = Exam.objects.filter(term=sem).exclude(
+        status__in=[Exam.Status.DRAFT, Exam.Status.CANCELLED, Exam.Status.PUBLISHED]
+    ).count()
+
     sem.status = AcademicYear.Status.CLOSED
     sem.is_current = False
     sem.closed_at = timezone.now()
@@ -342,7 +391,19 @@ def close_semester(semester_id, user=None, request=None):
         description=f"Closed Semester '{sem.name}'.",
         new_state={"status": sem.status, "closed_at": str(sem.closed_at)},
     )
-    return sem
+
+    warning = None
+    parts = []
+    if open_registration_count:
+        parts.append(f"{open_registration_count} in-progress semester registration(s)")
+    if in_progress_exam_count:
+        parts.append(f"{in_progress_exam_count} unpublished exam(s)")
+    if parts:
+        warning = (
+            f"Closed with {' and '.join(parts)} still in progress under this semester. "
+            f"Use Reopen if this needs to be undone."
+        )
+    return sem, warning
 
 
 def reopen_semester(semester_id, user=None, request=None):

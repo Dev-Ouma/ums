@@ -231,8 +231,8 @@ def academic_year_action(request, pk, action):
             unpublish_academic_year(ay.pk, user=request.user, request=request)
             messages.info(request, f"Academic Year '{ay.name}' reverted to DRAFT.")
         elif action == "close":
-            close_academic_year(ay.pk, user=request.user, request=request)
-            messages.warning(request, f"Academic Year '{ay.name}' has been CLOSED.")
+            _, warning = close_academic_year(ay.pk, user=request.user, request=request)
+            messages.warning(request, warning or f"Academic Year '{ay.name}' has been CLOSED.")
         elif action == "reopen":
             reopen_academic_year(ay.pk, user=request.user, request=request)
             messages.success(request, f"Academic Year '{ay.name}' has been REOPENED.")
@@ -471,8 +471,8 @@ def semester_action(request, pk, action):
             unpublish_semester(sem.pk, user=request.user, request=request)
             messages.info(request, f"Semester '{sem.name}' reverted to DRAFT.")
         elif action == "close":
-            close_semester(sem.pk, user=request.user, request=request)
-            messages.warning(request, f"Semester '{sem.name}' has been CLOSED.")
+            _, warning = close_semester(sem.pk, user=request.user, request=request)
+            messages.warning(request, warning or f"Semester '{sem.name}' has been CLOSED.")
         elif action == "reopen":
             reopen_semester(sem.pk, user=request.user, request=request)
             messages.success(request, f"Semester '{sem.name}' has been REOPENED.")

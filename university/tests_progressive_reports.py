@@ -50,6 +50,11 @@ class StudentProgressiveReportTests(TestCase):
         url = reverse("university:admin_progressive_reports")
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
+
+    def test_directory_ignores_malformed_filter_ids(self):
+        self.client.force_login(self.admin_user)
+        response = self.client.get(reverse("university:admin_progressive_reports") + "?dept=None&program=invalid")
+        self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Student Progressive Reports")
         self.assertContains(response, "CS/001/2024")
 

@@ -514,6 +514,21 @@ def set_account_status(user, new_status, actor=None, request=None, reason="", no
     if not force and new_status not in allowed:
         return False, (f"Cannot move an account from {old_status} to {new_status}."), account
 
+    # Hard safety invariant, not a workflow rule — never bypassable via
+    # `force`: never let the institution's last active superuser be
+    # deactivated/suspended/locked/archived, whether by themselves, by
+    # another superuser, or via a bulk action. That would lock everyone
+    # out of system-admin with no account left able to reverse it.
+    if user.is_superuser and new_status != AccountStatus.ACTIVE:
+        other_active_superusers_exist = User.objects.filter(
+            is_superuser=True, is_active=True
+        ).exclude(pk=user.pk).exists()
+        if not other_active_superusers_exist:
+            return False, (
+                "Cannot change status: this is the last remaining active superuser "
+                "account. Activate or promote another superuser first."
+            ), account
+
     account.status = new_status
     account.status_reason = reason
     account.status_changed_at = timezone.now()
@@ -686,9 +701,13 @@ def assign_group(user, group, actor=None, request=None):
         )
         # Group roles resolve down to the same RBAC assignments the permission
         # engine already evaluates, so no parallel permission path is created.
+        # update_or_create (not get_or_create): if this (user, role, scope)
+        # assignment already exists but was previously revoked
+        # (is_active=False), it must be reactivated here, not silently left
+        # inactive while this call still reports the group-add as successful.
         for role in group.roles.all():
-            StaffRoleAssignment.objects.get_or_create(
-                user=user, role=role, department=None,
+            StaffRoleAssignment.objects.update_or_create(
+                user=user, role=role, department=None, school=None,
                 defaults={"assigned_by": actor, "is_active": True})
         invalidate_user_sessions(user)
     return membership, created

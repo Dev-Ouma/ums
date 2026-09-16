@@ -136,6 +136,39 @@ class AcademicCalendarTests(TestCase):
         self.ay_2026.refresh_from_db()
         self.assertEqual(self.ay_2026.status, AcademicYear.Status.PUBLISHED)
 
+    def test_close_semester_proceeds_with_open_registrations_but_warns_and_is_reversible(self):
+        """
+        Closing must be 'auto-approved' — it never blocks on open registrations
+        or in-flight exams — but it must be visible (a warning is returned)
+        and reversible (reopen_semester restores PUBLISHED).
+        """
+        student_user = User.objects.create_user(
+            username="close.sem.student", email="close.sem.student@ums.ac.ke",
+            password="password123", role=Role.STUDENT,
+        )
+        student = StudentProfile.objects.create(user=student_user, roll_no="CS/900/2026", program=self.program)
+        SemesterRegistration.objects.create(
+            student=student, term=self.sem1, semester_no=1, status=SemesterRegistration.REGISTERED,
+        )
+
+        sem, warning = close_semester(self.sem1.pk, user=self.admin_user)
+        self.sem1.refresh_from_db()
+
+        # Auto-approved: the close proceeded despite the open registration.
+        self.assertEqual(self.sem1.status, AcademicYear.Status.CLOSED)
+        self.assertFalse(self.sem1.is_current)
+        self.assertIsNotNone(warning)
+        self.assertIn("in-progress semester registration", warning)
+
+        # Rollback: reopen restores it.
+        reopen_semester(self.sem1.pk, user=self.admin_user)
+        self.sem1.refresh_from_db()
+        self.assertEqual(self.sem1.status, AcademicYear.Status.PUBLISHED)
+
+    def test_close_academic_year_with_no_open_activity_returns_no_warning(self):
+        _, warning = close_academic_year(self.ay_2026.pk, user=self.admin_user)
+        self.assertIsNone(warning)
+
     def test_academic_year_date_validation(self):
         """Test date validation: start_date must be strictly before end_date."""
         invalid_ay = AcademicYear(

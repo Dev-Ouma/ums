@@ -14,6 +14,7 @@ from .examination_services import is_admin
 from .forms import StudentRequestForm
 from .models import StudentRequest
 from .student_requests_services import decide_request, mark_under_review, resume_studies, submit_request
+from .permissions_services import has_user_permission
 
 
 @login_required
@@ -64,7 +65,7 @@ def student_resume_studies(request):
 
 @login_required
 def admin_student_requests(request):
-    if not is_admin(request.user):
+    if not has_user_permission(request.user, "academics.manage_requests"):
         raise PermissionDenied
     query = request.GET.get("q", "").strip()
     type_filter = request.GET.get("type", "").strip()
@@ -95,7 +96,7 @@ def admin_student_requests(request):
 
 @login_required
 def admin_student_request_detail(request, pk):
-    if not is_admin(request.user):
+    if not has_user_permission(request.user, "academics.manage_requests"):
         raise PermissionDenied
     req = get_object_or_404(StudentRequest.objects.select_related("student__user", "reviewed_by"), pk=pk)
 

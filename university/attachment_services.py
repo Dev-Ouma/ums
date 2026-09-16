@@ -80,6 +80,12 @@ def apply_for_attachment(
     )
 
     if not created:
+        if placement.status in (
+            AttachmentPlacement.Status.APPROVED,
+            AttachmentPlacement.Status.IN_PROGRESS,
+            AttachmentPlacement.Status.COMPLETED,
+        ):
+            raise ValidationError("This attachment placement can no longer be edited after approval.")
         placement.company_name = company_name
         placement.company_branch_location = company_branch_location
         placement.company_address = company_address
@@ -119,7 +125,9 @@ def apply_for_attachment(
 @transaction.atomic
 def approve_attachment_application(placement_id, admin_user, request=None):
     """Admin approves student's attachment placement."""
-    placement = AttachmentPlacement.objects.get(id=placement_id)
+    placement = AttachmentPlacement.objects.select_for_update().get(id=placement_id)
+    if placement.status != AttachmentPlacement.Status.SUBMITTED:
+        raise ValidationError("Only submitted attachment applications can be approved.")
     placement.status = AttachmentPlacement.Status.APPROVED
     placement.save(update_fields=["status", "updated_at"])
 
@@ -138,7 +146,9 @@ def approve_attachment_application(placement_id, admin_user, request=None):
 @transaction.atomic
 def reject_attachment_application(placement_id, admin_user, reason="", request=None):
     """Admin rejects attachment placement application."""
-    placement = AttachmentPlacement.objects.get(id=placement_id)
+    placement = AttachmentPlacement.objects.select_for_update().get(id=placement_id)
+    if placement.status != AttachmentPlacement.Status.SUBMITTED:
+        raise ValidationError("Only submitted attachment applications can be rejected.")
     placement.status = AttachmentPlacement.Status.REJECTED
     placement.remarks = reason
     placement.save(update_fields=["status", "remarks", "updated_at"])
@@ -158,7 +168,12 @@ def reject_attachment_application(placement_id, admin_user, reason="", request=N
 @transaction.atomic
 def assign_academic_supervisor(placement_id, faculty_profile, admin_user, request=None):
     """Assign a faculty member as academic supervisor for this placement."""
-    placement = AttachmentPlacement.objects.get(id=placement_id)
+    placement = AttachmentPlacement.objects.select_for_update().get(id=placement_id)
+    if placement.status not in (
+        AttachmentPlacement.Status.APPROVED,
+        AttachmentPlacement.Status.IN_PROGRESS,
+    ):
+        raise ValidationError("Approve the attachment application before assigning a supervisor.")
     placement.academic_supervisor = faculty_profile
     if placement.status == AttachmentPlacement.Status.APPROVED:
         placement.status = AttachmentPlacement.Status.IN_PROGRESS
@@ -190,6 +205,18 @@ def record_logbook_entry(
     company_supervisor_signed=False
 ):
     """Record or update student's weekly logbook entry."""
+    placement.refresh_from_db(fields=["status", "start_date", "end_date"])
+    if placement.status not in (
+        AttachmentPlacement.Status.APPROVED,
+        AttachmentPlacement.Status.IN_PROGRESS,
+    ):
+        raise ValidationError("Logbook entries can only be recorded for an approved attachment placement.")
+    if week_number < 1 or week_number > max(placement.duration_weeks, 1):
+        raise ValidationError(f"Week number must be between 1 and {max(placement.duration_weeks, 1)}.")
+    if date_from > date_to:
+        raise ValidationError("Logbook start date must be on or before its end date.")
+    if date_from < placement.start_date or date_to > placement.end_date:
+        raise ValidationError("Logbook dates must fall within the approved attachment period.")
     entry, created = AttachmentLogbookEntry.objects.get_or_create(
         attachment=placement,
         week_number=week_number,
@@ -240,7 +267,11 @@ def submit_attachment_assessment(
     Faculty assessor grades the industrial attachment using standard 5-part rubric.
     Updates placement status to COMPLETED and records final grade.
     """
-    placement = AttachmentPlacement.objects.get(id=placement_id)
+    placement = AttachmentPlacement.objects.select_for_update().get(id=placement_id)
+    if placement.status != AttachmentPlacement.Status.IN_PROGRESS:
+        raise ValidationError("Only an attachment in progress can be assessed.")
+    if placement.academic_supervisor_id != assessor_faculty.id:
+        raise ValidationError("Only the assigned academic supervisor can assess this placement.")
 
     assessment, created = AttachmentAssessment.objects.get_or_create(
         attachment=placement,

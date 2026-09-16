@@ -1166,6 +1166,178 @@ html.sidebar-collapsed .sidebar .pill-soon{display:none!important}
   .document-frame-container iframe { min-height: 400px; height: 70vh; }
   .report-paper { padding: 1rem !important; }
 }
+
+/* ============================================================
+   SYSTEM-WIDE RESPONSIVE DESIGN FIXES
+   ============================================================ */
+
+/* 1. Global Typography & Spacing */
+@media (max-width: 767.98px) {
+  html { font-size: 14px; }
+  .content { padding: 16px; }
+  .page-head h4 { font-size: 1.35rem; }
+  .card-body { padding: 16px; }
+}
+
+/* 2. Table Responsiveness */
+.table-responsive, .table-scroll-container {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.table-ums th, .table-ums td {
+  white-space: nowrap; /* Prevent cramped multi-line text */
+}
+
+/* 3. Modals & Popups */
+@media (max-width: 767.98px) {
+  .modal-dialog {
+    max-width: 96vw !important;
+    margin: 8px auto;
+  }
+  .modal-content {
+    max-height: calc(100vh - 16px);
+    overflow-y: auto;
+  }
+}
+
+/* 4. Dashboards & Cards */
+.dash-card, .card-ums {
+  min-width: 0;
+  max-width: 100%;
+}
+@media (max-width: 991.98px) {
+  .dashboard-five-cards {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px;
+  }
+  .chart-container, canvas {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+}
+@media (max-width: 575.98px) {
+  .dashboard-five-cards {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* 5. Topbar & Header */
+@media (max-width: 575.98px) {
+  .topbar {
+    padding: 10px 14px;
+    gap: 8px;
+  }
+  .acct-trigger-name {
+    max-width: 90px;
+  }
+  .page-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .btn, .form-select, .form-control {
+    width: 100%;
+    margin-bottom: 6px;
+  }
+  /* Only stretch buttons inside forms/actions, keep icon-btns intact */
+  .icon-btn, .btn-close { width: auto; }
+}
+
+/* 6. Document/Report Previews */
+.document-viewer {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* ---------- PREMIUM TIMETABLE UI ---------- */
+.tt-filter-toggle {
+  background: #fff;
+  border: 1px solid #eef0f6;
+  border-radius: 30px;
+  padding: 8px 18px;
+  font-weight: 600;
+  color: #5a6072;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+  transition: all 0.2s ease;
+}
+.tt-filter-toggle:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 4px 12px rgba(108,92,231,0.12);
+}
+.tt-active-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(108,92,231,0.08);
+  color: var(--primary);
+  border: 1px solid rgba(108,92,231,0.2);
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.tt-session-card {
+  position: relative;
+  border-radius: 12px;
+  border: 1px solid #eef0f6;
+  background: #fff;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+.tt-session-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(26,26,64,0.08);
+  border-color: rgba(108,92,231,0.3);
+}
+.tt-session-strip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 5px;
+  background: #cbd5e1;
+}
+.tt-session-card.status-draft .tt-session-strip { background: #f59e0b; }
+.tt-session-card.status-published .tt-session-strip { background: #10b981; }
+
+.tt-time-badge {
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-weight: 700;
+  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.tt-time-badge i { color: var(--primary); }
+
+.tt-meta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.tt-meta-badge i { color: #94a3b8; }
+
+.tt-actions {
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+.tt-session-card:hover .tt-actions {
+  opacity: 1;
+}
+
 @media print {
   @page { size: A4; margin: 12mm; }
   body { background: #fff !important; color: #0f172a !important; font-size: 9.5pt !important; }

@@ -268,6 +268,31 @@ Use the browser’s Incognito/Private mode for clean-session checks. Do not atta
 
 Suggested smoke-test paths include login/logout, role switching, dashboard loading, admissions, documents, registration, marks capture, fee payment/reconciliation, transcript/fee PDF generation, uploads, reports, search/filter/pagination, maintenance mode, and mobile layouts.
 
+## Role and Access Matrix (UAT Actions)
+
+This matrix maps each system role to its enforced permissions and defines the User Acceptance Testing (UAT) actions required before sign-off. The roles are ordered from the simplest (most restricted) to the most complex (highest authority).
+
+| Role | Core Access / Capabilities | Required UAT Actions |
+|---|---|---|
+| **Applicant** | Self-service portal for admission applications | Verify submitting applications, viewing status |
+| **Student** | Self-service access to own records, unit registration, fee payments | Verify unit registration, viewing results, paying fees, viewing transcripts |
+| **Registry Service Desk** | Front-line access recovery, student lookup | Verify resetting passwords, viewing user/student status, no permission to change roles |
+| **Lecturer / Teaching Staff** | Course lectures, continuous assessment, exam grading | Verify viewing assigned courses, entering CAT marks, entering Exam marks |
+| **Hostel Warden** | Hall allocations, room check-in/out, damage clearances | Verify viewing allocations, allocating rooms, checking out students |
+| **Librarian / Repository Officer** | Catalog records, circulation, fines, past-paper repository | Verify viewing library operations, issuing/returning books, managing catalog |
+| **Admissions & Records Officer** | Student admissions, enrollment registers, biodata maintenance | Verify creating student profiles, editing biodata, approving unit registrations |
+| **Finance & Accounts Officer** | Fee structures, invoicing, payment receipts, fee clearances | Verify viewing invoices, issuing invoices, recording payments, financial clearance, managing fee accounts, refunds |
+| **Examinations Officer** | Exam scheduling, mark verification, Senate sheets, official transcripts | Verify creating exams, entering marks, moderating marks, publishing results, exporting Senate marksheets |
+| **Head of Department (HOD)** | Course offerings, teaching assignments, mark moderation, unit registrations | Verify assigning lecturers, entering CAT/Exam marks, moderating department marks, viewing student lists |
+| **Dean of Faculty / School** | Departmental curriculum, faculty workload, exam results, Senate approvals | Verify view curriculum, moderate marks, approve Senate results, access reports |
+| **System & Compliance Auditor** | Institution-wide read-only visibility, audit trail inspection | Verify viewing audit logs, generating official reports, read-only access to records |
+| **Emergency & Security** | Critical operations, lockdown bypass | Verify bypass of maintenance/lockdown, viewing audit logs |
+| **Academic Registrar** | Full oversight of students, curriculum, Senate results, transcripts, clearances | Verify student admission, approve unit registrations, manage graduations, approve Senate results, generate marksheet reports |
+| **Vice Chancellor / DVC** | Executive oversight of governance, academics, administration | Verify view-all access to students/curriculum, Senate result approvals, official reporting |
+| **ICT & Identity Admin** | Central user directory, credentials, email identities, security | Verify creating users, resetting passwords, managing emails, managing roles and permissions, viewing audit logs |
+| **Administrator (Base)** | Broad operational administrative access across most modules | Verify base admin dashboard access, managing records across standard modules |
+| **Super Administrator** | Unrestricted total access (is_superuser), bypasses all explicit permissions | Verify access to Django admin, system control bypass, ability to grant/deny overrides |
+
 ## System Administrator module map
 
 The main administrative areas to review before handover are:

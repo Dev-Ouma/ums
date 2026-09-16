@@ -145,7 +145,20 @@ class GraduationHostelLibraryTestCase(TestCase):
         res_apply = self.client.post(reverse("university:student_apply_clearance"), {"ceremony_id": self.ceremony.id})
         self.assertEqual(res_apply.status_code, 302)
 
-        # Clearance Certificate PDF download
+        # Certificate stays unavailable until every station clears the student.
+        res_pending_cert = self.client.get(reverse("university:student_clearance_certificate_pdf"))
+        self.assertEqual(res_pending_cert.status_code, 302)
+
+        app = GraduationApplication.objects.get(student=self.student_profile)
+        for clearance in app.clearances.exclude(status=DepartmentClearance.ClearanceStatus.CLEARED):
+            process_department_clearance(
+                clearance.id,
+                DepartmentClearance.ClearanceStatus.CLEARED,
+                user=self.admin_user,
+                remarks="Requirements verified.",
+            )
+
+        # Clearance Certificate PDF download after completion
         res_cert = self.client.get(reverse("university:student_clearance_certificate_pdf"))
         self.assertEqual(res_cert.status_code, 200)
         self.assertEqual(res_cert["Content-Type"], "application/pdf")

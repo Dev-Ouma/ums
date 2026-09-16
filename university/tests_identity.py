@@ -479,6 +479,71 @@ class AdministratorActionTests(IdentityTestBase):
         self.assertEqual(response.status_code, 302)
         self.assertIn(reverse("accounts:password_change_required"), response["Location"])
 
+    def test_cannot_deactivate_the_last_active_superuser(self):
+        """
+        set_account_status must refuse to take the institution's last active
+        superuser out of ACTIVE status, no matter who the actor is, so nobody
+        can ever lock everyone out of system-admin with no account left able
+        to reverse it.
+        """
+        from university.identity_services import set_account_status
+        from university.models import AccountStatus
+
+        # self.admin (IdentityTestBase) is the only active superuser here.
+        ok, message, account = set_account_status(
+            actor=self.target, user=self.admin, new_status=AccountStatus.SUSPENDED,
+        )
+        self.assertFalse(ok)
+        self.assertIn("last remaining active superuser", message)
+        self.admin.account.refresh_from_db()
+        self.assertEqual(self.admin.account.status, AccountStatus.ACTIVE)
+
+    def test_deactivating_a_superuser_is_allowed_when_another_active_superuser_exists(self):
+        from university.identity_services import set_account_status
+        from university.models import AccountStatus
+
+        other_admin = User.objects.create_superuser(
+            username="other.admin", email="other.admin@ums.ac.ke", password="Str0ng!Other1",
+        )
+        ok, message, account = set_account_status(
+            actor=other_admin, user=self.admin, new_status=AccountStatus.SUSPENDED,
+        )
+        self.assertTrue(ok)
+        self.admin.account.refresh_from_db()
+        self.assertEqual(self.admin.account.status, AccountStatus.SUSPENDED)
+
+    def test_assign_role_reactivates_a_previously_revoked_assignment(self):
+        """
+        Regression guard: user_action's assign_role branch used to call
+        StaffRoleAssignment.objects.get_or_create(department=None) directly,
+        which silently no-op'd (still showing a success message) when a
+        matching row already existed with is_active=False. It now delegates
+        to permissions_services.assign_staff_role(), which update_or_creates
+        and always reactivates.
+        """
+        from university.models import StaffRole, StaffRoleAssignment
+
+        role = StaffRole.objects.create(name="Registrar", code="registrar")
+        existing = StaffRoleAssignment.objects.create(
+            user=self.target, role=role, department=None, school=None,
+            is_active=False,
+        )
+
+        response = self.client.post(
+            reverse("university:user_action", args=[self.target.pk, "assign_role"]),
+            {"staff_role": role.pk},
+        )
+        self.assertEqual(response.status_code, 302)
+
+        existing.refresh_from_db()
+        self.assertTrue(existing.is_active)
+        self.assertEqual(
+            StaffRoleAssignment.objects.filter(
+                user=self.target, role=role, department=None, school=None
+            ).count(),
+            1,
+        )
+
     def test_suspend_takes_effect_immediately(self):
         self.post_action("suspend")
         self.target.account.refresh_from_db()

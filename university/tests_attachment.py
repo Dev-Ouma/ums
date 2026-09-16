@@ -137,7 +137,12 @@ class IndustrialAttachmentTestCase(TestCase):
         approved = approve_attachment_application(placement.id, admin_user=self.admin_user)
         self.assertEqual(approved.status, AttachmentPlacement.Status.APPROVED)
 
-        # Admin Rejection
+        # A finalized approval cannot be replaced by a rejection.
+        with self.assertRaises(ValidationError):
+            reject_attachment_application(placement.id, admin_user=self.admin_user, reason="Invalid company insurance letter")
+
+        placement.status = AttachmentPlacement.Status.SUBMITTED
+        placement.save(update_fields=["status"])
         rejected = reject_attachment_application(placement.id, admin_user=self.admin_user, reason="Invalid company insurance letter")
         self.assertEqual(rejected.status, AttachmentPlacement.Status.REJECTED)
         self.assertEqual(rejected.remarks, "Invalid company insurance letter")
@@ -181,6 +186,8 @@ class IndustrialAttachmentTestCase(TestCase):
             end_date=self.end_date
         )
 
+        approve_attachment_application(placement.id, admin_user=self.admin_user)
+
         # Record Week 1 entry
         entry = record_logbook_entry(
             placement=placement,
@@ -213,6 +220,7 @@ class IndustrialAttachmentTestCase(TestCase):
             start_date=self.start_date,
             end_date=self.end_date
         )
+        approve_attachment_application(placement.id, self.admin_user)
         assign_academic_supervisor(placement.id, self.faculty_profile, self.admin_user)
 
         # Assessment: Org(9/10) + Att(14/15) + Tech(32/35) + Log(18/20) + Pres(18/20) = 91/100 -> Grade A
@@ -267,6 +275,7 @@ class IndustrialAttachmentTestCase(TestCase):
             start_date=self.start_date,
             end_date=self.end_date
         )
+        approve_attachment_application(placement.id, self.admin_user)
         record_logbook_entry(
             placement=placement,
             week_number=1,
@@ -304,6 +313,7 @@ class IndustrialAttachmentTestCase(TestCase):
 
         placement = AttachmentPlacement.objects.filter(student=self.student_profile).first()
         self.assertIsNotNone(placement)
+        approve_attachment_application(placement.id, self.admin_user)
 
         # POST Logbook entry
         log_data = {

@@ -131,6 +131,18 @@ class AcademicsModuleTests(TestCase):
         self.assertEqual(reg.total_credits, 24)
         self.assertFalse(Enrollment.objects.filter(student=self.student, course=self.course2).exists())
 
+    def test_student_cannot_post_a_course_outside_their_programme_or_department(self):
+        other_dept = Department.objects.create(name="School of Law", code="SOL-REG")
+        unrelated = Course.objects.create(
+            code="LAW101", title="Foundations of Law", department=other_dept, credits=3,
+        )
+        self.complete_semester_registration()
+        response = self.client.post(reverse("university:student_register_units"), {
+            "action": "add_unit", "course_id": unrelated.pk,
+        })
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(Enrollment.objects.filter(student=self.student, course=unrelated).exists())
+
     def test_student_drop_unit(self):
         """Student can drop a previously added course unit while in draft."""
         self.complete_semester_registration()

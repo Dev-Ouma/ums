@@ -12,7 +12,17 @@
         <h5 class="fw-bold">Are you sure?</h5>
         <p class="text-muted">You are about to permanently delete this {{ label }}:</p>
         <p class="fw-semibold fs-5">{{ object }}</p>
-        <p class="small text-muted">This action cannot be undone and may remove related records.</p>
+        <p class="small text-muted">The {{ label }} itself moves to the Recycle Bin and can be restored later.</p>
+        {% if dependents %}
+        <div class="alert alert-warning text-start small mt-3 mb-0">
+          <strong><i class="fa-solid fa-circle-info me-1"></i>This will also affect:</strong>
+          <ul class="mb-0 mt-1 ps-3">
+            {% for description, qs in dependents %}
+              <li>{{ description }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
         <form method="post" class="d-flex gap-2 justify-content-center mt-4">
           {% csrf_token %}
           <button class="btn btn-danger rounded-pill px-4"><i class="fa-solid fa-trash me-1"></i>Yes, delete</button>

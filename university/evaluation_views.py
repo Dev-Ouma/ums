@@ -31,6 +31,7 @@ from .evaluation_services import (
     generate_evaluation_pdf,
 )
 from .examination_services import is_admin
+from .permissions_services import has_user_permission
 from .models import (
     AcademicTerm, AuditLog, Course, CourseEvaluation, EvaluationWindow,
 )
@@ -185,7 +186,7 @@ def faculty_evaluation_dashboard(request):
 @login_required
 def admin_evaluation_dashboard(request):
     """Admin overview: all courses, averages, response counts."""
-    if not is_admin(request.user):
+    if not has_user_permission(request.user, "academics.manage_evaluations"):
         raise PermissionDenied
 
     all_terms = AcademicTerm.objects.all()
@@ -215,7 +216,7 @@ def admin_evaluation_dashboard(request):
 @login_required
 def admin_evaluation_course_detail(request, course_id):
     """Admin drill-down: full analytics for one course."""
-    if not is_admin(request.user):
+    if not has_user_permission(request.user, "academics.manage_evaluations"):
         raise PermissionDenied
 
     course = get_object_or_404(Course, pk=course_id)
@@ -238,7 +239,7 @@ def admin_evaluation_course_detail(request, course_id):
 @require_POST
 def admin_evaluation_window_toggle(request):
     """Toggle the evaluation window open/closed for the current term."""
-    if not is_admin(request.user):
+    if not has_user_permission(request.user, "academics.manage_evaluations"):
         raise PermissionDenied
 
     active_term = AcademicTerm.objects.filter(is_current=True).first()
@@ -267,7 +268,7 @@ def admin_evaluation_window_toggle(request):
 @login_required
 def admin_evaluation_export(request, fmt):
     """Export evaluation data as Excel or PDF."""
-    if not is_admin(request.user):
+    if not has_user_permission(request.user, "academics.manage_evaluations"):
         raise PermissionDenied
 
     term_id = request.GET.get("term")

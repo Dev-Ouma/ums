@@ -1,6 +1,6 @@
 from university.document_views import present_pdf
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -24,12 +24,13 @@ from university.models import (
     AcademicTerm, AttachmentAssessment, AttachmentLogbookEntry,
     AttachmentPlacement
 )
+from university.permissions_services import has_user_permission
 
 User = get_user_model()
 
 
 def _is_admin(user):
-    return user.is_authenticated and (user.is_admin_role or user.is_superuser or user.is_staff)
+    return user.is_authenticated and has_user_permission(user, "academics.manage_attachments")
 
 
 def _is_faculty(user):
@@ -175,8 +176,8 @@ def student_attachment_logbook_submit(request, pk):
             company_supervisor_signed=True
         )
         messages.success(request, f"Week {week_num} logbook entry recorded successfully!")
-    except Exception as e:
-        messages.error(request, f"Error saving logbook entry: {e}")
+    except (TypeError, ValueError, ValidationError) as error:
+        messages.error(request, str(error.message if hasattr(error, "message") else error))
 
     return redirect("university:student_attachment_portal")
 
@@ -304,8 +305,8 @@ def faculty_attachment_grade(request, pk):
             request=request
         )
         messages.success(request, f"Assessment recorded: Total Score {assessment.total_score}% (Grade {assessment.grade}). Placement marked COMPLETED.")
-    except Exception as e:
-        messages.error(request, f"Error recording assessment: {e}")
+    except (InvalidOperation, TypeError, ValueError, ValidationError) as error:
+        messages.error(request, str(error.message if hasattr(error, "message") else error))
 
     return redirect("university:faculty_attachment_dashboard")
 
@@ -368,17 +369,22 @@ def admin_attachment_action(request, pk):
     placement = get_object_or_404(AttachmentPlacement, id=pk)
     action = request.POST.get("action", "")
 
-    if action == "approve":
-        approve_attachment_application(placement.id, request.user, request=request)
-        messages.success(request, f"Attachment application for {placement.student.roll_no} approved!")
-    elif action == "reject":
-        reason = request.POST.get("reason", "").strip()
-        reject_attachment_application(placement.id, request.user, reason=reason, request=request)
-        messages.warning(request, f"Attachment application for {placement.student.roll_no} rejected.")
-    elif action == "assign_supervisor":
-        fac_id = request.POST.get("faculty_id", "")
-        faculty = get_object_or_404(FacultyProfile, id=fac_id)
-        assign_academic_supervisor(placement.id, faculty, request.user, request=request)
-        messages.success(request, f"Assigned {faculty.user.get_full_name()} as supervisor for {placement.student.roll_no}.")
+    try:
+        if action == "approve":
+            approve_attachment_application(placement.id, request.user, request=request)
+            messages.success(request, f"Attachment application for {placement.student.roll_no} approved!")
+        elif action == "reject":
+            reason = request.POST.get("reason", "").strip()
+            reject_attachment_application(placement.id, request.user, reason=reason, request=request)
+            messages.warning(request, f"Attachment application for {placement.student.roll_no} rejected.")
+        elif action == "assign_supervisor":
+            fac_id = request.POST.get("faculty_id", "")
+            faculty = get_object_or_404(FacultyProfile, id=fac_id)
+            assign_academic_supervisor(placement.id, faculty, request.user, request=request)
+            messages.success(request, f"Assigned {faculty.user.get_full_name()} as supervisor for {placement.student.roll_no}.")
+        else:
+            messages.error(request, "Select a valid attachment action.")
+    except ValidationError as error:
+        messages.error(request, str(error.message if hasattr(error, "message") else error))
 
     return redirect("university:admin_attachment_dashboard")

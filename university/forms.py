@@ -1,4 +1,5 @@
 from django import forms
+from django.db.models import Max
 from django.utils import timezone
 
 from accounts.models import FacultyProfile, Role, StudentProfile, User
@@ -336,7 +337,7 @@ class CourseForm(forms.ModelForm):
         # Semester options must cover the longest configured programme (e.g. an
         # 8-semester degree), not a hardcoded ceiling — a fixed [1,2,3] range
         # made it impossible to assign courses to semester 4 and beyond.
-        max_semesters = Program.objects.aggregate(models.Max("total_semesters"))["total_semesters__max"] or 8
+        max_semesters = Program.objects.aggregate(Max("total_semesters"))["total_semesters__max"] or 8
         self.fields["semester_no"].widget = forms.Select(
             choices=[(n, f"Semester {n}") for n in range(1, max_semesters + 1)]
         )

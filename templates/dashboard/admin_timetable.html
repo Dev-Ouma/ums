@@ -1,12 +1,17 @@
 {% extends 'base_dashboard.html' %}
 {% block title %}Timetable · UMS{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="page-head mb-4">
   <div>
     <h4><i class="fa-solid fa-calendar-week me-2 text-primary"></i>Class Timetable</h4>
     <p class="text-muted small mb-0">Weekly schedule of lectures, tutorials and labs across all courses.</p>
   </div>
-  <div class="d-flex gap-2 flex-wrap align-items-center">
+  <div class="d-flex gap-2 flex-wrap align-items-center mt-3 mt-md-0">
+    <!-- Advanced Filters Toggle -->
+    <button class="tt-filter-toggle d-inline-flex align-items-center gap-2" type="button" data-bs-toggle="collapse" data-bs-target="#timetableFilters" aria-expanded="false" aria-controls="timetableFilters">
+      <i class="fa-solid fa-sliders"></i> Filters
+    </button>
+    
     <div class="dropdown">
       <button class="btn btn-light border rounded-pill px-3 dropdown-toggle d-inline-flex align-items-center gap-1" type="button" data-bs-toggle="dropdown" aria-expanded="false">
         <i class="fa-solid fa-file-export text-primary"></i> Export
@@ -24,134 +29,187 @@
       </ul>
     </div>
     <a href="{% url 'university:timetable_preview' %}{% querystring %}" target="_blank" class="btn btn-light border rounded-pill px-3 d-inline-flex align-items-center gap-1">
-      <i class="fa-solid fa-eye text-primary"></i> Preview / Print
+      <i class="fa-solid fa-eye text-primary"></i> Preview
     </a>
     <a href="{% url 'university:timetable_import' %}" class="btn btn-outline-primary rounded-pill px-3 d-inline-flex align-items-center gap-1">
       <i class="fa-solid fa-file-import"></i> Bulk Import
     </a>
-    <a href="{% url 'university:class_schedule_create' %}" class="btn btn-primary rounded-pill px-3">
-      <i class="fa-solid fa-calendar-plus me-1"></i>Schedule Class</a>
+    <a href="{% url 'university:class_schedule_create' %}" class="btn btn-primary rounded-pill px-3 shadow-sm">
+      <i class="fa-solid fa-calendar-plus me-1"></i>Schedule Class
+    </a>
   </div>
 </div>
 
-<!-- Filters -->
-<div class="card card-ums p-3 mb-4">
-  <form method="get" class="row g-2 align-items-end">
-    <div class="col-6 col-md-2">
-      <label class="form-label small fw-semibold mb-1">Academic Year</label>
-      <select name="term" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
-        {% for t in terms %}<option value="{{ t.id }}" {% if term.id == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-6 col-md-2">
-      <label class="form-label small fw-semibold mb-1">Semester</label>
-      <select name="semester" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
-        <option value="">All</option>
-        {% for n in semester_choices %}<option value="{{ n }}" {% if filters.semester == n|stringformat:"s" %}selected{% endif %}>Sem {{ n }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-6 col-md-2">
-      <label class="form-label small fw-semibold mb-1">Department</label>
-      <select name="department" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
-        <option value="">All</option>
-        {% for d in departments %}<option value="{{ d.id }}" {% if filters.department == d.id|stringformat:"s" %}selected{% endif %}>{{ d.code }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-6 col-md-2">
-      <label class="form-label small fw-semibold mb-1">Programme</label>
-      <select name="program" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
-        <option value="">All</option>
-        {% for p in programs %}<option value="{{ p.id }}" {% if filters.program == p.id|stringformat:"s" %}selected{% endif %}>{{ p.code }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-6 col-md-2">
-      <label class="form-label small fw-semibold mb-1">Course</label>
-      <select name="course" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
-        <option value="">All</option>
-        {% for c in courses %}<option value="{{ c.id }}" {% if filters.course == c.id|stringformat:"s" %}selected{% endif %}>{{ c.code }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-6 col-md-2">
-      <label class="form-label small fw-semibold mb-1">Teaching Staff</label>
-      <select name="faculty" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
-        <option value="">All</option>
-        {% for f in faculty_list %}<option value="{{ f.id }}" {% if filters.faculty == f.id|stringformat:"s" %}selected{% endif %}>{{ f.user.display_name }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-6 col-md-2">
-      <label class="form-label small fw-semibold mb-1">Day</label>
-      <select name="day" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
-        <option value="">All</option>
-        {% for code, label in day_choices %}<option value="{{ code }}" {% if filters.day == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-6 col-md-2">
-      <label class="form-label small fw-semibold mb-1">Venue</label>
-      <select name="room" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
-        <option value="">All</option>
-        {% for r in rooms %}<option value="{{ r.id }}" {% if filters.room == r.id|stringformat:"s" %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-6 col-md-2">
-      <label class="form-label small fw-semibold mb-1">Status</label>
-      <select name="status" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
-        <option value="">All</option>
-        <option value="DRAFT" {% if filters.status == "DRAFT" %}selected{% endif %}>Draft</option>
-        <option value="PUBLISHED" {% if filters.status == "PUBLISHED" %}selected{% endif %}>Published</option>
-      </select>
-    </div>
-    <div class="col-6 col-md-2">
-      {% if filters.semester or filters.department or filters.program or filters.course or filters.faculty or filters.day or filters.room or filters.status %}
-        <a href="{% url 'university:admin_timetable' %}?term={{ term.id }}" class="btn btn-outline-secondary btn-sm rounded-pill w-100"><i class="fa-solid fa-xmark me-1"></i>Clear filters</a>
-      {% endif %}
-    </div>
-  </form>
+<!-- Active Filter Chips -->
+{% if filters.semester or filters.department or filters.program or filters.course or filters.faculty or filters.day or filters.room or filters.status %}
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+  <span class="text-muted small fw-semibold me-2"><i class="fa-solid fa-filter text-primary me-1"></i>Active:</span>
+  
+  {% if filters.semester %}<span class="tt-active-chip">Sem {{ filters.semester }}</span>{% endif %}
+  {% if filters.department %}<span class="tt-active-chip">Dept ID: {{ filters.department }}</span>{% endif %}
+  {% if filters.program %}<span class="tt-active-chip">Prog ID: {{ filters.program }}</span>{% endif %}
+  {% if filters.course %}<span class="tt-active-chip">Course ID: {{ filters.course }}</span>{% endif %}
+  {% if filters.faculty %}<span class="tt-active-chip">Staff ID: {{ filters.faculty }}</span>{% endif %}
+  {% if filters.day %}<span class="tt-active-chip">Day: {{ filters.day|title }}</span>{% endif %}
+  {% if filters.room %}<span class="tt-active-chip">Room ID: {{ filters.room }}</span>{% endif %}
+  {% if filters.status %}<span class="tt-active-chip">Status: {{ filters.status|title }}</span>{% endif %}
+
+  <a href="{% url 'university:admin_timetable' %}?term={{ term.id }}" class="btn btn-sm btn-light border rounded-pill text-danger px-3 ms-2">Clear All</a>
+</div>
+{% endif %}
+
+<!-- Collapsible Filters -->
+<div class="collapse mb-4" id="timetableFilters">
+  <div class="card card-ums border-0 shadow-sm p-4 filter-panel">
+    <h6 class="fw-bold mb-3"><i class="fa-solid fa-filter me-2 text-primary"></i>Advanced Filters</h6>
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-6 col-md-3">
+        <label class="form-label small fw-semibold mb-1">Academic Year</label>
+        <select name="term" class="form-select form-select-sm" onchange="this.form.submit()">
+          {% for t in terms %}<option value="{{ t.id }}" {% if term.id == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small fw-semibold mb-1">Semester</label>
+        <select name="semester" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="">All Semesters</option>
+          {% for n in semester_choices %}<option value="{{ n }}" {% if filters.semester == n|stringformat:"s" %}selected{% endif %}>Sem {{ n }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small fw-semibold mb-1">Department</label>
+        <select name="department" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="">All Departments</option>
+          {% for d in departments %}<option value="{{ d.id }}" {% if filters.department == d.id|stringformat:"s" %}selected{% endif %}>{{ d.code }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small fw-semibold mb-1">Programme</label>
+        <select name="program" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="">All Programmes</option>
+          {% for p in programs %}<option value="{{ p.id }}" {% if filters.program == p.id|stringformat:"s" %}selected{% endif %}>{{ p.code }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small fw-semibold mb-1">Course</label>
+        <select name="course" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="">All Courses</option>
+          {% for c in courses %}<option value="{{ c.id }}" {% if filters.course == c.id|stringformat:"s" %}selected{% endif %}>{{ c.code }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small fw-semibold mb-1">Teaching Staff</label>
+        <select name="faculty" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="">All Staff</option>
+          {% for f in faculty_list %}<option value="{{ f.id }}" {% if filters.faculty == f.id|stringformat:"s" %}selected{% endif %}>{{ f.user.display_name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small fw-semibold mb-1">Day</label>
+        <select name="day" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="">All Days</option>
+          {% for code, label in day_choices %}<option value="{{ code }}" {% if filters.day == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small fw-semibold mb-1">Venue</label>
+        <select name="room" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="">All Venues</option>
+          {% for r in rooms %}<option value="{{ r.id }}" {% if filters.room == r.id|stringformat:"s" %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small fw-semibold mb-1">Status</label>
+        <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="">All Statuses</option>
+          <option value="DRAFT" {% if filters.status == "DRAFT" %}selected{% endif %}>Draft</option>
+          <option value="PUBLISHED" {% if filters.status == "PUBLISHED" %}selected{% endif %}>Published</option>
+        </select>
+      </div>
+      <div class="col-12 mt-3 d-flex justify-content-end gap-2">
+        <button type="button" class="btn btn-light" data-bs-toggle="collapse" data-bs-target="#timetableFilters">Cancel</button>
+        <button type="submit" class="btn btn-primary px-4">Apply Filters</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 {% if not term %}
-  <div class="card card-ums p-4 text-center text-muted">No academic term available. Create one in the admin area first.</div>
+  <div class="card card-ums p-5 text-center text-muted shadow-sm">
+    <i class="fa-solid fa-calendar-xmark fs-1 text-light mb-3"></i>
+    <h5>No Academic Term Found</h5>
+    <p>Create an academic term in the admin area before scheduling classes.</p>
+  </div>
 {% else %}
-<div class="d-flex justify-content-between align-items-center mb-2">
-  <span class="text-muted small">{{ total_count }} session{{ total_count|pluralize }} scheduled</span>
+<div class="d-flex justify-content-between align-items-center mb-3 px-1">
+  <span class="text-muted fw-semibold small">Showing <span class="text-dark">{{ total_count }}</span> session{{ total_count|pluralize }}</span>
 </div>
+
 <div class="row g-4">
   {% for day in grid %}
   <div class="col-md-6 col-xl-4">
-    <div class="card card-ums h-100">
-      <div class="card-body">
-        <h6 class="fw-bold mb-3"><i class="fa-solid fa-calendar-day me-2 text-primary"></i>{{ day.label }}</h6>
-        {% for s in day.sessions %}
-        <div class="d-flex justify-content-between align-items-start border-bottom py-2">
-          <div>
-            <div class="fw-semibold small">{{ s.course.code }} · {{ s.course.title|truncatechars:28 }}
-              {% if s.status == 'DRAFT' %}<span class="badge bg-secondary-subtle text-secondary border rounded-pill ms-1">Draft</span>
-              {% else %}<span class="badge bg-success-subtle text-success border rounded-pill ms-1">Published</span>{% endif %}
-            </div>
-            <div class="small text-muted">
-              <i class="fa-solid fa-clock me-1"></i>{{ s.start_time|time:"H:i" }}–{{ s.end_time|time:"H:i" }}
-              <span class="mx-1">·</span><i class="fa-solid fa-door-open me-1"></i>{{ s.room.name }}
-              <span class="mx-1">·</span><span class="badge-soft badge rounded-pill">{{ s.get_session_type_display }}</span>
-            </div>
-            <div class="small text-muted"><i class="fa-solid fa-chalkboard-user me-1"></i>
-              {% if s.course.faculty %}{{ s.course.faculty.user.display_name }}{% else %}TBA{% endif %}
-              {% if s.course.program %}<span class="mx-1">·</span>{{ s.course.program.code }}{% endif %}
-              <span class="badge bg-light text-dark border ms-1">Sem {{ s.course.semester_no }}</span></div>
+    <!-- Day Header -->
+    <div class="d-flex align-items-center mb-3">
+      <div class="icon-circle bg-primary bg-opacity-10 text-primary me-2" style="width: 36px; height: 36px; font-size: 1rem;">
+        <i class="fa-solid fa-calendar-day"></i>
+      </div>
+      <h5 class="fw-bold mb-0 text-dark">{{ day.label }}</h5>
+      <span class="ms-auto badge bg-light text-muted border rounded-pill">{{ day.sessions|length }} classes</span>
+    </div>
+
+    <!-- Sessions List -->
+    <div class="d-flex flex-column gap-3">
+      {% for s in day.sessions %}
+      <div class="tt-session-card p-3 status-{% if s.status == 'DRAFT' %}draft{% else %}published{% endif %}">
+        <div class="tt-session-strip"></div>
+        
+        <!-- Header: Course & Status -->
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div class="pe-2">
+            <h6 class="mb-1 fw-bold text-dark text-truncate" style="max-width: 200px;" title="{{ s.course.title }}">{{ s.course.code }}</h6>
+            <div class="text-muted small text-truncate" style="max-width: 200px;">{{ s.course.title }}</div>
           </div>
-          <div class="btn-group btn-group-sm">
-            <form method="post" action="{% url 'university:class_schedule_publish' s.id %}" class="d-inline">
-              {% csrf_token %}
-              <button class="btn btn-outline-{% if s.status == 'DRAFT' %}success{% else %}secondary{% endif %}" title="{% if s.status == 'DRAFT' %}Publish{% else %}Unpublish{% endif %}">
-                <i class="fa-solid {% if s.status == 'DRAFT' %}fa-upload{% else %}fa-eye-slash{% endif %}"></i>
-              </button>
-            </form>
-            <a href="{% url 'university:class_schedule_edit' s.id %}" class="btn btn-outline-secondary" title="Edit"><i class="fa-solid fa-pen"></i></a>
-            <a href="{% url 'university:class_schedule_delete' s.id %}" class="btn btn-outline-danger" title="Delete"><i class="fa-solid fa-trash"></i></a>
+          <div>
+            {% if s.status == 'DRAFT' %}
+              <span class="badge bg-warning text-dark border-warning rounded-pill px-2"><i class="fa-solid fa-lock me-1"></i>Draft</span>
+            {% else %}
+              <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-2"><i class="fa-solid fa-globe me-1"></i>Live</span>
+            {% endif %}
           </div>
         </div>
-        {% empty %}
-        <p class="text-muted small mb-0">No classes scheduled.</p>
-        {% endfor %}
+        
+        <!-- Time Badge -->
+        <div class="tt-time-badge mb-2">
+          <i class="fa-regular fa-clock"></i>
+          {{ s.start_time|time:"H:i" }} - {{ s.end_time|time:"H:i" }}
+        </div>
+
+        <!-- Meta Tags -->
+        <div class="d-flex flex-wrap gap-2 mb-3">
+           <span class="tt-meta-badge" title="Room"><i class="fa-solid fa-location-dot"></i> {{ s.room.name }}</span>
+           <span class="tt-meta-badge" title="Lecturer"><i class="fa-solid fa-user-tie"></i> {% if s.course.faculty %}{{ s.course.faculty.user.display_name }}{% else %}TBA{% endif %}</span>
+           <span class="tt-meta-badge" title="Type"><i class="fa-solid fa-chalkboard"></i> {{ s.get_session_type_display }}</span>
+           {% if s.course.program %}<span class="tt-meta-badge" title="Programme"><i class="fa-solid fa-graduation-cap"></i> {{ s.course.program.code }}</span>{% endif %}
+        </div>
+
+        <!-- Actions -->
+        <div class="tt-actions d-flex gap-2 pt-2 border-top">
+          <form method="post" action="{% url 'university:class_schedule_publish' s.id %}" class="mb-0 flex-grow-1">
+            {% csrf_token %}
+            <button class="btn btn-sm w-100 rounded-2 fw-semibold {% if s.status == 'DRAFT' %}btn-success text-white{% else %}btn-light text-muted border{% endif %}" style="font-size: 0.75rem;">
+              <i class="fa-solid {% if s.status == 'DRAFT' %}fa-upload{% else %}fa-eye-slash{% endif %} me-1"></i>{% if s.status == 'DRAFT' %}Publish{% else %}Unpublish{% endif %}
+            </button>
+          </form>
+          <a href="{% url 'university:class_schedule_edit' s.id %}" class="btn btn-sm btn-light border rounded-2 px-3 text-muted" title="Edit"><i class="fa-solid fa-pen"></i></a>
+          <a href="{% url 'university:class_schedule_delete' s.id %}" class="btn btn-sm btn-light border rounded-2 px-3 text-danger" title="Delete"><i class="fa-solid fa-trash"></i></a>
+        </div>
       </div>
+      {% empty %}
+      <div class="card card-ums border-0 bg-light p-4 text-center">
+        <i class="fa-regular fa-calendar-xmark text-muted fs-3 mb-2"></i>
+        <div class="text-muted small fw-medium">No classes scheduled</div>
+      </div>
+      {% endfor %}
     </div>
   </div>
   {% endfor %}

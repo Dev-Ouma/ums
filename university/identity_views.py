@@ -481,15 +481,23 @@ def user_action(request, pk, action):
         messages.success(request, f"Removed from '{group.name}'.")
 
     elif action == "assign_role":
-        role = get_object_or_404(StaffRole, pk=request.POST.get("staff_role"))
-        StaffRoleAssignment.objects.get_or_create(
-            user=user, role=role, department=None,
-            defaults={"assigned_by": request.user, "is_active": True})
+        # Routed through the single canonical assignment function (same one
+        # the Staff Permissions console uses) rather than writing to
+        # StaffRoleAssignment directly here — that duplicate path ignored
+        # department/school scoping and used get_or_create, which silently
+        # no-ops (false "assigned" message, no actual reactivation) when a
+        # previously-revoked assignment for the same (user, role, scope)
+        # already exists.
+        from university.permissions_services import assign_staff_role
+        role_id = request.POST.get("staff_role")
+        dept_id = request.POST.get("department_id") or None
+        school_id = request.POST.get("school_id") or None
+        assignment = assign_staff_role(
+            user=user, role_id_or_code=role_id, department_id=dept_id,
+            school_id=school_id, actor=request.user, request=request,
+        )
         invalidate_user_sessions(user)
-        log_activity(request=request, user=request.user, action=AuditLog.Action.UPDATE,
-                     module=AuditLog.Module.AUTH, entity="Staff Role", entity_id=user.pk,
-                     description=f"Assigned role '{role.name}' to '{user.username}'.")
-        messages.success(request, f"Role '{role.name}' assigned.")
+        messages.success(request, f"Role '{assignment.role.name}' assigned.")
 
     return safe_redirect(
         request,

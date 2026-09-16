@@ -8,6 +8,7 @@ from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
+from functools import wraps
 
 from accounts.models import Role, StudentProfile
 from university.graduation_services import (
@@ -16,18 +17,19 @@ from university.graduation_services import (
     initiate_student_clearance, process_department_clearance
 )
 from university.security_utils import safe_redirect
+from university.permissions_services import has_user_permission
 from university.models import (
     DepartmentClearance, GraduationApplication, GraduationCeremony
 )
 
 
 def _admin_required(view_func):
-    """Ensure user is an active Administrator or Staff member."""
+    """Require explicit graduation-management authority."""
+    @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
         if not request.user.is_authenticated:
             return redirect("accounts:login")
-        user_role = getattr(request.user, "role", "")
-        if not (request.user.is_staff or request.user.is_superuser or user_role in (Role.ADMIN, "ADMIN")):
+        if not has_user_permission(request.user, "academics.manage_graduation"):
             messages.error(request, "Access restricted. Administrator privileges required.")
             return redirect("university:dashboard")
         return view_func(request, *args, **kwargs)
@@ -85,7 +87,7 @@ def student_degree_certificate_pdf(request):
     student_id = request.GET.get("student_id")
     roll_no = request.GET.get("roll_no")
 
-    is_staff = request.user.is_staff or request.user.is_superuser or getattr(request.user, "role", "") in (Role.ADMIN, "ADMIN")
+    is_staff = has_user_permission(request.user, "academics.manage_graduation")
 
     if is_staff and (app_id or student_id or roll_no):
         if app_id:
@@ -129,7 +131,7 @@ def student_clearance_certificate_pdf(request):
     student_id = request.GET.get("student_id")
     roll_no = request.GET.get("roll_no")
 
-    is_staff = request.user.is_staff or request.user.is_superuser or getattr(request.user, "role", "") in (Role.ADMIN, "ADMIN")
+    is_staff = has_user_permission(request.user, "academics.manage_graduation")
 
     if is_staff and (app_id or student_id or roll_no):
         if app_id:
@@ -153,6 +155,9 @@ def student_clearance_certificate_pdf(request):
         raise Http404("Clearance record not found.")
 
     sp = app.student
+    if app.status not in [GraduationApplication.Status.CLEARED, GraduationApplication.Status.SENATE_APPROVED, GraduationApplication.Status.GRADUATED]:
+        messages.warning(request, "Clearance certificate will become available once all clearance stations are complete.")
+        return redirect("university:student_graduation")
     pdf_bytes = generate_clearance_certificate_pdf(app)
     response = HttpResponse(pdf_bytes, content_type="application/pdf")
     clean_roll = sp.roll_no.replace("/", "_")
@@ -193,8 +198,10 @@ def admin_graduation_dashboard(request):
         )
     if status_filter:
         applications = applications.filter(status=status_filter)
-    if ceremony_filter:
+    if ceremony_filter.isdigit():
         applications = applications.filter(ceremony_id=ceremony_filter)
+    elif ceremony_filter:
+        ceremony_filter = ""
 
     paginator = Paginator(applications, 20)
     page_obj = paginator.get_page(request.GET.get("page"))
@@ -219,6 +226,9 @@ def admin_graduation_dashboard(request):
 def admin_clearance_queue(request, department):
     """Department-specific clearance verification desk."""
     dept_upper = department.upper()
+    valid_departments = {value for value, _label in DepartmentClearance.DepartmentType.choices}
+    if dept_upper not in valid_departments:
+        raise Http404("Unknown clearance department.")
     clearances = DepartmentClearance.objects.filter(department=dept_upper).select_related(
         "application__student__user", "application__student__program", "cleared_by"
     ).order_by("status", "-application__applied_at")
@@ -254,6 +264,9 @@ def admin_clearance_action(request, pk):
     action = request.POST.get("action", "").upper()
     remarks = request.POST.get("remarks", "").strip()
 
+    if action not in {"CLEAR", "REJECT"}:
+        messages.error(request, "Select a valid clearance decision.")
+        return redirect("university:admin_graduation_dashboard")
     status_target = DepartmentClearance.ClearanceStatus.CLEARED if action == "CLEAR" else DepartmentClearance.ClearanceStatus.REJECTED
     dc = process_department_clearance(pk, status_target, user=request.user, remarks=remarks, request=request)
 

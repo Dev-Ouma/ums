@@ -95,3 +95,67 @@ class CourseDetailAccessTests(TestCase):
         client = Client()
         res = client.get(self._url())
         self.assertEqual(res.status_code, 302)
+
+
+class CourseFormSemesterChoicesTests(TestCase):
+    """
+    CourseForm.semester_no previously hardcoded a [1,2,3] dropdown — courses
+    could never be assigned to semester 4+ despite programmes routinely
+    spanning more semesters than that. Choices must track real configured
+    programme lengths instead.
+    """
+    def test_semester_choices_cover_longest_configured_programme(self):
+        from university.forms import CourseForm
+        dept = Department.objects.create(name="School of Engineering", code="SOE-CF")
+        Program.objects.create(
+            name="BEng", code="BENG-CF", department=dept, level="UG",
+            duration_value=4, duration_unit="Years", semesters_per_year=2,
+        )
+        form = CourseForm()
+        choice_values = [value for value, _ in form.fields["semester_no"].widget.choices]
+        self.assertIn(8, choice_values)
+
+    def test_semester_choices_fall_back_when_no_programmes_configured(self):
+        from university.forms import CourseForm
+        Program.objects.all().delete()
+        form = CourseForm()
+        choice_values = [value for value, _ in form.fields["semester_no"].widget.choices]
+        self.assertEqual(choice_values, list(range(1, 9)))
+
+
+class CourseAuditLoggingTests(TestCase):
+    """Course create/edit previously had no audit trail at all."""
+
+    def setUp(self):
+        self.admin_user = User.objects.create_user(
+            username="course.audit.admin", email="course.audit.admin@ums.ac.ke", password="password123",
+            role=Role.ADMIN, is_staff=True, is_superuser=True
+        )
+        self.dept = Department.objects.create(name="School of Audit", code="SOA-CA")
+        self.program = Program.objects.create(name="BSc Audit", code="BSA-CA", department=self.dept, level="UG")
+
+    def test_course_create_and_edit_are_audited(self):
+        from university.models import AuditLog
+        client = Client()
+        client.force_login(self.admin_user)
+
+        res = client.post(reverse("university:course_create"), {
+            "code": "AUD101", "title": "Intro to Auditing", "department": self.dept.pk,
+            "program": self.program.pk, "credits": 3, "semester_no": 1, "status": "Active",
+            "description": "", "image_url": "",
+        })
+        self.assertEqual(res.status_code, 302)
+        course = Course.objects.get(code="AUD101")
+        self.assertTrue(AuditLog.objects.filter(
+            entity="Course", entity_id=course.id, action=AuditLog.Action.CREATE
+        ).exists())
+
+        edit_res = client.post(reverse("university:course_edit", args=[course.pk]), {
+            "code": "AUD101", "title": "Intro to Auditing (Revised)", "department": self.dept.pk,
+            "program": self.program.pk, "credits": 4, "semester_no": 1, "status": "Active",
+            "description": "", "image_url": "",
+        })
+        self.assertEqual(edit_res.status_code, 302)
+        self.assertTrue(AuditLog.objects.filter(
+            entity="Course", entity_id=course.id, action=AuditLog.Action.UPDATE
+        ).exists())

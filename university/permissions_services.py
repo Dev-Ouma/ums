@@ -35,6 +35,11 @@ DEFAULT_PERMISSIONS = [
     ("academics.manage_courses", "Manage Course Units", "Academics", "Create, edit, or assign lecturers to course units."),
     ("academics.manage_terms", "Manage Academic Terms & Sessions", "Academics", "Open, close, or configure semester academic terms."),
     ("academics.unit_registration", "Approve Unit Registrations", "Academics", "Authorize and approve student semester course registrations."),
+    ("academics.manage_requests", "Manage Student Academic Requests", "Academics", "Review deferment, withdrawal, leave, and return-to-study requests."),
+    ("academics.manage_transfers", "Manage Programme Transfers", "Academics", "Review and decide student programme transfer applications."),
+    ("academics.manage_attachments", "Manage Industrial Attachments", "Academics", "Approve placements, assign supervisors, and oversee attachment completion."),
+    ("academics.manage_evaluations", "Manage Course Evaluations", "Academics", "Manage evaluation windows and institution-level teaching evaluation analytics."),
+    ("academics.manage_graduation", "Manage Graduation & Clearance", "Academics", "Manage graduation applications, departmental clearance, ceremonies, and conferment."),
 
     # --- Examinations & Senate ---
     ("exams.create_exam", "Create & Schedule Examinations", "Examinations", "Create examination sessions, supplementary exams, and schedules (HOD, Dean, and Admin only)."),
@@ -116,6 +121,7 @@ DEFAULT_ROLES = [
         "permissions": [
             "students.view_all", "students.create", "students.edit", "students.clearance",
             "academics.view_curriculum", "academics.manage_programs", "academics.manage_courses", "academics.manage_terms", "academics.unit_registration",
+            "academics.manage_requests", "academics.manage_transfers", "academics.manage_attachments", "academics.manage_evaluations", "academics.manage_graduation",
             "exams.create_exam", "exams.view_marks", "exams.moderate_marks", "exams.approve_senate", "exams.publish_results",
             "reports.view_catalog", "reports.generate_official", "reports.senate_marksheet", "reports.export_files",
             "admin.view_audit_logs",
@@ -129,6 +135,7 @@ DEFAULT_ROLES = [
         "permissions": [
             "students.view_all",
             "academics.view_curriculum", "academics.manage_courses", "academics.unit_registration",
+            "academics.manage_attachments", "academics.manage_evaluations", "academics.manage_graduation",
             "exams.create_exam", "exams.view_marks", "exams.moderate_marks", "exams.approve_senate", "exams.publish_results",
             "reports.view_catalog", "reports.generate_official", "reports.senate_marksheet", "reports.export_files",
         ]
@@ -251,7 +258,8 @@ DEFAULT_ROLES = [
         "description": "Chief Executive and Academic Head of the University with executive oversight over all governance, academics, and administration.",
         "permissions": [
             "students.view_all",
-            "academics.view_curriculum", "academics.manage_programs", "academics.manage_courses", "academics.manage_terms",
+            "academics.view_curriculum", "academics.manage_programs", "academics.manage_courses", "academics.manage_terms", "academics.unit_registration",
+            "academics.manage_requests", "academics.manage_transfers", "academics.manage_attachments", "academics.manage_evaluations", "academics.manage_graduation",
             "exams.create_exam", "exams.view_marks", "exams.moderate_marks", "exams.approve_senate", "exams.publish_results",
             "finance.view_invoices",
             "reports.view_catalog", "reports.generate_official", "reports.senate_marksheet", "reports.export_files",
@@ -266,6 +274,7 @@ DEFAULT_ROLES = [
         "permissions": [
             "students.view_all",
             "academics.view_curriculum", "academics.manage_programs", "academics.manage_courses", "academics.manage_terms", "academics.unit_registration",
+            "academics.manage_requests", "academics.manage_transfers", "academics.manage_attachments", "academics.manage_evaluations", "academics.manage_graduation",
             "exams.create_exam", "exams.view_marks", "exams.moderate_marks", "exams.approve_senate", "exams.publish_results",
             "reports.view_catalog", "reports.generate_official", "reports.senate_marksheet", "reports.export_files",
             "admin.view_audit_logs",

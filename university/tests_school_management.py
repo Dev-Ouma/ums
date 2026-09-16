@@ -2,7 +2,7 @@ from django.test import TestCase, Client
 from django.urls import reverse
 
 from accounts.models import User, Role
-from university.models import School, Department, RecycleBinItem
+from university.models import School, Department, RecycleBinItem, AuditLog
 from university.recycle_bin_services import restore_from_recycle_bin
 
 
@@ -71,6 +71,14 @@ class SchoolManagementTests(TestCase):
         new_school.refresh_from_db()
         self.assertEqual(new_school.dean_name, "Dr. John Smith")
 
+        # Regression guard: school create/edit previously had no audit trail at all.
+        self.assertTrue(AuditLog.objects.filter(
+            entity="School", entity_id=new_school.id, action=AuditLog.Action.CREATE
+        ).exists())
+        self.assertTrue(AuditLog.objects.filter(
+            entity="School", entity_id=new_school.id, action=AuditLog.Action.UPDATE
+        ).exists())
+
     def test_school_delete_moves_to_recycle_bin_and_restores(self):
         client = Client()
         client.force_login(self.admin_user)
@@ -115,6 +123,11 @@ class SchoolManagementTests(TestCase):
         new_dept = Department.objects.get(code="EEE")
         self.assertEqual(new_dept.school, self.school)
 
+        # Regression guard: department create previously had no audit trail at all.
+        self.assertTrue(AuditLog.objects.filter(
+            entity="Department", entity_id=new_dept.id, action=AuditLog.Action.CREATE
+        ).exists())
+
     def test_department_delete_and_restore_preserves_school_fk(self):
         del_url = reverse("university:department_delete", args=[self.dept.pk])
         client = Client()
@@ -135,3 +148,61 @@ class SchoolManagementTests(TestCase):
 
         restored_dept = Department.objects.get(code="CSE")
         self.assertEqual(restored_dept.school, self.school)
+
+
+class DepartmentCascadeDeleteRollbackTests(TestCase):
+    """
+    Department -> Program and Department -> Course are CASCADE on_delete.
+    Deleting a Department used to silently hard-destroy every Programme and
+    Course beneath it with zero way to recover them. The delete must still
+    proceed immediately on confirm (auto-approved, never blocked) — but each
+    cascaded child now gets its own independently-restorable Recycle Bin
+    entry, and the confirm page must show what's about to be affected.
+    """
+    def setUp(self):
+        from university.models import Program, Course
+        self.admin_user = User.objects.create_user(
+            username="cascade.admin", email="cascade.admin@ums.ac.ke", password="password123",
+            role=Role.ADMIN, is_staff=True, is_superuser=True
+        )
+        self.dept = Department.objects.create(name="School of Cascades", code="SOC-CAS")
+        self.program = Program.objects.create(
+            name="BSc Cascades", code="BSC-CAS", department=self.dept, level="UG"
+        )
+        self.course = Course.objects.create(
+            code="CAS101", title="Intro to Cascades", department=self.dept, program=self.program,
+        )
+
+    def test_confirm_page_warns_about_dependents(self):
+        client = Client()
+        client.force_login(self.admin_user)
+        res = client.get(reverse("university:department_delete", args=[self.dept.pk]))
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "programme")
+        self.assertContains(res, "course")
+
+    def test_delete_proceeds_immediately_and_children_are_individually_restorable(self):
+        from university.models import Program, Course
+        client = Client()
+        client.force_login(self.admin_user)
+
+        res = client.post(reverse("university:department_delete", args=[self.dept.pk]))
+        self.assertEqual(res.status_code, 302)
+
+        # Auto-approved: the delete actually happened, nothing blocked it.
+        self.assertFalse(Department.objects.filter(pk=self.dept.pk).exists())
+        self.assertFalse(Program.objects.filter(pk=self.program.pk).exists())
+        self.assertFalse(Course.objects.filter(pk=self.course.pk).exists())
+
+        # Rollback: each cascaded child has its own Recycle Bin entry.
+        dept_item = RecycleBinItem.objects.get(content_type="Department", object_id=str(self.dept.pk))
+        program_item = RecycleBinItem.objects.get(content_type="Program", object_id=str(self.program.pk))
+        course_item = RecycleBinItem.objects.get(content_type="Course", object_id=str(self.course.pk))
+
+        restore_from_recycle_bin(dept_item.pk, user=self.admin_user)
+        restore_from_recycle_bin(program_item.pk, user=self.admin_user)
+        restore_from_recycle_bin(course_item.pk, user=self.admin_user)
+
+        self.assertTrue(Department.objects.filter(code="SOC-CAS").exists())
+        self.assertTrue(Program.objects.filter(code="BSC-CAS").exists())
+        self.assertTrue(Course.objects.filter(code="CAS101").exists())

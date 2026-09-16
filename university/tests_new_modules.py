@@ -236,6 +236,8 @@ class AdmissionsAndFinancialTests(TestCase):
         course = Course.objects.create(
             department=self.dept, code="CSC103", title="Computer Architecture", credits=3
         )
+        exam = Exam.objects.create(course=course, term=self.term, name="Published Final", status=Exam.Status.PUBLISHED)
+        Result.objects.create(exam=exam, student=student, marks_obtained=30, attendance="PRESENT")
 
         self.client.force_login(user)
         response = self.client.post(reverse("university:student_supplementary_apply", args=[course.id]), {
@@ -301,13 +303,29 @@ class AdmissionsAndFinancialTests(TestCase):
             username="supp.open", email="suppopen@ums.ac.ke", password="password123", role=Role.STUDENT
         )
         StudentProfile.objects.create(user=user, roll_no="BCS/0104/2026", program=self.prog, current_semester=1)
+        student = user.student_profile
         course = Course.objects.create(department=self.dept, code="CSC106", title="Databases", credits=3)
+        exam = Exam.objects.create(course=course, term=self.term, name="Published Final", status=Exam.Status.PUBLISHED)
+        Result.objects.create(exam=exam, student=student, marks_obtained=30, attendance="PRESENT")
 
         self.client.force_login(user)
         self.client.post(reverse("university:student_supplementary_apply", args=[course.id]), {
             "exam_type": "SUPPLEMENTARY", "reason": "Retake after failing end of term paper",
         })
         self.assertTrue(SupplementaryExamRegistration.objects.filter(course=course).exists())
+
+    def test_supplementary_application_requires_a_published_failing_result(self):
+        user = User.objects.create_user(
+            username="supp.ineligible", email="suppineligible@ums.ac.ke", password="password123", role=Role.STUDENT
+        )
+        StudentProfile.objects.create(user=user, roll_no="BCS/0105/2026", program=self.prog, current_semester=1)
+        course = Course.objects.create(department=self.dept, code="CSC109", title="Secure Systems", credits=3)
+        self.client.force_login(user)
+        response = self.client.post(reverse("university:student_supplementary_apply", args=[course.id]), {
+            "exam_type": "SUPPLEMENTARY", "reason": "Attempting an ineligible registration",
+        }, follow=True)
+        self.assertContains(response, "no published failing or absent result")
+        self.assertFalse(SupplementaryExamRegistration.objects.filter(course=course).exists())
 
     def test_supplementary_roster_only_includes_approved_applicants(self):
         course = Course.objects.create(department=self.dept, code="CSC107", title="Networks", credits=3, faculty=None)
