@@ -251,7 +251,7 @@ _CSP_DIRECTIVES = [
     "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com",
     "font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.gstatic.com data:",
     "img-src 'self' data: https:",
-    "frame-src 'self'",
+    "frame-src 'self' https://maps.google.com https://www.openstreetmap.org",
     "connect-src 'self'",
 ]
 if not DEBUG:
