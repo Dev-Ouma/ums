@@ -31,86 +31,136 @@
         </form>
       </div>
     </div>
-  </div>
-  <!-- Map Section - Leaflet.js -->
+  </div>  <!-- Map Section - Leaflet.js -->
   <div class="row mt-5">
     <div class="col-12">
-      <!-- Leaflet CSS & JS -->
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
       <div class="card card-ums p-4" style="font-family: 'Quicksand', sans-serif; background-color: #ffffff; border-top: 4px solid #0d6efd;">
-        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-3">
           <div>
-            <h4 class="fw-bold mb-1" style="color: #0d6efd;"><i class="fa-solid fa-location-dot me-2" style="color:#e74c3c"></i>Visit STACKGee Technologies</h4>
+            <h4 class="fw-bold mb-1" style="color: #0d6efd;">
+              <i class="fa-solid fa-location-dot me-2" style="color:#e74c3c"></i>Visit STACKGee Technologies
+            </h4>
             <p class="text-muted mb-0">Find us at Imara Daima Mall, Nairobi, Kenya.</p>
           </div>
-          <a href="https://www.google.com/maps/dir/?api=1&destination=-1.3279,36.88139&destination_place_id=Imara+Daima+Mall" target="_blank" rel="noopener" class="btn text-white px-4 py-2 shadow-sm" style="background-color: #198754; border-radius: 50rem;">
+          <a href="https://www.google.com/maps/dir/?api=1&destination=-1.3279,36.88139" target="_blank" rel="noopener"
+             class="btn text-white px-4 py-2 shadow-sm" style="background-color:#198754;border-radius:50rem;">
             <i class="fa-solid fa-route me-2"></i>Get Directions
           </a>
         </div>
+
+        <!-- Quick info row -->
+        <div class="d-flex flex-wrap gap-3 mb-3 small">
+          <span class="text-muted"><i class="fa-solid fa-phone me-1" style="color:#0d6efd"></i>
+            <a href="tel:+254700000000" style="color:inherit;text-decoration:none;">+254 700 000 000</a>
+          </span>
+          <span class="text-muted"><i class="fa-solid fa-envelope me-1" style="color:#0d6efd"></i>
+            <a href="mailto:hello@stackgee.com" style="color:inherit;text-decoration:none;">hello@stackgee.com</a>
+          </span>
+          <span class="text-muted"><i class="fa-solid fa-clock me-1" style="color:#0d6efd"></i>
+            Mon–Fri 8:00am – 6:00pm
+          </span>
+        </div>
+
         <!-- Map container -->
-        <div id="stackgee-map" style="height: 420px; border-radius: 0.75rem; overflow: hidden; border: 1px solid #dee2e6;" 
+        <div id="stackgee-map"
+             style="height:420px;border-radius:0.75rem;overflow:hidden;border:1px solid #dee2e6;"
              aria-label="Interactive map showing STACKGee Technologies at Imara Daima Mall, Nairobi, Kenya"
              role="region">
           <noscript>
             <div class="p-4 text-center text-muted">
               <i class="fa-solid fa-map-location-dot fa-3x mb-3 d-block" style="color:#0d6efd"></i>
-              JavaScript is required to load this map. <a href="https://www.google.com/maps?q=-1.3279,36.88139" target="_blank">View on Google Maps</a>.
+              JavaScript is required to load this map.
+              <a href="https://www.google.com/maps?q=-1.3279,36.88139" target="_blank">View on Google Maps</a>.
             </div>
           </noscript>
         </div>
-        <!-- Leaflet init script -->
-        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-        <script>
-          (function() {
-            var LAT = -1.3279, LNG = 36.88139;
 
-            var map = L.map('stackgee-map', { zoomControl: true, scrollWheelZoom: false }).setView([LAT, LNG], 16);
-
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-              maxZoom: 19
-            }).addTo(map);
-
-            /* Big custom pin using DivIcon */
-            var bigPin = L.divIcon({
-              className: '',
-              html: '<div style="display:flex;flex-direction:column;align-items:center;transform:translateX(-50%)">' +
-                      '<div style="background:#0d6efd;color:#fff;font-family:Quicksand,sans-serif;font-weight:700;' +
-                           'font-size:13px;padding:6px 12px;border-radius:8px;white-space:nowrap;' +
-                           'box-shadow:0 4px 15px rgba(13,110,253,0.45);margin-bottom:4px;">' +
-                        '<i class="fa-solid fa-building" style="margin-right:5px"></i>STACKGee Technologies' +
-                      '</div>' +
-                      '<svg xmlns="http://www.w3.org/2000/svg" width="42" height="60" viewBox="0 0 24 34">' +
-                        '<path d="M12 0C7.03 0 3 4.03 3 9c0 6.75 9 17 9 17s9-10.25 9-17c0-4.97-4.03-9-9-9z" fill="#e74c3c"/>' +
-                        '<circle cx="12" cy="9" r="4" fill="#fff"/>' +
-                      '</svg>' +
-                    '</div>',
-              iconAnchor: [0, 64],
-              popupAnchor: [0, -68]
-            });
-
-            var marker = L.marker([LAT, LNG], { icon: bigPin }).addTo(map);
-            marker.bindPopup(
-              '<div style="font-family:Quicksand,sans-serif;min-width:200px;text-align:center;padding:4px">' +
-                '<strong style="color:#0d6efd;font-size:15px">STACKGee Technologies</strong><br>' +
-                '<span style="color:#555;font-size:13px">Imara Daima Mall, Nairobi, Kenya</span><br>' +
-                '<a href="https://www.google.com/maps/dir/?api=1&destination=-1.3279,36.88139" target="_blank" ' +
-                   'style="display:inline-block;margin-top:8px;background:#198754;color:#fff;padding:5px 14px;' +
-                          'border-radius:50rem;font-size:12px;text-decoration:none;">' +
-                  '&#x1F9ED; Get Directions' +
-                '</a>' +
-              '</div>',
-              { maxWidth: 260 }
-            ).openPopup();
-
-            /* Re-enable scroll zoom on click */
-            map.once('click', function() { map.scrollWheelZoom.enable(); });
-          })();
-        </script>
+        <!-- Mobile scroll hint + View larger map -->
+        <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
+          <small class="text-muted d-md-none">
+            <i class="fa-solid fa-hand-pointer me-1"></i>Tap map to enable scroll zoom
+          </small>
+          <small class="text-muted d-none d-md-block">
+            <i class="fa-solid fa-computer-mouse me-1"></i>Click map to enable scroll zoom
+          </small>
+          <a href="https://www.openstreetmap.org/?mlat=-1.3279&mlon=36.88139#map=16/-1.3279/36.88139"
+             target="_blank" rel="noopener" class="small" style="color:#0d6efd;text-decoration:none;">
+            <i class="fa-solid fa-up-right-from-square me-1"></i>View larger map
+          </a>
+        </div>
       </div>
     </div>
   </div>
+
+  <!-- Leaflet JS (after DOM) -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    (function () {
+      var LAT = -1.3279, LNG = 36.88139;
+      var map = L.map('stackgee-map', { zoomControl: true, scrollWheelZoom: false }).setView([LAT, LNG], 16);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19
+      }).addTo(map);
+
+      /* Big custom pin — pure inline SVG, no FontAwesome dependency */
+      var pinHtml =
+        '<div style="display:flex;flex-direction:column;align-items:center;transform:translateX(-50%)">' +
+          /* Label bubble */
+          '<div style="background:#0d6efd;color:#fff;font-family:Quicksand,sans-serif;font-weight:700;' +
+               'font-size:13px;padding:6px 14px;border-radius:8px;white-space:nowrap;' +
+               'box-shadow:0 4px 15px rgba(13,110,253,0.40);margin-bottom:4px;' +
+               'display:flex;align-items:center;gap:6px;">' +
+            /* Inline building icon SVG */
+            '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="white">' +
+              '<path d="M3 21V3h18v18H3zm2-2h6v-4H5v4zm8 0h6v-4h-6v4zM5 13h6V9H5v4zm8 0h6V9h-6v4zM5 7h14V5H5v2z"/>' +
+            '</svg>' +
+            'STACKGee Technologies' +
+          '</div>' +
+          /* Drop pin SVG */
+          '<svg xmlns="http://www.w3.org/2000/svg" width="44" height="62" viewBox="0 0 24 34">' +
+            '<filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="rgba(0,0,0,0.35)"/></filter>' +
+            '<path d="M12 0C7.03 0 3 4.03 3 9c0 6.75 9 17 9 17s9-10.25 9-17c0-4.97-4.03-9-9-9z" fill="#e74c3c" filter="url(#shadow)"/>' +
+            '<circle cx="12" cy="9" r="4" fill="#fff"/>' +
+          '</svg>' +
+        '</div>';
+
+      var bigPin = L.divIcon({ className: '', html: pinHtml, iconAnchor: [0, 65], popupAnchor: [0, -70] });
+
+      var popupContent =
+        '<div style="font-family:Quicksand,sans-serif;min-width:210px;padding:4px">' +
+          '<strong style="color:#0d6efd;font-size:15px;display:block;margin-bottom:4px">STACKGee Technologies</strong>' +
+          '<div style="color:#555;font-size:13px;margin-bottom:8px">' +
+            '<i style="color:#e74c3c;margin-right:4px">&#x1F4CD;</i>Imara Daima Mall, Nairobi, Kenya' +
+          '</div>' +
+          '<div style="font-size:12px;color:#555;margin-bottom:3px">' +
+            '<a href="tel:+254700000000" style="color:#0d6efd;text-decoration:none">&#128222; +254 700 000 000</a>' +
+          '</div>' +
+          '<div style="font-size:12px;color:#555;margin-bottom:3px">' +
+            '<a href="mailto:hello@stackgee.com" style="color:#0d6efd;text-decoration:none">&#9993; hello@stackgee.com</a>' +
+          '</div>' +
+          '<div style="font-size:12px;color:#555;margin-bottom:10px">' +
+            '&#128336; Mon–Fri &nbsp;8:00am – 6:00pm' +
+          '</div>' +
+          '<a href="https://www.google.com/maps/dir/?api=1&destination=-1.3279,36.88139" target="_blank" ' +
+             'style="display:block;text-align:center;background:#198754;color:#fff;padding:6px 14px;' +
+                    'border-radius:50rem;font-size:12px;font-weight:700;text-decoration:none;">' +
+            '&#x1F9ED; Get Directions' +
+          '</a>' +
+        '</div>';
+
+      var marker = L.marker([LAT, LNG], { icon: bigPin }).addTo(map);
+      marker.bindPopup(popupContent, { maxWidth: 260 }).openPopup();
+
+      /* Enable scroll zoom after first click */
+      map.once('click', function () { map.scrollWheelZoom.enable(); });
+    })();
+  </script>
 </div>
 {% endblock %}
 
