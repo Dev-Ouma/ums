@@ -597,6 +597,9 @@ USER_MANAGEMENT_PERMISSIONS = [
      "Generate, provision, suspend, and archive institutional email identities."),
     ("users.manage_groups", "Manage User Groups", "User Management",
      "Create user groups and manage group membership and inherited roles."),
+    ("users.assign_staff_role", "Assign Staff Roles", "User Management",
+     "Grant or revoke an individual StaffRole (with optional department/school "
+     "scope) on a user account, independent of group membership."),
     ("users.bulk_operations", "Run Bulk User Operations", "User Management",
      "Import users in bulk and run bulk password, email, and status operations."),
     ("users.view_login_history", "View Login & Security History", "User Management",

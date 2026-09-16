@@ -11,6 +11,7 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Count, Q
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -344,24 +345,26 @@ def user_edit(request, pk):
         privilege_changed = user.role != data.get("role") if data.get("role") in dict(Role.choices) else False
         if data.get("role") in dict(Role.choices):
             user.role = data["role"]
-        user.save()
 
-        account.user_type = data.get("user_type") or account.user_type
-        account.campus = data.get("campus", "").strip()
-        account.activation_date = data.get("activation_date") or None
-        account.expiry_date = data.get("expiry_date") or None
-        account.notes = data.get("notes", "").strip()
-        account.save()
-        if privilege_changed:
-            invalidate_user_sessions(user)
+        with transaction.atomic():
+            user.save()
 
-        log_activity(
-            request=request, user=request.user, action=AuditLog.Action.UPDATE,
-            module=AuditLog.Module.AUTH, entity="User", entity_id=user.pk,
-            description=f"Updated account details for '{user.username}'.",
-            previous_state=before,
-            new_state={"username": user.username, "email": user.email, "role": user.role,
-                       "user_type": account.user_type, "campus": account.campus})
+            account.user_type = data.get("user_type") or account.user_type
+            account.campus = data.get("campus", "").strip()
+            account.activation_date = data.get("activation_date") or None
+            account.expiry_date = data.get("expiry_date") or None
+            account.notes = data.get("notes", "").strip()
+            account.save()
+            if privilege_changed:
+                invalidate_user_sessions(user)
+
+            log_activity(
+                request=request, user=request.user, action=AuditLog.Action.UPDATE,
+                module=AuditLog.Module.AUTH, entity="User", entity_id=user.pk,
+                description=f"Updated account details for '{user.username}'.",
+                previous_state=before,
+                new_state={"username": user.username, "email": user.email, "role": user.role,
+                           "user_type": account.user_type, "campus": account.campus})
         messages.success(request, "Account details updated.")
         return redirect("university:user_detail", pk=user.pk)
 
@@ -389,7 +392,7 @@ ACTION_PERMISSIONS = {
     "generate_email": "users.manage_emails",
     "assign_group": "users.manage_groups",
     "remove_group": "users.manage_groups",
-    "assign_role": "users.manage_groups",
+    "assign_role": "users.assign_staff_role",
 }
 
 STATUS_ACTIONS = {
@@ -431,9 +434,12 @@ def user_action(request, pk, action):
             (messages.success if ok else messages.error)(request, message)
 
     elif action == "unlock":
-        was_locked, _account = unlock_account(user, actor=request.user, request=request)
-        messages.success(request, "Account unlocked." if was_locked
-                         else "Account was not locked; counters were cleared.")
+        if user.is_superuser and not request.user.is_superuser:
+            messages.error(request, "This account is protected and cannot be modified.")
+        else:
+            was_locked, _account = unlock_account(user, actor=request.user, request=request)
+            messages.success(request, "Account unlocked." if was_locked
+                             else "Account was not locked; counters were cleared.")
 
     elif action == "send_reset_link":
         ok, message, url = send_reset_link(user, actor=request.user, request=request)
@@ -492,12 +498,34 @@ def user_action(request, pk, action):
         role_id = request.POST.get("staff_role")
         dept_id = request.POST.get("department_id") or None
         school_id = request.POST.get("school_id") or None
-        assignment = assign_staff_role(
-            user=user, role_id_or_code=role_id, department_id=dept_id,
-            school_id=school_id, actor=request.user, request=request,
-        )
-        invalidate_user_sessions(user)
-        messages.success(request, f"Role '{assignment.role.name}' assigned.")
+        role = get_object_or_404(StaffRole, pk=role_id) if str(role_id).isdigit() \
+            else get_object_or_404(StaffRole, code=role_id)
+
+        # "users.assign_staff_role" only grants the ability to hand out
+        # ordinary roles. Granting a role that itself carries role/permission
+        # -management power (or role assignment power) is administrator-tier
+        # and requires admin.manage_roles_permissions — otherwise anyone with
+        # the narrower grant could bootstrap themselves or anyone else into
+        # full system-admin by assigning a role like "identity_admin".
+        role_is_admin_tier = role.permissions.filter(
+            code__in=["admin.manage_roles_permissions", "users.assign_staff_role"]
+        ).exists()
+        if role_is_admin_tier and not has_user_permission(
+            request.user, "admin.manage_roles_permissions"
+        ):
+            messages.error(request, f"Assigning '{role.name}' requires "
+                                    f"'Manage Roles & Permissions' — it grants "
+                                    f"role/permission-management power.")
+        elif user == request.user and role_is_admin_tier:
+            messages.error(request, "You cannot grant yourself an "
+                                    "administrator-tier role.")
+        else:
+            assignment = assign_staff_role(
+                user=user, role_id_or_code=role.pk, department_id=dept_id,
+                school_id=school_id, actor=request.user, request=request,
+            )
+            invalidate_user_sessions(user)
+            messages.success(request, f"Role '{assignment.role.name}' assigned.")
 
     return safe_redirect(
         request,
@@ -670,20 +698,47 @@ def group_edit(request, pk=None):
                 "color": request.POST.get("color", "#6C5CE7"),
                 "icon": request.POST.get("icon", "fa-solid fa-users-rectangle").strip(),
             }
-            if group:
-                for field, value in values.items():
-                    setattr(group, field, value)
-                group.save()
-                action = AuditLog.Action.UPDATE
-            else:
-                group = UserGroup.objects.create(**values)
-                action = AuditLog.Action.CREATE
-            group.roles.set(StaffRole.objects.filter(pk__in=request.POST.getlist("roles")))
-            for membership in group.memberships.select_related("user"):
-                invalidate_user_sessions(membership.user)
-            log_activity(request=request, user=request.user, action=action,
-                         module=AuditLog.Module.AUTH, entity="User Group", entity_id=group.pk,
-                         description=f"Saved user group '{group.name}'.")
+            with transaction.atomic():
+                previous_role_ids = set(group.roles.values_list("pk", flat=True)) if group else set()
+                members = list(group.memberships.select_related("user")) if group else []
+                if group:
+                    for field, value in values.items():
+                        setattr(group, field, value)
+                    group.save()
+                    action = AuditLog.Action.UPDATE
+                else:
+                    group = UserGroup.objects.create(**values)
+                    action = AuditLog.Action.CREATE
+                new_roles = StaffRole.objects.filter(pk__in=request.POST.getlist("roles"))
+                group.roles.set(new_roles)
+
+                # A role dropped from the group's definition must stop being
+                # active for every current member, unless another group they
+                # still belong to independently grants the same role — mirrors
+                # remove_group's revoke step so editing a group's roles can't
+                # silently leave ex-members' permissions unchanged.
+                removed_role_ids = previous_role_ids - set(new_roles.values_list("pk", flat=True))
+                if removed_role_ids and members:
+                    member_ids = [m.user_id for m in members]
+                    for member in members:
+                        other_group_ids = UserGroupMembership.objects.filter(
+                            user_id=member.user_id
+                        ).exclude(group=group).values_list("group_id", flat=True)
+                        other_group_roles = StaffRole.objects.filter(
+                            user_groups__pk__in=other_group_ids
+                        ).values_list("pk", flat=True)
+                        roles_to_revoke = set(removed_role_ids) - set(other_group_roles)
+                        if roles_to_revoke:
+                            StaffRoleAssignment.objects.filter(
+                                user_id=member.user_id, role_id__in=roles_to_revoke,
+                                department=None, school=None, is_active=True,
+                            ).update(is_active=False)
+
+                for membership in members:
+                    invalidate_user_sessions(membership.user)
+                log_activity(request=request, user=request.user, action=action,
+                             module=AuditLog.Module.AUTH, entity="User Group", entity_id=group.pk,
+                             description=f"Saved user group '{group.name}'.")
             messages.success(request, f"Group '{group.name}' saved.")
             return redirect("university:group_list")
 
@@ -755,8 +810,10 @@ def email_accounts(request):
 def email_action(request, pk, action):
     record = get_object_or_404(InstitutionalEmail, pk=pk)
 
+    provision_failed = False
     if action == "provision":
         ok, message = provision_mailbox(record, actor=request.user)
+        provision_failed = not ok
         (messages.success if ok else messages.warning)(request, message)
     elif action == "confirm":
         mark_mailbox_active(record, reference=request.POST.get("reference", "").strip(),
@@ -778,11 +835,11 @@ def email_action(request, pk, action):
     else:
         raise Http404("Unknown email action.")
 
+    outcome = "FAILED" if provision_failed else record.get_status_display()
     log_activity(request=request, user=request.user, action=AuditLog.Action.UPDATE,
                  module=AuditLog.Module.AUTH, entity="Institutional Email",
                  entity_id=record.pk,
-                 description=f"Email '{record.address}' action '{action}' → "
-                             f"{record.get_status_display()}.")
+                 description=f"Email '{record.address}' action '{action}' → {outcome}.")
     return redirect("university:email_accounts")
 
 

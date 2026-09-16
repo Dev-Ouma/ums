@@ -716,6 +716,21 @@ def assign_group(user, group, actor=None, request=None):
 def remove_group(user, group, actor=None, request=None):
     deleted, _ = UserGroupMembership.objects.filter(user=user, group=group).delete()
     if deleted:
+        # Mirror assign_group's grant step on the way out: a role this group
+        # gave the user is only still legitimate if another group the user
+        # remains in also grants it. Otherwise, leaving the StaffRoleAssignment
+        # active would mean "removed from group" reports success while the
+        # user silently keeps every permission the group's roles carried.
+        other_group_ids = UserGroupMembership.objects.filter(
+            user=user
+        ).exclude(group=group).values_list("group_id", flat=True)
+        other_group_roles = StaffRole.objects.filter(user_groups__pk__in=other_group_ids).distinct()
+        roles_to_revoke = group.roles.exclude(pk__in=other_group_roles)
+        if roles_to_revoke.exists():
+            StaffRoleAssignment.objects.filter(
+                user=user, role__in=roles_to_revoke, department=None, school=None,
+                is_active=True,
+            ).update(is_active=False)
         invalidate_user_sessions(user)
         log_activity(
             request=request, user=actor, action=AuditLog.Action.UPDATE, module=AUDIT_MODULE,
@@ -742,6 +757,7 @@ class IdentityError(ValidationError):
 def create_user_account(*, user_type, first_name, last_name, email="", username="", phone="",
                         role=None, password=None, password_mode="LINK", status=None,
                         must_change_password=True, groups=None, staff_role_codes=None,
+                        staff_role_department_id=None, staff_role_school_id=None,
                         student_profile=None, faculty_profile=None, campus="",
                         activation_date=None, expiry_date=None, generate_email=None,
                         notify=True, actor=None, request=None):
@@ -805,8 +821,16 @@ def create_user_account(*, user_type, first_name, last_name, email="", username=
     for code in (staff_role_codes or []):
         role_obj = StaffRole.objects.filter(code=code).first()
         if role_obj:
-            StaffRoleAssignment.objects.get_or_create(
-                user=user, role=role_obj, department=None,
+            # update_or_create, not get_or_create: a matching but previously
+            # revoked assignment (is_active=False) must be reactivated here,
+            # not silently left inactive while account creation still reports
+            # full success. Scoped to the department/school the caller
+            # resolved for this account (e.g. from an import row's department
+            # column) instead of always institution-wide.
+            StaffRoleAssignment.objects.update_or_create(
+                user=user, role=role_obj,
+                department_id=staff_role_department_id,
+                school_id=staff_role_school_id,
                 defaults={"assigned_by": actor, "is_active": True})
 
     institutional_email = None
@@ -1203,6 +1227,9 @@ def commit_import(preview_rows, user_type, actor=None, request=None, notify=True
                     email=row["email"], username=row["username"], phone=row["phone"],
                     password_mode="LINK", status=status, groups=groups,
                     staff_role_codes=[row["role_code"]] if row["role_code"] else None,
+                    staff_role_department_id=(
+                        faculty_profile.department_id if faculty_profile is not None else None
+                    ),
                     campus=row["campus"], notify=notify, actor=actor, request=request,
                 )
                 # The profile record is saved against the freshly created user so

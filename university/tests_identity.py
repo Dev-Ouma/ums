@@ -708,3 +708,183 @@ class ModuleRegistrationTests(IdentityTestBase):
         self.assertIsNotNone(module)
         self.assertTrue(SystemSubmodule.objects.filter(
             module=module, code="credential_management").exists())
+
+
+# ==============================================================================
+# 13. ROLE/GROUP GRANT AND REVOKE SYMMETRY
+# ==============================================================================
+
+class RoleAssignmentPrivilegeEscalationTests(IdentityTestBase):
+    """
+    assign_role must require its own narrow permission (not the unrelated
+    'manage user groups' code), and must never let a holder of that narrow
+    permission bootstrap an administrator-tier role (one that itself carries
+    role/permission-management power) onto anyone, including themselves.
+    """
+    def setUp(self):
+        from university.models import StaffRole
+        self.client = Client()
+        self.target = self.make_account("escalation.target")
+        self.identity_admin_role = StaffRole.objects.get(code="identity_admin")
+
+        self.limited_role = StaffRole.objects.create(name="Role Assigner", code="role_assigner")
+        from university.models import SystemPermission
+        perm = SystemPermission.objects.get(code="users.assign_staff_role")
+        self.limited_role.permissions.add(perm)
+        self.limited_actor = self.make_account("limited.actor")
+        StaffRoleAssignment.objects.create(
+            user=self.limited_actor, role=self.limited_role,
+            department=None, school=None, is_active=True, assigned_by=self.admin,
+        )
+
+    def test_holder_of_narrow_permission_cannot_grant_an_admin_tier_role_to_another_user(self):
+        self.client.force_login(self.limited_actor)
+        response = self.client.post(
+            reverse("university:user_action", args=[self.target.pk, "assign_role"]),
+            {"staff_role": self.identity_admin_role.pk})
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(StaffRoleAssignment.objects.filter(
+            user=self.target, role=self.identity_admin_role, is_active=True).exists())
+
+    def test_holder_of_narrow_permission_cannot_grant_an_admin_tier_role_to_self(self):
+        self.client.force_login(self.limited_actor)
+        response = self.client.post(
+            reverse("university:user_action", args=[self.limited_actor.pk, "assign_role"]),
+            {"staff_role": self.identity_admin_role.pk})
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(StaffRoleAssignment.objects.filter(
+            user=self.limited_actor, role=self.identity_admin_role, is_active=True).exists())
+
+    def test_holder_of_narrow_permission_can_still_grant_an_ordinary_role(self):
+        from university.models import StaffRole
+        ordinary_role = StaffRole.objects.create(name="Course Coordinator", code="course_coord")
+        self.client.force_login(self.limited_actor)
+        response = self.client.post(
+            reverse("university:user_action", args=[self.target.pk, "assign_role"]),
+            {"staff_role": ordinary_role.pk})
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(StaffRoleAssignment.objects.filter(
+            user=self.target, role=ordinary_role, is_active=True).exists())
+
+    def test_administrator_can_still_grant_an_admin_tier_role(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("university:user_action", args=[self.target.pk, "assign_role"]),
+            {"staff_role": self.identity_admin_role.pk})
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(StaffRoleAssignment.objects.filter(
+            user=self.target, role=self.identity_admin_role, is_active=True).exists())
+
+
+class GroupRoleRevocationSymmetryTests(IdentityTestBase):
+    """
+    Regression guard: removing a user from a group (or removing a role from a
+    group's definition) must revoke the StaffRoleAssignment(s) that group
+    membership originally granted -- unless another group the user still
+    belongs to independently grants the same role. Before this fix, the
+    revoke side of group/role management was a no-op: the UI reported
+    'Removed' success while the user silently kept every permission.
+    """
+    def setUp(self):
+        from university.identity_services import assign_group, remove_group
+        from university.models import StaffRole
+        self.assign_group = assign_group
+        self.remove_group = remove_group
+        self.client = Client()
+        self.client.force_login(self.admin)
+        self.target = self.make_account("group.member")
+        self.role = StaffRole.objects.create(name="Finance Clerk", code="finance_clerk")
+        self.group_a = UserGroup.objects.create(
+            code="grp-a", name="Group A", user_type=UserType.STAFF)
+        self.group_a.roles.add(self.role)
+        self.group_b = UserGroup.objects.create(
+            code="grp-b", name="Group B", user_type=UserType.STAFF)
+        self.group_b.roles.add(self.role)
+
+    def test_removing_from_a_group_revokes_the_role_it_granted(self):
+        self.assign_group(self.target, self.group_a, actor=self.admin)
+        self.assertTrue(StaffRoleAssignment.objects.filter(
+            user=self.target, role=self.role, is_active=True).exists())
+
+        self.remove_group(self.target, self.group_a, actor=self.admin)
+        self.assertFalse(StaffRoleAssignment.objects.filter(
+            user=self.target, role=self.role, is_active=True).exists())
+
+    def test_removing_from_a_group_keeps_the_role_if_another_group_still_grants_it(self):
+        self.assign_group(self.target, self.group_a, actor=self.admin)
+        self.assign_group(self.target, self.group_b, actor=self.admin)
+
+        self.remove_group(self.target, self.group_a, actor=self.admin)
+        self.assertTrue(StaffRoleAssignment.objects.filter(
+            user=self.target, role=self.role, is_active=True).exists())
+
+    def test_removing_a_role_from_a_group_definition_revokes_it_for_current_members(self):
+        self.assign_group(self.target, self.group_a, actor=self.admin)
+        self.assertTrue(StaffRoleAssignment.objects.filter(
+            user=self.target, role=self.role, is_active=True).exists())
+
+        response = self.client.post(
+            reverse("university:group_edit", args=[self.group_a.pk]),
+            {"code": self.group_a.code, "name": self.group_a.name,
+             "user_type": UserType.STAFF, "precedence": 100,
+             "color": "#6C5CE7", "icon": "fa-solid fa-users-rectangle",
+             "roles": []})
+        self.assertEqual(response.status_code, 302)
+
+        self.assertFalse(StaffRoleAssignment.objects.filter(
+            user=self.target, role=self.role, is_active=True).exists())
+
+
+class CreateUserAccountRoleScopingTests(IdentityTestBase):
+    def test_staff_role_is_scoped_to_the_supplied_department(self):
+        from university.identity_services import create_user_account
+        from university.models import StaffRole
+        role = StaffRole.objects.create(name="HOD", code="hod-scope-test")
+        result = create_user_account(
+            user_type=UserType.STAFF, first_name="Dept", last_name="Head",
+            email="dept.head@example.com", username="dept.head",
+            password_mode="MANUAL", password="Str0ng!Dept2026", must_change_password=False,
+            staff_role_codes=[role.code], staff_role_department_id=self.department.pk,
+            actor=self.admin, notify=False,
+        )
+        assignment = StaffRoleAssignment.objects.get(user=result["user"], role=role)
+        self.assertEqual(assignment.department_id, self.department.pk)
+        self.assertTrue(assignment.is_active)
+
+    def test_staff_role_is_unscoped_when_no_department_supplied(self):
+        from university.identity_services import create_user_account
+        from university.models import StaffRole
+        role = StaffRole.objects.create(name="Unscoped Role", code="unscoped-role-test")
+        result = create_user_account(
+            user_type=UserType.STAFF, first_name="No", last_name="Scope",
+            email="no.scope@example.com", username="no.scope",
+            password_mode="MANUAL", password="Str0ng!NoScope1", must_change_password=False,
+            staff_role_codes=[role.code], actor=self.admin, notify=False,
+        )
+        assignment = StaffRoleAssignment.objects.get(user=result["user"], role=role)
+        self.assertIsNone(assignment.department_id)
+        self.assertTrue(assignment.is_active)
+
+
+class ProtectedSuperuserUnlockTests(IdentityTestBase):
+    def test_non_superuser_cannot_unlock_a_superuser_account(self):
+        from university.models import StaffRole, SystemPermission
+        role = StaffRole.objects.create(name="Status Manager", code="status-mgr-test")
+        role.permissions.add(SystemPermission.objects.get(code="users.manage_status"))
+        role.permissions.add(SystemPermission.objects.get(code="users.view"))
+        actor = self.make_account("status.manager")
+        StaffRoleAssignment.objects.create(
+            user=actor, role=role, department=None, school=None,
+            is_active=True, assigned_by=self.admin,
+        )
+        other_superuser = User.objects.create_superuser(
+            username="other.super", email="other.super@example.com",
+            password="Str0ng!OtherSuper1")
+
+        client = Client()
+        client.force_login(actor)
+        response = client.post(
+            reverse("university:user_action", args=[other_superuser.pk, "unlock"]))
+        self.assertEqual(response.status_code, 302)
+        response = client.get(response["Location"])
+        self.assertContains(response, "protected")
