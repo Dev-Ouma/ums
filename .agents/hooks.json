@@ -1,0 +1,26 @@
+{
+  "hooks": [
+    {
+      "name": "django-check-before-push",
+      "description": "Run Django system check before any git push to catch configuration errors early",
+      "trigger": "pre_tool",
+      "tool_name": "run_command",
+      "match": {
+        "command_contains": "git push"
+      },
+      "command": ".venv/bin/python manage.py check",
+      "on_failure": "warn"
+    },
+    {
+      "name": "migration-check-before-push",
+      "description": "Warn if there are unapplied migrations before pushing",
+      "trigger": "pre_tool",
+      "tool_name": "run_command",
+      "match": {
+        "command_contains": "git push"
+      },
+      "command": ".venv/bin/python manage.py migrate --check",
+      "on_failure": "warn"
+    }
+  ]
+}
