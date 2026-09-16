@@ -3,7 +3,8 @@ name: backend-api-development
 description: >-
   Backend API and payment workflow safety skill for the UMS project.
   Covers command/query separation, idempotency, financial workflow read-only
-  enforcement, payment provider integration patterns, and API endpoint design.
+  enforcement, M-Pesa STK Push integration, payment provider registry patterns,
+  audit payload sanitization, and API endpoint design.
   Activate whenever working on payment, fee, or any provider-integrated endpoint.
 ---
 
@@ -160,13 +161,111 @@ def api_view(request):
 
 ---
 
-## 6. Pre-Release API Checklist
+## 6. Payment Provider Architecture
+
+The system uses a **provider registry pattern** — never call a payment provider directly from a view.
+
+```
+university/payment_providers/
+├── base.py          ← BasePaymentProviderAdapter + PaymentResult dataclass
+├── mpesa.py         ← M-Pesa STK Push / Paybill / Buy Goods / Pochi la Biashara
+├── bank.py          ← Bank transfer instructions
+├── card.py          ← Card payment gateway
+└── registry.py      ← get_payment_adapter(fee_account) — resolves provider from FeeAccount type
+```
+
+### Provider Resolution:
+```python
+from university.payment_providers.registry import get_payment_adapter
+
+# Never hardcode the provider — always resolve from the FeeAccount
+adapter = get_payment_adapter(fee_account)
+result = adapter.initiate_payment(payment, request, extra_data={"phone": phone})
+```
+
+### FeeAccount Types → Provider Mapping:
+| FeeAccount.account_type | Provider | Flow |
+|---|---|---|
+| `MPESA_PAYBILL` | MpesaProviderAdapter | STK Push → Paybill + Account Ref |
+| `MPESA_TILL` | MpesaProviderAdapter | Buy Goods / Till |
+| `POCHI_LA_BIASHARA` | MpesaProviderAdapter | Pochi number |
+| `BANK_TRANSFER` | BankProviderAdapter | Manual bank transfer instructions |
+| `CARD` | CardProviderAdapter | Card gateway redirect |
+
+---
+
+## 7. M-Pesa Phone Number Sanitization
+
+Always normalize phone before sending to M-Pesa (from `mpesa.py`):
+
+```python
+def sanitize_mpesa_phone(phone: str) -> str:
+    """Convert any Kenyan format to 254XXXXXXXXX."""
+    cleaned = phone.replace("+", "").replace(" ", "").replace("-", "")
+    if cleaned.startswith("0") and len(cleaned) == 10:
+        return "254" + cleaned[1:]
+    if cleaned.startswith("7") and len(cleaned) == 9:
+        return "254" + cleaned
+    return cleaned  # already in 254... format
+```
+
+---
+
+## 8. Payment Audit Payload Sanitization
+
+From `payment_services.py` — never store raw PII in payment audit records:
+
+```python
+# These are the ONLY fields that may be stored in audit logs for payments
+PAYMENT_AUDIT_FIELDS = {
+    "transactiontype", "transid", "transtime", "transamount", "amount",
+    "businessshortcode", "billrefnumber", "invoicenumber", "currency",
+    "currencycode", "internal_reference", "reference", "provider_reference",
+    "transaction_id", "status", "resultcode", "resultdesc",
+}
+
+def sanitize_payment_payload(payload):
+    """Keep only non-personal verification facts."""
+    return {k: v for k, v in (payload or {}).items() if k.lower() in PAYMENT_AUDIT_FIELDS}
+```
+
+---
+
+## 9. Reconciliation and Reversal
+
+The system has `PaymentReconciliation` and `PaymentReversal` models.
+
+- **Reconciliation** — matches provider records to internal `Payment` records
+- **Reversal** — creates a negative ledger entry, does NOT delete the original payment
+- Both require `has_perm("university.change_feeaccount")` + `@transaction.atomic`
+
+```python
+# Pattern for reversal (never delete, always reverse)
+with transaction.atomic():
+    reversal = PaymentReversal.objects.create(
+        payment=payment,
+        reversed_by=request.user,
+        reason=form.cleaned_data["reason"],
+        amount=payment.amount,
+    )
+    payment.status = "REVERSED"
+    payment.save(update_fields=["status"])
+    log_activity(request.user, "payment_reversed", payment, delta={"amount": str(payment.amount)})
+```
+
+---
+
+## 10. Pre-Release API Checklist
 
 - [ ] All GET endpoints have zero side effects (safe to refresh/repeat)
 - [ ] All POST endpoints have `@require_POST` decorator
+- [ ] Payment provider resolved via registry, not hardcoded
+- [ ] M-Pesa phone numbers sanitized to `254XXXXXXXXX` before sending
 - [ ] Payment webhooks verify provider signature
-- [ ] Idempotency implemented with unique constraint + get_or_create
+- [ ] Idempotency implemented with unique constraint + `get_or_create`
 - [ ] All mutations wrapped in `@transaction.atomic`
 - [ ] Duplicate webhook calls return HTTP 200, not 4xx
+- [ ] Audit payload sanitized — no PII in `PAYMENT_AUDIT_FIELDS`
+- [ ] Reversal creates new record, never deletes original
 - [ ] Error responses use consistent JSON structure
 - [ ] Audit log entry created for all financial mutations

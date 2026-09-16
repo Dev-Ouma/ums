@@ -50,18 +50,55 @@ For each app in `INSTALLED_APPS`, read:
 2. `<app>/urls.py` — URL surface
 3. `<app>/admin.py` — registered admin views
 
-### UMS App Map:
+### UMS App Map (full service file landscape):
 ```
-accounts/   → CustomUser, StudentProfile, FacultyProfile, AdminProfile
-            → Identity, auth, sessions, login security, bulk import
+accounts/
+  models.py             ← CustomUser, StudentProfile, FacultyProfile, AdminProfile
+  identity.py           ← Role constants (STUDENT/FACULTY/ADMIN)
+  activity.py           ← Login tracking
+  email_identity_service.py ← Institutional email provisioning
+  signature_services.py ← Digital signature configuration
 
-university/ → Department, Program, Course, AcademicTerm
-            → Enrollment, Attendance, Grade, FeeAccount, FeePayment
-            → Event, Notice, Assignment, Submission
-            → Hostel, Library, Attachment, CourseEvaluation
-
-cms/        → Page (CMS pages, public-facing content)
-config/     → Settings, URLs, no models
+university/  (130+ source files — read selectively by domain)
+  Core Domain:
+    services.py              models.py         forms.py
+  Identity & Access:
+    identity_services.py     identity_models.py  identity_views.py
+    permissions_services.py  permissions_views.py
+    decorators.py            security_decorators.py
+  Examinations:
+    examination_services.py  examination_views.py  examination_forms.py
+    examination_operations.py examination_urls.py
+  Finance:
+    payment_services.py      financial_services.py
+    payment_providers/       fee_account_views.py  fee_payment_views.py
+    payment_certification_services.py
+  Academics:
+    admissions_services.py   academics_views.py    academic_calendar_services.py
+    graduation_services.py   attachment_services.py attachment_views.py
+    library_services.py      hostel_services.py
+    evaluation_services.py   evaluation_views.py
+  PDFs & Exports:
+    document_design.py       transcript_io.py  progressive_report_io.py
+    transcript_views.py      document_views.py
+    student_io.py faculty_io.py fee_io.py marks_io.py
+    course_io.py program_io.py timetable_io.py
+  System Control:
+    control_services.py      control_views.py   control_urls.py
+    golive_services.py       golive_models.py   golive_views.py
+    module_services.py       module_models.py   module_views.py
+    backup_services.py       backup_models.py   backup_views.py
+    monitoring_services.py   monitoring_views.py
+    audit_services.py        audit_views.py
+    security_compliance_services.py security_compliance_views.py
+    recycle_bin_services.py  recycle_bin_views.py
+  Integrations:
+    integrations/            email_services.py  sms_services.py
+    integration_views.py     institution_domain_services.py
+  CMS:
+cms/
+  services.py  models.py  views.py  sanitizer.py
+  management/commands/seed_cms.py
 ```
 
 ### Quick model count:

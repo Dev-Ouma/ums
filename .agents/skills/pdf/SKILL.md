@@ -70,103 +70,113 @@ def validate_transcript_eligibility(student_profile):
 
 ---
 
-## 2. PDF Generation Libraries
+## 2. PDF Generation Stack (ACTUAL Implementation)
 
-### Current Stack:
-The project uses **WeasyPrint** or **ReportLab** (check `requirements.txt`).
-
+### The project uses ReportLab (NOT WeasyPrint)
 ```bash
-# Check what's installed
-.venv/bin/pip show weasyprint reportlab xhtml2pdf
+.venv/bin/pip show reportlab  # confirm version
 ```
 
-### Recommended: WeasyPrint (HTML → PDF)
-Best for transcript/letter formats — renders your existing HTML templates:
+### Shared Design System: `document_design.py`
+Every PDF in the system must use the shared brand components — never hand-roll styles:
 
 ```python
-from weasyprint import HTML
-from django.template.loader import render_to_string
+from university.document_design import (
+    ReportDocTemplate,
+    document_styles,       # returns (styles, h1, h2, body, small, ...)
+    document_fonts,        # registers Quicksand TTF from static/fonts/quicksand/
+    PageNumberCanvas,      # adds page numbers to every page
+    letterhead,            # institution logo + name header
+    get_branding,          # returns {primary_color, logo_path, institution_name}
+    finish_worksheet,      # applies styling to Excel sheets
+    make_qr_code_flowable, # generates QR code for document verification
+)
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import Paragraph, Table, TableStyle, Spacer
+```
 
-def generate_transcript_pdf(request, student_profile):
-    context = build_transcript_context(student_profile)
-    html_string = render_to_string("pdfs/transcript.html", context, request=request)
-    pdf = HTML(string=html_string, base_url=request.build_absolute_uri("/")).write_pdf()
-    
-    response = HttpResponse(pdf, content_type="application/pdf")
-    response["Content-Disposition"] = (
-        f'attachment; filename="transcript_{student_profile.admission_number}.pdf"'
-    )
-    return response
+### Two Brand Palettes (from `document_design.py`):
+- **Standard palette** — matches `static/css/ums.css --primary` — for regular reports
+- **Formal palette** — muted, low-color, authoritative — for certified transcripts
+
+### Quicksand Font (embedded in every PDF):
+```python
+# Called automatically by document_design.document_fonts()
+# Fonts loaded from: static/fonts/quicksand/Quicksand.ttf etc.
+# Always call document_fonts() before building any PDF
+font_normal, font_bold = document_fonts()
+```
+
+### QR Verification Code:
+```python
+# Add QR code to certified documents for verification
+qr_flowable = make_qr_code_flowable(
+    data=f"https://yourdomain.com/verify/{document_hash}",
+    size=60
+)
 ```
 
 ---
 
-## 3. Handling Incomplete Data
+## 4. Actual Transcript Builder (from transcript_io.py)
 
-**NEVER render a formal PDF with missing or null fields.**  
-Instead, display explicit placeholders or block generation.
+The real transcript context builder uses the `examination_services.student_statement()` workflow:
 
 ```python
-def build_transcript_context(student_profile):
-    is_eligible, issues = validate_transcript_eligibility(student_profile)
+from university import examination_services as workflow
+
+def build_transcript_context(student, term=None, academic_year=None):
+    statement = workflow.student_statement(student)
+    complete = [g for g in statement.groups if g['complete']]
     
-    if not is_eligible:
-        raise ValueError(f"Transcript not eligible for generation: {'; '.join(issues)}")
+    # Groups by term, sorts by start_date
+    by_term = {}
+    for g in complete:
+        by_term.setdefault(g['term'].pk if g['term'] else None, []).append(g)
     
-    enrollments = Enrollment.objects.filter(
-        student=student_profile,
-        status="COMPLETED"
-    ).select_related("course", "course__program", "grade")
+    semesters = []
+    running = []
+    earned = {}
+    for groups in sorted(by_term.values(), ...):
+        # GPA is credit-weighted, CGPA is cumulative
+        term_gpa = workflow.weighted_gpa(groups)
+        cumulative_gpa = workflow.weighted_gpa(running)
+        semesters.append(dict(
+            term=groups[0]['term'],
+            groups=groups,
+            term_gpa=term_gpa,
+            cumulative_gpa=cumulative_gpa,
+            credits_attempted=sum(g['course'].credits for g in groups),
+            credits_completed=new_credits,
+        ))
     
-    return {
-        "student": student_profile,
-        "enrollments": enrollments,
-        "generated_at": timezone.now(),
-        "generated_by": "UMS Academic Records System",
-        # Explicitly mark if any field is unavailable
-        "grading_policy": student_profile.program.grading_policy if student_profile.program else None,
-        "policy_unavailable": student_profile.program is None,
-    }
+    # Per-exam grading legends (each exam has its OWN GradingScale)
+    legends = []  # [{key, courses, bands}]
+    # ...one legend entry per unique grading scale
 ```
 
-### In Template — Explicit Unavailability:
-```html
-{% if policy_unavailable %}
-  <div class="disclaimer">
-    ⚠ Grading policy not available for this programme. 
-    Contact the registrar for clarification.
-  </div>
-{% else %}
-  <!-- Normal grade rendering -->
-{% endif %}
-
-{% for enrollment in enrollments %}
-  <tr>
-    <td>{{ enrollment.course.code }}</td>
-    <td>{{ enrollment.course.title }}</td>
-    <td>
-      {% if enrollment.grade %}
-        {{ enrollment.grade.letter_grade }} ({{ enrollment.grade.score }})
-      {% else %}
-        <em>Grade not yet recorded</em>
-      {% endif %}
-    </td>
-  </tr>
-{% endfor %}
-```
+### GPA Rules (from transcript NOTES constant):
+> GPA is the credit-weighted sum of grade points divided by attempted credits.  
+> CGPA applies the same formula cumulatively across all completed sessions.  
+> Published supplementary or repeat assessments **replace** original grades.  
+> Credits are earned **once per passed course unit**.  
+> Grades use **each examination's saved grading scale** (not a global scale).
 
 ---
 
-## 4. Formal Document Types in UMS
+## 4. Formal Document Types in UMS (with actual URL patterns)
 
-| Document | Template | Trigger |
+| Document | Module | URL pattern |
 |---|---|---|
-| Academic Transcript | `pdfs/transcript.html` | Student/Admin request |
-| Fee Receipt | `pdfs/fee_receipt.html` | After payment confirmation |
-| Admission Letter | `pdfs/admission_letter.html` | After admission approval |
-| Industrial Attachment Letter | `pdfs/attachment_intro.html` | After attachment approval |
-| Logbook | `pdfs/attachment_logbook.html` | Student submission |
-| Exam Results Slip | `pdfs/results_slip.html` | After results are published |
+| Academic Transcript | `transcript_io.py` | `/students/<pk>/transcript/pdf/` |
+| Fee Receipt | `fee_io.py` | `/fees/<pk>/receipt/pdf/` |
+| Admission Letter | `admission_document_services.py` | `/admissions/<pk>/letter/pdf/` |
+| Industrial Attachment Intro Letter | `attachment_views.py` | `/academics/attachment/<pk>/letter/pdf/` |
+| Attachment Logbook | `attachment_views.py` | `/academics/attachment/<pk>/logbook/pdf/` |
+| Exam Results Slip | `examination_views.py` | `/manage/academics/examinations/<pk>/results/pdf/` |
+| Progressive Report | `progressive_report_io.py` | `/students/<pk>/progressive-report/pdf/` |
+| Timetable Export | `timetable_io.py` | `/manage/academics/timetable/export/` |
+| Faculty/Student Lists | `faculty_io.py` / `student_io.py` | Various export endpoints |
 
 ---
 
