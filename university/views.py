@@ -64,7 +64,7 @@ def home(request):
             "departments": Department.objects.count(),
         },
         "departments": Department.objects.all()[:6],
-        "featured_courses": Course.objects.select_related("department")[:6],
+        "featured_courses": Course.objects.select_related("department").all(),
         "events": Event.objects.filter(date__gte=date.today())[:3],
     }
     return render(request, "public/home.html", ctx)
@@ -560,14 +560,30 @@ def _render_form(request, form, title, subtitle="", icon="fa-pen-to-square", bac
     })
 
 
-def _confirm_delete(request, obj, label, back):
+def _confirm_delete(request, obj, label, back, dependents=None, pre_delete=None):
+    """
+    Generic delete-confirmation flow.
+
+    dependents: optional list of (description, queryset) pairs shown as a
+    non-blocking warning on the confirm page — this never blocks the delete
+    (it is always "auto-approved" on confirm), it just makes the blast
+    radius visible before the admin clicks through.
+    pre_delete: optional callback(obj, request) run before the object itself
+    is moved to the Recycle Bin — used to individually recycle-bin cascaded
+    child records first, so a CASCADE on_delete doesn't silently destroy
+    records with no way to roll them back; each child then has its own
+    Recycle Bin entry and can be restored independently.
+    """
     if request.method == "POST":
         name = str(obj)
+        if pre_delete:
+            pre_delete(obj, request)
         move_to_recycle_bin(obj, user=request.user, request=request)
         messages.success(request, f"Moved {label} '{name}' to Recycle Bin.")
         return redirect(back)
     return render(request, "dashboard/confirm_delete.html", {
         "object": obj, "label": label, "back_url": reverse(back),
+        "dependents": dependents or [],
     })
 
 
@@ -1213,6 +1229,13 @@ def school_create(request):
     form = SchoolForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         school = form.save()
+        log_activity(
+            request=request, user=request.user,
+            action=AuditLog.Action.CREATE, module=AuditLog.Module.DEPARTMENTS,
+            entity="School", entity_id=school.id,
+            description=f"Created school/faculty {school.code} — {school.name}",
+            new_state={"code": school.code, "name": school.name},
+        )
         messages.success(request, f"School {school.name} created.")
         return redirect("university:school_detail", pk=school.pk)
     return _render_form(request, form, "Add School / Faculty", "", "fa-landmark",
@@ -1225,6 +1248,12 @@ def school_edit(request, pk):
     form = SchoolForm(request.POST or None, instance=school)
     if request.method == "POST" and form.is_valid():
         form.save()
+        log_activity(
+            request=request, user=request.user,
+            action=AuditLog.Action.UPDATE, module=AuditLog.Module.DEPARTMENTS,
+            entity="School", entity_id=school.id,
+            description=f"Updated school/faculty {school.code} — {school.name}",
+        )
         messages.success(request, "School updated.")
         return redirect("university:school_detail", pk=school.pk)
     return _render_form(request, form, "Edit School / Faculty", school.name, "fa-pen",
@@ -1261,6 +1290,13 @@ def department_create(request):
     form = DepartmentForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         dept = form.save()
+        log_activity(
+            request=request, user=request.user,
+            action=AuditLog.Action.CREATE, module=AuditLog.Module.DEPARTMENTS,
+            entity="Department", entity_id=dept.id,
+            description=f"Created department {dept.code} — {dept.name}",
+            new_state={"code": dept.code, "name": dept.name, "school_id": dept.school_id},
+        )
         messages.success(request, f"Department {dept.name} created.")
         return redirect("university:department_detail", pk=dept.pk)
     return _render_form(request, form, "Add Department", "", "fa-building-columns",
@@ -1273,16 +1309,47 @@ def department_edit(request, pk):
     form = DepartmentForm(request.POST or None, instance=dept)
     if request.method == "POST" and form.is_valid():
         form.save()
+        log_activity(
+            request=request, user=request.user,
+            action=AuditLog.Action.UPDATE, module=AuditLog.Module.DEPARTMENTS,
+            entity="Department", entity_id=dept.id,
+            description=f"Updated department {dept.code} — {dept.name}",
+        )
         messages.success(request, "Department updated.")
         return redirect("university:department_detail", pk=dept.pk)
     return _render_form(request, form, "Edit Department", dept.name, "fa-pen",
                         "university:admin_departments")
 
 
+def _cascade_recycle_department_children(dept, request):
+    """
+    Department -> Program and Department -> Course are CASCADE on_delete,
+    so deleting a Department would otherwise permanently destroy every
+    Programme and Course under it with no way to roll back. Move each one
+    to the Recycle Bin individually first — they each already have their
+    own restore path — so the delete is auto-approved (never blocked) but
+    everything under it stays independently recoverable.
+    """
+    for program in list(dept.programs.all()):
+        move_to_recycle_bin(program, user=request.user, request=request)
+    for course in list(dept.courses.all()):
+        move_to_recycle_bin(course, user=request.user, request=request)
+
+
 @role_required(Role.ADMIN)
 def department_delete(request, pk):
     dept = get_object_or_404(Department, pk=pk)
-    return _confirm_delete(request, dept, "department", "university:admin_departments")
+    programs = dept.programs.all()
+    courses = dept.courses.all()
+    dependents = []
+    if programs.exists():
+        dependents.append((f"{programs.count()} programme(s)", programs))
+    if courses.exists():
+        dependents.append((f"{courses.count()} course(s)", courses))
+    return _confirm_delete(
+        request, dept, "department", "university:admin_departments",
+        dependents=dependents, pre_delete=_cascade_recycle_department_children,
+    )
 
 
 # ==========================================================================
@@ -1931,6 +1998,13 @@ def course_create(request):
     form = CourseForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         c = form.save()
+        log_activity(
+            request=request, user=request.user,
+            action=AuditLog.Action.CREATE, module=AuditLog.Module.COURSES,
+            entity="Course", entity_id=c.id,
+            description=f"Created course {c.code} — {c.title}",
+            new_state={"code": c.code, "title": c.title, "department_id": c.department_id, "credits": c.credits},
+        )
         messages.success(request, f"Course {c.code} created.")
         return redirect("university:course_detail", pk=c.pk)
     return _render_form(request, form, "Add Course", "", "fa-book",
@@ -1943,16 +2017,45 @@ def course_edit(request, pk):
     form = CourseForm(request.POST or None, instance=c)
     if request.method == "POST" and form.is_valid():
         form.save()
+        log_activity(
+            request=request, user=request.user,
+            action=AuditLog.Action.UPDATE, module=AuditLog.Module.COURSES,
+            entity="Course", entity_id=c.id,
+            description=f"Updated course {c.code} — {c.title}",
+        )
         messages.success(request, "Course updated.")
         return redirect("university:course_detail", pk=c.pk)
     return _render_form(request, form, "Edit Course", c.title, "fa-pen",
                         "university:admin_courses")
 
 
+def _cascade_recycle_course_schedules(course, request):
+    """Course -> ClassSchedule is CASCADE; recycle-bin each schedule
+    individually first so it stays independently restorable."""
+    for schedule in list(course.schedules.all()):
+        move_to_recycle_bin(schedule, user=request.user, request=request)
+
+
 @role_required(Role.ADMIN)
 def course_delete(request, pk):
     c = get_object_or_404(Course, pk=pk)
-    return _confirm_delete(request, c, "course", "university:admin_courses")
+    dependents = []
+    enrollments = c.enrollments.all()
+    assignments = c.assignments.all()
+    schedules = c.schedules.all()
+    exams = c.exams.all()
+    if enrollments.exists():
+        dependents.append((f"{enrollments.count()} student enrollment(s) — will be permanently deleted, not recoverable", enrollments))
+    if assignments.exists():
+        dependents.append((f"{assignments.count()} assignment(s) — will be permanently deleted, not recoverable", assignments))
+    if exams.exists():
+        dependents.append((f"{exams.count()} exam(s) and their results — will be permanently deleted, not recoverable", exams))
+    if schedules.exists():
+        dependents.append((f"{schedules.count()} timetable schedule(s) — will be moved to Recycle Bin and can be restored", schedules))
+    return _confirm_delete(
+        request, c, "course", "university:admin_courses",
+        dependents=dependents, pre_delete=_cascade_recycle_course_schedules,
+    )
 
 
 @role_required(Role.ADMIN)
@@ -2447,6 +2550,13 @@ def class_schedule_create(request):
         except ValidationError as exc:
             form.add_error(None, exc)
         else:
+            log_activity(
+                request=request, user=request.user,
+                action=AuditLog.Action.CREATE, module=AuditLog.Module.TIMETABLE,
+                entity="ClassSchedule", entity_id=schedule.id,
+                description=f"Scheduled {schedule.course.code} on {schedule.get_day_display()} "
+                            f"{schedule.start_time}-{schedule.end_time}.",
+            )
             messages.success(request, f"Scheduled {schedule.course.code} on "
                                      f"{schedule.get_day_display()}.")
             return redirect("university:admin_timetable")
@@ -2464,6 +2574,12 @@ def class_schedule_edit(request, pk):
         except ValidationError as exc:
             form.add_error(None, exc)
         else:
+            log_activity(
+                request=request, user=request.user,
+                action=AuditLog.Action.UPDATE, module=AuditLog.Module.TIMETABLE,
+                entity="ClassSchedule", entity_id=schedule.id,
+                description=f"Updated class schedule for {schedule.course.code}.",
+            )
             messages.success(request, "Class schedule updated.")
             return redirect("university:admin_timetable")
     return _render_form(request, form, "Edit Class Schedule", str(schedule), "fa-pen",
@@ -2483,6 +2599,12 @@ def class_schedule_publish(request, pk):
     schedule.status = (ClassSchedule.Status.DRAFT if schedule.status == ClassSchedule.Status.PUBLISHED
                        else ClassSchedule.Status.PUBLISHED)
     schedule.save(update_fields=["status"])
+    log_activity(
+        request=request, user=request.user,
+        action=AuditLog.Action.UPDATE, module=AuditLog.Module.TIMETABLE,
+        entity="ClassSchedule", entity_id=schedule.id,
+        description=f"{schedule} set to {schedule.get_status_display()}.",
+    )
     messages.success(request, f"{schedule} is now {schedule.get_status_display().lower()}.")
     return safe_redirect(
         request,
