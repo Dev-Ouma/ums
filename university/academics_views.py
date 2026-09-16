@@ -30,7 +30,7 @@ from .transcript_views import document as render_transcript_document
 from .document_access_services import check_document_access
 from .audit_services import get_client_ip, detect_device_type, log_activity
 from .academic_calendar_services import get_current_academic_year, get_current_semester, get_active_academic_context
-from .permissions_services import has_user_permission
+from .permissions_services import has_scoped_permission, has_user_permission
 from . import services
 
 
@@ -814,15 +814,33 @@ def admin_student_transfers(request):
     if not has_user_permission(request.user, "academics.manage_transfers"):
         raise PermissionDenied
     applications = StudentTransferRequest.objects.select_related("student__user", "from_program", "to_program", "reviewed_by")
+    # A department-scoped grant (e.g. HOD) only sees transfers touching their
+    # own department, either as the origin or the destination programme.
+    if not has_scoped_permission(request.user, "academics.manage_transfers"):
+        visible_departments = [
+            d for d in Department.objects.all()
+            if has_scoped_permission(request.user, "academics.manage_transfers", department=d)
+        ]
+        applications = applications.filter(
+            Q(from_program__department__in=visible_departments)
+            | Q(to_program__department__in=visible_departments))
     return render(request, "academics/admin_student_transfers.html", {"applications": applications})
 
 
 @login_required
 @require_POST
 def admin_student_transfer_decision(request, pk):
-    if not has_user_permission(request.user, "academics.manage_transfers"):
+    application = get_object_or_404(
+        StudentTransferRequest.objects.select_related("from_program__department", "to_program__department"),
+        pk=pk, status=StudentTransferRequest.Status.PENDING)
+    allowed = (
+        has_scoped_permission(request.user, "academics.manage_transfers",
+                              department=application.from_program.department if application.from_program_id else None)
+        or has_scoped_permission(request.user, "academics.manage_transfers",
+                                 department=application.to_program.department if application.to_program_id else None)
+    )
+    if not allowed:
         raise PermissionDenied
-    application = get_object_or_404(StudentTransferRequest, pk=pk, status=StudentTransferRequest.Status.PENDING)
     decision = request.POST.get("decision")
     if decision not in {StudentTransferRequest.Status.APPROVED, StudentTransferRequest.Status.REJECTED}:
         messages.error(request, "Invalid transfer decision.")

@@ -12,9 +12,9 @@ from accounts.models import StudentProfile
 from .academics_views import _get_student
 from .examination_services import is_admin
 from .forms import StudentRequestForm
-from .models import StudentRequest
+from .models import Department, StudentRequest
 from .student_requests_services import decide_request, mark_under_review, resume_studies, submit_request
-from .permissions_services import has_user_permission
+from .permissions_services import has_scoped_permission, has_user_permission
 
 
 @login_required
@@ -72,6 +72,14 @@ def admin_student_requests(request):
     status_filter = request.GET.get("status", "").strip()
 
     qs = StudentRequest.objects.select_related("student__user", "reviewed_by")
+    # A department-scoped StaffRoleAssignment (e.g. HOD) sees only requests
+    # from students in that department; an institution-wide grant (unscoped
+    # assignment, or ADMIN default) sees everything, unchanged from before.
+    if not has_scoped_permission(request.user, "academics.manage_requests"):
+        qs = qs.filter(student__program__department__in=[
+            d for d in Department.objects.all()
+            if has_scoped_permission(request.user, "academics.manage_requests", department=d)
+        ])
     if query:
         qs = qs.filter(Q(student__roll_no__icontains=query) | Q(student__user__first_name__icontains=query) |
                        Q(student__user__last_name__icontains=query))
@@ -96,9 +104,12 @@ def admin_student_requests(request):
 
 @login_required
 def admin_student_request_detail(request, pk):
-    if not has_user_permission(request.user, "academics.manage_requests"):
+    req = get_object_or_404(
+        StudentRequest.objects.select_related("student__user", "student__program__department", "reviewed_by"),
+        pk=pk)
+    department = req.student.program.department if req.student.program_id else None
+    if not has_scoped_permission(request.user, "academics.manage_requests", department=department):
         raise PermissionDenied
-    req = get_object_or_404(StudentRequest.objects.select_related("student__user", "reviewed_by"), pk=pk)
 
     if request.method == "POST":
         action = request.POST.get("action")

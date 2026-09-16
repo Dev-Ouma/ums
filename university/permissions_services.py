@@ -4,6 +4,7 @@ Supports role definitions, permission catalogs, and explicit user-level Grant/De
 """
 
 from django.db import transaction
+from django.db.models import Q
 from university.models import (
     Department,
     School,
@@ -398,6 +399,82 @@ def has_user_permission(user, permission_code):
 
 
 user_has_permission = has_user_permission
+
+
+def has_scoped_permission(user, permission_code, department=None, school=None):
+    """
+    Like has_user_permission(), but honours the department/school scope on a
+    StaffRoleAssignment instead of ignoring it.
+
+    StaffRoleAssignment.department/school are optional: an assignment with
+    both null is institution-wide (grants everywhere, same as today's
+    unscoped has_user_permission behaviour). A department-scoped assignment
+    (e.g. "HOD of Computer Science") only grants the permission when checked
+    against that department, or a department that belongs to the school a
+    school-scoped assignment (e.g. "Dean of Engineering") covers — a Dean
+    oversees every department in their school, an HOD does not oversee other
+    departments or the school itself.
+
+    Pass neither `department` nor `school` to fall back to institution-wide
+    evaluation identical to has_user_permission (useful when the caller
+    doesn't yet know the scope, e.g. a generic list view before filtering).
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+
+    override = UserPermissionOverride.objects.filter(
+        user=user, permission__code=permission_code
+    ).first()
+    if override:
+        if override.override_type == UserPermissionOverride.OverrideType.DENY:
+            return False
+        if override.override_type == UserPermissionOverride.OverrideType.GRANT:
+            return True
+
+    if department is None and school is None:
+        return has_user_permission(user, permission_code)
+
+    scope_match = Q(department__isnull=True, school__isnull=True)
+    if department is not None:
+        scope_match |= Q(department=department)
+        if getattr(department, "school_id", None):
+            scope_match |= Q(school_id=department.school_id)
+    if school is not None:
+        scope_match |= Q(school=school)
+
+    role_filter = {"user": user, "is_active": True}
+    if getattr(user, "_active_role_code", None):
+        role_filter["role__code"] = user._active_role_code
+    has_role_perm = StaffRoleAssignment.objects.filter(
+        scope_match, **role_filter, role__permissions__code=permission_code
+    ).exists()
+    if has_role_perm:
+        return True
+
+    if permission_code.startswith("control."):
+        return False
+
+    # Base role defaults (ADMIN/FACULTY) are institution-wide by definition —
+    # they carry no StaffRoleAssignment scope to check, so fall back to the
+    # unscoped evaluation for these rather than denying every scoped check.
+    user_role = getattr(user, "role", "")
+    if not getattr(user, "_active_role_code", None) and (
+        user_role == Role.ADMIN or getattr(user, "is_admin_role", False)
+    ):
+        return True
+    if not getattr(user, "_active_role_code", None) and (
+        user_role == Role.FACULTY or getattr(user, "is_faculty", False)
+    ):
+        faculty_defaults = {
+            "exams.view_marks", "exams.enter_cat", "exams.enter_exam",
+            "academics.view_curriculum", "reports.view_catalog", "reports.export_files"
+        }
+        if permission_code in faculty_defaults:
+            return True
+
+    return False
 
 
 def get_user_effective_permissions(user):

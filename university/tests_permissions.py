@@ -269,3 +269,165 @@ class StaffPermissionsAndOverridesTestCase(TestCase):
         url = reverse("university:staff_permissions_dashboard")
         res = self.client.get(url)
         self.assertEqual(res.status_code, 302)
+
+
+class ScopedPermissionTests(TestCase):
+    """
+    has_user_permission() never enforced StaffRoleAssignment.department/school
+    -- an assignment scoped to "HOD of Computer Science" granted its
+    permissions institution-wide, identically to an unscoped assignment.
+    has_scoped_permission() fixes that for callers that pass a scope; every
+    existing has_user_permission() caller is untouched.
+    """
+    @classmethod
+    def setUpTestData(cls):
+        seed_default_permissions_and_roles()
+        cls.school = __import__("university.models", fromlist=["School"]).School.objects.create(
+            name="School of Computing", code="SOC")
+        cls.dept_a = Department.objects.create(name="Computer Science", code="CS", school=cls.school)
+        cls.dept_b = Department.objects.create(name="Mathematics", code="MATH", school=cls.school)
+        cls.other_school = __import__("university.models", fromlist=["School"]).School.objects.create(
+            name="School of Business", code="SOB")
+        cls.dept_c = Department.objects.create(name="Accounting", code="ACC", school=cls.other_school)
+
+        # Custom roles carrying the permission under test, scoped in the way
+        # the Staff Permissions console lets an admin scope any role.
+        cls.role = StaffRole.objects.create(name="Dept Transfer Reviewer", code="dept_transfer_reviewer_scope_test")
+        cls.role.permissions.add(SystemPermission.objects.get(code="academics.manage_transfers"))
+        cls.dean_role = StaffRole.objects.create(name="School Transfer Reviewer", code="school_transfer_reviewer_scope_test")
+        cls.dean_role.permissions.add(SystemPermission.objects.get(code="academics.manage_transfers"))
+
+        cls.hod_user = User.objects.create_user(
+            username="hod.cs", email="hod.cs@example.com", password="pass12345", role=Role.FACULTY)
+        StaffRoleAssignment.objects.create(
+            user=cls.hod_user, role=cls.role, department=cls.dept_a, school=None,
+            is_active=True)
+
+        cls.dean_user = User.objects.create_user(
+            username="dean.soc", email="dean.soc@example.com", password="pass12345", role=Role.FACULTY)
+        StaffRoleAssignment.objects.create(
+            user=cls.dean_user, role=cls.dean_role, department=None, school=cls.school,
+            is_active=True)
+
+        cls.unscoped_user = User.objects.create_user(
+            username="registrar", email="registrar@example.com", password="pass12345", role=Role.FACULTY)
+        registrar_role = StaffRole.objects.get(code="academic_registrar")
+        StaffRoleAssignment.objects.create(
+            user=cls.unscoped_user, role=registrar_role, department=None, school=None,
+            is_active=True)
+
+    def _perm_code(self):
+        # academics.manage_transfers is on the hod/dean/registrar default roles.
+        return "academics.manage_transfers"
+
+    def test_department_scoped_assignment_grants_within_its_own_department(self):
+        from university.permissions_services import has_scoped_permission
+        self.assertTrue(has_scoped_permission(
+            self.hod_user, self._perm_code(), department=self.dept_a))
+
+    def test_department_scoped_assignment_does_not_grant_a_different_department(self):
+        from university.permissions_services import has_scoped_permission
+        self.assertFalse(has_scoped_permission(
+            self.hod_user, self._perm_code(), department=self.dept_b))
+
+    def test_department_scoped_assignment_still_grants_institution_wide_when_no_scope_passed(self):
+        """Callers that don't yet pass scope get identical behaviour to has_user_permission."""
+        from university.permissions_services import has_scoped_permission, has_user_permission
+        self.assertEqual(
+            has_scoped_permission(self.hod_user, self._perm_code()),
+            has_user_permission(self.hod_user, self._perm_code()))
+        self.assertTrue(has_scoped_permission(self.hod_user, self._perm_code()))
+
+    def test_school_scoped_dean_grants_every_department_in_that_school(self):
+        from university.permissions_services import has_scoped_permission
+        self.assertTrue(has_scoped_permission(
+            self.dean_user, self._perm_code(), department=self.dept_a))
+        self.assertTrue(has_scoped_permission(
+            self.dean_user, self._perm_code(), department=self.dept_b))
+
+    def test_school_scoped_dean_does_not_grant_a_department_in_another_school(self):
+        from university.permissions_services import has_scoped_permission
+        self.assertFalse(has_scoped_permission(
+            self.dean_user, self._perm_code(), department=self.dept_c))
+
+    def test_department_scoped_hod_does_not_grant_school_wide_access(self):
+        from university.permissions_services import has_scoped_permission
+        self.assertFalse(has_scoped_permission(
+            self.hod_user, self._perm_code(), school=self.school))
+
+    def test_unscoped_assignment_grants_every_department(self):
+        from university.permissions_services import has_scoped_permission
+        self.assertTrue(has_scoped_permission(
+            self.unscoped_user, self._perm_code(), department=self.dept_a))
+        self.assertTrue(has_scoped_permission(
+            self.unscoped_user, self._perm_code(), department=self.dept_c))
+
+
+class ScopedTransferAndRequestViewTests(TestCase):
+    """
+    admin_student_transfer_decision and admin_student_request_detail are the
+    highest-value call sites for scope enforcement -- both let staff decide
+    on another department's students today regardless of a scoped grant.
+    """
+    @classmethod
+    def setUpTestData(cls):
+        from university.models import Program, StudentRequest, StudentTransferRequest
+        from accounts.models import StudentProfile
+        seed_default_permissions_and_roles()
+        cls.StudentRequest = StudentRequest
+        cls.StudentTransferRequest = StudentTransferRequest
+
+        cls.school = __import__("university.models", fromlist=["School"]).School.objects.create(
+            name="School of Computing", code="SOC2")
+        cls.dept_a = Department.objects.create(name="Computer Science", code="CS2", school=cls.school)
+        cls.dept_b = Department.objects.create(name="Physics", code="PHY2", school=cls.school)
+        cls.program_a = Program.objects.create(name="BSc CS", code="BCS2", department=cls.dept_a)
+        cls.program_b = Program.objects.create(name="BSc Physics", code="BPH2", department=cls.dept_b)
+
+        cls.hod_role = StaffRole.objects.create(name="Dept Reviewer", code="dept_reviewer_scope_test")
+        cls.hod_role.permissions.add(
+            SystemPermission.objects.get(code="academics.manage_transfers"),
+            SystemPermission.objects.get(code="academics.manage_requests"))
+        cls.hod_a = User.objects.create_user(
+            username="hod.a", email="hod.a@example.com", password="pass12345", role=Role.FACULTY)
+        StaffRoleAssignment.objects.create(
+            user=cls.hod_a, role=cls.hod_role, department=cls.dept_a, school=None, is_active=True)
+
+        cls.student_user = User.objects.create_user(
+            username="stud.req", email="stud.req@example.com", password="pass12345", role=Role.STUDENT)
+        cls.student = StudentProfile.objects.create(
+            user=cls.student_user, roll_no="STU-SCOPE-1", program=cls.program_b, current_semester=1)
+
+    def test_hod_cannot_view_a_student_request_from_a_different_department(self):
+        req = self.StudentRequest.objects.create(
+            student=self.student, request_type=self.StudentRequest.Type.DEFERMENT,
+            reason="Medical", status=self.StudentRequest.Status.PENDING)
+        client = Client()
+        client.force_login(self.hod_a)
+        res = client.get(reverse("university:admin_student_request_detail", args=[req.pk]))
+        self.assertEqual(res.status_code, 403)
+
+    def test_hod_cannot_decide_a_transfer_touching_only_another_department(self):
+        transfer = self.StudentTransferRequest.objects.create(
+            student=self.student, from_program=self.program_b, to_program=self.program_b,
+            reason="Test reason with enough length")
+        client = Client()
+        client.force_login(self.hod_a)
+        res = client.post(
+            reverse("university:admin_student_transfer_decision", args=[transfer.pk]),
+            {"decision": "APPROVED"})
+        self.assertEqual(res.status_code, 403)
+
+    def test_hod_can_decide_a_transfer_into_their_own_department(self):
+        student_a_program = self.program_b
+        transfer = self.StudentTransferRequest.objects.create(
+            student=self.student, from_program=student_a_program, to_program=self.program_a,
+            reason="Test reason with enough length")
+        client = Client()
+        client.force_login(self.hod_a)
+        res = client.post(
+            reverse("university:admin_student_transfer_decision", args=[transfer.pk]),
+            {"decision": "APPROVED"})
+        self.assertEqual(res.status_code, 302)
+        transfer.refresh_from_db()
+        self.assertEqual(transfer.status, self.StudentTransferRequest.Status.APPROVED)
