@@ -32,5 +32,33 @@
       </div>
     </div>
   </div>
+  <!-- Map Section -->
+  <div class="row mt-5">
+    <div class="col-12">
+      <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
+      <div class="card card-ums p-4" style="font-family: 'Quicksand', sans-serif; background-color: #ffffff; border-top: 4px solid #0d6efd;">
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+          <div>
+            <h4 class="fw-bold mb-1" style="color: #0d6efd;">Visit STACKGee Technologies</h4>
+            <p class="text-muted mb-0">Find us at Imara Daima Mall, Nairobi, Kenya.</p>
+          </div>
+          <a href="https://www.google.com/maps/dir/?api=1&destination=-1.3279,36.88139" target="_blank" class="btn text-white px-4 py-2 shadow-sm" style="background-color: #198754; border-radius: 50rem;">
+            <i class="fa-solid fa-directions me-2"></i>Get Directions
+          </a>
+        </div>
+        <div class="map-container" style="position: relative; padding-bottom: 45%; height: 0; overflow: hidden; border-radius: 0.75rem; box-shadow: inset 0 0 10px rgba(0,0,0,0.1); background-color: #f8f9fa;">
+          <iframe 
+            src="https://maps.google.com/maps?q=-1.3279,36.88139&t=&z=15&ie=UTF8&iwloc=&output=embed" 
+            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" 
+            allowfullscreen="" 
+            loading="lazy" 
+            referrerpolicy="no-referrer-when-downgrade"
+            title="STACKGee Technologies Location Map">
+            <p class="p-3 text-center">Sorry, the map could not be loaded. Please click 'Get Directions' to view our location on Google Maps.</p>
+          </iframe>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
