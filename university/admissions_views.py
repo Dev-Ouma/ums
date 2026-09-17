@@ -650,7 +650,14 @@ def apply(request):
     draft = get_active_applicant_draft(request)
     state = serialize_draft_state(draft, request=request) if draft else empty_draft_state()
 
-    # Pre-select and persist programme into draft and state
+    # Pre-select programme for display, and persist it into the draft only
+    # when THIS request explicitly asked for it (a `?program=` query param).
+    # Falling back to a remembered session value must never silently
+    # overwrite a draft's program on a plain page revisit -- if the
+    # applicant later changed programme through the form itself, a stale
+    # session value from an old shared link would otherwise clobber that
+    # choice back on the next reload, a GET request causing an unexpected
+    # write with no user action behind it.
     active_prog_id = (
         (requested_program.id if requested_program else None)
         or (draft.program_id if (draft and draft.program_id) else None)
@@ -661,7 +668,8 @@ def apply(request):
         selected_program = Program.objects.filter(pk=active_prog_id, status=Program.Status.ACTIVE).first()
         if selected_program:
             state["fields"]["program"] = str(selected_program.id)
-            if draft and draft.program_id != selected_program.id:
+            if (requested_program and draft
+                    and draft.program_id != selected_program.id):
                 draft.program = selected_program
                 draft.save(update_fields=["program"])
 

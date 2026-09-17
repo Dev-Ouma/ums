@@ -156,6 +156,41 @@ class ProgramManagementTests(TestCase):
         self.assertContains(res_apply, f'value="{self.prog_degree.id}" selected')
         self.assertContains(res_apply, "Applying For")
 
+    def test_stale_session_program_does_not_overwrite_an_existing_draft_on_plain_revisit(self):
+        """
+        Regression guard: a plain GET to /admissions/apply/ (no ?program=)
+        must never silently overwrite an existing draft's programme just
+        because an old `?program=` link left a different value sitting in
+        the session -- that would be a write caused by a GET request with
+        no explicit user action behind it.
+        """
+        from university.models import Application
+
+        anon_client = Client()
+        # Establish a session, then create a draft explicitly on prog_degree
+        # (GET alone never creates a draft -- only POST/save does).
+        anon_client.get(reverse("university:admissions_apply"))
+        session = anon_client.session
+        session_key = session.session_key
+        draft = Application.objects.create(
+            application_number="TEST-STALE-SESSION-1",
+            session_key=session_key, status=Application.Status.DRAFT, program=self.prog_degree,
+        )
+        self.assertEqual(draft.program_id, self.prog_degree.id)
+
+        # Simulate a stale session value pointing at a different programme
+        # (e.g. the applicant followed an old shared link earlier).
+        session["selected_program_id"] = self.prog_tvet.id
+        session.save()
+
+        # Plain revisit, no ?program= param.
+        res = anon_client.get(reverse("university:admissions_apply"))
+        self.assertEqual(res.status_code, 200)
+
+        draft.refresh_from_db()
+        self.assertEqual(draft.program_id, self.prog_degree.id,
+                         "A stale session value must not silently overwrite the draft's real programme.")
+
     def test_program_create_and_edit(self):
         """Test program creation and update forms with audit log tracking."""
         client = Client()
