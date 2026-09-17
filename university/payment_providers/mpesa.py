@@ -6,6 +6,8 @@ from .base import BasePaymentProviderAdapter, PaymentResult
 
 logger = logging.getLogger(__name__)
 
+MPESA_CALLBACK_PATH = "/api/payments/callback/mpesa/"
+
 
 class MpesaProviderAdapter(BasePaymentProviderAdapter):
     """
@@ -67,7 +69,40 @@ class MpesaProviderAdapter(BasePaymentProviderAdapter):
         }
         instructions["steps"] = [s for s in instructions["steps"] if s]
 
-        # STK Push prompt simulation or live API call
+        # Real Daraja STK Push for Paybill accounts when M-Pesa is actually
+        # configured (SystemSetting mpesa_consumer_key/secret/passkey) --
+        # falls back to the manual-instructions flow below (what this
+        # method always did) for Till/Pochi accounts, or when unconfigured,
+        # so nothing breaks for an install that hasn't set up Daraja yet.
+        from university.integrations.mpesa import DarajaClient, get_mpesa_config, is_configured
+        mpesa_config = get_mpesa_config()
+        if is_paybill and cleaned_phone and is_configured(mpesa_config):
+            client = DarajaClient(mpesa_config)
+            result = client.stk_push(
+                phone_number=cleaned_phone, amount=payment.amount,
+                account_reference=account_ref or payment.internal_reference,
+                transaction_desc="Fee Payment", callback_path=MPESA_CALLBACK_PATH,
+            )
+            if result.success:
+                payment.status = "PENDING"
+                payment.provider_reference = result.provider_reference
+                payment.notes = f"STK Push prompt dispatched to {cleaned_phone} via Daraja. Awaiting confirmation."
+                payment.save(update_fields=["status", "provider_reference", "notes"])
+                return PaymentResult(
+                    success=True, status="PENDING",
+                    transaction_reference=payment.internal_reference,
+                    provider_reference=result.provider_reference,
+                    instructions=instructions, message=result.message,
+                    raw_response=result.raw_response,
+                )
+            # A real Daraja call failed outright (bad credentials, network,
+            # etc.) -- fall through to the manual-instructions flow rather
+            # than leaving the payer with nothing to do.
+            logger.warning("Daraja STK push failed, falling back to manual instructions: %s", result.message)
+
+        # Manual-instructions flow: the payer completes the transaction
+        # themselves and confirms; used when Daraja isn't configured, the
+        # account isn't a Paybill, or the live STK push attempt failed.
         checkout_id = f"ws_CO_{timezone.now().strftime('%d%m%Y%H%M%S')}_{payment.id}"
         payment.status = "PENDING"
         payment.notes = f"STK Push prompt dispatched to {cleaned_phone or 'M-Pesa user'}. Awaiting confirmation."
@@ -169,16 +204,27 @@ class MpesaProviderAdapter(BasePaymentProviderAdapter):
         if not identifier.isdigit() or len(identifier) < 5:
             return False, f"Invalid M-Pesa shortcode format: '{identifier}'. Paybill or Till numbers should be at least 5 numeric digits.", {}
 
-        diagnostics = {
+        # A real OAuth handshake against Daraja when credentials are
+        # configured -- this used to always report "SUCCESSFUL" regardless
+        # of whether any credentials existed, the same false-success
+        # pattern already fixed elsewhere in the system this session.
+        from university.integrations.mpesa import DarajaClient, get_mpesa_config, is_configured
+        mpesa_config = get_mpesa_config()
+        if not is_configured(mpesa_config):
+            return False, ("M-Pesa Daraja is not configured (consumer key/secret/passkey missing "
+                          "from System Settings). Manual-instructions payment flow will be used instead."), {
+                "account_name": self.fee_account.name, "shortcode": identifier,
+                "environment": self.fee_account.environment, "handshake": "NOT_CONFIGURED",
+            }
+
+        client = DarajaClient(mpesa_config)
+        ok, message, diagnostics = client.test_connection()
+        diagnostics.update({
             "account_name": self.fee_account.name,
             "type": self.fee_account.get_account_type_display(),
             "shortcode": identifier,
-            "environment": self.fee_account.environment,
-            "endpoint": "https://sandbox.safaricom.co.ke" if self.fee_account.environment == "SANDBOX" else "https://api.safaricom.co.ke",
-            "handshake": "SUCCESSFUL",
-            "response_code": 200,
-        }
-        return True, f"Connection to Safaricom Daraja API ({self.fee_account.environment}) verified successfully. Shortcode {identifier} active.", diagnostics
+        })
+        return ok, message, diagnostics
 
     def register_c2b_urls(self, confirmation_url: str, validation_url: str = "", response_type: str = "Completed") -> Tuple[bool, str, Dict[str, Any]]:
         """

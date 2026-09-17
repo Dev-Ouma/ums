@@ -235,8 +235,30 @@ class FeeAccountAdminTests(FeeAccountIntegrationTestBase):
         self.assertFalse(self.paybill.is_default)
 
     def test_test_connection_diagnostics(self):
+        """
+        test_connection now performs a real Daraja OAuth handshake instead
+        of always reporting success regardless of whether any credentials
+        exist -- mock the actual OAuth call so this test can still exercise
+        the PASSED path deterministically.
+        """
+        import json
+        from unittest.mock import MagicMock, patch
+        from university.settings_services import seed_default_settings, set_setting
+
+        seed_default_settings()
+        set_setting("mpesa_consumer_key", "test_key")
+        set_setting("mpesa_consumer_secret", "test_secret")
+        set_setting("mpesa_passkey", "test_passkey")
+
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps(
+            {"access_token": "test_token", "expires_in": "3599"}).encode("utf-8")
+        mock_response.__enter__.return_value = mock_response
+        mock_response.__exit__.return_value = False
+
         url = reverse("university:fee_account_test", kwargs={"pk": self.paybill.pk})
-        resp = self.client.post(url)
+        with patch("urllib.request.urlopen", return_value=mock_response):
+            resp = self.client.post(url)
         self.assertEqual(resp.status_code, 302)
 
         self.paybill.refresh_from_db()
@@ -245,7 +267,21 @@ class FeeAccountAdminTests(FeeAccountIntegrationTestBase):
 
         log = FeeAccountLog.objects.filter(fee_account=self.paybill, event_type=FeeAccountLog.EventType.TEST_CONNECTION).first()
         self.assertIsNotNone(log)
-        self.assertIn("522123", log.message)
+        self.assertEqual(log.payload_preview.get("shortcode"), "522123")
+
+    def test_test_connection_reports_failure_when_mpesa_is_not_configured(self):
+        """
+        Regression guard for the actual bug: test_connection previously
+        always reported 'SUCCESSFUL' regardless of whether any Daraja
+        credentials existed -- a false-success result identical to the
+        pattern already fixed for other integrations this session.
+        """
+        url = reverse("university:fee_account_test", kwargs={"pk": self.paybill.pk})
+        resp = self.client.post(url)
+        self.assertEqual(resp.status_code, 302)
+
+        self.paybill.refresh_from_db()
+        self.assertEqual(self.paybill.last_test_status, "FAILED")
 
 
 class StudentPayFeesViewTests(FeeAccountIntegrationTestBase):

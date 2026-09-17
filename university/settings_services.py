@@ -10,7 +10,8 @@ from university.audit_services import log_activity
 # to the browser. Was previously only defined in email_services.py (email
 # secrets only); centralized here since it's a settings-layer concern that
 # now spans more than one provider (email, SMS, ...).
-SECRET_SETTING_KEYS = {"email_host_password", "email_provider_api_key", "sms_api_key"}
+SECRET_SETTING_KEYS = {"email_host_password", "email_provider_api_key", "sms_api_key",
+                       "mpesa_consumer_secret", "mpesa_passkey"}
 
 
 DEFAULT_SETTINGS = [
@@ -344,6 +345,64 @@ DEFAULT_SETTINGS = [
         "value_type": SystemSetting.ValueType.STRING,
         "value": "NIU/ACAD/CERT/",
         "description": "Standard prefix formatted into official sealed transcripts and award slips.",
+        "is_public": False,
+    },
+
+    # M-PESA DARAJA API
+    {
+        "category": SystemSetting.Category.FINANCE,
+        "key": "mpesa_environment",
+        "label": "M-Pesa Environment",
+        "value_type": SystemSetting.ValueType.STRING,
+        "value": "SANDBOX",
+        "description": "SANDBOX or PRODUCTION. Controls which Daraja API host is used.",
+        "is_public": False,
+    },
+    {
+        "category": SystemSetting.Category.FINANCE,
+        "key": "mpesa_consumer_key",
+        "label": "M-Pesa Consumer Key",
+        "value_type": SystemSetting.ValueType.STRING,
+        "value": "",
+        "description": "Daraja app Consumer Key (developer.safaricom.co.ke > My Apps).",
+        "is_public": False,
+    },
+    {
+        "category": SystemSetting.Category.FINANCE,
+        "key": "mpesa_consumer_secret",
+        "label": "M-Pesa Consumer Secret",
+        "value_type": SystemSetting.ValueType.STRING,
+        "value": "",
+        "description": "Daraja app Consumer Secret. Never rendered back to the browser.",
+        "is_public": False,
+    },
+    {
+        "category": SystemSetting.Category.FINANCE,
+        "key": "mpesa_shortcode",
+        "label": "M-Pesa Business Shortcode",
+        "value_type": SystemSetting.ValueType.STRING,
+        "value": "174379",
+        "description": "Lipa Na M-Pesa Online Shortcode. 174379 is Safaricom's published sandbox shortcode.",
+        "is_public": False,
+    },
+    {
+        "category": SystemSetting.Category.FINANCE,
+        "key": "mpesa_passkey",
+        "label": "M-Pesa Passkey",
+        "value_type": SystemSetting.ValueType.STRING,
+        "value": "",
+        "description": "Lipa Na M-Pesa Online Passkey, from the Daraja STK Push docs page for sandbox, "
+                      "or issued by Safaricom for a production shortcode. Never rendered back to the browser.",
+        "is_public": False,
+    },
+    {
+        "category": SystemSetting.Category.FINANCE,
+        "key": "mpesa_callback_base_url",
+        "label": "M-Pesa Callback Base URL",
+        "value_type": SystemSetting.ValueType.STRING,
+        "value": "",
+        "description": "Public HTTPS base URL Safaricom can reach (e.g. an ngrok URL while testing). "
+                      "The callback path itself is fixed: /api/payments/callback/mpesa/.",
         "is_public": False,
     },
 
