@@ -1,0 +1,48 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}{% if endpoint %}Edit{% else %}Add{% endif %} Webhook Endpoint · System Admin{% endblock %}
+{% block content %}
+<div class="container-fluid py-4 px-3 px-md-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+      <div class="card card-ums p-4">
+        <h4 class="fw-bold mb-3">{% if endpoint %}Edit{% else %}Add{% endif %} Webhook Endpoint</h4>
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label">Name</label>
+            <input type="text" name="name" class="form-control" required value="{{ endpoint.name|default:'' }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">URL</label>
+            <input type="url" name="url" class="form-control" required placeholder="https://example.com/webhooks/ums"
+                  value="{{ endpoint.url|default:'' }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Subscribed Events</label>
+            {% for key, label in event_kind_choices %}
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="event_kinds" value="{{ key }}" id="ek_{{ key }}"
+                    {% if key in selected_kinds %}checked{% endif %}>
+              <label class="form-check-label" for="ek_{{ key }}">{{ label }}</label>
+            </div>
+            {% endfor %}
+          </div>
+          {% if endpoint %}
+          <div class="mb-3 form-check">
+            <input class="form-check-input" type="checkbox" name="is_active" id="is_active" {% if endpoint.is_active %}checked{% endif %}>
+            <label class="form-check-label" for="is_active">Active</label>
+          </div>
+          <p class="small text-muted">Signing secret is set once at creation and never shown again; regenerate by deleting and re-creating the endpoint.</p>
+          {% else %}
+          <p class="small text-muted"><i class="fa-solid fa-circle-info me-1"></i>A signing secret is generated automatically and shown once after creation — save it, it can't be retrieved later.</p>
+          {% endif %}
+          <div class="d-flex gap-2 mt-4">
+            <button class="btn btn-primary rounded-pill px-4">Save</button>
+            <a href="{% url 'university:webhook_list' %}" class="btn btn-light rounded-pill px-4">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

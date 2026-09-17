@@ -394,6 +394,11 @@ def tick():
         apply_audit_retention()
     except Exception:
         pass
+    try:
+        from .webhook_services import deliver_pending_webhooks
+        deliver_pending_webhooks()
+    except Exception:
+        pass
 
 
 @transaction.atomic

@@ -1,0 +1,64 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}Webhooks · System Admin{% endblock %}
+{% block content %}
+<div class="container-fluid py-4 px-3 px-md-4">
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1 small">
+          <li class="breadcrumb-item"><a href="{% url 'university:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+          <li class="breadcrumb-item active" aria-current="page">Webhooks</li>
+        </ol>
+      </nav>
+      <h2 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-plug-circle-bolt me-2 text-primary"></i>Outbound Webhooks</h2>
+      <p class="text-muted small mb-0">Notify an external system when a UMS domain event happens
+        (account status changes, exam marks published, fee payment confirmed).</p>
+    </div>
+    <a href="{% url 'university:webhook_create' %}" class="btn btn-primary rounded-pill">
+      <i class="fa-solid fa-plus me-1"></i>Add Endpoint</a>
+  </div>
+
+  <div class="card card-ums">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Name</th><th>URL</th><th>Subscribed Events</th><th>Status</th><th class="text-end pe-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for endpoint in endpoints %}
+          <tr>
+            <td class="fw-semibold">{{ endpoint.name }}</td>
+            <td><code class="small">{{ endpoint.url }}</code></td>
+            <td>
+              {% for kind in endpoint.event_kinds %}
+                <span class="badge-soft badge rounded-pill">{{ kind }}</span>
+              {% endfor %}
+            </td>
+            <td>
+              {% if endpoint.is_active %}
+                <span class="badge rounded-pill bg-success">Active</span>
+              {% else %}
+                <span class="badge rounded-pill bg-secondary">Paused</span>
+              {% endif %}
+            </td>
+            <td class="text-end pe-3">
+              <a href="{% url 'university:webhook_deliveries' endpoint.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill">Deliveries</a>
+              <a href="{% url 'university:webhook_edit' endpoint.pk %}" class="btn btn-sm btn-outline-primary rounded-pill">Edit</a>
+              <form method="post" action="{% url 'university:webhook_delete' endpoint.pk %}" class="d-inline"
+                    onsubmit="return confirm('Delete webhook endpoint \'{{ endpoint.name }}\'? This cannot be undone.');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger rounded-pill">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-center text-muted py-4">No webhook endpoints configured yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

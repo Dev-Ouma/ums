@@ -1,0 +1,48 @@
+{% extends 'base_dashboard.html' %}
+{% block title %}{{ endpoint.name }} Deliveries · Webhooks{% endblock %}
+{% block content %}
+<div class="container-fluid py-4 px-3 px-md-4">
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1 small">
+          <li class="breadcrumb-item"><a href="{% url 'university:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'university:webhook_list' %}" class="text-decoration-none">Webhooks</a></li>
+          <li class="breadcrumb-item active" aria-current="page">{{ endpoint.name }}</li>
+        </ol>
+      </nav>
+      <h2 class="fw-bold mb-0 text-dark"><i class="fa-solid fa-list-check me-2 text-primary"></i>{{ endpoint.name }} — Deliveries</h2>
+    </div>
+  </div>
+
+  <div class="card card-ums">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead class="table-light">
+          <tr><th>Event</th><th>Status</th><th>Attempts</th><th>Last Attempted</th><th>Response</th><th>Error</th></tr>
+        </thead>
+        <tbody>
+          {% for d in deliveries %}
+          <tr>
+            <td>{{ d.event_kind }}</td>
+            <td>
+              <span class="badge rounded-pill
+                {% if d.status == 'SUCCESS' %}bg-success
+                {% elif d.status == 'FAILED' %}bg-danger
+                {% elif d.status == 'RETRYING' %}bg-warning text-dark
+                {% else %}bg-secondary{% endif %}">{{ d.get_status_display }}</span>
+            </td>
+            <td>{{ d.attempt_count }} / {{ d.max_attempts }}</td>
+            <td class="small text-muted">{{ d.last_attempted_at|default:"—" }}</td>
+            <td class="small">{{ d.response_status|default:"—" }}</td>
+            <td class="small text-danger">{{ d.error_message|truncatechars:80 }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No deliveries yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

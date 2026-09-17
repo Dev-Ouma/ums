@@ -44,3 +44,27 @@ def log_fee_payment_confirmed(sender, payment, fee_account=None, **kwargs):
     logger.info("Fee payment confirmed: %s amount=%s account=%s",
                getattr(payment, "internal_reference", payment),
                getattr(payment, "amount", None), fee_account)
+
+
+# --- Outbound webhook dispatch -----------------------------------------
+# Queues a WebhookDelivery per subscribed endpoint; the actual HTTP POST
+# happens later via webhook_services.deliver_pending_webhooks(), called
+# from control_services.tick(). See webhook_services.py's module docstring.
+
+@receiver(account_status_changed)
+def queue_account_status_changed_webhooks(sender, user, old_status, new_status, actor=None, **kwargs):
+    from university.webhook_services import queue_webhook_deliveries
+    queue_webhook_deliveries("account_status_changed", user=user, old_status=old_status,
+                             new_status=new_status, actor=actor)
+
+
+@receiver(exam_marks_published)
+def queue_exam_marks_published_webhooks(sender, exam, published_by=None, **kwargs):
+    from university.webhook_services import queue_webhook_deliveries
+    queue_webhook_deliveries("exam_marks_published", exam=exam, published_by=published_by)
+
+
+@receiver(fee_payment_confirmed)
+def queue_fee_payment_confirmed_webhooks(sender, payment, fee_account=None, **kwargs):
+    from university.webhook_services import queue_webhook_deliveries
+    queue_webhook_deliveries("fee_payment_confirmed", payment=payment, fee_account=fee_account)

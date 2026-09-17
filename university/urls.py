@@ -21,6 +21,7 @@ from . import module_views
 from . import fee_payment_views
 from . import fee_account_views
 from . import backup_views
+from . import webhook_views
 from . import identity_views
 from . import golive_views
 from . import security_compliance_views
@@ -382,6 +383,13 @@ urlpatterns = [
     path("system-admin/backups/settings/", backup_views.backup_settings, name="backup_settings"),
     path("system-admin/backups/logs/", backup_views.backup_logs, name="backup_logs"),
     path("system-admin/backups/export/", backup_views.backup_export, name="backup_export"),
+
+    # Outbound Webhooks
+    path("system-admin/webhooks/", webhook_views.webhook_list, name="webhook_list"),
+    path("system-admin/webhooks/create/", webhook_views.webhook_create, name="webhook_create"),
+    path("system-admin/webhooks/<int:pk>/edit/", webhook_views.webhook_edit, name="webhook_edit"),
+    path("system-admin/webhooks/<int:pk>/delete/", webhook_views.webhook_delete, name="webhook_delete"),
+    path("system-admin/webhooks/<int:pk>/deliveries/", webhook_views.webhook_deliveries, name="webhook_deliveries"),
 
     # Go-Live Command Center
     path("system-admin/go-live/", golive_views.golive_dashboard, name="golive_dashboard"),
