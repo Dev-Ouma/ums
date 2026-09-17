@@ -22,6 +22,7 @@ from . import fee_payment_views
 from . import fee_account_views
 from . import backup_views
 from . import webhook_views
+from . import api_key_views
 from . import identity_views
 from . import golive_views
 from . import security_compliance_views
@@ -390,6 +391,11 @@ urlpatterns = [
     path("system-admin/webhooks/<int:pk>/edit/", webhook_views.webhook_edit, name="webhook_edit"),
     path("system-admin/webhooks/<int:pk>/delete/", webhook_views.webhook_delete, name="webhook_delete"),
     path("system-admin/webhooks/<int:pk>/deliveries/", webhook_views.webhook_deliveries, name="webhook_deliveries"),
+
+    # API Keys (self-service, any authenticated user)
+    path("accounts/api-keys/", api_key_views.api_key_list, name="api_key_list"),
+    path("accounts/api-keys/create/", api_key_views.api_key_create, name="api_key_create"),
+    path("accounts/api-keys/<int:pk>/revoke/", api_key_views.api_key_revoke, name="api_key_revoke"),
 
     # Go-Live Command Center
     path("system-admin/go-live/", golive_views.golive_dashboard, name="golive_dashboard"),

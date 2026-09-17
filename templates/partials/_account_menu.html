@@ -49,6 +49,8 @@ Variant is controlled by the caller:
         <i class="fa-solid fa-user-gear"></i><span>Profile settings</span></a>
       <a class="acct-item" role="menuitem" href="{% url 'accounts:profile_settings' %}?tab=password">
         <i class="fa-solid fa-key"></i><span>Change password</span></a>
+      <a class="acct-item" role="menuitem" href="{% url 'university:api_key_list' %}">
+        <i class="fa-solid fa-code"></i><span>API Keys</span></a>
       {% if variant == 'public' %}
         <a class="acct-item" role="menuitem" href="{% url 'university:dashboard' %}">
           <i class="fa-solid fa-gauge-high"></i><span>Dashboard</span></a>

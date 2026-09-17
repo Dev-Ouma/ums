@@ -349,20 +349,23 @@
 
       <!-- System Administration Collapsible -->
       <div class="nav-group">
-        <div class="item item-toggle {% if is_auditor or url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or url_name == 'golive_dashboard' or url_name == 'security_compliance_dashboard' or request.resolver_match.namespace == 'control' %}active{% endif %}"
+        <div class="item item-toggle {% if is_auditor or url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or 'webhook' in url_name or url_name == 'golive_dashboard' or url_name == 'security_compliance_dashboard' or request.resolver_match.namespace == 'control' %}active{% endif %}"
              data-bs-toggle="collapse" data-bs-target="#adminSystemSubmenu" role="button"
-             aria-expanded="{% if is_auditor or url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or url_name == 'golive_dashboard' or url_name == 'security_compliance_dashboard' or request.resolver_match.namespace == 'control' %}true{% else %}false{% endif %}"
+             aria-expanded="{% if is_auditor or url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or 'webhook' in url_name or url_name == 'golive_dashboard' or url_name == 'security_compliance_dashboard' or request.resolver_match.namespace == 'control' %}true{% else %}false{% endif %}"
              aria-controls="adminSystemSubmenu">
           <i class="fa-solid fa-shield-halved"></i>
           <span class="item-label">System Admin</span>
           <i class="fa-solid fa-chevron-right chevron item-label"></i>
         </div>
-        <div class="collapse submenu {% if is_auditor or url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'staff_permissions_dashboard' or url_name == 'staff_user_access_detail' or url_name == 'role_create' or url_name == 'role_edit' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or url_name == 'golive_dashboard' or url_name == 'security_compliance_dashboard' or request.resolver_match.namespace == 'control' %}show{% endif %}" id="adminSystemSubmenu" data-bs-parent="#appSidebar">
+        <div class="collapse submenu {% if is_auditor or url_name == 'admin_modules' or url_name == 'admin_setups_dashboard' or url_name == 'staff_permissions_dashboard' or url_name == 'staff_user_access_detail' or url_name == 'role_create' or url_name == 'role_edit' or url_name == 'audit_dashboard' or url_name == 'audit_detail' or url_name == 'recycle_bin_dashboard' or url_name == 'recycle_bin_detail' or 'backup' in url_name or 'webhook' in url_name or url_name == 'golive_dashboard' or url_name == 'security_compliance_dashboard' or request.resolver_match.namespace == 'control' %}show{% endif %}" id="adminSystemSubmenu" data-bs-parent="#appSidebar">
           <a class="item sub-item {% if url_name == 'admin_modules' %}active{% endif %}" href="{% url 'university:admin_modules' %}">
             <i class="fa-solid fa-cubes-stacked"></i> <span class="item-label">Module Management</span>
           </a>
           <a class="item sub-item {% if 'backup' in url_name %}active{% endif %}" href="{% url 'university:backup_dashboard' %}">
             <i class="fa-solid fa-database"></i> <span class="item-label">System Backups</span>
+          </a>
+          <a class="item sub-item {% if 'webhook' in url_name %}active{% endif %}" href="{% url 'university:webhook_list' %}">
+            <i class="fa-solid fa-plug-circle-bolt"></i> <span class="item-label">Webhooks</span>
           </a>
           <a class="item sub-item {% if url_name == 'golive_dashboard' %}active{% endif %}" href="{% url 'university:golive_dashboard' %}">
             <i class="fa-solid fa-rocket"></i> <span class="item-label">Go-Live Command Center</span>

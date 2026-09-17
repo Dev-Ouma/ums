@@ -8,6 +8,7 @@ from cms import views as cms_views
 from django.views.generic import RedirectView
 
 urlpatterns = [
+    path("api/v1/", include("university.api.urls")),
     path("system-control/", include("university.control_urls")),
     path("system-admin/maintenance/", RedirectView.as_view(url="/system-control/", permanent=False)),
     path("system-admin/messages/", RedirectView.as_view(url="/system-control/messages/", permanent=False)),
