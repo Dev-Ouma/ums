@@ -1,14 +1,55 @@
 <section class="container py-5">
-  {% if block.heading %}<h2 class="fw-bold text-center mb-4">{{ block.heading }}</h2>{% endif %}
+  {% if block.heading %}
+  <div class="section-heading mb-4 text-center">
+    <span class="badge-soft badge rounded-pill px-3 py-2">Programmes &amp; Courses</span>
+    <h2 class="fw-bold mt-2">{{ block.heading }}</h2>
+    {% if block.subheading %}<p class="text-muted mx-auto" style="max-width:640px;">{{ block.subheading }}</p>{% endif %}
+  </div>
+  {% endif %}
   <div class="row g-4">
     {% for c in items %}
       <div class="col-md-6 col-lg-4">
-        <div class="card border-0 rounded-4 shadow-sm p-4 h-100">
-          <span class="badge badge-soft rounded-pill align-self-start mb-2">{{ c.department.code }}</span>
-          <h6 class="fw-bold">{{ c.title }}</h6>
-          <p class="text-muted small mb-0">{{ c.description|truncatewords:18 }}</p>
+        <div class="course-card-rich fade-up">
+          <div class="course-card-img-wrap">
+            <img src="{{ c.image_url|default:'https://www.wigotschoolofhospitality.com/assets/images/items/MN-24261646379768.jpg' }}" alt="{{ c.title }}" loading="lazy" onerror="this.src='https://www.wigotschoolofhospitality.com/assets/images/items/MN-24261646379768.jpg'">
+            <span class="course-card-badge">{{ c.code }}</span>
+            <span class="course-card-exam">{{ c.exam_body|default:'ICM (UK) / KNEC' }}</span>
+          </div>
+          <div class="course-card-body">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="badge rounded-pill bg-light text-dark fw-bold border" style="font-size:0.75rem;">{{ c.category_label|default:c.department.code }}</span>
+              <small class="text-muted"><i class="fa-solid fa-clock text-warning me-1"></i>{{ c.credits }} Credits</small>
+            </div>
+            <h5 class="course-card-title">{{ c.title }}</h5>
+            <p class="course-card-desc">{{ c.description|truncatewords:18 }}</p>
+            <div class="course-card-meta">
+              <div>
+                <small class="text-muted d-block" style="font-size:0.72rem;text-transform:uppercase;">Tuition</small>
+                <span class="course-fee">{{ c.description|cut:" - KES "|cut:" - KSh. " }}</span>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-2.5 py-1 text-muted course-peek-btn"
+                        data-peek-code="{{ c.code }}"
+                        data-peek-title="{{ c.title }}"
+                        data-peek-category="{{ c.category_label|default:c.department.code }}"
+                        data-peek-exam="{{ c.exam_body|default:'ICM (UK) / KNEC' }}"
+                        data-peek-fee="{{ c.description }}"
+                        data-peek-img="{{ c.image_url|default:'https://www.wigotschoolofhospitality.com/assets/images/items/MN-24261646379768.jpg' }}"
+                        data-peek-credits="{{ c.credits }}"
+                        title="Quick Curriculum Preview">
+                  <i class="fa-solid fa-eye me-1 text-primary"></i> <span class="d-none d-sm-inline">Quick View</span>
+                </button>
+                <a href="{% url 'university:admissions_apply' %}?program={{ c.code }}" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold">
+                  Apply Now <i class="fa-solid fa-arrow-right ms-1"></i>
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    {% empty %}<p class="text-muted">No courses yet.</p>{% endfor %}
+    {% empty %}
+      <div class="col-12 text-center py-5 text-muted">No courses currently listed.</div>
+    {% endfor %}
   </div>
 </section>
+

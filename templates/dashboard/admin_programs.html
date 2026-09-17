@@ -203,6 +203,7 @@
           <th class="text-center">Students</th>
           <th class="text-center">Courses</th>
           <th class="text-center">Status</th>
+          <th class="text-center" style="width: 160px;">Public Apply Link</th>
           <th class="text-end pe-3">Actions</th>
         </tr>
       </thead>
@@ -279,6 +280,23 @@
             {% endif %}
           </td>
 
+          <!-- Public Apply Link -->
+          <td class="text-center">
+            <div class="d-inline-flex align-items-center gap-1">
+              <button type="button" 
+                      class="btn btn-sm btn-outline-success rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1 fw-semibold shadow-xs"
+                      data-copy-url="{{ request.scheme }}://{{ request.get_host }}{{ p.get_public_apply_url }}"
+                      data-copy-msg="Public application URL for {{ p.code }} copied!"
+                      title="Copy Public Apply Link for marketing, brochures, and ads">
+                <i class="fa-solid fa-copy"></i>
+                <span class="small">Copy URL</span>
+              </button>
+              <a href="{{ p.get_public_apply_url }}" target="_blank" class="btn btn-sm btn-light border rounded-circle text-muted" style="width:28px; height:28px; padding:0; display:inline-grid; place-items:center;" title="Test public application link in new tab">
+                <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.7rem;"></i>
+              </a>
+            </div>
+          </td>
+
           <!-- Actions -->
           <td class="text-end pe-3">
             <div class="btn-group btn-group-sm">
@@ -296,7 +314,7 @@
         </tr>
         {% empty %}
         <tr>
-          <td colspan="9" class="text-center py-5 text-muted">
+          <td colspan="10" class="text-center py-5 text-muted">
             <div class="mb-3">
               <i class="fa-solid fa-graduation-cap fa-3x text-light"></i>
             </div>

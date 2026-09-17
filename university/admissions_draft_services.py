@@ -661,9 +661,16 @@ def update_applicant_draft(
                 application.intake = itk
 
     if "program" in data:
-        prog_id = str(data["program"]).strip()
-        if prog_id:
-            prog = Program.objects.filter(pk=prog_id, status=Program.Status.ACTIVE).first()
+        prog_val = str(data["program"]).strip()
+        if prog_val:
+            prog = None
+            if prog_val.isdigit():
+                prog = Program.objects.filter(pk=int(prog_val), status=Program.Status.ACTIVE).first()
+            if not prog:
+                prog = Program.objects.filter(
+                    Q(code__iexact=prog_val) | Q(code__iexact=f"WSH-{prog_val}") | Q(courses__code__iexact=prog_val),
+                    status=Program.Status.ACTIVE
+                ).first()
             if prog:
                 application.program = prog
             else:
@@ -931,8 +938,15 @@ def validate_and_submit_application(
     prog_id = p.get("program") or (application.program_id if application.program else None)
     program_obj = None
     if prog_id:
-        program_obj = Program.objects.filter(pk=prog_id, status=Program.Status.ACTIVE).first()
-    else:
+        if str(prog_id).isdigit():
+            program_obj = Program.objects.filter(pk=int(prog_id), status=Program.Status.ACTIVE).first()
+        if not program_obj:
+            prog_str = str(prog_id).strip()
+            program_obj = Program.objects.filter(
+                Q(code__iexact=prog_str) | Q(code__iexact=f"WSH-{prog_str}") | Q(courses__code__iexact=prog_str),
+                status=Program.Status.ACTIVE
+            ).first()
+    if not program_obj:
         program_obj = application.program if (application.program and application.program.status == Program.Status.ACTIVE) else None
 
     if not program_obj:

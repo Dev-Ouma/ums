@@ -177,11 +177,16 @@ class AdmissionLetterEngineAndNavigationTests(TestCase):
         self.assertEqual(apply_resp.status_code, 200)
 
     def test_cms_seeded_menu_items_include_apply_now(self):
-        """Verify that seeded CMS menu items include Apply Now."""
+        """
+        Verify seeded CMS menu items include an Apply Now link somewhere in
+        the site nav. The header nav itself no longer repeats it (the hero
+        CTA already links to /admissions/apply/ prominently), but it's still
+        seeded into the footer explore menu.
+        """
         from django.core.management import call_command
         call_command("seed_cms")
-        header_items = list(MenuItem.objects.filter(location="header").values_list("label", "url"))
-        labels = [item[0] for item in header_items]
+        footer_items = list(MenuItem.objects.filter(location="footer_explore").values_list("label", "url"))
+        labels = [item[0] for item in footer_items]
         self.assertIn("Apply Now", labels)
 
     # --------------------------------------------------------------------------

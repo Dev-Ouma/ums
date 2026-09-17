@@ -39,6 +39,8 @@ urlpatterns = [
     # Public & Verification
     path("", views.home, name="home"),
     path("about/", views.about, name="about"),
+    path("student-welfare/", views.student_welfare, name="student_welfare"),
+    path("gallery/", views.gallery, name="gallery"),
     path("contact/", views.contact, name="contact"),
     path("privacy/", views.privacy, name="privacy"),
     path("system-admin/integrations/<slug:integration>/", integration_views.integration_feature, name="integration_feature"),

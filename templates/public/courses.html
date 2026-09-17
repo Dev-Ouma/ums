@@ -1,42 +1,205 @@
 {% extends 'base_public.html' %}
-{% block title %}Course Catalog · UMS{% endblock %}
-{% block content %}
-<div class="container py-5">
-  <div class="text-center mb-4">
-    <span class="badge-soft badge rounded-pill px-3 py-2">Catalog</span>
-    <h2 class="fw-bold mt-2">Explore our Courses</h2>
-  </div>
-  <form class="row justify-content-center mb-4"><div class="col-lg-6">
-    <div class="input-group input-group-lg">
-      <span class="input-group-text bg-white border-end-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
-      <input name="q" value="{{ q }}" class="form-control border-start-0" placeholder="Search by title or code...">
-      <button class="btn btn-primary px-4">Search</button>
-    </div>
-  </div></form>
+{% load static %}
 
-  <div class="row g-4">
-    {% for c in courses %}
-    <div class="col-md-6 col-lg-4">
-      <div class="card course-card card-ums h-100 overflow-hidden">
-        <img src="{{ c.image_url|default:'' }}" class="w-100" style="height:170px;object-fit:cover"
-             onerror="this.src='https://picsum.photos/seed/c{{ c.id }}/600/400'" alt="{{ c.title }}">
-        <div class="card-body">
-          <div class="d-flex justify-content-between">
-            <span class="badge rounded-pill" style="background:{{ c.department.color }}">{{ c.department.code }}</span>
-            <span class="small text-muted"><i class="fa-solid fa-star text-warning"></i> {{ c.credits }} cr</span>
+{% block title %}Programmes &amp; Courses · Wigot School of Hospitality{% endblock %}
+
+{% block content %}
+<!-- ============================================================
+     HERO: PROGRAMMES & COURSES
+     ============================================================ -->
+<section class="py-5 text-white position-relative" style="background:linear-gradient(135deg,#5c1122 0%,#8a1a34 50%,#3d0814 100%);overflow:hidden;">
+  <!-- Ambient Glowing Orbs & Interactive Particle Canvas -->
+  <div class="hero-ambient-orb orb-1" aria-hidden="true"></div>
+  <div class="hero-ambient-orb orb-2" aria-hidden="true"></div>
+  <canvas id="heroEmberCanvas" class="hero-ember-canvas" aria-hidden="true"></canvas>
+
+  <div class="container position-relative py-3 text-center" style="z-index:2;">
+    <span class="badge rounded-pill px-3 py-1 mb-2" style="background:rgba(255,255,255,.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.2);font-size:.8rem;letter-spacing:.5px;text-transform:uppercase;font-weight:700;">
+      <i class="fa-solid fa-graduation-cap text-warning me-1"></i> Accredited Programmes &amp; Courses
+    </span>
+    <h1 class="display-4 fw-extrabold mb-2" style="letter-spacing:-.8px;">
+      Programmes &amp; <span class="text-gradient-shimmer">Courses</span>
+    </h1>
+    <p class="lead text-white-50 mx-auto mb-0" style="max-width:640px;line-height:1.7;">
+      Industry-recognized hospitality diplomas, craft certificates, and specialized culinary skills certified by TVETA, KNEC, and ICM (UK).
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================
+     SEARCH, FILTER & COURSE GRID
+     ============================================================ -->
+<section class="py-5 bg-light public-section">
+  <div class="container py-2">
+    
+    <!-- Search & Filter Controls -->
+    <div class="row justify-content-center g-3 mb-4">
+      <div class="col-lg-6">
+        <form method="get" class="d-flex gap-2">
+          <div class="input-group input-group-lg shadow-sm">
+            <span class="input-group-text bg-white border-end-0 text-muted"><i class="fa-solid fa-magnifying-glass"></i></span>
+            <input type="text" name="q" value="{{ q }}" class="form-control border-start-0" placeholder="Search by course title or keyword...">
+            {% if current_cat %}
+            <input type="hidden" name="cat" value="{{ current_cat }}">
+            {% endif %}
+            <button class="btn btn-primary px-4 fw-bold text-white">Search</button>
           </div>
-          <h6 class="fw-bold mt-2">{{ c.code }} · {{ c.title }}</h6>
-          <p class="text-muted small">{{ c.description|truncatewords:16 }}</p>
-          <div class="d-flex align-items-center gap-2 small text-muted">
-            <i class="fa-solid fa-chalkboard-user"></i>
-            {% if c.faculty %}{{ c.faculty.user.display_name }}{% else %}Faculty TBA{% endif %}
+        </form>
+      </div>
+    </div>
+
+    <!-- Category Filter Pills -->
+    <div class="d-flex justify-content-center gap-2 flex-wrap mb-5">
+      <a href="?{% if q %}q={{ q }}&{% endif %}" class="btn rounded-pill px-4 py-2 fw-semibold {% if not current_cat %}btn-primary text-white shadow-sm{% else %}btn-outline-secondary bg-white{% endif %}">
+        All Programs
+      </a>
+      <a href="?{% if q %}q={{ q }}&{% endif %}cat=diploma" class="btn rounded-pill px-4 py-2 fw-semibold {% if current_cat == 'diploma' %}btn-primary text-white shadow-sm{% else %}btn-outline-secondary bg-white{% endif %}">
+        Diplomas (ICM / KNEC)
+      </a>
+      <a href="?{% if q %}q={{ q }}&{% endif %}cat=certificate" class="btn rounded-pill px-4 py-2 fw-semibold {% if current_cat == 'certificate' %}btn-primary text-white shadow-sm{% else %}btn-outline-secondary bg-white{% endif %}">
+        Certificates (KNEC)
+      </a>
+      <a href="?{% if q %}q={{ q }}&{% endif %}cat=part_time" class="btn rounded-pill px-4 py-2 fw-semibold {% if current_cat == 'part_time' %}btn-primary text-white shadow-sm{% else %}btn-outline-secondary bg-white{% endif %}">
+        Specialized &amp; Pastry
+      </a>
+      <a href="?{% if q %}q={{ q }}&{% endif %}cat=short_course" class="btn rounded-pill px-4 py-2 fw-semibold {% if current_cat == 'short_course' %}btn-primary text-white shadow-sm{% else %}btn-outline-secondary bg-white{% endif %}">
+        Short Courses (1 Month)
+      </a>
+    </div>
+
+    <!-- Course Cards Grid -->
+    <div class="row g-4" id="coursesListGrid">
+      {% for c in courses %}
+      <div class="col-md-6 col-lg-4 course-col" style="--stagger-index: {{ forloop.counter0 }};">
+        <div class="course-card-rich tilt-card fade-up">
+          <!-- Card Image & Badges -->
+          <div class="course-card-img-wrap">
+            <img src="{{ c.image_url }}" alt="{{ c.title }}" loading="lazy" onerror="this.src='https://www.wigotschoolofhospitality.com/assets/images/items/MN-24261646379768.jpg'">
+            <span class="course-card-badge">{{ c.code }}</span>
+            <span class="course-card-exam">{{ c.exam_body }}</span>
+          </div>
+
+          <!-- Card Content -->
+          <div class="course-card-body">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="badge rounded-pill bg-light text-dark fw-bold border" style="font-size:0.75rem;">{{ c.category_label }}</span>
+              <small class="text-muted"><i class="fa-solid fa-clock text-warning me-1"></i>{{ c.credits }} Credits</small>
+            </div>
+            <h5 class="course-card-title">{{ c.title }}</h5>
+            
+            <p class="course-card-desc">
+              {{ c.description|default:"Comprehensive professional hospitality training preparing students for high-demand hotel and culinary careers." }}
+            </p>
+
+            <div class="course-card-meta">
+              <div>
+                <small class="text-muted d-block" style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.5px;">Tuition / Level</small>
+                <span class="course-fee">{{ c.description|cut:" - KES "|cut:" - KSh. " }}</span>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-2.5 py-1 text-muted course-peek-btn"
+                        data-peek-code="{{ c.code }}"
+                        data-peek-title="{{ c.title }}"
+                        data-peek-category="{{ c.category_label }}"
+                        data-peek-exam="{{ c.exam_body }}"
+                        data-peek-fee="{{ c.description }}"
+                        data-peek-img="{{ c.image_url }}"
+                        data-peek-credits="{{ c.credits }}"
+                        title="Quick Curriculum Preview">
+                  <i class="fa-solid fa-eye me-1 text-primary"></i> <span class="d-none d-sm-inline">Quick View</span>
+                </button>
+                <a href="{% url 'university:admissions_apply' %}?program={{ c.code }}" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold">
+                  Apply Now <i class="fa-solid fa-arrow-right ms-1"></i>
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+      {% empty %}
+      <div class="col-12 text-center py-5">
+        <div class="p-5 bg-white rounded-4 shadow-sm mx-auto" style="max-width:500px;">
+          <i class="fa-solid fa-magnifying-glass fa-3x text-muted mb-3"></i>
+          <h4 class="fw-bold text-dark mb-2">No Courses Found</h4>
+          <p class="text-muted small mb-4">No programs matched your search query. Please try different keywords or reset the filter.</p>
+          <a href="{% url 'university:courses_public' %}" class="btn btn-primary rounded-pill px-4 py-2 fw-bold text-white">
+            Reset Filters
+          </a>
+        </div>
+      </div>
+      {% endfor %}
     </div>
-    {% empty %}
-      <div class="col-12 text-center text-muted py-5"><i class="fa-solid fa-box-open fa-3x mb-3"></i><p>No courses found.</p></div>
-    {% endfor %}
+
+    <!-- Bottom Help & Bank Details Banner -->
+    <div class="card p-4 p-md-5 mt-5 rounded-4 border-0 shadow-sm" style="background:linear-gradient(145deg,#ffffff 0%,#faf6f0 100%);border:1px solid rgba(197,160,89,.35)!important;">
+      <div class="row align-items-center g-4">
+        <div class="col-lg-8">
+          <span class="badge rounded-pill px-3 py-1 mb-2" style="background:rgba(138,26,52,.1);color:var(--maroon);font-weight:700;font-size:.78rem;text-transform:uppercase;">
+            Tuition Fee Payment Assistance
+          </span>
+          <h3 class="fw-bold text-dark mb-2">Flexible Term Financing &amp; Direct Bank Payments</h3>
+          <p class="text-muted mb-0">
+            School fees may be paid in manageable term installments. Channel all tuition to <strong>Equity Bank Kenya</strong> (A/C: <span class="font-monospace fw-bold text-primary">147028086809</span>, Kilimani Supreme Center Branch, Kisumu) or via online M-Pesa.
+          </p>
+        </div>
+        <div class="col-lg-4 text-lg-end">
+          <a href="{% url 'university:contact' %}" class="btn btn-primary rounded-pill px-4 py-3 fw-bold text-white shadow btn-press">
+            Speak With Fee Advisor <i class="fa-solid fa-phone ms-2"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+
   </div>
-</div>
+</section>
+
+<!-- Executive Offcanvas Quick Curriculum Preview Drawer -->
+<div class="course-drawer-backdrop" id="courseDrawerBackdrop" aria-hidden="true"></div>
+<aside class="course-drawer" id="courseDrawer" aria-hidden="true" role="dialog" aria-labelledby="drawerTitle">
+  <div class="course-drawer-header">
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge bg-warning text-dark rounded-pill px-3 py-1 fw-bold" id="drawerCategory">Diploma</span>
+      <span class="badge bg-white text-dark border rounded-pill px-2 py-1 small" id="drawerExam">ICM (UK)</span>
+    </div>
+    <button type="button" class="course-drawer-close" id="courseDrawerClose" aria-label="Close curriculum drawer">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+  </div>
+  <div class="course-drawer-body">
+    <div class="course-drawer-cover">
+      <img id="drawerImg" src="https://www.wigotschoolofhospitality.com/assets/images/items/MN-24261646379768.jpg" alt="Course Preview Cover">
+      <div class="course-drawer-cover-badge" id="drawerCode">DCA</div>
+    </div>
+    <h3 class="fw-bold text-dark mt-3 mb-1" id="drawerTitle">Diploma in Culinary Arts</h3>
+    <div class="d-flex align-items-center gap-3 text-muted small mb-3">
+      <span><i class="fa-solid fa-clock text-warning me-1"></i><span id="drawerDuration">120 Credits · 100% Practical</span></span>
+      <span><i class="fa-solid fa-hotel text-warning me-1"></i>Guaranteed Attachment</span>
+    </div>
+    <div class="course-drawer-fee-box mb-4">
+      <div class="small text-muted text-uppercase fw-bold" style="font-size:0.72rem;letter-spacing:0.5px;">Tuition &amp; Fees (Kenyan Shillings)</div>
+      <div class="fs-4 fw-bold text-dark" id="drawerFee">KES 35,000 / Term</div>
+      <small class="text-success fw-semibold"><i class="fa-solid fa-check-circle me-1"></i>Interest-free 3-installment plan available via M-Pesa</small>
+    </div>
+
+    <div class="mb-4">
+      <h6 class="fw-bold text-dark text-uppercase small mb-2" style="letter-spacing:0.5px;">Core Practical Syllabus &amp; Competencies:</h6>
+      <ul class="list-unstyled d-flex flex-column gap-2" id="drawerModules">
+        <!-- Dynamically populated -->
+      </ul>
+    </div>
+
+    <div class="course-drawer-cta">
+      <a href="" id="drawerApplyBtn" class="btn btn-primary rounded-pill w-100 py-3 fw-bold text-white btn-ripple shadow">
+        Proceed with Application <i class="fa-solid fa-arrow-right ms-2"></i>
+      </a>
+      <div class="text-center mt-2">
+        <small class="text-muted" style="font-size:0.75rem;">Instant online enrollment · M-Pesa verified receipt</small>
+      </div>
+    </div>
+  </div>
+</aside>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/public-landing.js' %}"></script>
 {% endblock %}

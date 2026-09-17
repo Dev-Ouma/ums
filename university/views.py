@@ -56,16 +56,131 @@ def home(request):
     except Exception:
         pass
 
+    # Authoritative Wigot courses (HOSP) prioritized, with fallback
+    hosp_qs = Course.objects.select_related("department").filter(department__code="HOSP")
+    if not hosp_qs.exists():
+        hosp_qs = Course.objects.select_related("department").all()
+
+    # Categorize courses for interactive tab filtering
+    courses_data = []
+    for c in hosp_qs:
+        title_lower = c.title.lower()
+        desc = c.description or ""
+        if "diploma" in title_lower:
+            category = "diploma"
+            cat_label = "Diploma"
+        elif "certificate" in title_lower:
+            category = "certificate"
+            cat_label = "Certificate"
+        elif "pastry" in title_lower or "part time" in desc.lower():
+            category = "part_time"
+            cat_label = "Specialized / Part-Time"
+        else:
+            category = "short_course"
+            cat_label = "Short Course"
+
+        exam_body = "TVETA"
+        if "ICM" in c.title:
+            exam_body = "ICM (UK)"
+        elif "KNEC" in c.title:
+            exam_body = "KNEC"
+        elif "Internal" in desc:
+            exam_body = "Wigot Certified"
+
+        courses_data.append({
+            "object": c,
+            "code": c.code,
+            "title": c.title,
+            "description": desc,
+            "image_url": c.image_url or "https://www.wigotschoolofhospitality.com/assets/images/items/MN-24261646379768.jpg",
+            "category": category,
+            "category_label": cat_label,
+            "exam_body": exam_body,
+            "credits": c.credits,
+        })
+
+    # Authoritative Wigot Welfare Facilities & Gallery
+    welfare_facilities = [
+        {
+            "id": "facilities",
+            "title": "Physical Facilities",
+            "badge": "Modern Infrastructure",
+            "icon": "fa-building-shield",
+            "lead": "Equipped with industry-standard commercial training facilities in Mamboleo, Kisumu.",
+            "items": [
+                {"name": "Commercial Kitchens & Food Production Labs", "desc": "Equipped with professional heavy-duty ranges, pastry ovens, salamanders, and individual knife-skill work stations."},
+                {"name": "Hospitality Resource Library & Media Hub", "desc": "Curated hospitality collection, digital culinary recipe archives, quiet research desks, and high-speed internet."},
+                {"name": "Training Restaurant & Barista Lounge", "desc": "80-seat simulated luxury restaurant with commercial espresso machine and cocktail mixology counter."},
+                {"name": "ICT & Hotel Management System Lab", "desc": "Equipped with modern workstations running industry-standard Opera PMS and hospitality point-of-sale systems."},
+                {"name": "Campus Health Unit & First-Aid Suite", "desc": "On-campus sick bay staffed by a certified health professional for student health and wellness triage."},
+                {"name": "Auditorium & Demonstration Hall", "desc": "Tiered theatre equipped for masterclasses, culinary demonstrations by guest executive chefs, and symposiums."}
+            ]
+        },
+        {
+            "id": "accommodation",
+            "title": "Student Accommodation",
+            "badge": "Safe & Secure Hostels",
+            "icon": "fa-hotel",
+            "lead": "Comfortable, vetted accommodation within walking distance of the campus.",
+            "items": [
+                {"name": "Vetted Residential Hostels", "desc": "Safe, serene student hostel partnerships in Mamboleo with secure access control and warden oversight."},
+                {"name": "Nutritious Trainee Catering", "desc": "Balanced dining options tailored to student lifestyles, keeping trainees energized for practical shifts."},
+                {"name": "Study Desks & High-Speed Wi-Fi", "desc": "Dedicated study rooms and continuous internet connectivity for late-evening assignments and exam revision."},
+                {"name": "24/7 Security & CCTV", "desc": "Perimeter security personnel and round-the-clock monitoring ensuring trainee safety at all times."}
+            ]
+        },
+        {
+            "id": "gardens",
+            "title": "Gardens & Co-Curricular",
+            "badge": "Kajulu Hills Campus",
+            "icon": "fa-volleyball",
+            "lead": "Holistic spiritual, physical, and mental development in scenic Kajulu Hills.",
+            "items": [
+                {"name": "Wigot Gardens Boutique Grounds", "desc": "Trainees enjoy access to the lush botanical gardens of Wigot Gardens for reflection, study, and outdoor recreation."},
+                {"name": "Sports, Athletics & Fitness", "desc": "Active participation in football tournaments, table tennis leagues, volleyball, and fitness training."},
+                {"name": "Annual Culinary Showdown & Competitions", "desc": "Inter-class cook-offs, barista championships, and table-setting contests judged by industry general managers."},
+                {"name": "Multi-Faith Worship & Pastoral Care", "desc": "Dedicated prayer spaces and counseling chaplains nurturing spiritual well-being for all trainees."}
+            ]
+        },
+        {
+            "id": "uniforms",
+            "title": "Professional Grooming & Uniforms",
+            "badge": "5-Star Standards",
+            "icon": "fa-shirt",
+            "lead": "Cultivating the grooming, poise, and professional posture of luxury hoteliers.",
+            "items": [
+                {"name": "Executive Chef Whites & Toque Blanche", "desc": "Double-breasted white chef jackets, check trousers, skull caps, and non-slip culinary safety shoes."},
+                {"name": "Banquet & Dining Service Attire", "desc": "Black tailored trousers/skirts, crisp white shirts, maroon bow-ties, and black formal service waistcoats."},
+                {"name": "Front Office Corporate Suits", "desc": "Executive corporate suiting projecting the warmth, professionalism, and poise of 5-star hotel reception."},
+                {"name": "Professional Hygiene & Grooming Protocol", "desc": "Strict standards for personal hygiene, hair grooming, and food handling safety certified by public health."}
+            ]
+        }
+    ]
+
+    gallery_items = [
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589563-IMG_9912.jpg", "title": "Culinary Plating & Food Presentation", "category": "culinary", "tag": "Culinary Arts"},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589564-IMG_9941.jpg", "title": "Espresso Craft & Barista Presentation", "category": "beverage", "tag": "F&B Service"},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589564-IMG_9977.jpg", "title": "Pastry & Artisan Cake Decorating", "category": "pastry", "tag": "Bakery Lab"},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589565-IMG_9323.jpg", "title": "Fine Dining Table Setup & Silver Service", "category": "service", "tag": "Banquet Service"},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589567-IMG_9449.jpg", "title": "Production Kitchen Skills & Technique", "category": "culinary", "tag": "Hot Kitchen"},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589567-IMG_9378.jpg", "title": "Restaurant Floor Hospitality Drills", "category": "service", "tag": "Dining Room"},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589568-IMG_8808.jpg", "title": "Front Office Reception & Concierge", "category": "operations", "tag": "Front Desk"},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589570-IMG_8810.jpg", "title": "Gourmet Garnishing & Masterclass", "category": "culinary", "tag": "Plating Lab"},
+    ]
+
     ctx = {
         "stats": {
             "students": StudentProfile.objects.count(),
             "faculty": FacultyProfile.objects.count(),
             "courses": Course.objects.count(),
             "departments": Department.objects.count(),
+            "hosp_courses_count": hosp_qs.count(),
         },
         "departments": Department.objects.all()[:6],
-        "featured_courses": Course.objects.select_related("department").all(),
-        "events": Event.objects.filter(date__gte=date.today())[:3],
+        "featured_courses": courses_data,
+        "welfare_facilities": welfare_facilities,
+        "gallery_items": gallery_items,
+        "events": Event.objects.filter(date__gte=date.today()).order_by("date")[:3],
     }
     return render(request, "public/home.html", ctx)
 
@@ -76,10 +191,126 @@ def about(request):
     })
 
 
+def student_welfare(request):
+    """Authoritative Student Welfare & Life page for Wigot School of Hospitality."""
+    facilities = [
+        {
+            "name": "Commercial Kitchens & Food Production Labs",
+            "icon": "fa-kitchen-set",
+            "desc": "Fully equipped production lines, baking convection ovens, salamanders, stainless preparation bays, and dedicated knife-skills stations.",
+            "highlight": "Industry Standard"
+        },
+        {
+            "name": "Hospitality Resource Library & Media Suite",
+            "icon": "fa-book-open-reader",
+            "desc": "Curated hospitality texts, international culinary recipe archives, quiet research desks, and high-speed internet terminals.",
+            "highlight": "Digital Catalog"
+        },
+        {
+            "name": "ICT & Hotel Management System Lab",
+            "icon": "fa-laptop-code",
+            "desc": "Optical fiber workstations running Opera PMS, front-office reservation systems, and point-of-sale restaurant terminals.",
+            "highlight": "Opera PMS & POS"
+        },
+        {
+            "name": "Training Restaurant & Barista Lounge",
+            "icon": "fa-mug-hot",
+            "desc": "An 80-seat fine dining training restaurant with commercial espresso equipment, cocktail bar, and table setting zones.",
+            "highlight": "Fine Dining Simulation"
+        },
+        {
+            "name": "Campus Health & First-Aid Unit",
+            "icon": "fa-house-medical",
+            "desc": "On-campus medical facility staffed by a certified health officer for emergency first aid, triage, and student wellness consultations.",
+            "highlight": "Trained Medical Staff"
+        },
+        {
+            "name": "Multi-Faith Worship & Reflection Spaces",
+            "icon": "fa-hands-praying",
+            "desc": "Quiet, inclusive prayer sanctuaries welcoming students of all faiths for spiritual nourishment and chaplaincy support.",
+            "highlight": "Inclusive Chapel & Musalla"
+        },
+        {
+            "name": "Outdoor Recreation & Scenic Grounds",
+            "icon": "fa-tree",
+            "desc": "Situated in Kajulu Hills, Mamboleo, the campus features serene gardens, nature trails, and outdoor event spaces.",
+            "highlight": "Kajulu Hills Campus"
+        },
+        {
+            "name": "Indoor Recreation & Trainee Common Room",
+            "icon": "fa-table-tennis-paddle-ball",
+            "desc": "Trainee relaxation lounge featuring table tennis, chess, board games, and collaborative student group workstations.",
+            "highlight": "Student Lounge"
+        },
+        {
+            "name": "Main Auditorium & Demonstration Hall",
+            "icon": "fa-landmark",
+            "desc": "Tiered presentation theatre equipped with audio-visual equipment for culinary masterclasses and industry symposiums.",
+            "highlight": "Chef Masterclasses"
+        },
+    ]
+
+    accommodation_points = [
+        {"title": "Safe Residential Hostels", "desc": "Pre-vetted hostels located within easy walking distance of the Mamboleo campus with 24/7 security and warden presence."},
+        {"title": "Nutritious Trainee Meals", "desc": "Clean, balanced student meal arrangements providing the fuel needed for intense practical kitchen and dining shifts."},
+        {"title": "Dedicated Study Spaces", "desc": "Quiet reading areas with continuous high-speed Wi-Fi access for coursework, recipe research, and revision."},
+        {"title": "Safe Community Environment", "desc": "A close-knit, supportive hospitality student community guided by the Office of the Dean of Trainees."}
+    ]
+
+    co_curricular_points = [
+        {"title": "Botanical Resort Grounds", "desc": "Unrivalled access to the lush grounds of Wigot Gardens boutique resort for leisure and outdoor activities."},
+        {"title": "Sports & Tournaments", "desc": "Competitive and recreational football, volleyball, table tennis, and athletics competitions."},
+        {"title": "Culinary & Cocktail Competitions", "desc": "Annual internal culinary championships and barista competitions evaluated by 5-star hotel general managers."},
+        {"title": "Community Outreach & Green Action", "desc": "Student-led tree planting in Kajulu Hills, charitable community drives, and environmental sustainability initiatives."}
+    ]
+
+    grooming_points = [
+        {"title": "Executive Chef Whites", "desc": "Double-breasted white jackets, checked trousers, clean aprons, toque blanche, and steel-toe safety footwear."},
+        {"title": "Food & Beverage Service", "desc": "Formal service vests, tailored trousers/skirts, crisp white shirts, and maroon bow-ties."},
+        {"title": "Front Office Management", "desc": "Sharp corporate blazers, silk ties/scarves, and professional name badges projecting luxury hotel poise."},
+        {"title": "Food Safety & Personal Hygiene", "desc": "Rigorous personal hygiene checks, short clean nails, hair nets, and public health food handlers certification."}
+    ]
+
+    gallery_preview = [
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589563-IMG_9912.jpg", "title": "Culinary Plating Practicals", "category": "Culinary Arts"},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589564-IMG_9941.jpg", "title": "Barista Beverage Presentation", "category": "F&B Service"},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589564-IMG_9977.jpg", "title": "Artisan Pastry & Cake Decorating", "category": "Pastry & Bakery"},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589565-IMG_9323.jpg", "title": "Banquet Service & Table Setting", "category": "Dining Service"},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589567-IMG_9449.jpg", "title": "Commercial Kitchen Techniques", "category": "Hot Kitchen"},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589570-IMG_8810.jpg", "title": "Fine Dining Garnishing Lab", "category": "Plating Lab"},
+    ]
+
+    return render(request, "public/student_welfare.html", {
+        "facilities": facilities,
+        "accommodation_points": accommodation_points,
+        "co_curricular_points": co_curricular_points,
+        "grooming_points": grooming_points,
+        "gallery_preview": gallery_preview,
+    })
+
+
+def gallery(request):
+    """Authoritative Campus Photo Gallery for Wigot School of Hospitality."""
+    photos = [
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589563-IMG_9912.jpg", "title": "Fine Dining Plating & Presentation", "category": "culinary", "tag": "Culinary Arts", "desc": "Trainees mastering precision culinary garnishing and sauce painting in the commercial training kitchen."},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589564-IMG_9941.jpg", "title": "Espresso Mixology & Barista Craft", "category": "beverage", "tag": "F&B Service", "desc": "Specialty coffee brewing, latte art pouring, and non-alcoholic mocktail mixology techniques."},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589564-IMG_9977.jpg", "title": "Custom Cake & Confectionery Art", "category": "pastry", "tag": "Pastry & Bakery", "desc": "Artisan confectionery, mirror glazing, and multi-tier wedding cake decoration."},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589565-IMG_9323.jpg", "title": "Formal Banquet Table Arrangement", "category": "service", "tag": "Hospitality", "desc": "Silver service cutlery alignment, glassware placement, and fine dining napkin folds."},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589567-IMG_9449.jpg", "title": "Chef White Knife-Skills Training", "category": "culinary", "tag": "Production Kitchen", "desc": "Classical French vegetable cuts (julienne, brunoise, chiffonade) and butchery practicals."},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589567-IMG_9378.jpg", "title": "Guest Restaurant Service Drills", "category": "service", "tag": "Dining Room", "desc": "Simulated dinner service with real guests at the campus training restaurant."},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589568-IMG_8808.jpg", "title": "Front Office Check-In & Reception", "category": "operations", "tag": "Front Office", "desc": "Guest check-in protocols, concierge services, and telephone communication drills."},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589569-IMG_9251.jpg", "title": "Fresh Artisan Breads & Pastries", "category": "pastry", "tag": "Bakery", "desc": "Sourdough fermentation, croissant lamination, and fresh breakfast roll production."},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589570-IMG_8810.jpg", "title": "Gourmet Dish Finishing & Saucing", "category": "culinary", "tag": "Hot Kitchen", "desc": "Sauce reduction, meat carving, and contemporary plate composition under executive chef supervision."},
+        {"url": "https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589570-IMG_8787.jpg", "title": "Student Community & Campus Spirit", "category": "life", "tag": "Campus Life", "desc": "Wigot hospitality trainees celebrating teamwork, camaraderie, and academic milestones."},
+    ]
+    return render(request, "public/gallery.html", {
+        "photos": photos,
+    })
+
+
 def contact(request):
     if request.method == "POST":
-        messages.success(request, "Thanks for reaching out! Our team will reply to your "
-                                  "example.com inbox shortly.")
+        messages.success(request, "Thank you for contacting Wigot School of Hospitality. Our admissions team will reach back out to you shortly.")
         return redirect("university:contact")
     return render(request, "public/contact.html")
 
@@ -90,11 +321,58 @@ def privacy(request):
 
 def courses_public(request):
     q = request.GET.get("q", "").strip()
-    courses = Course.objects.select_related("department", "faculty__user")
+    category_filter = request.GET.get("cat", "").strip()
+    
+    courses_qs = Course.objects.select_related("department", "faculty__user")
     if q:
-        courses = courses.filter(Q(title__icontains=q) | Q(code__icontains=q))
+        courses_qs = courses_qs.filter(Q(title__icontains=q) | Q(code__icontains=q) | Q(description__icontains=q))
+    
+    courses_data = []
+    for c in courses_qs:
+        title_lower = c.title.lower()
+        desc = c.description or ""
+        
+        if "diploma" in title_lower:
+            category = "diploma"
+            cat_label = "Diploma"
+        elif "certificate" in title_lower:
+            category = "certificate"
+            cat_label = "Certificate"
+        elif "pastry" in title_lower or "part time" in desc.lower():
+            category = "part_time"
+            cat_label = "Specialized / Part-Time"
+        else:
+            category = "short_course"
+            cat_label = "Short Course"
+            
+        if category_filter and category != category_filter:
+            continue
+            
+        exam_body = "TVETA"
+        if "ICM" in c.title:
+            exam_body = "ICM (UK)"
+        elif "KNEC" in c.title:
+            exam_body = "KNEC"
+        elif "Internal" in desc:
+            exam_body = "Wigot Certified"
+
+        courses_data.append({
+            "object": c,
+            "code": c.code,
+            "title": c.title,
+            "description": desc,
+            "image_url": c.image_url or "https://www.wigotschoolofhospitality.com/assets/images/items/MN-24261646379768.jpg",
+            "category": category,
+            "category_label": cat_label,
+            "exam_body": exam_body,
+            "credits": c.credits,
+        })
+
     return render(request, "public/courses.html", {
-        "courses": courses, "departments": Department.objects.all(), "q": q,
+        "courses": courses_data,
+        "departments": Department.objects.all(),
+        "q": q,
+        "current_cat": category_filter,
     })
 
 

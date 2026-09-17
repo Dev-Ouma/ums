@@ -1,5 +1,13 @@
 {% extends 'public/layouts/_page_base.html' %}
+{% load static %}
 {% comment %}Full-bleed sections, no page header — for marketing front pages.{% endcomment %}
 {% block page_body %}
-  {% for ctx in blocks %}{% include ctx.block.template_name with block=ctx.block items=ctx.items %}{% endfor %}
+  <div class="pub-landing-wrapper">
+    {% for ctx in blocks %}{% include ctx.block.template_name with block=ctx.block items=ctx.items %}{% endfor %}
+  </div>
 {% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/public-landing.js' %}"></script>
+{% endblock %}
+

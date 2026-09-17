@@ -1,50 +1,315 @@
 {% extends 'base_public.html' %}
-{% block title %}About Us · UMS{% endblock %}
+{% load static %}
+
+{% block title %}About Us · Wigot School of Hospitality{% endblock %}
+
 {% block content %}
-<section class="hero position-relative py-5">
-  <div class="container position-relative">
+<!-- ============================================================
+     HERO: ABOUT WIGOT SCHOOL OF HOSPITALITY
+     ============================================================ -->
+<section class="py-5 text-white position-relative" style="background:linear-gradient(135deg,#5c1122 0%,#8a1a34 50%,#3d0814 100%);overflow:hidden;">
+  <div class="container position-relative py-4">
+    <div class="row align-items-center g-5">
+      <div class="col-lg-7">
+        <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-3" style="background:rgba(255,255,255,.12);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.2);font-size:.82rem;letter-spacing:.5px;text-transform:uppercase;font-weight:700;">
+          <i class="fa-solid fa-hotel text-warning"></i> Premier TVET Vocational Institution
+        </div>
+        <h1 class="display-4 fw-extrabold mb-3" style="letter-spacing:-.8px;">
+          Pioneering Excellence in <span style="color:#ffe6a7;">Hospitality &amp; Culinary Arts</span>
+        </h1>
+        <p class="lead text-white-50 mb-4" style="line-height:1.7;max-width:640px;">
+          Wigot School of Hospitality was established as a private, TVET institution in 2021. Situated at the four-star Wigot Gardens boutique hotel in Kajulu Hills, Mamboleo, Kisumu, we bridge the gap between academic qualifications and five-star industry performance.
+        </p>
+        <div class="d-flex gap-3 flex-wrap align-items-center">
+          <a href="{% url 'university:courses_public' %}" class="btn btn-warning rounded-pill px-4 py-3 fw-bold text-dark btn-press shadow">
+            Explore Programmes &amp; Courses <i class="fa-solid fa-arrow-right ms-2"></i>
+          </a>
+          <a href="{% url 'university:student_welfare' %}" class="btn btn-outline-light rounded-pill px-4 py-3 fw-semibold btn-press">
+            Student Life &amp; Hostels
+          </a>
+        </div>
+      </div>
+      <div class="col-lg-5">
+        <div class="position-relative">
+          <div class="card p-2 shadow-lg rounded-4 overflow-hidden" style="background:#ffffff;border:4px solid rgba(255,255,255,.2);">
+            <img src="https://www.wigotschoolofhospitality.com/assets/images/desc1.jpg" 
+                 alt="Wigot School of Hospitality Campus" 
+                 class="img-fluid rounded-3" 
+                 style="height:350px;width:100%;object-fit:cover;"
+                 onerror="this.src='https://www.wigotschoolofhospitality.com/assets/images/items/MN-24261646379768.jpg'">
+            <div class="p-3 text-dark text-start">
+              <span class="badge rounded-pill px-3 py-1 text-white mb-1" style="background:var(--maroon);font-size:.75rem;">Mamboleo, Kisumu</span>
+              <h6 class="fw-bold mb-1">Four-Star Hotel Training Grounds</h6>
+              <small class="text-muted">Integrated directly with the operating facilities of Wigot Gardens hotel.</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     TRUST BAR: EXAMINATION BODIES & PARTNERS
+     ============================================================ -->
+<section class="py-4 bg-white border-bottom shadow-sm">
+  <div class="container">
+    <div class="row align-items-center g-3 text-center text-md-start">
+      <div class="col-md-3">
+        <span class="text-uppercase fw-bold text-muted small letter-spacing-1 d-block">Accredited Examining Bodies:</span>
+        <strong class="text-dark">National &amp; Global Standards</strong>
+      </div>
+      <div class="col-md-9">
+        <div class="d-flex flex-wrap justify-content-center justify-content-md-between align-items-center gap-4">
+          <div class="d-flex align-items-center gap-2">
+            <img src="https://www.wigotschoolofhospitality.com/assets/images/clients/1645189400-logo_knec_new.png" alt="KNEC Logo" style="height:44px;object-fit:contain;">
+            <div class="text-start">
+              <strong class="d-block small text-dark">KNEC</strong>
+              <small class="text-muted" style="font-size:.75rem;">Examining Centre</small>
+            </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <img src="https://www.wigotschoolofhospitality.com/assets/images/clients/1645189454-FS-15591644988643.png" alt="ICM UK Logo" style="height:44px;object-fit:contain;">
+            <div class="text-start">
+              <strong class="d-block small text-dark">ICM (UK)</strong>
+              <small class="text-muted" style="font-size:.75rem;">Global Certification</small>
+            </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <img src="https://www.wigotschoolofhospitality.com/assets/images/TVET.png" alt="TVETA Kenya" style="height:44px;object-fit:contain;">
+            <div class="text-start">
+              <strong class="d-block small text-dark">TVETA</strong>
+              <small class="text-muted" style="font-size:.75rem;">Registered College</small>
+            </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <div class="rounded-circle p-2 d-flex align-items-center justify-content-center" style="width:44px;height:44px;background:rgba(138,26,52,.1);color:var(--maroon);font-weight:800;font-size:.9rem;">
+              NITA
+            </div>
+            <div class="text-start">
+              <strong class="d-block small text-dark">NITA / CDAC</strong>
+              <small class="text-muted" style="font-size:.75rem;">CBET Curriculum</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     THE STORY OF WIGOT SCHOOL OF HOSPITALITY
+     ============================================================ -->
+<section class="py-5 public-section bg-light">
+  <div class="container py-3">
     <div class="row align-items-center g-5">
       <div class="col-lg-6">
-        <span class="badge-soft badge rounded-pill px-3 py-2 mb-2">About Us</span>
-        <h1 class="fw-bold">Empowering education with <span class="highlight">smart technology</span></h1>
-        <p class="text-muted fs-5">University Management System (UMS) is a modern, all-in-one campus
-          platform. We bring administration, teaching and learning together with a clean, responsive
-          interface and built-in AI insights — no expensive licenses, no clutter.</p>
+        <div class="position-relative">
+          <img src="https://www.wigotschoolofhospitality.com/assets/images/desc2.jpg" 
+               alt="Hospitality Practical Training" 
+               class="img-fluid rounded-4 shadow" 
+               style="width:100%;height:400px;object-fit:cover;"
+               onerror="this.src='https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589567-IMG_9449.jpg'">
+          <div class="position-absolute bottom-0 start-0 m-4 p-3 bg-white rounded-3 shadow-sm" style="max-width:260px;border-left:4px solid var(--maroon);">
+            <strong class="d-block text-dark small mb-1">Hotel-Integrated Learning</strong>
+            <small class="text-muted" style="font-size:.75rem;">Trainees interact with live guests and hotel operations from Day 1.</small>
+          </div>
+        </div>
       </div>
-      <div class="col-lg-6 text-center">
-        <img src="https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=900&q=70"
-             class="img-fluid rounded-4 shadow-lg" style="border:6px solid #fff"
-             onerror="this.src='https://picsum.photos/seed/about/900/600'" alt="University">
+      <div class="col-lg-6">
+        <span class="badge rounded-pill px-3 py-1 mb-2" style="background:rgba(138,26,52,.1);color:var(--maroon);font-weight:700;font-size:.78rem;text-transform:uppercase;">
+          Our Heritage &amp; Foundation
+        </span>
+        <h2 class="fw-bold text-dark mb-3" style="font-size:2.2rem;">Born from 4-Star Commercial Hospitality</h2>
+        <p class="text-muted" style="line-height:1.7;">
+          Wigot Hotel commenced operations in 2014 and quickly established an unmatched reputation as a premier business and family leisure destination in Western Kenya. Situated approximately four kilometers from Kisumu's Central Business District against the panoramic backdrop of Kajulu Hills, the hotel welcomed thousands of corporate and international guests.
+        </p>
+        <p class="text-muted" style="line-height:1.7;">
+          Drawing from years of front-line experience in the hospitality landscape, Wigot noticed a critical gap in the training and development of current and future hospitality professionals. Traditional classrooms lacked real-world hotel pressure, commercial culinary kitchen speed, and five-star guest etiquette.
+        </p>
+        <p class="text-muted mb-4" style="line-height:1.7;">
+          In 2021, this insight led to the birth of <strong>Wigot School of Hospitality</strong> — an accredited vocational college where students learn directly inside operating commercial kitchens, bakeries, cocktail lounges, and hotel suites under executive chef mentorship.
+        </p>
+        <div class="d-flex gap-3">
+          <div class="border-start border-3 border-danger ps-3">
+            <strong class="d-block text-dark h4 mb-0">2014</strong>
+            <small class="text-muted">Hotel Founded</small>
+          </div>
+          <div class="border-start border-3 border-danger ps-3">
+            <strong class="d-block text-dark h4 mb-0">2021</strong>
+            <small class="text-muted">School of Hospitality Established</small>
+          </div>
+          <div class="border-start border-3 border-danger ps-3">
+            <strong class="d-block text-dark h4 mb-0">100%</strong>
+            <small class="text-muted">Practical Immersion</small>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
-<section class="container py-5">
-  <div class="row g-4 text-center">
-    <div class="col-md-3"><div class="card card-ums p-4 h-100"><i class="fa-solid fa-bullseye fa-2x text-primary mb-2"></i>
-      <h6 class="fw-bold">Our Mission</h6><p class="small text-muted mb-0">Make campus operations effortless and data-driven.</p></div></div>
-    <div class="col-md-3"><div class="card card-ums p-4 h-100"><i class="fa-solid fa-eye fa-2x text-primary mb-2"></i>
-      <h6 class="fw-bold">Our Vision</h6><p class="small text-muted mb-0">A connected campus where every decision is informed.</p></div></div>
-    <div class="col-md-3"><div class="card card-ums p-4 h-100"><i class="fa-solid fa-heart fa-2x text-primary mb-2"></i>
-      <h6 class="fw-bold">Our Values</h6><p class="small text-muted mb-0">Simplicity, privacy and inclusivity for all.</p></div></div>
-    <div class="col-md-3"><div class="card card-ums p-4 h-100"><i class="fa-solid fa-robot fa-2x text-primary mb-2"></i>
-      <h6 class="fw-bold">AI First</h6><p class="small text-muted mb-0">Predictions and insights built right in — no API keys.</p></div></div>
+<!-- ============================================================
+     MISSION, VISION & CORE VALUES
+     ============================================================ -->
+<section class="py-5 bg-white public-section">
+  <div class="container py-3">
+    <div class="text-center mb-5 fade-up">
+      <span class="badge rounded-pill px-3 py-2 text-uppercase fw-bold" style="background:rgba(138,26,52,.1);color:var(--maroon);font-size:.8rem;letter-spacing:.5px;">
+        Institutional Compass
+      </span>
+      <h2 class="fw-bold text-dark mt-2" style="font-size:2.2rem;">Our Mission, Vision &amp; Core Values</h2>
+      <p class="text-muted mx-auto" style="max-width:680px;">
+        Setting the gold standard for hospitality vocational education in East Africa.
+      </p>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-md-4">
+        <div class="card h-100 p-4 border-0 shadow-sm rounded-4 text-center pub-pillar-card bg-light">
+          <div class="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle" style="width:70px;height:70px;background:rgba(138,26,52,.1);color:var(--maroon);font-size:1.8rem;">
+            <i class="fa-solid fa-bullseye"></i>
+          </div>
+          <h4 class="fw-bold text-dark mb-2">Our Mission</h4>
+          <p class="text-muted" style="line-height:1.7;">
+            <em>"To provide high-end hospitality training."</em>
+          </p>
+          <p class="small text-muted mb-0">
+            Equipping trainees with sharp culinary skills, refined guest service posture, and international certification to thrive globally.
+          </p>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card h-100 p-4 border-0 shadow-sm rounded-4 text-center pub-pillar-card bg-light">
+          <div class="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle" style="width:70px;height:70px;background:rgba(30,58,138,.1);color:#1e3a8a;font-size:1.8rem;">
+            <i class="fa-solid fa-eye"></i>
+          </div>
+          <h4 class="fw-bold text-dark mb-2">Our Vision</h4>
+          <p class="text-muted" style="line-height:1.7;">
+            <em>"To be a world-class vocational training college in the hospitality industry."</em>
+          </p>
+          <p class="small text-muted mb-0">
+            Recognized internationally as Kenya's center of excellence for culinary mastery and executive hotel management.
+          </p>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card h-100 p-4 border-0 shadow-sm rounded-4 text-center pub-pillar-card bg-light">
+          <div class="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle" style="width:70px;height:70px;background:rgba(217,119,6,.1);color:#d97706;font-size:1.8rem;">
+            <i class="fa-solid fa-award"></i>
+          </div>
+          <h4 class="fw-bold text-dark mb-2">Our Core Values</h4>
+          <p class="text-muted" style="line-height:1.7;">
+            <em>Professionalism · Passion · Poise · Discipline</em>
+          </p>
+          <p class="small text-muted mb-0">
+            Grounded in integrity, respect for culinary tradition, innovation, and total commitment to guest satisfaction.
+          </p>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
-<section class="container py-5">
-  <h2 class="fw-bold text-center mb-5">Our Departments</h2>
-  <div class="row g-4">
-    {% for d in departments %}
-    <div class="col-md-6 col-lg-4">
-      <div class="card card-ums h-100 p-4 d-flex flex-row align-items-center gap-3">
-        <span class="icon-circle" style="background:{{ d.color }}"><i class="fa-solid {{ d.icon }}"></i></span>
-        <div><h6 class="fw-bold mb-1">{{ d.name }}</h6>
-          <p class="small text-muted mb-0">{{ d.description|truncatewords:12 }}</p></div>
+<!-- ============================================================
+     EXAMINING BODIES EXPLAINED
+     ============================================================ -->
+<section class="py-5 bg-light public-section">
+  <div class="container py-3">
+    <div class="row g-4 align-items-center">
+      <div class="col-lg-5">
+        <span class="badge rounded-pill px-3 py-1 mb-2" style="background:rgba(138,26,52,.1);color:var(--maroon);font-weight:700;font-size:.78rem;text-transform:uppercase;">
+          Recognized Qualifications
+        </span>
+        <h2 class="fw-bold text-dark mb-3" style="font-size:2.2rem;">Dual Certification That Opens International Doors</h2>
+        <p class="text-muted mb-4" style="line-height:1.7;">
+          Wigot graduates hold qualifications that are recognized by the Ministry of Education in Kenya and worldwide across international luxury hotel groups, safari lodges, and cruise liners.
+        </p>
+        <a href="{% url 'university:admissions_apply' %}" class="btn btn-primary rounded-pill px-4 py-3 fw-bold btn-press text-white shadow">
+          Apply For Admission <i class="fa-solid fa-arrow-right ms-2"></i>
+        </a>
+      </div>
+      <div class="col-lg-7">
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <div class="card p-3 border-0 rounded-4 shadow-sm bg-white h-100">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="fa-solid fa-certificate text-danger fs-4"></i>
+                <h6 class="fw-bold mb-0 text-dark">ICM (UK) Curriculum</h6>
+              </div>
+              <p class="small text-muted mb-0">
+                Institute of Commercial Management certifications provide global qualification reciprocity across Commonwealth nations.
+              </p>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <div class="card p-3 border-0 rounded-4 shadow-sm bg-white h-100">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="fa-solid fa-landmark text-primary fs-4"></i>
+                <h6 class="fw-bold mb-0 text-dark">KNEC Examining Centre</h6>
+              </div>
+              <p class="small text-muted mb-0">
+                Registered examination centre for the Kenya National Examinations Council national diploma and certificate programs.
+              </p>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <div class="card p-3 border-0 rounded-4 shadow-sm bg-white h-100">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="fa-solid fa-shield-check text-success fs-4"></i>
+                <h6 class="fw-bold mb-0 text-dark">TVETA Kenya Registered</h6>
+              </div>
+              <p class="small text-muted mb-0">
+                Fully accredited under the Technical and Vocational Education and Training Act by the Ministry of Education.
+              </p>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <div class="card p-3 border-0 rounded-4 shadow-sm bg-white h-100">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="fa-solid fa-kitchen-set text-warning fs-4"></i>
+                <h6 class="fw-bold mb-0 text-dark">NITA &amp; CBET Certified</h6>
+              </div>
+              <p class="small text-muted mb-0">
+                Competency-Based Education and Training (CBET) assessments guaranteeing hands-on technical proficiency.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-    {% endfor %}
+  </div>
+</section>
+
+<!-- ============================================================
+     CAMPUS LOCATION & DIRECT INQUIRY
+     ============================================================ -->
+<section class="container py-5 public-section">
+  <div class="pub-campus-card p-4 p-lg-5 fade-up">
+    <div class="row g-4 align-items-center">
+      <div class="col-lg-8">
+        <span class="badge rounded-pill px-3 py-1 mb-2" style="background:rgba(138,26,52,.1);color:var(--maroon);font-weight:700;font-size:.78rem;text-transform:uppercase;">
+          Visit In Person
+        </span>
+        <h3 class="fw-bold text-dark mb-2">Experience Wigot School of Hospitality</h3>
+        <p class="text-muted mb-3">
+          Located conveniently off the Kisumu–Kakamega Road in Mamboleo, Kisumu. Tour our operating training kitchens, meeting rooms, and student hostels today.
+        </p>
+        <div class="d-flex flex-wrap gap-4 text-muted small">
+          <span><i class="fa-solid fa-location-dot text-danger me-2"></i>Mamboleo, Kisumu, Off Kisumu–Kakamega Road</span>
+          <span><i class="fa-solid fa-phone text-success me-2"></i>+254 706 063 799 / +254 708 112 222</span>
+          <span><i class="fa-solid fa-envelope text-primary me-2"></i>info@wigotschoolofhospitality.com</span>
+        </div>
+      </div>
+      <div class="col-lg-4 text-center">
+        <a href="{% url 'university:contact' %}" class="btn btn-primary rounded-pill px-4 py-3 fw-bold w-100 mb-2 btn-press text-white shadow">
+          Contact Admissions Desk <i class="fa-solid fa-arrow-right ms-2"></i>
+        </a>
+        <a href="https://maps.google.com/?q=Wigot+Gardens+Kisumu" target="_blank" rel="noopener noreferrer" class="btn btn-outline-dark rounded-pill px-4 py-3 fw-semibold w-100 btn-press">
+          <i class="fa-solid fa-directions me-2"></i>Google Maps Directions
+        </a>
+      </div>
+    </div>
   </div>
 </section>
 {% endblock %}

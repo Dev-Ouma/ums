@@ -1,13 +1,26 @@
 <section class="container py-5">
-  {% if block.heading %}<h2 class="fw-bold text-center mb-4">{{ block.heading }}</h2>{% endif %}
+  {% if block.heading %}
+  <div class="section-heading mb-4 text-center">
+    <span class="badge-soft badge rounded-pill px-3 py-2">Academic Faculties</span>
+    <h2 class="fw-bold mt-2">{{ block.heading }}</h2>
+    {% if block.subheading %}<p class="text-muted mx-auto" style="max-width:640px;">{{ block.subheading }}</p>{% endif %}
+  </div>
+  {% endif %}
   <div class="row g-4">
     {% for d in items %}
       <div class="col-md-4">
-        <div class="card border-0 rounded-4 shadow-sm p-4 h-100">
-          <span class="badge badge-soft rounded-pill align-self-start mb-2">{{ d.code }}</span>
-          <h5 class="fw-bold mb-0">{{ d.name }}</h5>
-        </div>
+        <a href="{% url 'university:courses_public' %}?dept={{ d.code }}" class="card border-0 rounded-4 shadow-sm p-4 h-100 text-decoration-none fade-up" style="transition:transform .25s ease, box-shadow .25s ease;border:1px solid rgba(138,26,52,.1)!important;">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="badge badge-soft rounded-pill">{{ d.code }}</span>
+            <i class="fa-solid fa-arrow-right text-primary"></i>
+          </div>
+          <h5 class="fw-bold text-dark mb-1">{{ d.name }}</h5>
+          <small class="text-muted">Explore accredited programmes &rarr;</small>
+        </a>
       </div>
-    {% empty %}<p class="text-muted">No departments yet.</p>{% endfor %}
+    {% empty %}
+      <div class="col-12 text-center py-4 text-muted">No departments currently listed.</div>
+    {% endfor %}
   </div>
 </section>
+

@@ -129,6 +129,32 @@ class ProgramManagementTests(TestCase):
         self.assertContains(res, "CS101")
         self.assertContains(res, "CS/2026/001")
         self.assertContains(res, "School of Computing &amp; Engineering")
+        self.assertContains(res, "Public Website Links for BSc-CS")
+        self.assertContains(res, "data-copy-url")
+
+    def test_program_public_url_generation_and_admissions_preselection(self):
+        """Test public apply/catalog URL generation on Program and end-to-end pre-selection on apply view."""
+        # 1. Model helper methods
+        apply_url = self.prog_degree.get_public_apply_url()
+        self.assertIn("?program=BSc-CS", apply_url)
+        catalog_url = self.prog_degree.get_public_catalog_url()
+        self.assertIn("?q=BSc-CS", catalog_url)
+
+        # 2. Admin list view has copy apply link
+        client = Client()
+        client.force_login(self.admin_user)
+        res_list = client.get(reverse("university:admin_programs"))
+        self.assertEqual(res_list.status_code, 200)
+        self.assertContains(res_list, "Public Apply Link")
+        self.assertContains(res_list, f"data-copy-url")
+
+        # 3. Public admissions page pre-selection
+        anon_client = Client()
+        res_apply = anon_client.get(reverse("university:admissions_apply") + f"?program={self.prog_degree.code}")
+        self.assertEqual(res_apply.status_code, 200)
+        self.assertContains(res_apply, self.prog_degree.name)
+        self.assertContains(res_apply, f'value="{self.prog_degree.id}" selected')
+        self.assertContains(res_apply, "Applying For")
 
     def test_program_create_and_edit(self):
         """Test program creation and update forms with audit log tracking."""

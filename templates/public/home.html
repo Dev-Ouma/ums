@@ -1,191 +1,2713 @@
 {% extends 'base_public.html' %}
-{% load humanize %}
-{% block title %}University Management System · Home{% endblock %}
+{% load static humanize %}
+{% block title %}Wigot School of Hospitality · Excellence in Culinary Arts & Hospitality Management{% endblock %}
+
 {% block content %}
+<!-- ============================================================
+     1. HERO SECTION
+     ============================================================ -->
+<section class="pub-hero" id="pubHeroSection">
+  <!-- Hero Background Image Layer with Cinematic Loading -->
+  <div class="pub-hero-backdrop" id="pubHeroBackdrop" aria-hidden="true">
+    <div class="pub-hero-skeleton"></div>
+    <img src="{% static 'img/kenyan-student-hero.png' %}" 
+         alt="Kenyan hospitality student in executive chef uniform at Wigot School of Hospitality" 
+         class="pub-hero-img" 
+         id="pubHeroImg"
+         loading="eager"
+         fetchpriority="high">
+    <div class="pub-hero-overlay-gradient"></div>
+    <div class="pub-hero-light-sweep"></div>
+  </div>
 
-<!-- HERO -->
-<section class="pub-hero pub-hero-v2">
-  <div class="container">
+  <!-- Luxury Ambient Glowing Orbs & Interactive Particle Canvas -->
+  <div class="hero-ambient-orb orb-1" aria-hidden="true"></div>
+  <div class="hero-ambient-orb orb-2" aria-hidden="true"></div>
+  <canvas id="heroEmberCanvas" class="hero-ember-canvas" aria-hidden="true"></canvas>
+
+  <div class="container" style="position:relative; z-index:2;">
     <div class="hero-grid">
-      <div class="hero-copy">
-        <div class="welcome">Kenya-ready campus operations</div>
-        <h1>Run your university from admission to graduation.</h1>
-        <p class="lead-sub">UMS brings applications, fees, coursework, exams, transcripts, student life and system controls into one polished command center for modern institutions.</p>
+      <div class="hero-copy fade-left">
+        <!-- Live Intake Status Badge with Dynamic Countdown & Status Pill -->
+        <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+          <div class="hero-status-pill">
+            <span class="badge-live-pulse"></span>
+            <span>Campus Open · Admissions Desk Active</span>
+          </div>
+          <div class="hero-intake-badge mb-0">
+            <span class="pulse-dot"></span>
+            <span>Intakes: Jan • May • Sep</span>
+          </div>
+          <div class="hero-status-pill" style="border-color:rgba(214,161,58,0.4);background:rgba(214,161,58,0.12);color:#ffe6a7;">
+            <i class="fa-solid fa-fire text-warning"></i>
+            <span>Sep Intake: 82% Booked · 18 Bays Left</span>
+          </div>
+          <div class="hero-intake-countdown" id="heroCountdown">
+            Next Intake: <span class="countdown-unit">Loading...</span>
+          </div>
+        </div>
+
+        <h1>Pioneering <span class="text-gradient-shimmer">Hospitality</span>, Culinary Arts &amp; Leadership.</h1>
+        <p class="lead-sub">
+          Wigot School of Hospitality delivers industry-standard, 100% practical training in Mamboleo, Kisumu. 
+          Gain hands-on mastery in commercial production kitchens, earn world-class credentials, and secure 5-star hotel attachments.
+        </p>
+
         <div class="hero-actions">
-          <a href="{% if user.is_authenticated %}{% url 'university:dashboard' %}{% else %}{% url 'accounts:signup' %}{% endif %}" class="hero-btn">
-            Launch Portal <i class="fa-solid fa-arrow-right-long"></i></a>
-          <a href="{% url 'university:courses_public' %}" class="hero-link">
-            Explore Courses <i class="fa-solid fa-book-open"></i></a>
+          <a href="{% url 'university:admissions_apply' %}" class="pub-apply btn-ripple fs-6 py-3 px-4">
+            Apply for Admission <i class="fa-solid fa-arrow-right ms-2"></i>
+          </a>
+          <a href="#courses-explorer" class="hero-link">
+            Explore Programmes &amp; Courses <i class="fa-solid fa-book-open ms-1"></i>
+          </a>
         </div>
-        <div class="hero-proof" aria-label="Platform highlights">
-          <span><b>{{ stats.students|intcomma }}+</b> students</span>
-          <span><b>{{ stats.courses|intcomma }}+</b> courses</span>
-          <span><b>{{ stats.departments|intcomma }}+</b> departments</span>
+
+        <div class="hero-proof" aria-label="Campus metrics">
+          <span><i class="fa-solid fa-user-graduate text-warning"></i> <b>1,200+</b> Alumni</span>
+          <span><i class="fa-solid fa-award text-warning"></i> <b>15+</b> Career Programs</span>
+          <span><i class="fa-solid fa-hotel text-warning"></i> <b>100%</b> Attachments</span>
         </div>
       </div>
-      <div class="hero-panel" aria-label="Operational highlights">
-        <span class="panel-kicker">Live campus stack</span>
-        <div class="panel-row"><i class="fa-solid fa-file-signature"></i><span>Admissions and document issuing</span></div>
-        <div class="panel-row"><i class="fa-solid fa-wallet"></i><span>Fee accounts, payments and receipts</span></div>
-        <div class="panel-row"><i class="fa-solid fa-shield-halved"></i><span>Identity, audit and go-live controls</span></div>
-      </div>
-    </div>
-  </div>
-</section>
 
-<!-- HERO PORTAL CARDS -->
-<section class="container pub-cards">
-  <div class="row g-4">
-    <div class="col-md-4">
-      <a href="{% url 'accounts:login' %}" class="text-decoration-none">
-      <div class="portal-card">
-        <div class="pc-head"><span class="pc-icon"><i class="fa-solid fa-user-graduate"></i></span>
-          <h5>Student Portal</h5></div>
-        <p>Track attendance, results and fees, submit assignments and get AI-powered study recommendations.</p>
-        <span class="pc-chevron"><i class="fa-solid fa-chevron-down"></i></span>
-      </div></a>
-    </div>
-    <div class="col-md-4">
-      <a href="{% url 'accounts:login' %}" class="text-decoration-none">
-      <div class="portal-card">
-        <div class="pc-head"><span class="pc-icon"><i class="fa-solid fa-chalkboard-user"></i></span>
-          <h5>Teaching Staff Portal</h5></div>
-        <p>Take day-wise attendance, publish and grade assignments, and monitor class performance at a glance.</p>
-        <span class="pc-chevron"><i class="fa-solid fa-chevron-down"></i></span>
-      </div></a>
-    </div>
-    <div class="col-md-4">
-      <a href="{% url 'accounts:login' %}" class="text-decoration-none">
-      <div class="portal-card">
-        <div class="pc-head"><span class="pc-icon"><i class="fa-solid fa-user-shield"></i></span>
-          <h5>Administration</h5></div>
-        <p>Full control over students, teaching staff, courses, departments and fees with live campus-wide analytics.</p>
-        <span class="pc-chevron"><i class="fa-solid fa-chevron-down"></i></span>
-      </div></a>
-    </div>
-  </div>
-</section>
-
-<!-- STATS -->
-<section class="container pt-5 public-section" style="position:relative;z-index:5">
-  <div class="row g-3">
-    {% with s=stats %}
-    <div class="col-6 col-lg-3"><div class="card stat-tile" style="background:linear-gradient(135deg,#7b6cf6,#5a4bd6)">
-      <div class="lbl">Students</div><div class="val">{{ s.students|intcomma }}+</div>
-      <i class="fa-solid fa-users ghost"></i></div></div>
-    <div class="col-6 col-lg-3"><div class="card stat-tile" style="background:linear-gradient(135deg,#20c997,#12b886)">
-      <div class="lbl">Teaching Staff</div><div class="val">{{ s.faculty|intcomma }}+</div>
-      <i class="fa-solid fa-chalkboard-user ghost"></i></div></div>
-    <div class="col-6 col-lg-3"><div class="card stat-tile" style="background:linear-gradient(135deg,#f368a6,#e6488a)">
-      <div class="lbl">Courses</div><div class="val">{{ s.courses|intcomma }}+</div>
-      <i class="fa-solid fa-book ghost"></i></div></div>
-    <div class="col-6 col-lg-3"><div class="card stat-tile" style="background:linear-gradient(135deg,#4dabf7,#3b9ae1)">
-      <div class="lbl">Departments</div><div class="val">{{ s.departments|intcomma }}+</div>
-      <i class="fa-solid fa-building-columns ghost"></i></div></div>
-    {% endwith %}
-  </div>
-</section>
-
-<!-- FEATURES -->
-<section class="container py-5 mt-4 public-section">
-  <div class="section-heading">
-    <span class="badge-soft badge rounded-pill px-3 py-2">Operational cockpit</span>
-    <h2 class="fw-bold mt-2">Three portals. One source of truth.</h2>
-    <p class="text-muted">Purpose-built workflows for the people who keep a campus moving every day.</p>
-  </div>
-  <div class="row g-4">
-    {% for f in "x"|make_list %}{% endfor %}
-    <div class="col-md-4">
-      <div class="card feature-card card-ums h-100 p-4">
-        <span class="icon-circle mb-3" style="background:linear-gradient(135deg,#6C5CE7,#8f7bff)"><i class="fa-solid fa-user-shield"></i></span>
-        <h5 class="fw-bold">Administrator</h5>
-        <p class="text-muted small">Manage students, teaching staff, departments, courses and fees. Live analytics,
-          fee collection charts and at-risk detection at a glance.</p>
-        <ul class="small text-muted"><li>Enrollment & department analytics</li><li>Fee collection tracking</li><li>Campus-wide notices</li></ul>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card feature-card card-ums h-100 p-4">
-        <span class="icon-circle mb-3" style="background:linear-gradient(135deg,#009688,#26c6a6)"><i class="fa-solid fa-chalkboard-user"></i></span>
-        <h5 class="fw-bold">Teaching Staff</h5>
-        <p class="text-muted small">Take attendance, publish assignments, grade submissions and monitor class
-          performance with grade-distribution charts.</p>
-        <ul class="small text-muted"><li>One-click attendance</li><li>Assignment grading</li><li>Class insights</li></ul>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card feature-card card-ums h-100 p-4">
-        <span class="icon-circle mb-3" style="background:linear-gradient(135deg,#0984e3,#48b1f3)"><i class="fa-solid fa-user-graduate"></i></span>
-        <h5 class="fw-bold">Student</h5>
-        <p class="text-muted small">Track attendance, results and fees, submit assignments, and get AI study
-          recommendations and grade predictions.</p>
-        <ul class="small text-muted"><li>Attendance & GPA tracking</li><li>Assignment submissions</li><li>AI recommendations</li></ul>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- DEPARTMENTS -->
-<section class="container py-5 public-section">
-  <div class="d-flex justify-content-between align-items-end mb-4">
-    <div><span class="badge-soft badge rounded-pill px-3 py-2">Explore</span>
-      <h2 class="fw-bold mt-2 mb-0">Popular Departments</h2></div>
-    <a href="{% url 'university:about' %}" class="btn btn-sm btn-outline-primary rounded-pill">View all <i class="fa-solid fa-arrow-right ms-1"></i></a>
-  </div>
-  <div class="row g-4">
-    {% for d in departments %}
-    <div class="col-6 col-md-4 col-lg-2">
-      <div class="card course-card card-ums h-100 text-center p-3">
-        <span class="icon-circle mx-auto mb-2" style="background:{{ d.color }}"><i class="fa-solid {{ d.icon }}"></i></span>
-        <div class="fw-semibold small">{{ d.name }}</div>
-        <div class="text-muted" style="font-size:.72rem">{{ d.code }}</div>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-</section>
-
-<!-- FEATURED COURSES -->
-<section class="container py-5 public-section">
-  <div class="section-heading mb-5">
-    <span class="badge-soft badge rounded-pill px-3 py-2">Catalog</span>
-    <h2 class="fw-bold mt-2">Featured Courses</h2>
-  </div>
-  <div class="row g-4">
-    {% for c in featured_courses %}
-    <div class="col-md-6 col-lg-4">
-      <div class="card course-card card-ums h-100 overflow-hidden">
-        {% if c.image_url %}
-        <img src="{{ c.image_url }}" class="w-100" style="height:170px;object-fit:cover" alt="{{ c.title }}">
-        {% else %}
-        <div class="w-100 d-flex align-items-center justify-content-center text-white" style="height:170px;background:{{ c.department.color|default:'#2563eb' }}">
-          <i class="fa-solid fa-book-open fa-3x opacity-50"></i>
+      <!-- Subtle Floating Glass Badge (Non-intrusive) -->
+      <div class="hero-floating-card">
+        <div class="badge-icon"><i class="fa-solid fa-hotel"></i></div>
+        <div class="badge-text">
+          <b>100% Guaranteed</b>
+          <span>Sarova · Serena · Acacia Premier</span>
         </div>
-        {% endif %}
-        <div class="card-body">
-          <span class="badge rounded-pill" style="background:{{ c.department.color }}">{{ c.department.code }}</span>
-          <h6 class="fw-bold mt-2">{{ c.title }}</h6>
-          <p class="text-muted small mb-2">{{ c.description|truncatewords:14 }}</p>
-          <div class="d-flex justify-content-between align-items-center small text-muted">
-            <span><i class="fa-solid fa-star text-warning"></i> {{ c.credits }} credits</span>
-            <span><i class="fa-solid fa-users me-1"></i>{{ c.enrolled_count }} enrolled</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     2. ACCREDITATION & TRUST STRIP
+     ============================================================ -->
+<div class="pub-trust-strip fade-up">
+  <div class="container">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+      <div class="d-flex align-items-center gap-2">
+        <span class="pub-trust-label"><i class="fa-solid fa-shield-check text-warning me-1"></i>Accredited &amp; Recognized By:</span>
+      </div>
+      <div class="d-flex align-items-center flex-wrap gap-2">
+        <div class="pub-trust-badge">
+          <span class="pub-trust-icon"><i class="fa-solid fa-building-columns"></i></span>
+          <span>TVETA Kenya Licensed</span>
+        </div>
+        <div class="pub-trust-badge">
+          <span class="pub-trust-icon"><i class="fa-solid fa-certificate"></i></span>
+          <span>ICM (UK) Approved Centre</span>
+        </div>
+        <div class="pub-trust-badge">
+          <span class="pub-trust-icon"><i class="fa-solid fa-stamp"></i></span>
+          <span>KNEC Examination Centre</span>
+        </div>
+        <div class="pub-trust-badge">
+          <span class="pub-trust-icon"><i class="fa-solid fa-industry"></i></span>
+          <span>NITA Certified</span>
+        </div>
+        <div class="pub-trust-badge">
+          <span class="pub-trust-icon"><i class="fa-solid fa-hotel"></i></span>
+          <span>Sarova · Serena · Acacia Attachment Network</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     3. PILLARS OF EXCELLENCE STRIP
+     ============================================================ -->
+
+<div class="pub-pillars-bar">
+  <div class="container">
+    <div class="row g-4">
+      <div class="col-md-6 col-lg-3">
+        <div class="pillar-item">
+          <div class="pillar-icon"><i class="fa-solid fa-kitchen-set"></i></div>
+          <div class="pillar-text">
+            <h6>Production Kitchens</h6>
+            <p>Commercial ranges, salamanders &amp; modern pastry labs.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="pillar-item">
+          <div class="pillar-icon"><i class="fa-solid fa-award"></i></div>
+          <div class="pillar-text">
+            <h6>Dual Global Credentials</h6>
+            <p>Examined by ICM (UK) &amp; KNEC, TVETA licensed.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="pillar-item">
+          <div class="pillar-icon"><i class="fa-solid fa-hotel"></i></div>
+          <div class="pillar-text">
+            <h6>Luxury Hotel Attachments</h6>
+            <p>100% placement with top resorts &amp; 5-star hotels.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="pillar-item">
+          <div class="pillar-icon"><i class="fa-solid fa-mobile-screen-button"></i></div>
+          <div class="pillar-text">
+            <h6>Direct M-Pesa Fee Portal</h6>
+            <p>Instant statements, fee payments &amp; digital receipts.</p>
           </div>
         </div>
       </div>
     </div>
-    {% endfor %}
   </div>
-</section>
+</div>
 
-<!-- CTA -->
-<section class="container py-5 public-section">
-  <div class="pub-final-cta text-white">
-    <h2 class="fw-bold">A serious campus system, ready for real work.</h2>
-    <p class="opacity-75 mb-4">Start in the public portal, then move straight into role-based operations.</p>
-    <div class="d-flex justify-content-center gap-3">
-      <a href="{% url 'accounts:signup' %}" class="btn btn-light btn-lg rounded-pill px-4 fw-semibold text-primary">Create free account</a>
-      <a href="{% url 'university:contact' %}" class="btn btn-outline-light btn-lg rounded-pill px-4 fw-semibold">Talk to us</a>
+<!-- ============================================================
+     3. EXECUTIVE ROLE GATEWAYS (NO OVERLAP)
+     ============================================================ -->
+<section class="pub-cards-section">
+  <div class="container">
+    <div class="section-heading mb-5">
+      <span class="badge-soft badge rounded-pill px-3 py-2">Executive Gateways</span>
+      <h2 class="fw-bold mt-2">Campus Portals &amp; Workspaces</h2>
+      <p class="text-muted">Direct digital command centers tailored for students, faculty, staff, and incoming applicants.</p>
+    </div>
+
+    <div class="row g-4">
+      <!-- Student Portal -->
+      <div class="col-md-6 col-lg-3">
+        <a href="{% url 'accounts:login' %}" class="role-card tilt-card fade-up" data-delay="1">
+          <div class="role-card-header">
+            <div class="role-card-icon" style="background:rgba(138,26,52,.08);color:var(--maroon)">
+              <i class="fa-solid fa-user-graduate"></i>
+            </div>
+            <span class="role-card-kicker">Academics</span>
+          </div>
+          <h5>Student Portal</h5>
+          <p>Track class attendance, exam results, download fee receipts, and access practical training schedules.</p>
+          <div class="role-card-footer">
+            <span class="role-card-btn">Enter Portal <i class="fa-solid fa-arrow-right-long"></i></span>
+          </div>
+        </a>
+      </div>
+
+      <!-- Staff & Lecturers -->
+      <div class="col-md-6 col-lg-3">
+        <a href="{% url 'accounts:login' %}" class="role-card tilt-card fade-up" data-delay="2">
+          <div class="role-card-header">
+            <div class="role-card-icon" style="background:rgba(20,90,69,.08);color:var(--leaf)">
+              <i class="fa-solid fa-chalkboard-user"></i>
+            </div>
+            <span class="role-card-kicker">Faculty Desk</span>
+          </div>
+          <h5>Staff &amp; Lecturers</h5>
+          <p>Day-wise attendance tracking, continuous assessments, kitchen grading rubrics, and syllabus delivery.</p>
+          <div class="role-card-footer">
+            <span class="role-card-btn">Faculty Login <i class="fa-solid fa-arrow-right-long"></i></span>
+          </div>
+        </a>
+      </div>
+
+      <!-- Administration -->
+      <div class="col-md-6 col-lg-3">
+        <a href="{% url 'accounts:login' %}" class="role-card tilt-card fade-up" data-delay="3">
+          <div class="role-card-header">
+            <div class="role-card-icon" style="background:rgba(16,29,43,.08);color:var(--navy)">
+              <i class="fa-solid fa-user-shield"></i>
+            </div>
+            <span class="role-card-kicker">Operations</span>
+          </div>
+          <h5>Administration</h5>
+          <p>Comprehensive controls for admissions, fee reconciliation, audit logs, and institutional compliance.</p>
+          <div class="role-card-footer">
+            <span class="role-card-btn">Control Room <i class="fa-solid fa-arrow-right-long"></i></span>
+          </div>
+        </a>
+      </div>
+
+      <!-- Online Admission -->
+      <div class="col-md-6 col-lg-3">
+        <a href="{% url 'university:admissions_apply' %}" class="role-card tilt-card fade-up" data-delay="4" style="border-color:rgba(214,161,58,.35)">
+          <div class="role-card-header">
+            <div class="role-card-icon" style="background:rgba(214,161,58,.14);color:#946914">
+              <i class="fa-solid fa-file-signature"></i>
+            </div>
+            <span class="role-card-kicker highlight"><i class="fa-solid fa-sparkles me-1 text-warning"></i>New Intake</span>
+          </div>
+          <h5>Online Admission</h5>
+          <p>Submit intake applications, upload KCSE certificates, pay admission fee via M-Pesa, and get instant offer.</p>
+          <div class="role-card-footer">
+            <span class="role-card-btn" style="color:#946914;">Apply Online <i class="fa-solid fa-arrow-right-long"></i></span>
+          </div>
+        </a>
+      </div>
     </div>
   </div>
 </section>
+
+<!-- ============================================================
+     4. LUXURY ANIMATED STATS BANNER
+     ============================================================ -->
+<section class="container py-5 public-section">
+  <div class="stats-banner fade-up">
+    <div class="row g-4 text-center">
+      <div class="col-6 col-lg-3 stats-col">
+        <div class="counter-value" data-counter-target="1250">0</div>
+        <div class="counter-label">Graduates &amp; Alumni</div>
+        <small class="counter-sub">Across 5-Star Hotel Networks</small>
+      </div>
+      <div class="col-6 col-lg-3 stats-col">
+        <div class="counter-value" data-counter-target="15">0</div>
+        <div class="counter-label">Accredited Programs</div>
+        <small class="counter-sub">ICM (UK) &amp; KNEC Certified</small>
+      </div>
+      <div class="col-6 col-lg-3 stats-col">
+        <div class="counter-value" data-counter-target="100">0</div>
+        <div class="counter-label">% Attachment Placement</div>
+        <small class="counter-sub">Guaranteed Hotel Internships</small>
+      </div>
+      <div class="col-6 col-lg-3 stats-col">
+        <div class="counter-value" data-counter-target="4">0</div>
+        <div class="counter-label">Accreditation Bodies</div>
+        <small class="counter-sub">TVETA, KNEC, ICM UK, NITA</small>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     5. COURSE EXPLORER & CATEGORY TABS (WIGOT LIVE DATA)
+     ============================================================ -->
+<section class="container py-5 public-section" id="courses-explorer">
+  <div class="section-heading mb-4">
+    <span class="badge-soft badge rounded-pill px-3 py-2">Programmes &amp; Courses</span>
+    <h2 class="fw-bold mt-2">Accredited Programmes &amp; Courses</h2>
+    <p class="text-muted">
+      Practical courses examined by ICM (UK), KNEC, and internal certification. Real fees in Kenyan Shillings (KES).
+    </p>
+  </div>
+
+  <!-- Career Pathfinder Matcher -->
+  <div class="pub-pathfinder-card fade-up">
+    <div class="row align-items-center g-3">
+      <div class="col-lg-4">
+        <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-2" style="background:rgba(138,26,52,.08);color:var(--maroon);font-weight:700;font-size:.78rem;text-transform:uppercase;">
+          <i class="fa-solid fa-compass"></i> Career Matcher
+        </div>
+        <h4 class="fw-bold mb-1 text-dark" style="font-size: 1.35rem;">Find Your Calling</h4>
+        <p class="text-muted small mb-0">Select your career aspiration to view tailored diplomas, certificates, and fast-track tracks.</p>
+      </div>
+      <div class="col-lg-8">
+        <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
+          <a href="#courses-explorer" class="pub-path-btn" data-path-filter="diploma">
+            <i class="fa-solid fa-utensils"></i> <span>Executive Chef &amp; Culinary</span>
+          </a>
+          <a href="#courses-explorer" class="pub-path-btn" data-path-filter="part_time">
+            <i class="fa-solid fa-cake-candles"></i> <span>Pastry &amp; Artisan Baking</span>
+          </a>
+          <a href="#courses-explorer" class="pub-path-btn" data-path-filter="diploma">
+            <i class="fa-solid fa-hotel"></i> <span>5-Star Hotel Management</span>
+          </a>
+          <a href="#courses-explorer" class="pub-path-btn" data-path-filter="certificate">
+            <i class="fa-solid fa-mug-hot"></i> <span>F&amp;B Service &amp; Barista</span>
+          </a>
+          <a href="#courses-explorer" class="pub-path-btn" data-path-filter="short_course">
+            <i class="fa-solid fa-bolt"></i> <span>1-Month Fast-Track</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category Filter Tabs -->
+  <div class="course-filters fade-up" id="courseFilterGroup">
+    <button class="course-filter-btn active" data-filter="all">
+      <span>All Programs</span>
+      <span class="course-filter-badge-counter">{{ featured_courses|length }}</span>
+    </button>
+    <button class="course-filter-btn" data-filter="diploma">
+      <span>Diplomas</span>
+      <span class="course-filter-badge-counter" data-count-cat="diploma"></span>
+    </button>
+    <button class="course-filter-btn" data-filter="certificate">
+      <span>Certificates</span>
+      <span class="course-filter-badge-counter" data-count-cat="certificate"></span>
+    </button>
+    <button class="course-filter-btn" data-filter="part_time">
+      <span>Specialized &amp; Pastry</span>
+      <span class="course-filter-badge-counter" data-count-cat="part_time"></span>
+    </button>
+    <button class="course-filter-btn" data-filter="short_course">
+      <span>Short Courses</span>
+      <span class="course-filter-badge-counter" data-count-cat="short_course"></span>
+    </button>
+  </div>
+
+  <!-- Course Cards Grid -->
+  <div class="row g-4" id="courseCardsGrid">
+    {% for c in featured_courses %}
+    <div class="col-md-6 col-lg-4 course-col" data-course-category="{{ c.category }}" style="--stagger-index: {{ forloop.counter0 }};">
+      <div class="course-card-rich fade-up">
+        <div class="course-card-img-wrap">
+          <img src="{{ c.image_url }}" alt="{{ c.title }}" loading="lazy" onerror="this.src='https://www.wigotschoolofhospitality.com/assets/images/items/MN-24261646379768.jpg'">
+          <span class="course-card-badge">{{ c.code }}</span>
+          <span class="course-card-exam">{{ c.exam_body }}</span>
+        </div>
+        <div class="course-card-body">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="badge rounded-pill bg-light text-dark fw-bold border" style="font-size:0.75rem;">{{ c.category_label }}</span>
+            <small class="text-muted"><i class="fa-solid fa-clock text-warning me-1"></i>{{ c.credits }} Credits</small>
+          </div>
+          <h5 class="course-card-title">{{ c.title }}</h5>
+          <p class="course-card-desc">{{ c.description }}</p>
+          
+          <div class="course-card-meta">
+            <div>
+              <small class="text-muted d-block" style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.5px;">Tuition / Level</small>
+              <span class="course-fee">{{ c.description|cut:" - KES "|cut:" - KSh. " }}</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <button type="button" class="btn btn-sm btn-light border rounded-pill px-2.5 py-1 text-muted course-peek-btn"
+                      data-peek-code="{{ c.code }}"
+                      data-peek-title="{{ c.title }}"
+                      data-peek-category="{{ c.category_label }}"
+                      data-peek-exam="{{ c.exam_body }}"
+                      data-peek-fee="{{ c.description }}"
+                      data-peek-img="{{ c.image_url }}"
+                      data-peek-credits="{{ c.credits }}"
+                      title="Quick Curriculum Preview">
+                <i class="fa-solid fa-eye me-1 text-primary"></i> <span class="d-none d-sm-inline">Quick View</span>
+              </button>
+              <a href="{% url 'university:admissions_apply' %}?program={{ c.code }}" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold">
+                Apply Now <i class="fa-solid fa-arrow-right ms-1"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center py-5">
+      <p class="text-muted">Courses are currently being updated. Please check back shortly or contact our admissions office.</p>
+    </div>
+    {% endfor %}
+  <!-- ============================================================
+       TUITION & INSTALLMENT ESTIMATOR WIDGET
+       ============================================================ -->
+  <div class="pub-fee-calc mt-5 fade-up">
+    <div class="row g-4 align-items-center">
+      <div class="col-lg-5">
+        <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-2" style="background:rgba(138,26,52,.08);color:var(--maroon);font-weight:700;font-size:.78rem;text-transform:uppercase;">
+          <i class="fa-solid fa-calculator"></i> Transparent Financing
+        </div>
+        <h3 class="fw-bold text-dark mb-2">Tuition &amp; Installment Estimator</h3>
+        <p class="text-muted small mb-4" style="line-height:1.65;">
+          Calculate your termly tuition investment and compare full-term settlement against our interest-free 3-part installment plan. All fees are in Kenyan Shillings (KES).
+        </p>
+
+        <!-- Programme Selector -->
+        <label class="form-label fw-bold text-dark small mb-1">Select Your Academic Programme:</label>
+        <select class="form-select rounded-pill px-3 py-2 border mb-3 fw-semibold text-dark shadow-sm" id="calcProgramSelect" style="font-size:0.92rem;">
+          <option value="DCA" data-fee="35000" data-code="DCA" selected>Diploma in Culinary Arts (DCA) — KES 35,000 / Term</option>
+          <option value="HDCA" data-fee="35000" data-code="HDCA">Diploma in Hospitality Management (HDCA) — KES 35,000 / Term</option>
+          <option value="DFBS" data-fee="35000" data-code="DFBS">Diploma in Food &amp; Beverage Management (DFBS) — KES 35,000 / Term</option>
+          <option value="CCAO" data-fee="25000" data-code="CCAO">Certificate in Culinary Arts &amp; Pastry (CCAO) — KES 25,000 / Term</option>
+          <option value="SPBC" data-fee="28000" data-code="SPBC">Specialized Pastry &amp; Bakery Course (SPBC) — KES 28,000 / Term</option>
+          <option value="FBSO" data-fee="25000" data-code="FBSO">Certificate in Food &amp; Beverage Operations (FBSO) — KES 25,000 / Term</option>
+          <option value="BAR" data-fee="15000" data-code="BAR">1-Month Barista &amp; Beverage Masterclass — KES 15,000 (Full)</option>
+        </select>
+
+        <!-- Payment Plan Toggle -->
+        <label class="form-label fw-bold text-dark small mb-1">Select Payment Schedule:</label>
+        <div>
+          <div class="calc-plan-toggle">
+            <button type="button" class="calc-plan-btn active" data-plan="installments">
+              <i class="fa-solid fa-calendar-days me-1"></i> 3 Installments
+            </button>
+            <button type="button" class="calc-plan-btn" data-plan="full">
+              <i class="fa-solid fa-percent me-1"></i> Full Term (5% Off)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-7">
+        <div class="calc-breakdown-card">
+          <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom flex-wrap gap-2">
+            <div>
+              <span class="text-muted small text-uppercase fw-bold" style="letter-spacing:0.5px;">Estimated Term Tuition</span>
+              <h2 class="fw-bold mb-0 text-primary" id="calcTermTotal">KES 35,000</h2>
+            </div>
+            <span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle px-3 py-2 fw-bold">
+              <i class="fa-solid fa-circle-check me-1"></i> 0% Interest Financing
+            </span>
+          </div>
+
+          <div class="row g-3 text-center mb-4">
+            <div class="col-4">
+              <div class="calc-stat-box">
+                <small class="text-muted d-block fw-semibold mb-1" style="font-size:0.75rem;">1st Installment (40%)</small>
+                <strong class="text-dark d-block" id="calcInstallment1" style="font-size:1.05rem;">KES 14,000</strong>
+                <span class="text-muted" style="font-size:0.68rem;">At Registration</span>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="calc-stat-box">
+                <small class="text-muted d-block fw-semibold mb-1" style="font-size:0.75rem;">2nd Installment (30%)</small>
+                <strong class="text-dark d-block" id="calcInstallment2" style="font-size:1.05rem;">KES 10,500</strong>
+                <span class="text-muted" style="font-size:0.68rem;">Month 2 Mid-Term</span>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="calc-stat-box">
+                <small class="text-muted d-block fw-semibold mb-1" style="font-size:0.75rem;">3rd Installment (30%)</small>
+                <strong class="text-dark d-block" id="calcInstallment3" style="font-size:1.05rem;">KES 10,500</strong>
+                <span class="text-muted" style="font-size:0.68rem;">Before Exam Week</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="calc-paybill-box d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+            <div class="d-flex align-items-center gap-2">
+              <i class="fa-solid fa-mobile-screen text-success fs-4"></i>
+              <div>
+                <strong class="d-block text-dark small">Official M-Pesa Settlement</strong>
+                <span class="text-muted" style="font-size:0.78rem;">Instant payment verification &amp; digital fee receipts in student portal.</span>
+              </div>
+            </div>
+            <a href="{% url 'university:admissions_apply' %}?program=DCA" id="calcApplyBtn" class="btn btn-primary rounded-pill px-4 py-2 fw-bold text-white btn-press">
+              Apply With This Plan <i class="fa-solid fa-arrow-right ms-1"></i>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Career ROI & Tuition Payback Projection Banner -->
+    <div class="roi-calculator-box mt-4 fade-up">
+      <div class="row g-4 align-items-center">
+        <div class="col-lg-7">
+          <div class="roi-payback-pill mb-2">
+            <i class="fa-solid fa-chart-line"></i>
+            <span>High Return on Education · Industry Survey Data</span>
+          </div>
+          <h4 class="fw-bold text-white mb-2">Estimated Tuition Payback: Under 6 Months</h4>
+          <p class="text-white-50 small mb-0" style="line-height:1.65;">
+            With guaranteed 5-star hotel attachments at Sarova, Serena, and Acacia Premier, Wigot diploma graduates typically achieve entry junior sous-chef, pastry chef de partie, or hotel supervisor salaries starting from <strong>KES 45,000 – KES 75,000/month</strong>, recouping their entire vocational education cost within months of certification.
+          </p>
+        </div>
+        <div class="col-lg-5">
+          <div class="row g-2 text-center">
+            <div class="col-6">
+              <div class="roi-stat-card">
+                <span class="text-white-50 d-block small mb-1">Avg Starting Salary</span>
+                <strong class="text-warning fs-5">KES 45,000+</strong>
+                <span class="text-white-50 d-block" style="font-size:0.72rem;">Junior Chef / Supervisor</span>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="roi-stat-card">
+                <span class="text-white-50 d-block small mb-1">Attachment Hire Rate</span>
+                <strong class="text-success fs-5">86.4%</strong>
+                <span class="text-white-50 d-block" style="font-size:0.72rem;">Hired direct from intern</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="text-center mt-5">
+    <a href="{% url 'university:courses_public' %}" class="btn btn-outline-primary rounded-pill px-4 py-2 fw-bold">
+      View All Programmes &amp; Courses <i class="fa-solid fa-book-open-reader ms-2"></i>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================
+     6. THE WIGOT ADVANTAGE (WHY LEADERS CHOOSE US)
+     ============================================================ -->
+<section class="container py-5 public-section">
+  <div class="section-heading mb-5 text-center">
+    <span class="badge-soft badge rounded-pill px-3 py-2">The Wigot Advantage</span>
+    <h2 class="fw-bold mt-2" style="font-size: 2.2rem;">Why Leaders Choose Wigot School of Hospitality</h2>
+    <p class="text-muted mx-auto" style="max-width: 680px;">
+      From day one, our students train as active culinary and hotel practitioners, combining rigorous British &amp; Kenyan credentials with guaranteed 5-star hotel attachments.
+    </p>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-md-6 col-lg-4">
+      <div class="advantage-card tilt-card fade-up" data-delay="1">
+        <div class="advantage-icon-box" style="background:rgba(138,26,52,.08);color:var(--maroon);">
+          <i class="fa-solid fa-kitchen-set"></i>
+        </div>
+        <h5>100% Practical Station Mastery</h5>
+        <p>Every trainee works at their own commercial stove, prep board, and fresh ingredient bay. No watching from the sidelines — you cook, bake, and plate every day.</p>
+      </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+      <div class="advantage-card tilt-card fade-up" data-delay="2">
+        <div class="advantage-icon-box" style="background:rgba(214,161,58,.14);color:#946914;">
+          <i class="fa-solid fa-award"></i>
+        </div>
+        <h5>Dual Global Credentials</h5>
+        <p>Graduate with internationally prestigious ICM (UK) diplomas alongside KNEC national certificates, unlocking career opportunities across Kenya, East Africa, and global cruise lines.</p>
+      </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+      <div class="advantage-card tilt-card fade-up" data-delay="3">
+        <div class="advantage-icon-box" style="background:rgba(20,90,69,.08);color:var(--leaf);">
+          <i class="fa-solid fa-hotel"></i>
+        </div>
+        <h5>Guaranteed 5-Star Hotel Placement</h5>
+        <p>We secure official hotel attachments for 100% of our eligible trainees with leading luxury hotel chains including Sarova, Serena, PrideInn, and premier luxury safari lodges.</p>
+      </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+      <div class="advantage-card tilt-card fade-up" data-delay="4">
+        <div class="advantage-icon-box" style="background:rgba(16,29,43,.08);color:var(--navy);">
+          <i class="fa-solid fa-tree-city"></i>
+        </div>
+        <h5>Tranquil Lakeside Mamboleo Campus</h5>
+        <p>Located in Mamboleo, Kisumu next to the picturesque Wigot Gardens boutique resort at the foot of Kajulu Hills — an inspiring, peaceful environment built for culinary concentration.</p>
+      </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+      <div class="advantage-card tilt-card fade-up" data-delay="5">
+        <div class="advantage-icon-box" style="background:rgba(138,26,52,.08);color:var(--maroon);">
+          <i class="fa-solid fa-mobile-screen-button"></i>
+        </div>
+        <h5>Direct M-Pesa Fee Flexibility</h5>
+        <p>Transparent fee structures displayed in Kenyan Shillings (KES) with structured installment plans, zero hidden fees, and instant student portal receipts via our official M-Pesa Paybill.</p>
+      </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+      <div class="advantage-card tilt-card fade-up" data-delay="6">
+        <div class="advantage-icon-box" style="background:rgba(214,161,58,.14);color:#946914;">
+          <i class="fa-solid fa-chalkboard-user"></i>
+        </div>
+        <h5>Executive Chef Mentorship</h5>
+        <p>Learn from seasoned culinary directors, master pastry chefs, and former luxury hotel general managers who bring real five-star kitchen discipline and industry connections directly to you.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     6B. ACADEMIC PROGRESSION & KCSE LEVEL NAVIGATOR
+     ============================================================ -->
+<section class="container py-5 public-section">
+  <div class="section-heading mb-5 text-center">
+    <span class="badge-soft badge rounded-pill px-3 py-2">Qualifications &amp; Entry Tiers</span>
+    <h2 class="fw-bold mt-2" style="font-size: 2.2rem;">Find Your Level: From Foundation to Executive Diploma</h2>
+    <p class="text-muted mx-auto" style="max-width: 680px;">
+      Whether starting with KCPE, KCSE Grade D, or Grade C-, Wigot provides clear academic progression pathways examined by ICM (UK) and KNEC.
+    </p>
+  </div>
+
+  <div class="row g-4">
+    <!-- Level 1: Artisan -->
+    <div class="col-md-6 col-lg-3">
+      <div class="level-tier-card tilt-card fade-up" data-delay="1">
+        <div class="level-tier-header">
+          <span class="level-pill bg-secondary text-white">Level 4 · Artisan</span>
+          <h4 class="fw-bold mt-2 mb-1">Artisan Foundation</h4>
+          <span class="level-entry text-muted"><i class="fa-solid fa-graduation-cap me-1 text-warning"></i>KCPE / Open Entry</span>
+        </div>
+        <div class="level-tier-body">
+          <div class="level-meta-row">
+            <span><i class="fa-solid fa-clock text-warning me-1"></i>Duration:</span>
+            <strong>6 – 9 Months</strong>
+          </div>
+          <div class="level-meta-row">
+            <span><i class="fa-solid fa-shield-check text-warning me-1"></i>Exam Body:</span>
+            <strong>TVETA &amp; Internal</strong>
+          </div>
+          <div class="level-meta-row">
+            <span><i class="fa-solid fa-hotel text-warning me-1"></i>Attachment:</span>
+            <strong>3 Mos Guaranteed</strong>
+          </div>
+          <p class="level-desc">Foundational kitchen safety, essential commercial knife drills, sanitation protocols, and basic hot station cookery.</p>
+        </div>
+        <div class="level-tier-footer">
+          <div class="level-target-role">
+            <small class="text-muted d-block" style="font-size:0.72rem;text-transform:uppercase;">Career Launchpad</small>
+            <b class="text-dark">Assistant Line Cook / Kitchen Commis</b>
+          </div>
+          <a href="{% url 'university:admissions_apply' %}?program=CCAO" class="btn btn-sm btn-outline-dark rounded-pill w-100 fw-bold btn-press">
+            Explore Artisan Track
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Level 2: Certificate -->
+    <div class="col-md-6 col-lg-3">
+      <div class="level-tier-card tilt-card fade-up" data-delay="2">
+        <div class="level-tier-header">
+          <span class="level-pill" style="background:#145a45;color:#fff;">Level 5 · Certificate</span>
+          <h4 class="fw-bold mt-2 mb-1">National Certificate</h4>
+          <span class="level-entry text-muted"><i class="fa-solid fa-graduation-cap me-1 text-warning"></i>KCSE Grade D (Plain)</span>
+        </div>
+        <div class="level-tier-body">
+          <div class="level-meta-row">
+            <span><i class="fa-solid fa-clock text-warning me-1"></i>Duration:</span>
+            <strong>1 Year + Attachment</strong>
+          </div>
+          <div class="level-meta-row">
+            <span><i class="fa-solid fa-shield-check text-warning me-1"></i>Exam Body:</span>
+            <strong>KNEC &amp; TVETA</strong>
+          </div>
+          <div class="level-meta-row">
+            <span><i class="fa-solid fa-hotel text-warning me-1"></i>Attachment:</span>
+            <strong>Guaranteed 5-Star</strong>
+          </div>
+          <p class="level-desc">Comprehensive commercial hot line cookery, pantry operations, pastry fundamentals, and restaurant dining service.</p>
+        </div>
+        <div class="level-tier-footer">
+          <div class="level-target-role">
+            <small class="text-muted d-block" style="font-size:0.72rem;text-transform:uppercase;">Career Launchpad</small>
+            <b class="text-dark">Commis Chef / Barista / F&amp;B Server</b>
+          </div>
+          <a href="{% url 'university:admissions_apply' %}?program=CCAO" class="btn btn-sm btn-outline-success rounded-pill w-100 fw-bold btn-press" style="border-color:#145a45;color:#145a45;">
+            Explore Certificate Track
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Level 3: Executive Diploma -->
+    <div class="col-md-6 col-lg-3">
+      <div class="level-tier-card tilt-card featured fade-up" data-delay="3">
+        <div class="level-tier-badge">Most Popular</div>
+        <div class="level-tier-header">
+          <span class="level-pill" style="background:var(--maroon);color:#fff;">Level 6 · Diploma</span>
+          <h4 class="fw-bold mt-2 mb-1">Executive Diploma</h4>
+          <span class="level-entry text-muted"><i class="fa-solid fa-graduation-cap me-1 text-warning"></i>KCSE Grade C- (Minus)</span>
+        </div>
+        <div class="level-tier-body">
+          <div class="level-meta-row">
+            <span><i class="fa-solid fa-clock text-warning me-1"></i>Duration:</span>
+            <strong>18 – 24 Months</strong>
+          </div>
+          <div class="level-meta-row">
+            <span><i class="fa-solid fa-shield-check text-warning me-1"></i>Exam Body:</span>
+            <strong>ICM (UK) &amp; KNEC</strong>
+          </div>
+          <div class="level-meta-row">
+            <span><i class="fa-solid fa-hotel text-warning me-1"></i>Attachment:</span>
+            <strong>5-Star Guaranteed</strong>
+          </div>
+          <p class="level-desc">Advanced culinary arts, Opera PMS hotel software, brigade management, menu engineering, and international banqueting.</p>
+        </div>
+        <div class="level-tier-footer">
+          <div class="level-target-role">
+            <small class="text-muted d-block" style="font-size:0.72rem;text-transform:uppercase;">Career Launchpad</small>
+            <b class="text-dark">Sous Chef / Hotel Supervisor / Cruise Liner</b>
+          </div>
+          <a href="{% url 'university:admissions_apply' %}?program=DCA" class="btn btn-sm btn-primary rounded-pill w-100 fw-bold shadow btn-ripple">
+            Apply for Diploma <i class="fa-solid fa-arrow-right ms-1"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Level 4: Masterclasses -->
+    <div class="col-md-6 col-lg-3">
+      <div class="level-tier-card tilt-card fade-up" data-delay="4">
+        <div class="level-tier-header">
+          <span class="level-pill" style="background:#d6a13a;color:#101d2b;">Specialized · 1 Month</span>
+          <h4 class="fw-bold mt-2 mb-1">Executive Masterclass</h4>
+          <span class="level-entry text-muted"><i class="fa-solid fa-graduation-cap me-1 text-warning"></i>Open to All Aspirants</span>
+        </div>
+        <div class="level-tier-body">
+          <div class="level-meta-row">
+            <span><i class="fa-solid fa-clock text-warning me-1"></i>Duration:</span>
+            <strong>4 Weeks Intensive</strong>
+          </div>
+          <div class="level-meta-row">
+            <span><i class="fa-solid fa-shield-check text-warning me-1"></i>Exam Body:</span>
+            <strong>Wigot Executive Board</strong>
+          </div>
+          <div class="level-meta-row">
+            <span><i class="fa-solid fa-hotel text-warning me-1"></i>Format:</span>
+            <strong>100% Daily Practical</strong>
+          </div>
+          <p class="level-desc">Hyper-focused masterclasses in artisan bakery, tiered wedding cakes, barista latte art, and professional mixology.</p>
+        </div>
+        <div class="level-tier-footer">
+          <div class="level-target-role">
+            <small class="text-muted d-block" style="font-size:0.72rem;text-transform:uppercase;">Career Launchpad</small>
+            <b class="text-dark">Bespoke Bakery Founder / Barista</b>
+          </div>
+          <a href="{% url 'university:admissions_apply' %}?program=SPBC" class="btn btn-sm btn-outline-warning text-dark rounded-pill w-100 fw-bold btn-press" style="border-color:#d6a13a;">
+            Explore Short Track
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     6C. INTERACTIVE COURSE & CAREER PATHFINDER WIZARD
+     ============================================================ -->
+<section class="container py-5 public-section" id="pathfinder-wizard">
+  <div class="pathfinder-wizard-box fade-up">
+    <div class="row align-items-center mb-4">
+      <div class="col-md-8">
+        <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-2" style="background:rgba(214,161,58,.15);color:#946914;font-weight:700;font-size:.8rem;letter-spacing:.5px;text-transform:uppercase;">
+          <i class="fa-solid fa-compass"></i> Career Pathfinder Wizard
+        </div>
+        <h3 class="fw-bold text-dark mb-1">Find Your Hospitality Calling in 30 Seconds</h3>
+        <p class="text-muted small mb-0">Answer two brief questions to receive your tailored Wigot curriculum recommendation and fee estimate.</p>
+      </div>
+      <div class="col-md-4 text-md-end mt-3 mt-md-0">
+        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3" id="wizardResetBtn">
+          <i class="fa-solid fa-arrow-rotate-left me-1"></i> Start Over
+        </button>
+      </div>
+    </div>
+
+    <!-- Wizard Progress Bar -->
+    <div class="wizard-progress-bar">
+      <div class="wizard-progress-fill" id="wizardProgressFill"></div>
+    </div>
+
+    <!-- Step 1: Passion -->
+    <div class="wizard-step active" id="wizardStep1">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span class="badge rounded-pill bg-dark text-white px-2 py-1 small">Step 1 of 2</span>
+        <h5 class="fw-bold text-dark mb-0">What excites your hospitality ambition most?</h5>
+      </div>
+      <p class="text-muted small">Choose the domain that matches your career dreams:</p>
+
+      <div class="wizard-choice-grid">
+        <button type="button" class="wizard-choice-btn" data-step="1" data-val="culinary">
+          <div class="wizard-choice-icon"><i class="fa-solid fa-fire-burner"></i></div>
+          <div class="wizard-choice-title">Commercial Kitchens &amp; Culinary Arts</div>
+          <div class="wizard-choice-desc">Classical French stocks, saute lines, meat preparation &amp; chef brigade leadership.</div>
+        </button>
+
+        <button type="button" class="wizard-choice-btn" data-step="1" data-val="pastry">
+          <div class="wizard-choice-icon"><i class="fa-solid fa-cake-candles"></i></div>
+          <div class="wizard-choice-title">Artisan Pastry, Bakery &amp; Viennoiserie</div>
+          <div class="wizard-choice-desc">27-layer croissant lamination, Callebaut chocolate tempering &amp; wedding cakes.</div>
+        </button>
+
+        <button type="button" class="wizard-choice-btn" data-step="1" data-val="hospitality">
+          <div class="wizard-choice-icon"><i class="fa-solid fa-hotel"></i></div>
+          <div class="wizard-choice-title">5-Star Hotel Systems &amp; Management</div>
+          <div class="wizard-choice-desc">Opera PMS front office, luxury VIP guest relations, housekeeping &amp; hotel GM track.</div>
+        </button>
+
+        <button type="button" class="wizard-choice-btn" data-step="1" data-val="beverage">
+          <div class="wizard-choice-icon"><i class="fa-solid fa-mug-hot"></i></div>
+          <div class="wizard-choice-title">Barista Craft, Wine &amp; Mixology</div>
+          <div class="wizard-choice-desc">Espresso calibration, milk latte art, cocktail balancing &amp; sommelier service.</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 2: Qualification -->
+    <div class="wizard-step" id="wizardStep2">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span class="badge rounded-pill bg-dark text-white px-2 py-1 small">Step 2 of 2</span>
+        <h5 class="fw-bold text-dark mb-0">What is your current education background or entry goal?</h5>
+      </div>
+      <p class="text-muted small">This helps us match the exact TVETA / KNEC / ICM certification level for you:</p>
+
+      <div class="wizard-choice-grid">
+        <button type="button" class="wizard-choice-btn" data-step="2" data-val="c_minus">
+          <div class="wizard-choice-icon"><i class="fa-solid fa-award"></i></div>
+          <div class="wizard-choice-title">KCSE Grade C- (Minus) or Above</div>
+          <div class="wizard-choice-desc">Direct eligibility for Level 6 Executive Diplomas examined by ICM (UK) &amp; KNEC.</div>
+        </button>
+
+        <button type="button" class="wizard-choice-btn" data-step="2" data-val="d_plain">
+          <div class="wizard-choice-icon"><i class="fa-solid fa-graduation-cap"></i></div>
+          <div class="wizard-choice-title">KCSE Grade D (Plain) or D-</div>
+          <div class="wizard-choice-desc">Direct entry into Level 5 National Certificates examined by KNEC &amp; TVETA.</div>
+        </button>
+
+        <button type="button" class="wizard-choice-btn" data-step="2" data-val="kcpe">
+          <div class="wizard-choice-icon"><i class="fa-solid fa-kitchen-set"></i></div>
+          <div class="wizard-choice-title">KCPE / Passion Learner</div>
+          <div class="wizard-choice-desc">Open entry to Level 4 Artisan foundations and 1-month intensive vocational masterclasses.</div>
+        </button>
+
+        <button type="button" class="wizard-choice-btn" data-step="2" data-val="professional">
+          <div class="wizard-choice-icon"><i class="fa-solid fa-briefcase"></i></div>
+          <div class="wizard-choice-title">Working Professional / Upskilling</div>
+          <div class="wizard-choice-desc">Higher diplomas and executive masterclasses for career acceleration and entrepreneurship.</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 3: Match Result -->
+    <div class="wizard-step" id="wizardStep3">
+      <div class="wizard-result-card" id="wizardResultCard">
+        <div class="row g-4 align-items-center">
+          <div class="col-lg-7">
+            <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-3" style="background:rgba(214,161,58,0.25);border:1px solid rgba(214,161,58,0.5);color:#ffe6a7;font-weight:700;font-size:0.78rem;text-transform:uppercase;">
+              <i class="fa-solid fa-sparkles"></i> Your Optimal Wigot Curriculum Match
+            </div>
+            <h3 class="fw-bold text-white mb-2" id="wizardResultTitle">Diploma in Culinary Arts (ICM UK)</h3>
+            <div class="d-flex align-items-center gap-3 flex-wrap mb-3 text-white-50 small">
+              <span class="badge bg-warning text-dark fw-bold px-2 py-1" id="wizardResultCode">Code: DCA</span>
+              <span id="wizardResultDuration"><i class="fa-solid fa-clock me-1 text-warning"></i>1 Year · 100% Practical</span>
+              <span id="wizardResultExam"><i class="fa-solid fa-shield-check me-1 text-warning"></i>ICM (UK) &amp; KNEC</span>
+            </div>
+            <p class="text-white-50 small mb-4" id="wizardResultWhy" style="line-height:1.65;">
+              Perfect match for culinary leadership. Hands-on classical French sauces, hot lines, and guaranteed 5-star hotel attachment.
+            </p>
+
+            <div class="p-3 rounded-3 mb-4" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);">
+              <div class="small text-white-50 mb-1">Official Tuition Investment:</div>
+              <strong class="text-warning fs-5" id="wizardResultFee">KES 200,000 (Payable in Installments)</strong>
+              <small class="text-white-50 d-block mt-1" style="font-size:0.75rem;">Interest-free termly installments supported via M-Pesa Paybill.</small>
+            </div>
+
+            <div class="d-flex gap-3 align-items-center flex-wrap">
+              <a href="{% url 'university:admissions_apply' %}?program=DCA" id="wizardResultApplyBtn" class="btn btn-warning rounded-pill px-4 py-2 fw-bold text-dark btn-press">
+                Apply for This Program <i class="fa-solid fa-arrow-right ms-2"></i>
+              </a>
+              <a href="https://wa.me/254706063799?text=Hello%20Wigot%20Admissions,%20I%20completed%20the%20Career%20Wizard%20and%20matched%20with%20this%20course." target="_blank" rel="noopener noreferrer" class="btn btn-outline-light rounded-pill px-3 py-2 fw-semibold small">
+                <i class="fa-brands fa-whatsapp text-success me-1"></i> Inquire via WhatsApp
+              </a>
+            </div>
+          </div>
+
+          <div class="col-lg-5">
+            <div class="rounded-4 overflow-hidden shadow-lg position-relative" style="height:320px; border:1px solid rgba(255,255,255,0.2);">
+              <img src="https://www.wigotschoolofhospitality.com/assets/images/items/MN-24261646379768.jpg" alt="Matched program photo" class="w-100 h-100 object-fit-cover" id="wizardResultImg">
+              <span class="badge bg-dark bg-opacity-75 text-white position-absolute bottom-0 start-0 m-3 px-3 py-2">
+                <i class="fa-solid fa-hotel me-1 text-warning"></i> Guaranteed 5-Star Hotel Attachment Included
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     7. CAREER TRAJECTORIES & INDUSTRY EARNINGS
+     ============================================================ -->
+<section class="container py-5 public-section">
+  <div class="section-heading mb-5 text-center">
+    <span class="badge-soft badge rounded-pill px-3 py-2">Career Trajectories</span>
+    <h2 class="fw-bold mt-2" style="font-size: 2.2rem;">Where Our Hospitality Credentials Take You</h2>
+    <p class="text-muted mx-auto" style="max-width: 680px;">
+      Hospitality is one of the fastest growing global industries. Here is where Wigot graduates launch their careers across Kenya and international cruise lines.
+    </p>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-md-6 col-lg-3">
+      <div class="career-path-card tilt-card fade-up" data-delay="1">
+        <div>
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <span class="badge bg-light text-dark border fw-bold">Culinary Arts</span>
+            <i class="fa-solid fa-utensils text-primary fs-5"></i>
+          </div>
+          <h5 class="fw-bold text-dark mb-1">Executive Sous Chef</h5>
+          <p class="text-muted small mb-3">Leading commercial kitchen brigades, recipe development, and banquet line production.</p>
+        </div>
+        <div>
+          <div class="career-salary-badge mb-2">
+            <i class="fa-solid fa-coins"></i> KES 85,000 – 160,000 / mo
+          </div>
+          <small class="text-muted d-block" style="font-size:0.75rem;">Sarova · Serena · Safari Lodges</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6 col-lg-3">
+      <div class="career-path-card tilt-card fade-up" data-delay="2">
+        <div>
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <span class="badge bg-light text-dark border fw-bold">Pastry &amp; Bakery</span>
+            <i class="fa-solid fa-cake-candles text-primary fs-5"></i>
+          </div>
+          <h5 class="fw-bold text-dark mb-1">Master Pâtissier</h5>
+          <p class="text-muted small mb-3">Artisan sourdough production, French entremets, chocolate tempering, and tiered wedding cakes.</p>
+        </div>
+        <div>
+          <div class="career-salary-badge mb-2">
+            <i class="fa-solid fa-coins"></i> KES 75,000 – 140,000 / mo
+          </div>
+          <small class="text-muted d-block" style="font-size:0.75rem;">Luxury Resorts · Boutique Bakeries</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6 col-lg-3">
+      <div class="career-path-card tilt-card fade-up" data-delay="3">
+        <div>
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <span class="badge bg-light text-dark border fw-bold">F&amp;B Service</span>
+            <i class="fa-solid fa-martini-glass-citrus text-primary fs-5"></i>
+          </div>
+          <h5 class="fw-bold text-dark mb-1">F&amp;B Operations Manager</h5>
+          <p class="text-muted small mb-3">Directing restaurant floors, bar mixology, banquet logistics, and fine dining wine service.</p>
+        </div>
+        <div>
+          <div class="career-salary-badge mb-2">
+            <i class="fa-solid fa-coins"></i> KES 80,000 – 150,000 / mo
+          </div>
+          <small class="text-muted d-block" style="font-size:0.75rem;">5-Star City Hotels · Cruise Lines</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6 col-lg-3">
+      <div class="career-path-card tilt-card fade-up" data-delay="4">
+        <div>
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <span class="badge bg-light text-dark border fw-bold">Hotel Management</span>
+            <i class="fa-solid fa-hotel text-primary fs-5"></i>
+          </div>
+          <h5 class="fw-bold text-dark mb-1">Front Office &amp; Rooms Exec</h5>
+          <p class="text-muted small mb-3">Guest experience management, Opera PMS reservations, VIP protocol, and executive housekeeping.</p>
+        </div>
+        <div>
+          <div class="career-salary-badge mb-2">
+            <i class="fa-solid fa-coins"></i> KES 70,000 – 135,000 / mo
+          </div>
+          <small class="text-muted d-block" style="font-size:0.75rem;">PrideInn · Acacia Premier · International Resorts</small>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     7B. 5-STAR ATTACHMENT PARTNER NETWORK MARQUEE
+     ============================================================ -->
+<div class="py-4 bg-white border-top border-bottom">
+  <div class="container text-center mb-3">
+    <span class="badge rounded-pill px-3 py-1 mb-1" style="background:rgba(214,161,58,.15);color:#946914;font-weight:700;font-size:.75rem;text-transform:uppercase;letter-spacing:.5px;">
+      <i class="fa-solid fa-hotel me-1"></i> Industry Attachment Network
+    </span>
+    <h5 class="fw-bold text-dark mb-0">Guaranteed Placements with Kenya's Leading Luxury Hotels</h5>
+  </div>
+  
+  <div class="pub-marquee-container" aria-label="Partner Hotel Chains">
+    <div class="pub-marquee-track">
+      <!-- Set 1 -->
+      <div class="partner-pill">
+        <div class="partner-pill-icon"><i class="fa-solid fa-hotel"></i></div>
+        <span>Sarova Imperial Hotel · Kisumu</span>
+        <span class="partner-pill-badge">5-Star Partner</span>
+      </div>
+      <div class="partner-pill">
+        <div class="partner-pill-icon"><i class="fa-solid fa-campground"></i></div>
+        <span>Sarova Mara Game Camp</span>
+        <span class="partner-pill-badge">Luxury Safari</span>
+      </div>
+      <div class="partner-pill">
+        <div class="partner-pill-icon"><i class="fa-solid fa-building"></i></div>
+        <span>Acacia Premier Hotel · Kisumu</span>
+        <span class="partner-pill-badge">City 5-Star</span>
+      </div>
+      <div class="partner-pill">
+        <div class="partner-pill-icon"><i class="fa-solid fa-gem"></i></div>
+        <span>Serena Hotels &amp; Lodges</span>
+        <span class="partner-pill-badge">Global Chain</span>
+      </div>
+      <div class="partner-pill">
+        <div class="partner-pill-icon"><i class="fa-solid fa-bell-concierge"></i></div>
+        <span>PrideInn Hotels &amp; Resorts</span>
+        <span class="partner-pill-badge">Coast &amp; City</span>
+      </div>
+      <div class="partner-pill">
+        <div class="partner-pill-icon"><i class="fa-solid fa-tree"></i></div>
+        <span>Mara Simba Lodge</span>
+        <span class="partner-pill-badge">National Reserve</span>
+      </div>
+      <div class="partner-pill">
+        <div class="partner-pill-icon"><i class="fa-solid fa-champagne-glasses"></i></div>
+        <span>Sovereign Hotel · Kisumu</span>
+        <span class="partner-pill-badge">Boutique Luxury</span>
+      </div>
+      <div class="partner-pill">
+        <div class="partner-pill-icon"><i class="fa-solid fa-crown"></i></div>
+        <span>Grand Royal Swiss Hotel</span>
+        <span class="partner-pill-badge">Executive Hotel</span>
+      </div>
+
+      <!-- Set 2 (Duplicate for seamless infinite marquee loop) -->
+      <div class="partner-pill">
+        <div class="partner-pill-icon"><i class="fa-solid fa-hotel"></i></div>
+        <span>Sarova Imperial Hotel · Kisumu</span>
+        <span class="partner-pill-badge">5-Star Partner</span>
+      </div>
+      <div class="partner-pill">
+        <div class="partner-pill-icon"><i class="fa-solid fa-campground"></i></div>
+        <span>Sarova Mara Game Camp</span>
+        <span class="partner-pill-badge">Luxury Safari</span>
+      </div>
+      <div class="partner-pill">
+        <div class="partner-pill-icon"><i class="fa-solid fa-building"></i></div>
+        <span>Acacia Premier Hotel · Kisumu</span>
+        <span class="partner-pill-badge">City 5-Star</span>
+      </div>
+      <div class="partner-pill">
+        <div class="partner-pill-icon"><i class="fa-solid fa-gem"></i></div>
+        <span>Serena Hotels &amp; Lodges</span>
+        <span class="partner-pill-badge">Global Chain</span>
+      </div>
+      <div class="partner-pill">
+        <div class="partner-pill-icon"><i class="fa-solid fa-bell-concierge"></i></div>
+        <span>PrideInn Hotels &amp; Resorts</span>
+        <span class="partner-pill-badge">Coast &amp; City</span>
+      </div>
+      <div class="partner-pill">
+        <div class="partner-pill-icon"><i class="fa-solid fa-tree"></i></div>
+        <span>Mara Simba Lodge</span>
+        <span class="partner-pill-badge">National Reserve</span>
+      </div>
+      <div class="partner-pill">
+        <div class="partner-pill-icon"><i class="fa-solid fa-champagne-glasses"></i></div>
+        <span>Sovereign Hotel · Kisumu</span>
+        <span class="partner-pill-badge">Boutique Luxury</span>
+      </div>
+      <div class="partner-pill">
+        <div class="partner-pill-icon"><i class="fa-solid fa-crown"></i></div>
+        <span>Grand Royal Swiss Hotel</span>
+        <span class="partner-pill-badge">Executive Hotel</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     8. TRAINING FACILITIES & PRACTICAL EXCELLENCE
+     ============================================================ -->
+
+
+<section class="container py-5 public-section">
+  <div class="section-heading mb-5">
+    <span class="badge-soft badge rounded-pill px-3 py-2">Hands-On Campus</span>
+    <h2 class="fw-bold mt-2">Industry-Grade Training Facilities</h2>
+    <p class="text-muted">Learn on the exact equipment and setups used in 5-star international hotels and restaurants.</p>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-md-6 col-lg-3">
+      <div class="facility-card fade-up" data-delay="1" data-lightbox-src="https://www.wigotschoolofhospitality.com/assets/images/items/MN-24261646379768.jpg" data-lightbox-title="Commercial Production Kitchens" data-lightbox-tag="Culinary Operations" style="cursor:pointer;" title="Click to view full photo">
+        <img src="https://www.wigotschoolofhospitality.com/assets/images/items/MN-24261646379768.jpg" alt="Commercial Production Kitchens">
+        <div class="facility-overlay">
+          <h5>Production Kitchens</h5>
+          <p>Multi-station commercial ranges, grills, and knife-work stations.</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+      <div class="facility-card fade-up" data-delay="2" data-lightbox-src="https://www.wigotschoolofhospitality.com/assets/images/items/AS-56101645008020.jpg" data-lightbox-title="Pastry &amp; Bakery Studio" data-lightbox-tag="Artisan Lab" style="cursor:pointer;" title="Click to view full photo">
+        <img src="https://www.wigotschoolofhospitality.com/assets/images/items/AS-56101645008020.jpg" alt="Pastry &amp; Bakery Studio">
+        <div class="facility-overlay">
+          <h5>Pastry &amp; Bakery Lab</h5>
+          <p>Convection ovens, artisan dough mixers, and chocolate tempering.</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+      <div class="facility-card fade-up" data-delay="3" data-lightbox-src="https://www.wigotschoolofhospitality.com/assets/images/items/VF-06321646379773.jpg" data-lightbox-title="Food &amp; Beverage Lounge" data-lightbox-tag="F&amp;B Service" style="cursor:pointer;" title="Click to view full photo">
+        <img src="https://www.wigotschoolofhospitality.com/assets/images/items/VF-06321646379773.jpg" alt="Food &amp; Beverage Lounge">
+        <div class="facility-overlay">
+          <h5>F&amp;B Barista &amp; Service</h5>
+          <p>Fine dining banquet service, cocktail mixology, and espresso machines.</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+      <div class="facility-card fade-up" data-delay="4" data-lightbox-src="https://www.wigotschoolofhospitality.com/assets/images/items/ON-80401646379967.jpg" data-lightbox-title="Mock Hotel Guest Suite" data-lightbox-tag="Hospitality Management" style="cursor:pointer;" title="Click to view full photo">
+        <img src="https://www.wigotschoolofhospitality.com/assets/images/items/ON-80401646379967.jpg" alt="Mock Hotel Guest Suite">
+        <div class="facility-overlay">
+          <h5>Mock Hotel Suite</h5>
+          <p>Executive housekeeping standards and front desk reservation systems.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     9. VIRTUAL TOUR & CAMPUS IN MOTION
+     ============================================================ -->
+<section class="container py-5 public-section">
+  <div class="row g-4 align-items-center">
+    <div class="col-lg-7">
+      <div class="pub-tour-reel fade-up">
+        <img src="https://www.wigotschoolofhospitality.com/assets/images/items/MN-24261646379768.jpg" alt="Commercial Production Kitchen in Session" class="pub-tour-reel-bg">
+        <div class="pub-tour-reel-overlay">
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="badge rounded-pill bg-white text-dark px-3 py-2 fw-bold shadow-sm" style="font-size:.78rem;">
+              <i class="fa-solid fa-circle text-danger me-1 small"></i> Live Campus Demonstration
+            </span>
+            <span class="badge rounded-pill bg-dark bg-opacity-75 text-white px-3 py-2">
+              <i class="fa-solid fa-clock me-1 text-warning"></i> 2 Min Virtual Walkthrough
+            </span>
+          </div>
+          <div class="text-center my-auto">
+            <button type="button" class="play-pulse-btn" data-lightbox-src="https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589563-IMG_9912.jpg" data-lightbox-title="Commercial Production Kitchen &amp; Plating Masterclass" data-lightbox-tag="Kitchen Training Reel" aria-label="Watch campus showcase video">
+              <i class="fa-solid fa-play ms-1"></i>
+            </button>
+            <h4 class="text-white fw-bold mt-3 mb-1">Inside Wigot's Commercial Kitchens</h4>
+            <p class="text-white-50 small mb-0">Mastering hot kitchen production, knife precision, and French pastry artistry.</p>
+          </div>
+          <div class="d-flex justify-content-between align-items-center text-white-50 small">
+            <span><i class="fa-solid fa-location-dot text-warning me-1"></i> Mamboleo, Kisumu Campus</span>
+            <span><i class="fa-solid fa-eye me-1"></i> 100% Practical Training</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="pub-prospectus-box fade-up">
+        <span class="badge rounded-pill px-3 py-1 mb-3" style="background:rgba(214,161,58,.2);color:#ffe6a7;font-weight:700;font-size:.78rem;text-transform:uppercase;">
+          <i class="fa-solid fa-book-open me-1"></i> Admissions Guide 2026/2027
+        </span>
+        <h3 class="fw-bold mb-3 text-white">Download Official Course Prospectus</h3>
+        <p class="opacity-75 small mb-4" style="line-height:1.65;">
+          Get comprehensive course curriculums, entry prerequisites, fee installment structures in KES, and hotel placement partnerships sent directly to your device.
+        </p>
+        <div class="d-flex flex-column gap-2 mb-4">
+          <div class="d-flex align-items-center gap-2 small opacity-90">
+            <i class="fa-solid fa-circle-check text-warning"></i>
+            <span>Full 15+ TVETA &amp; ICM (UK) syllabus breakdowns</span>
+          </div>
+          <div class="d-flex align-items-center gap-2 small opacity-90">
+            <i class="fa-solid fa-circle-check text-warning"></i>
+            <span>Exact fee payment schedules via M-Pesa</span>
+          </div>
+          <div class="d-flex align-items-center gap-2 small opacity-90">
+            <i class="fa-solid fa-circle-check text-warning"></i>
+            <span>Hotel attachment guidelines &amp; accommodation details</span>
+          </div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <a href="https://wa.me/254706063799?text=Hello%20Wigot%20Admissions,%20please%20send%20me%20the%20official%20Course%20Prospectus%20and%20Fee%20Structure." target="_blank" rel="noopener noreferrer" class="btn btn-warning rounded-pill px-4 py-2 fw-bold text-dark btn-press">
+            <i class="fa-brands fa-whatsapp me-2"></i>Request on WhatsApp
+          </a>
+          <a href="{% url 'university:courses_public' %}" class="btn btn-outline-light rounded-pill px-3 py-2 fw-semibold btn-press">
+            Browse Online Catalog
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     9B. A DAY AT WIGOT: IMMERSIVE CULINARY TIMELINE
+     ============================================================ -->
+<section class="container py-5 public-section" id="day-at-wigot">
+  <div class="section-heading mb-4 text-center">
+    <span class="badge-soft badge rounded-pill px-3 py-2">Immersive Trainee Journey</span>
+    <h2 class="fw-bold mt-2" style="font-size: 2.2rem;">A Day at Wigot: The Rhythm of 5-Star Kitchens</h2>
+    <p class="text-muted mx-auto" style="max-width: 680px;">
+      Hospitality mastery is built hour by hour. Walk through a typical day in the shoes of our culinary and hotel management trainees in Mamboleo, Kisumu.
+    </p>
+  </div>
+
+  <!-- Time Navigator Pill Buttons -->
+  <div class="day-time-nav fade-up">
+    <button type="button" class="day-time-btn active" data-day-step="1">
+      <span class="day-time-badge">07:30 AM</span>
+      <span class="day-time-label">Mise en Place</span>
+    </button>
+    <button type="button" class="day-time-btn" data-day-step="2">
+      <span class="day-time-badge">10:00 AM</span>
+      <span class="day-time-label">Hot Line Cooking</span>
+    </button>
+    <button type="button" class="day-time-btn" data-day-step="3">
+      <span class="day-time-badge">01:30 PM</span>
+      <span class="day-time-label">Pastry &amp; Sourdough</span>
+    </button>
+    <button type="button" class="day-time-btn" data-day-step="4">
+      <span class="day-time-badge">03:30 PM</span>
+      <span class="day-time-label">Opera PMS Systems</span>
+    </button>
+    <button type="button" class="day-time-btn" data-day-step="5">
+      <span class="day-time-badge">05:00 PM</span>
+      <span class="day-time-label">Plating &amp; Critique</span>
+    </button>
+  </div>
+
+  <!-- Day Step Panels -->
+  <div class="day-step-container mt-4 fade-up">
+    <!-- Step 1 -->
+    <div class="day-step-panel active" id="dayStep1">
+      <div class="row g-4 align-items-center">
+        <div class="col-lg-6">
+          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-2" style="background:rgba(138,26,52,.08);color:var(--maroon);font-weight:700;font-size:.8rem;">
+            <i class="fa-solid fa-sun"></i> 07:30 AM · Phase 1
+          </div>
+          <h3 class="fw-bold text-dark mb-3">Morning Mise en Place &amp; Knife Inspection</h3>
+          <p class="text-muted" style="line-height:1.7;">
+            Trainees assemble in immaculate, double-breasted chef whites, toques, and non-slip safety shoes. The morning begins with sanitation verification, knife whetstone honing, and receiving farm-fresh ingredients sourced locally from Kisumu growers.
+          </p>
+          <div class="row g-2 mb-4">
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> 1000/6000 Whetstone sharpening
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> Precision brunoise &amp; julienne cuts
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> Color-coded cutting board safety
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> Individual station setup
+              </div>
+            </div>
+          </div>
+          <div class="p-3 rounded-3 bg-light border-start border-4 border-warning">
+            <small class="text-muted fst-italic">“Mise en place is not just physical prep — it is mental readiness. When the ranges ignite, your mind must already be at the pass.”</small>
+            <div class="small fw-bold text-dark mt-1">— Executive Chef Instructor</div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="rounded-4 overflow-hidden shadow-lg position-relative" style="height:360px;">
+            <img src="https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589570-IMG_8787.jpg" alt="Morning knife inspection" class="w-100 h-100 object-fit-cover">
+            <span class="badge bg-dark bg-opacity-75 text-white position-absolute bottom-0 start-0 m-3 px-3 py-2">
+              <i class="fa-solid fa-camera me-1 text-warning"></i> Production Prep Bay · Mamboleo Campus
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="day-step-panel" id="dayStep2" style="display:none;">
+      <div class="row g-4 align-items-center">
+        <div class="col-lg-6">
+          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-2" style="background:rgba(214,161,58,.15);color:#946914;font-weight:700;font-size:.8rem;">
+            <i class="fa-solid fa-fire-burner"></i> 10:00 AM · Phase 2
+          </div>
+          <h3 class="fw-bold text-dark mb-3">High-Tempo Commercial Hot Line Cooking</h3>
+          <p class="text-muted" style="line-height:1.7;">
+            The burners are roaring. Trainees rotate across saute, braising, salamander grilling, and sauce stations. Under real kitchen heat, students learn sauce reductions, meat temperature probing, and synchronization across the brigade.
+          </p>
+          <div class="row g-2 mb-4">
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> Classical French mother sauces
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> Pan-searing &amp; sauce monté au beurre
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> Live kitchen timing coordination
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> Commercial range temperature control
+              </div>
+            </div>
+          </div>
+          <div class="p-3 rounded-3 bg-light border-start border-4 border-danger">
+            <small class="text-muted fst-italic">“In a 5-star hotel kitchen, timing is everything. If the sauce breaks or the steak rests too long, the ticket is lost.”</small>
+            <div class="small fw-bold text-dark mt-1">— Culinary Arts Lecturer</div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="rounded-4 overflow-hidden shadow-lg position-relative" style="height:360px;">
+            <img src="https://www.wigotschoolofhospitality.com/assets/images/items/MN-24261646379768.jpg" alt="Commercial hot line cooking" class="w-100 h-100 object-fit-cover">
+            <span class="badge bg-dark bg-opacity-75 text-white position-absolute bottom-0 start-0 m-3 px-3 py-2">
+              <i class="fa-solid fa-camera me-1 text-warning"></i> Main Production Ranges
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="day-step-panel" id="dayStep3" style="display:none;">
+      <div class="row g-4 align-items-center">
+        <div class="col-lg-6">
+          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-2" style="background:rgba(20,90,69,.08);color:var(--leaf);font-weight:700;font-size:.8rem;">
+            <i class="fa-solid fa-cake-candles"></i> 01:30 PM · Phase 3
+          </div>
+          <h3 class="fw-bold text-dark mb-3">Artisan Pastry, Sourdough &amp; Confectionery Lab</h3>
+          <p class="text-muted" style="line-height:1.7;">
+            The kitchen shifts into pastry science. Students master temperature-sensitive chocolate tempering, laminated croissant dough folding, French entremets, mirror glazes, and artisan sourdough fermentation curves.
+          </p>
+          <div class="row g-2 mb-4">
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> 27-layer butter lamination
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> Callebaut chocolate tempering
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> Confectionery sugar work
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> Modern restaurant plated desserts
+              </div>
+            </div>
+          </div>
+          <div class="p-3 rounded-3 bg-light border-start border-4 border-success">
+            <small class="text-muted fst-italic">“Pastry is exact chemistry. 2 degrees difference in chocolate tempering decides between dull gray and mirror shine.”</small>
+            <div class="small fw-bold text-dark mt-1">— Master Pâtissier</div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="rounded-4 overflow-hidden shadow-lg position-relative" style="height:360px;">
+            <img src="https://www.wigotschoolofhospitality.com/assets/images/items/AS-56101645008020.jpg" alt="Artisan Pastry and Baking Lab" class="w-100 h-100 object-fit-cover">
+            <span class="badge bg-dark bg-opacity-75 text-white position-absolute bottom-0 start-0 m-3 px-3 py-2">
+              <i class="fa-solid fa-camera me-1 text-warning"></i> Pastry &amp; Bakery Studio
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4 -->
+    <div class="day-step-panel" id="dayStep4" style="display:none;">
+      <div class="row g-4 align-items-center">
+        <div class="col-lg-6">
+          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-2" style="background:rgba(16,29,43,.08);color:var(--navy);font-weight:700;font-size:.8rem;">
+            <i class="fa-solid fa-desktop"></i> 03:30 PM · Phase 4
+          </div>
+          <h3 class="fw-bold text-dark mb-3">5-Star Hotel Systems Simulation &amp; Opera PMS</h3>
+          <p class="text-muted" style="line-height:1.7;">
+            Hospitality trainees take charge of the simulated front desk, mastering Opera PMS reservation management, VIP check-in protocols, night audits, and coordinating with housekeeping and dining suites.
+          </p>
+          <div class="row g-2 mb-4">
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> Opera PMS check-in &amp; folio settlement
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> VIP guest etiquette &amp; protocol
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> Barista espresso calibration
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> Banquet table silver service
+              </div>
+            </div>
+          </div>
+          <div class="p-3 rounded-3 bg-light border-start border-4 border-primary">
+            <small class="text-muted fst-italic">“Our graduates walk into luxury hotels and operate PMS systems on day one without retraining. That is why hotel GMs hire directly from Wigot.”</small>
+            <div class="small fw-bold text-dark mt-1">— Hospitality Operations Director</div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="rounded-4 overflow-hidden shadow-lg position-relative" style="height:360px;">
+            <img src="https://www.wigotschoolofhospitality.com/assets/images/items/VF-06321646379773.jpg" alt="F&B Lounge and Front Office" class="w-100 h-100 object-fit-cover">
+            <span class="badge bg-dark bg-opacity-75 text-white position-absolute bottom-0 start-0 m-3 px-3 py-2">
+              <i class="fa-solid fa-camera me-1 text-warning"></i> Executive Service &amp; Reception Suite
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 5 -->
+    <div class="day-step-panel" id="dayStep5" style="display:none;">
+      <div class="row g-4 align-items-center">
+        <div class="col-lg-6">
+          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-2" style="background:rgba(138,26,52,.08);color:var(--maroon);font-weight:700;font-size:.8rem;">
+            <i class="fa-solid fa-award"></i> 05:00 PM · Phase 5
+          </div>
+          <h3 class="fw-bold text-dark mb-3">Plating Masterclass &amp; Executive Chef Critique</h3>
+          <p class="text-muted" style="line-height:1.7;">
+            The day concludes at the Chef's Pass. Each trainee presents their finished plate for rigorous inspection: balance of color, height, texture contrast, temperature, and flavor profile. Stations are then sanitized to HACCP standards.
+          </p>
+          <div class="row g-2 mb-4">
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> Micro-herb tweezers placement
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> Sauce spooning &amp; droplet technique
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> Constructive feedback debrief
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-dark fw-semibold">
+                <i class="fa-solid fa-circle-check text-success"></i> Deep station sterilization
+              </div>
+            </div>
+          </div>
+          <div class="p-3 rounded-3 bg-light border-start border-4 border-warning">
+            <small class="text-muted fst-italic">“A plate leaves your station representing your name, your academy, and your passion. Stand behind every plate with pride.”</small>
+            <div class="small fw-bold text-dark mt-1">— Head of Culinary Department</div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="rounded-4 overflow-hidden shadow-lg position-relative" style="height:360px;">
+            <img src="https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589563-IMG_9912.jpg" alt="Plating masterclass" class="w-100 h-100 object-fit-cover">
+            <span class="badge bg-dark bg-opacity-75 text-white position-absolute bottom-0 start-0 m-3 px-3 py-2">
+              <i class="fa-solid fa-camera me-1 text-warning"></i> Chef's Pass &amp; Plating Studio
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     9C. INTERACTIVE CULINARY STUDIO & EQUIPMENT EXPLORER
+     ============================================================ -->
+<section class="container py-5 public-section" id="culinary-studios">
+  <div class="section-heading mb-4 text-center fade-up">
+    <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-2" style="background:rgba(214,161,58,.15);color:#946914;font-weight:700;font-size:.8rem;letter-spacing:.5px;text-transform:uppercase;">
+      <i class="fa-solid fa-screwdriver-wrench"></i> Commercial Infrastructure
+    </div>
+    <h2 class="fw-bold mt-1" style="font-size: 2.2rem;">Interactive Culinary Studios &amp; Equipment Explorer</h2>
+    <p class="text-muted mx-auto" style="max-width:700px;">
+      Step inside Wigot's fully-equipped commercial facilities in Mamboleo, Kisumu. Inspect the exact European-standard commercial equipment, knife bays, and hotel software you will command every day.
+    </p>
+  </div>
+
+  <div class="studio-explorer-box fade-up">
+    <!-- Studio Station Navigation Tabs -->
+    <div class="studio-nav">
+      <button type="button" class="studio-tab-btn active" data-studio="hotline">
+        <i class="fa-solid fa-fire-burner text-warning"></i> Commercial Hot Line Suite
+      </button>
+      <button type="button" class="studio-tab-btn" data-studio="pastry">
+        <i class="fa-solid fa-cake-candles text-warning"></i> Artisan Pastry &amp; Viennoiserie
+      </button>
+      <button type="button" class="studio-tab-btn" data-studio="frontdesk">
+        <i class="fa-solid fa-desktop text-warning"></i> Opera PMS Front Desk Suite
+      </button>
+      <button type="button" class="studio-tab-btn" data-studio="barista">
+        <i class="fa-solid fa-mug-hot text-warning"></i> Barista Craft &amp; Mixology Lounge
+      </button>
+    </div>
+
+    <!-- Panel 1: Hot Line -->
+    <div class="studio-panel" id="studio-hotline">
+      <div class="row g-4 align-items-center">
+        <div class="col-lg-6">
+          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-2" style="background:rgba(138,26,52,.08);color:var(--maroon);font-weight:700;font-size:.8rem;">
+            <i class="fa-solid fa-kitchen-set"></i> Main Culinary Production Facility
+          </div>
+          <h3 class="fw-bold text-dark mb-2">Heavy-Duty Commercial Cookline</h3>
+          <p class="text-muted small mb-4" style="line-height:1.65;">
+            Built to identical specifications of 5-star hotel banquet and à la carte lines. Each student operates real commercial ranges with instant thermal control, saute pans, salamander broilers, and industrial extraction canopies.
+          </p>
+
+          <div class="row g-3 mb-4">
+            <div class="col-sm-6">
+              <div class="studio-spec-card">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <i class="fa-solid fa-temperature-arrow-up text-danger"></i>
+                  <strong class="small text-dark">High-BTU Cast Ranges</strong>
+                </div>
+                <small class="text-muted d-block" style="font-size:0.75rem;">Instant heat saute &amp; reduction</small>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="studio-spec-card">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <i class="fa-solid fa-gauge-high text-warning"></i>
+                  <strong class="small text-dark">Salamander Broilers</strong>
+                </div>
+                <small class="text-muted d-block" style="font-size:0.75rem;">Infrared glazing &amp; au gratin</small>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="studio-spec-card">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <i class="fa-solid fa-shield-virus text-success"></i>
+                  <strong class="small text-dark">HACCP Cold Storage</strong>
+                </div>
+                <small class="text-muted d-block" style="font-size:0.75rem;">Digital temp logger &amp; blast chill</small>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="studio-spec-card">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <i class="fa-solid fa-utensils text-primary"></i>
+                  <strong class="small text-dark">24 Station Pass</strong>
+                </div>
+                <small class="text-muted d-block" style="font-size:0.75rem;">Simultaneous individual stations</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Practical Ratio Meter -->
+          <div class="mb-4">
+            <div class="d-flex justify-content-between align-items-center small fw-bold">
+              <span class="text-dark"><i class="fa-solid fa-chart-pie text-success me-1"></i>Hands-on Kitchen Training Ratio</span>
+              <span class="text-success">95% Practical Cooking</span>
+            </div>
+            <div class="studio-meter-bar">
+              <div class="studio-meter-fill" data-fill-target="95%" style="width:0%;"></div>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 align-items-center flex-wrap">
+            <a href="{% url 'university:courses_public' %}?search=culinary" class="btn btn-primary rounded-pill px-4 py-2 fw-bold text-white btn-press">
+              Explore Culinary Programmes <i class="fa-solid fa-arrow-right ms-1"></i>
+            </a>
+            <span class="text-muted small ms-2"><i class="fa-solid fa-circle-check text-success me-1"></i>ICM (UK) &amp; KNEC Certified</span>
+          </div>
+        </div>
+
+        <div class="col-lg-6">
+          <div class="rounded-4 overflow-hidden shadow-lg position-relative" style="height:380px;">
+            <img src="https://www.wigotschoolofhospitality.com/assets/images/items/MN-24261646379768.jpg" alt="Wigot Commercial Hot Line" class="w-100 h-100 object-fit-cover">
+            <span class="badge bg-dark bg-opacity-75 text-white position-absolute bottom-0 start-0 m-3 px-3 py-2">
+              <i class="fa-solid fa-camera me-1 text-warning"></i> Production Kitchen 1 · Mamboleo Campus
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 2: Pastry & Viennoiserie -->
+    <div class="studio-panel" id="studio-pastry" style="display:none;">
+      <div class="row g-4 align-items-center">
+        <div class="col-lg-6">
+          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-2" style="background:rgba(20,90,69,.08);color:var(--leaf);font-weight:700;font-size:.8rem;">
+            <i class="fa-solid fa-cake-candles"></i> Temperature-Controlled Bakery Studio
+          </div>
+          <h3 class="fw-bold text-dark mb-2">Artisan Pastry, Viennoiserie &amp; Chocolate Lab</h3>
+          <p class="text-muted small mb-4" style="line-height:1.65;">
+            Dedicated air-conditioned lab maintained at optimal temperature for laminated French viennoiserie, artisan sourdough proofing, mirror-glaze entremets, and Callebaut chocolate crystal tempering.
+          </p>
+
+          <div class="row g-3 mb-4">
+            <div class="col-sm-6">
+              <div class="studio-spec-card">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <i class="fa-solid fa-snowflake text-info"></i>
+                  <strong class="small text-dark">Italian Marble Benches</strong>
+                </div>
+                <small class="text-muted d-block" style="font-size:0.75rem;">Cold surface pastry rolling</small>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="studio-spec-card">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <i class="fa-solid fa-fire text-warning"></i>
+                  <strong class="small text-dark">Stone Deck Convection Ovens</strong>
+                </div>
+                <small class="text-muted d-block" style="font-size:0.75rem;">Steam-injection crust baking</small>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="studio-spec-card">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <i class="fa-solid fa-arrows-spin text-primary"></i>
+                  <strong class="small text-dark">Spiral Hook Kneaders</strong>
+                </div>
+                <small class="text-muted d-block" style="font-size:0.75rem;">Heavy artisan dough hydration</small>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="studio-spec-card">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <i class="fa-solid fa-brush text-danger"></i>
+                  <strong class="small text-dark">Airbrush &amp; Velour Sprayers</strong>
+                </div>
+                <small class="text-muted d-block" style="font-size:0.75rem;">Modern dessert velvet textures</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Practical Ratio Meter -->
+          <div class="mb-4">
+            <div class="d-flex justify-content-between align-items-center small fw-bold">
+              <span class="text-dark"><i class="fa-solid fa-chart-pie text-success me-1"></i>Hands-on Baking Ratio</span>
+              <span class="text-success">92% Hands-on Production</span>
+            </div>
+            <div class="studio-meter-bar">
+              <div class="studio-meter-fill" data-fill-target="92%" style="width:0%;"></div>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 align-items-center flex-wrap">
+            <a href="{% url 'university:courses_public' %}?search=pastry" class="btn btn-primary rounded-pill px-4 py-2 fw-bold text-white btn-press">
+              Explore Pastry Programmes <i class="fa-solid fa-arrow-right ms-1"></i>
+            </a>
+            <span class="text-muted small ms-2"><i class="fa-solid fa-circle-check text-success me-1"></i>ICM (UK) &amp; KNEC Certified</span>
+          </div>
+        </div>
+
+        <div class="col-lg-6">
+          <div class="rounded-4 overflow-hidden shadow-lg position-relative" style="height:380px;">
+            <img src="https://www.wigotschoolofhospitality.com/assets/images/items/AS-56101645008020.jpg" alt="Wigot Pastry and Baking Studio" class="w-100 h-100 object-fit-cover">
+            <span class="badge bg-dark bg-opacity-75 text-white position-absolute bottom-0 start-0 m-3 px-3 py-2">
+              <i class="fa-solid fa-camera me-1 text-warning"></i> Pastry &amp; Bakery Lab · Mamboleo Campus
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 3: Opera PMS Front Desk -->
+    <div class="studio-panel" id="studio-frontdesk" style="display:none;">
+      <div class="row g-4 align-items-center">
+        <div class="col-lg-6">
+          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-2" style="background:rgba(16,29,43,.08);color:var(--navy);font-weight:700;font-size:.8rem;">
+            <i class="fa-solid fa-desktop"></i> Hotel Tech &amp; Executive Reception
+          </div>
+          <h3 class="fw-bold text-dark mb-2">Simulated Front Office &amp; Opera PMS Lab</h3>
+          <p class="text-muted small mb-4" style="line-height:1.65;">
+            Master the world's most widely-used hotel enterprise management software. Our trainees handle live guest check-ins, VIP room assignments, group blocking, night audits, and financial folio balancing.
+          </p>
+
+          <div class="row g-3 mb-4">
+            <div class="col-sm-6">
+              <div class="studio-spec-card">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <i class="fa-solid fa-network-wired text-primary"></i>
+                  <strong class="small text-dark">Oracle Opera PMS Terminals</strong>
+                </div>
+                <small class="text-muted d-block" style="font-size:0.75rem;">Industry global standard PMS</small>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="studio-spec-card">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <i class="fa-solid fa-key text-warning"></i>
+                  <strong class="small text-dark">RFID Keycard Encoders</strong>
+                </div>
+                <small class="text-muted d-block" style="font-size:0.75rem;">VingCard electronic door keys</small>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="studio-spec-card">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <i class="fa-solid fa-receipt text-success"></i>
+                  <strong class="small text-dark">Night Audit Simulation</strong>
+                </div>
+                <small class="text-muted d-block" style="font-size:0.75rem;">Daily revenue reconciliation</small>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="studio-spec-card">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <i class="fa-solid fa-user-tie text-danger"></i>
+                  <strong class="small text-dark">VIP Protocol &amp; Concierge</strong>
+                </div>
+                <small class="text-muted d-block" style="font-size:0.75rem;">Luxury guest service sequences</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Practical Ratio Meter -->
+          <div class="mb-4">
+            <div class="d-flex justify-content-between align-items-center small fw-bold">
+              <span class="text-dark"><i class="fa-solid fa-chart-pie text-success me-1"></i>Hands-on Systems Training Ratio</span>
+              <span class="text-success">90% Hands-on Operations</span>
+            </div>
+            <div class="studio-meter-bar">
+              <div class="studio-meter-fill" data-fill-target="90%" style="width:0%;"></div>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 align-items-center flex-wrap">
+            <a href="{% url 'university:courses_public' %}?search=hospitality" class="btn btn-primary rounded-pill px-4 py-2 fw-bold text-white btn-press">
+              Explore Hospitality Programmes <i class="fa-solid fa-arrow-right ms-1"></i>
+            </a>
+            <span class="text-muted small ms-2"><i class="fa-solid fa-circle-check text-success me-1"></i>ICM (UK) &amp; KNEC Certified</span>
+          </div>
+        </div>
+
+        <div class="col-lg-6">
+          <div class="rounded-4 overflow-hidden shadow-lg position-relative" style="height:380px;">
+            <img src="https://www.wigotschoolofhospitality.com/assets/images/items/VF-06321646379773.jpg" alt="Wigot Front Office & Lounge" class="w-100 h-100 object-fit-cover">
+            <span class="badge bg-dark bg-opacity-75 text-white position-absolute bottom-0 start-0 m-3 px-3 py-2">
+              <i class="fa-solid fa-camera me-1 text-warning"></i> Front Desk Suite · Mamboleo Campus
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 4: Barista & Beverage Lounge -->
+    <div class="studio-panel" id="studio-barista" style="display:none;">
+      <div class="row g-4 align-items-center">
+        <div class="col-lg-6">
+          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-2" style="background:rgba(214,161,58,.15);color:#946914;font-weight:700;font-size:.8rem;">
+            <i class="fa-solid fa-mug-hot"></i> Coffee Academy &amp; Mixology Bar
+          </div>
+          <h3 class="fw-bold text-dark mb-2">Professional Barista &amp; Beverage Craft</h3>
+          <p class="text-muted small mb-4" style="line-height:1.65;">
+            Master extraction ratios, grind particle calibration, micro-foam milk steaming, and intricate latte art. Practice cocktail balancing, zero-proof mocktails, and wine service etiquette.
+          </p>
+
+          <div class="row g-3 mb-4">
+            <div class="col-sm-6">
+              <div class="studio-spec-card">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <i class="fa-solid fa-coffee-bean-saucer text-warning"></i>
+                  <strong class="small text-dark">Dual-Boiler Espresso Station</strong>
+                </div>
+                <small class="text-muted d-block" style="font-size:0.75rem;">Independent PID temp stability</small>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="studio-spec-card">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <i class="fa-solid fa-gear text-secondary"></i>
+                  <strong class="small text-dark">Flat-Burr On-Demand Grinders</strong>
+                </div>
+                <small class="text-muted d-block" style="font-size:0.75rem;">Micrometric grind adjustment</small>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="studio-spec-card">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <i class="fa-solid fa-martini-glass-citrus text-danger"></i>
+                  <strong class="small text-dark">Full Mixology Rail</strong>
+                </div>
+                <small class="text-muted d-block" style="font-size:0.75rem;">Cocktails, infusions &amp; mocktails</small>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="studio-spec-card">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <i class="fa-solid fa-wine-glass text-primary"></i>
+                  <strong class="small text-dark">Wine Tasting &amp; Decanting</strong>
+                </div>
+                <small class="text-muted d-block" style="font-size:0.75rem;">Sommelier pairing sequences</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Practical Ratio Meter -->
+          <div class="mb-4">
+            <div class="d-flex justify-content-between align-items-center small fw-bold">
+              <span class="text-dark"><i class="fa-solid fa-chart-pie text-success me-1"></i>Practical Barista Craft Ratio</span>
+              <span class="text-success">96% Hands-on Practice</span>
+            </div>
+            <div class="studio-meter-bar">
+              <div class="studio-meter-fill" data-fill-target="96%" style="width:0%;"></div>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 align-items-center flex-wrap">
+            <a href="{% url 'university:courses_public' %}?search=barista" class="btn btn-primary rounded-pill px-4 py-2 fw-bold text-white btn-press">
+              Explore Barista Programmes <i class="fa-solid fa-arrow-right ms-1"></i>
+            </a>
+            <span class="text-muted small ms-2"><i class="fa-solid fa-circle-check text-success me-1"></i>ICM (UK) &amp; KNEC Certified</span>
+          </div>
+        </div>
+
+        <div class="col-lg-6">
+          <div class="rounded-4 overflow-hidden shadow-lg position-relative" style="height:380px;">
+            <img src="https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589563-IMG_9912.jpg" alt="Wigot Barista Lounge" class="w-100 h-100 object-fit-cover">
+            <span class="badge bg-dark bg-opacity-75 text-white position-absolute bottom-0 start-0 m-3 px-3 py-2">
+              <i class="fa-solid fa-camera me-1 text-warning"></i> Barista Lab &amp; Lounge · Mamboleo Campus
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     9D. MASTER CHEFS & FACULTY LEADERSHIP SHOWCASE
+     ============================================================ -->
+<section class="container py-5 public-section" id="faculty-showcase">
+  <div class="section-heading mb-5 text-center fade-up">
+    <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-2" style="background:rgba(138,26,52,.08);color:var(--maroon);font-weight:700;font-size:.8rem;letter-spacing:.5px;text-transform:uppercase;">
+      <i class="fa-solid fa-award"></i> World-Class Culinary Faculty
+    </div>
+    <h2 class="fw-bold mt-1" style="font-size: 2.2rem;">Learn From 5-Star Hotel Masters &amp; Executive Chefs</h2>
+    <p class="text-muted mx-auto" style="max-width:700px;">
+      Our instructors bring decades of executive brigade leadership from Sarova, Serena, and international luxury hospitality chains directly into your daily training kitchen in Mamboleo.
+    </p>
+  </div>
+
+  <div class="row g-4">
+    <!-- Mentor 1: Executive Chef -->
+    <div class="col-md-6 col-lg-3">
+      <div class="faculty-card fade-up">
+        <div class="faculty-img-wrap">
+          <img src="https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589570-IMG_8787.jpg" alt="Chef Emmanuel Ochieng">
+          <span class="faculty-hotel-badge"><i class="fa-solid fa-hotel me-1 text-warning"></i>Ex-Sarova Hotels</span>
+        </div>
+        <div class="faculty-body">
+          <span class="faculty-role-pill"><i class="fa-solid fa-kitchen-set"></i> Executive Culinary Director</span>
+          <h5 class="fw-bold text-dark mb-1">Chef Emmanuel Ochieng</h5>
+          <small class="text-muted mb-2">Classical French &amp; Afro-Fusion Cuisine</small>
+          <p class="text-muted small mb-3" style="line-height:1.55;">
+            16+ years commanding high-tempo luxury hotel brigades, à la carte banquet passes, and precision butchery.
+          </p>
+          <div class="faculty-quote">
+            “Discipline at the mise en place table is what turns a line cook into an Executive Head Chef.”
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mentor 2: Master Pâtissier -->
+    <div class="col-md-6 col-lg-3">
+      <div class="faculty-card fade-up">
+        <div class="faculty-img-wrap">
+          <img src="https://www.wigotschoolofhospitality.com/assets/images/items/AS-56101645008020.jpg" alt="Chef Beatrice Akinyi">
+          <span class="faculty-hotel-badge"><i class="fa-solid fa-cake-candles me-1 text-warning"></i>European Confectionery</span>
+        </div>
+        <div class="faculty-body">
+          <span class="faculty-role-pill"><i class="fa-solid fa-cookie-bite"></i> Master Pâtissier</span>
+          <h5 class="fw-bold text-dark mb-1">Chef Beatrice Akinyi</h5>
+          <small class="text-muted mb-2">Viennoiserie &amp; Chocolate Chemistry</small>
+          <p class="text-muted small mb-3" style="line-height:1.55;">
+            Master of 27-layer butter lamination, sourdough wild fermentation cultures, and Callebaut chocolate tempering.
+          </p>
+          <div class="faculty-quote">
+            “Pastry is exact science. When technique meets passion, a dessert becomes unforgettable art.”
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mentor 3: Front Office & PMS -->
+    <div class="col-md-6 col-lg-3">
+      <div class="faculty-card fade-up">
+        <div class="faculty-img-wrap">
+          <img src="https://www.wigotschoolofhospitality.com/assets/images/items/VF-06321646379773.jpg" alt="Victor Otieno, CHA">
+          <span class="faculty-hotel-badge"><i class="fa-solid fa-shield-check me-1 text-warning"></i>Ex-Serena Hotels</span>
+        </div>
+        <div class="faculty-body">
+          <span class="faculty-role-pill"><i class="fa-solid fa-desktop"></i> Hotel Operations Director</span>
+          <h5 class="fw-bold text-dark mb-1">Victor Otieno, CHA</h5>
+          <small class="text-muted mb-2">Opera PMS &amp; Rooms Division</small>
+          <p class="text-muted small mb-3" style="line-height:1.55;">
+            Certified Hotel Administrator specializing in Opera PMS revenue management, VIP guest concierge protocol, and hotel auditing.
+          </p>
+          <div class="faculty-quote">
+            “Luxury hospitality is anticipating a guest's need before they even realize they have it.”
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mentor 4: Sommelier & Barista -->
+    <div class="col-md-6 col-lg-3">
+      <div class="faculty-card fade-up">
+        <div class="faculty-img-wrap">
+          <img src="https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589563-IMG_9912.jpg" alt="Kevin Mwangi">
+          <span class="faculty-hotel-badge"><i class="fa-solid fa-mug-hot me-1 text-warning"></i>SCA Certified</span>
+        </div>
+        <div class="faculty-body">
+          <span class="faculty-role-pill"><i class="fa-solid fa-martini-glass"></i> Beverage Master &amp; Sommelier</span>
+          <h5 class="fw-bold text-dark mb-1">Kevin Mwangi</h5>
+          <small class="text-muted mb-2">Specialty Espresso &amp; Mixology</small>
+          <p class="text-muted small mb-3" style="line-height:1.55;">
+            Specialty Coffee Association (SCA) certified barista, sensory cupping evaluator, and international mixology craftsman.
+          </p>
+          <div class="faculty-quote">
+            “Every gram of ground coffee and every second of extraction dictates the soul of the espresso.”
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     9E. VIRTUAL CAMPUS FACILITY TOUR
+     ============================================================ -->
+<section class="container py-5 public-section" id="virtual-tour">
+  <div class="tour-viewport-container fade-up">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+      <div>
+        <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-2" style="background:rgba(214,161,58,0.2);color:#ffe6a7;font-weight:700;font-size:0.78rem;text-transform:uppercase;">
+          <i class="fa-solid fa-vr-cardboard"></i> Campus Infrastructure Tour
+        </div>
+        <h3 class="fw-bold text-white mb-1">Explore Mamboleo Campus Facilities</h3>
+        <p class="text-white-50 small mb-0">Tour our dedicated commercial training spaces in Kisumu from anywhere in the world.</p>
+      </div>
+      <a href="https://wa.me/254706063799?text=Hello%20Wigot,%20I%20would%20like%20to%20schedule%20a%20physical%20campus%20visit%20at%20Mamboleo." target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-warning rounded-pill px-3 py-2 fw-bold">
+        <i class="fa-solid fa-calendar-check me-1"></i> Book Physical Campus Visit
+      </a>
+    </div>
+
+    <!-- Tour Navigation Strip -->
+    <div class="tour-nav-strip">
+      <button type="button" class="tour-nav-btn active" data-tour="kitchen">
+        <i class="fa-solid fa-fire-burner"></i> Production Kitchen 1
+      </button>
+      <button type="button" class="tour-nav-btn" data-tour="pastry">
+        <i class="fa-solid fa-cake-candles"></i> Pastry &amp; Bakery Lab
+      </button>
+      <button type="button" class="tour-nav-btn" data-tour="reception">
+        <i class="fa-solid fa-desktop"></i> Opera PMS Reception Suite
+      </button>
+      <button type="button" class="tour-nav-btn" data-tour="lounge">
+        <i class="fa-solid fa-mug-hot"></i> Barista Lounge &amp; Restaurant
+      </button>
+      <button type="button" class="tour-nav-btn" data-tour="gardens">
+        <i class="fa-solid fa-tree"></i> Hostels &amp; Tropical Gardens
+      </button>
+    </div>
+
+    <!-- Stage Box -->
+    <div class="tour-stage-box">
+      <img id="tourStageImg" src="https://www.wigotschoolofhospitality.com/assets/images/items/MN-24261646379768.jpg" alt="Campus facility tour view">
+      <div class="tour-stage-overlay">
+        <div>
+          <h4 class="fw-bold text-white mb-1" id="tourStageTitle">Commercial Production Kitchen &amp; Hot Line</h4>
+          <p class="text-white-50 small mb-3" style="max-width: 600px;" id="tourStageDesc">
+            European-standard heavy duty gas ranges, salamanders, extraction canopies, and 24 individual working stations in Mamboleo.
+          </p>
+          <div class="d-flex gap-2 flex-wrap">
+            <span class="tour-metric-chip" id="tourChip1"><i class="fa-solid fa-check text-warning"></i> 24 Individual Bays</span>
+            <span class="tour-metric-chip" id="tourChip2"><i class="fa-solid fa-shield-check text-success"></i> HACCP Level 5 Safety</span>
+            <span class="tour-metric-chip" id="tourChip3"><i class="fa-solid fa-sparkles text-info"></i> Daily Mise en Place</span>
+          </div>
+        </div>
+        <div class="d-none d-md-block">
+          <a href="{% url 'university:admissions_apply' %}" class="btn btn-warning rounded-pill px-4 py-2 fw-bold text-dark btn-press">
+            Enroll for This Facility <i class="fa-solid fa-arrow-right ms-1"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     10. STUDENT WELFARE & CAMPUS LIFE (INTERACTIVE TABS)
+     ============================================================ -->
+
+<section class="container py-5 public-section" id="student-welfare">
+  <div class="section-heading mb-4 text-center fade-up">
+    <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-2" style="background:rgba(138,26,52,.08);color:var(--maroon);font-weight:700;font-size:.8rem;letter-spacing:.5px;text-transform:uppercase;">
+      <i class="fa-solid fa-shield-heart"></i> Office of the Dean of Trainees
+    </div>
+    <h2 class="fw-bold mt-1" style="font-size: 2.2rem;">Vibrant Campus Life &amp; Student Welfare</h2>
+    <p class="text-muted mx-auto" style="max-width:700px;">
+      Our strict mandate ensures every trainee is well looked after spiritually, physically, and mentally, with full co-curricular engagement out of the classroom.
+    </p>
+  </div>
+
+  <!-- Interactive Welfare Tab Navigation -->
+  <div class="d-flex justify-content-center gap-2 flex-wrap mb-4" id="welfareTabGroup">
+    <button type="button" class="btn btn-primary rounded-pill px-3 py-2 fw-bold active welfare-tab-btn" data-target="facilities">
+      <i class="fa-solid fa-building-shield me-2"></i>Physical Facilities
+    </button>
+    <button type="button" class="btn btn-outline-secondary rounded-pill px-3 py-2 fw-semibold welfare-tab-btn" data-target="accommodation">
+      <i class="fa-solid fa-hotel me-2"></i>Accommodation &amp; Hostels
+    </button>
+    <button type="button" class="btn btn-outline-secondary rounded-pill px-3 py-2 fw-semibold welfare-tab-btn" data-target="gardens">
+      <i class="fa-solid fa-volleyball me-2"></i>Gardens &amp; Sports
+    </button>
+    <button type="button" class="btn btn-outline-secondary rounded-pill px-3 py-2 fw-semibold welfare-tab-btn" data-target="uniforms">
+      <i class="fa-solid fa-shirt me-2"></i>Uniforms &amp; Grooming
+    </button>
+    <button type="button" class="btn btn-outline-secondary rounded-pill px-3 py-2 fw-semibold welfare-tab-btn" data-target="gallery">
+      <i class="fa-solid fa-camera me-2"></i>Campus Moments
+    </button>
+  </div>
+
+  <!-- Tab Content Card -->
+  <div class="card border-0 rounded-4 shadow-sm p-4 p-lg-5" style="background:#ffffff;border:1px solid rgba(138,26,52,.12)!important;">
+    <div class="row g-4 align-items-center">
+      
+      <!-- Left Content Column (Dynamic per tab) -->
+      <div class="col-lg-7">
+        
+        <!-- Tab 1: Physical Facilities -->
+        <div class="welfare-pane" id="pane-facilities">
+          <span class="badge rounded-pill px-3 py-1 mb-2" style="background:rgba(138,26,52,.1);color:var(--maroon);font-weight:700;font-size:.75rem;">SECTION A · INFRASTRUCTURE</span>
+          <h3 class="fw-bold text-dark mb-2">9 Modern Physical Facilities</h3>
+          <p class="text-muted mb-4">
+            From heavy-duty production kitchens to specialized hotel ICT labs, our campus delivers authentic real-world hospitality training.
+          </p>
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <div class="d-flex align-items-start gap-2">
+                <i class="fa-solid fa-kitchen-set text-primary mt-1 fs-5"></i>
+                <div>
+                  <strong class="d-block text-dark small">Commercial Kitchens &amp; Dining</strong>
+                  <span class="text-muted" style="font-size:.8rem;">Production lines, pastry ovens &amp; 80-seat restaurant.</span>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-start gap-2">
+                <i class="fa-solid fa-book-open-reader text-primary mt-1 fs-5"></i>
+                <div>
+                  <strong class="d-block text-dark small">Hospitality Resource Library</strong>
+                  <span class="text-muted" style="font-size:.8rem;">International culinary archives &amp; digital catalog.</span>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-start gap-2">
+                <i class="fa-solid fa-laptop-code text-primary mt-1 fs-5"></i>
+                <div>
+                  <strong class="d-block text-dark small">ICT &amp; Hotel Software Lab</strong>
+                  <span class="text-muted" style="font-size:.8rem;">Fibre workstations with Opera PMS training.</span>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-start gap-2">
+                <i class="fa-solid fa-house-medical text-primary mt-1 fs-5"></i>
+                <div>
+                  <strong class="d-block text-dark small">Campus Health &amp; First Aid</strong>
+                  <span class="text-muted" style="font-size:.8rem;">Staffed sick bay for student health and triage.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Accommodation -->
+        <div class="welfare-pane" id="pane-accommodation" style="display:none;">
+          <span class="badge rounded-pill px-3 py-1 mb-2" style="background:rgba(22,101,52,.1);color:#166534;font-weight:700;font-size:.75rem;">SECTION B · HOUSING</span>
+          <h3 class="fw-bold text-dark mb-2">Student Accommodation &amp; Hostels</h3>
+          <p class="text-muted mb-4">
+            Safe, verified residential options in Mamboleo, Kisumu. The Dean of Trainees oversees accommodation welfare and student living.
+          </p>
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <div class="d-flex align-items-start gap-2">
+                <i class="fa-solid fa-shield-halved text-success mt-1 fs-5"></i>
+                <div>
+                  <strong class="d-block text-dark small">24/7 Security &amp; Wardens</strong>
+                  <span class="text-muted" style="font-size:.8rem;">Perimeter security and student supervision.</span>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-start gap-2">
+                <i class="fa-solid fa-utensils text-success mt-1 fs-5"></i>
+                <div>
+                  <strong class="d-block text-dark small">Nutritious Trainee Catering</strong>
+                  <span class="text-muted" style="font-size:.8rem;">Wholesome meals tailored for active culinary shifts.</span>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-start gap-2">
+                <i class="fa-solid fa-wifi text-success mt-1 fs-5"></i>
+                <div>
+                  <strong class="d-block text-dark small">Study Desks &amp; High-Speed Wi-Fi</strong>
+                  <span class="text-muted" style="font-size:.8rem;">Quiet study areas for exam prep and coursework.</span>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-start gap-2">
+                <i class="fa-solid fa-person-walking text-success mt-1 fs-5"></i>
+                <div>
+                  <strong class="d-block text-dark small">Walking Distance to Campus</strong>
+                  <span class="text-muted" style="font-size:.8rem;">Convenient proximity off Kisumu–Kakamega Rd.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Gardens & Sports -->
+        <div class="welfare-pane" id="pane-gardens" style="display:none;">
+          <span class="badge rounded-pill px-3 py-1 mb-2" style="background:rgba(217,119,6,.1);color:#d97706;font-weight:700;font-size:.75rem;">SECTION C · CO-CURRICULAR</span>
+          <h3 class="fw-bold text-dark mb-2">Gardens &amp; Co-Curricular Calendar</h3>
+          <p class="text-muted mb-4">
+            Located next to Wigot Gardens boutique resort at the foot of Kajulu Hills, trainees engage in vibrant sports, athletics, and cultural events.
+          </p>
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <div class="d-flex align-items-start gap-2">
+                <i class="fa-solid fa-tree text-warning mt-1 fs-5"></i>
+                <div>
+                  <strong class="d-block text-dark small">Resort Gardens Access</strong>
+                  <span class="text-muted" style="font-size:.8rem;">Botanical outdoor recreation &amp; team building.</span>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-start gap-2">
+                <i class="fa-solid fa-trophy text-warning mt-1 fs-5"></i>
+                <div>
+                  <strong class="d-block text-dark small">Annual Culinary Showdowns</strong>
+                  <span class="text-muted" style="font-size:.8rem;">Inter-class cook-offs and barista competitions.</span>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-start gap-2">
+                <i class="fa-solid fa-volleyball text-warning mt-1 fs-5"></i>
+                <div>
+                  <strong class="d-block text-dark small">Sports &amp; Athletics Leagues</strong>
+                  <span class="text-muted" style="font-size:.8rem;">Football, volleyball, and table tennis.</span>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-start gap-2">
+                <i class="fa-solid fa-hands-praying text-warning mt-1 fs-5"></i>
+                <div>
+                  <strong class="d-block text-dark small">Multi-Faith Worship</strong>
+                  <span class="text-muted" style="font-size:.8rem;">Inclusive prayer spaces for spiritual growth.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Uniforms -->
+        <div class="welfare-pane" id="pane-uniforms" style="display:none;">
+          <span class="badge rounded-pill px-3 py-1 mb-2" style="background:rgba(30,58,138,.1);color:#1e3a8a;font-weight:700;font-size:.75rem;">SECTION D · GROOMING</span>
+          <h3 class="fw-bold text-dark mb-2">Professional Uniforms &amp; Grooming</h3>
+          <p class="text-muted mb-4">
+            Hospitality excellence begins with personal presentation. Our trainees wear industry-grade uniforms tailored to each practical specialization.
+          </p>
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <div class="d-flex align-items-start gap-2">
+                <i class="fa-solid fa-shirt text-primary mt-1 fs-5"></i>
+                <div>
+                  <strong class="d-block text-dark small">Executive Chef Whites</strong>
+                  <span class="text-muted" style="font-size:.8rem;">Double-breasted jackets, toque &amp; safety shoes.</span>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-start gap-2">
+                <i class="fa-solid fa-user-tie text-primary mt-1 fs-5"></i>
+                <div>
+                  <strong class="d-block text-dark small">F&amp;B Service Banquet Attire</strong>
+                  <span class="text-muted" style="font-size:.8rem;">Formal vests, crisp shirts &amp; maroon bowties.</span>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-start gap-2">
+                <i class="fa-solid fa-briefcase text-primary mt-1 fs-5"></i>
+                <div>
+                  <strong class="d-block text-dark small">Front Office Corporate Suits</strong>
+                  <span class="text-muted" style="font-size:.8rem;">Sharp blazers projecting luxury hotel elegance.</span>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-start gap-2">
+                <i class="fa-solid fa-certificate text-primary mt-1 fs-5"></i>
+                <div>
+                  <strong class="d-block text-dark small">Food Safety Certification</strong>
+                  <span class="text-muted" style="font-size:.8rem;">Certified food handling &amp; hygiene standards.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 5: Campus Moments -->
+        <div class="welfare-pane" id="pane-gallery" style="display:none;">
+          <span class="badge rounded-pill px-3 py-1 mb-2" style="background:rgba(138,26,52,.1);color:var(--maroon);font-weight:700;font-size:.75rem;">LIVE AT WIGOT</span>
+          <h3 class="fw-bold text-dark mb-2">Student Life In Action</h3>
+          <p class="text-muted mb-3">
+            Real trainees mastering commercial knife cuts, gourmet plating, barista art, and banquet table management.
+          </p>
+          <div class="row g-2 mb-3">
+            {% for g in gallery_items|slice:":4" %}
+            <div class="col-6">
+              <div class="rounded-3 overflow-hidden position-relative shadow-sm" style="height:90px; cursor:pointer;" data-lightbox-src="{{ g.url }}" data-lightbox-title="{{ g.title }}" data-lightbox-tag="{{ g.tag }}" title="Click to view full photo">
+                <img src="{{ g.url }}" alt="{{ g.title }}" class="w-100 h-100 object-fit-cover">
+                <span class="badge bg-dark bg-opacity-75 text-white position-absolute bottom-0 start-0 m-1 small" style="font-size:.65rem;">{{ g.tag }}</span>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Direct Action CTA -->
+        <div class="mt-4 pt-3 border-top d-flex gap-3 flex-wrap">
+          <a href="{% url 'university:student_welfare' %}" class="btn btn-primary rounded-pill px-4 py-2 fw-bold btn-press text-white">
+            Explore Full Welfare Guide <i class="fa-solid fa-arrow-right ms-2"></i>
+          </a>
+          <a href="{% url 'university:gallery' %}" class="btn btn-outline-dark rounded-pill px-4 py-2 fw-semibold btn-press">
+            View All Photos <i class="fa-solid fa-images ms-2"></i>
+          </a>
+        </div>
+      </div>
+
+      <!-- Right Feature Card -->
+      <div class="col-lg-5">
+        <div class="position-relative">
+          <div class="rounded-4 overflow-hidden shadow-lg border" style="border-color:rgba(138,26,52,.15)!important;height:380px;">
+            <img src="https://www.wigotschoolofhospitality.com/assets/images/welfare.jpg" 
+                 alt="Wigot School of Hospitality Students" 
+                 class="w-100 h-100 object-fit-cover"
+                 onerror="this.src='https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589570-IMG_8787.jpg'">
+            <div class="position-absolute bottom-0 start-0 end-0 p-4 text-white" style="background:linear-gradient(180deg,transparent 0%,rgba(16,29,43,.92) 100%);">
+              <span class="badge rounded-pill px-3 py-1 mb-2" style="background:#ffe6a7;color:#5c1122;font-weight:700;font-size:.75rem;">Mamboleo Campus</span>
+              <h5 class="fw-bold mb-1">Nurturing Tomorrow's Hoteliers</h5>
+              <p class="small text-white-50 mb-0">Spiritual, physical, and mental mentorship under the Dean of Trainees.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     9. TRAINEE & ALUMNI SUCCESS VOICES
+     ============================================================ -->
+<section class="container py-5 public-section">
+  <div class="section-heading mb-5 text-center">
+    <span class="badge-soft badge rounded-pill px-3 py-2">Alumni Success</span>
+    <h2 class="fw-bold mt-2" style="font-size: 2.2rem;">From Mamboleo to 5-Star Kitchens &amp; Resorts</h2>
+    <p class="text-muted mx-auto" style="max-width:680px;">
+      Discover how Wigot School of Hospitality graduates transform practical kitchen discipline into rewarding hospitality leadership careers.
+    </p>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-md-4">
+      <div class="alumni-card tilt-card fade-up" data-delay="1">
+        <div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="alumni-quote-icon"><i class="fa-solid fa-quote-left"></i></div>
+            <div class="text-warning small"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i></div>
+          </div>
+          <p class="alumni-quote-text">
+            “The rigorous knife technique drills and high-volume commercial kitchen drills at Wigot gave me an instant advantage. During my hotel attachment at Sarova, I was offered a permanent kitchen role even before graduation.”
+          </p>
+        </div>
+        <div class="alumni-profile">
+          <div class="alumni-avatar-initials">BO</div>
+          <div class="alumni-info">
+            <h6>Brian Omondi</h6>
+            <span class="alumni-role">Sous Chef · Sarova Imperial Hotel</span>
+            <span class="alumni-program">Diploma in Culinary Arts (DCA)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="alumni-card tilt-card fade-up" data-delay="2">
+        <div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="alumni-quote-icon"><i class="fa-solid fa-quote-left"></i></div>
+            <div class="text-warning small"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i></div>
+          </div>
+          <p class="alumni-quote-text">
+            “The specialized pastry lab at Wigot is second to none. From artisan sourdough breads to multi-tiered wedding cakes, the masterclasses gave me both the skills and confidence to launch my own bespoke bakery studio in Kisumu.”
+          </p>
+        </div>
+        <div class="alumni-profile">
+          <div class="alumni-avatar-initials" style="background:linear-gradient(135deg,#145a45,#1e824c);">MA</div>
+          <div class="alumni-info">
+            <h6>Mercy Achieng</h6>
+            <span class="alumni-role">Head Pâtissier &amp; Bakery Founder</span>
+            <span class="alumni-program">Specialized Pastry &amp; Bakery Course</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="alumni-card tilt-card fade-up" data-delay="3">
+        <div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="alumni-quote-icon"><i class="fa-solid fa-quote-left"></i></div>
+            <div class="text-warning small"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i></div>
+          </div>
+          <p class="alumni-quote-text">
+            “The combination of Opera PMS hotel software mastery and strict 5-star executive grooming protocol under the Dean of Trainees set me apart during executive interviews at luxury hotels across Western Kenya.”
+          </p>
+        </div>
+        <div class="alumni-profile">
+          <div class="alumni-avatar-initials" style="background:linear-gradient(135deg,#101d2b,#2b4c6f);">FC</div>
+          <div class="alumni-info">
+            <h6>Faith Chebet</h6>
+            <span class="alumni-role">Guest Relations Supervisor · Acacia Premier</span>
+            <span class="alumni-program">Diploma in Hospitality Management (HDCA)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     10. 3-STEP ADMISSION ROADMAP
+     ============================================================ -->
+
+<section class="container py-5 public-section">
+  <div class="section-heading mb-5">
+    <span class="badge-soft badge rounded-pill px-3 py-2">Quick Enrollment</span>
+    <h2 class="fw-bold mt-2">How to Join Wigot in 3 Simple Steps</h2>
+    <p class="text-muted">Direct online enrollment with instant verification and M-Pesa fee settlement.</p>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-md-4">
+      <div class="step-card fade-up" data-delay="1">
+        <div class="step-num">1</div>
+        <h5>Select Your Program</h5>
+        <p>Explore our diplomas, certificates, or 1-month intensive skills courses. Verify entry requirements (KCSE result slip or equivalent).</p>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="step-card fade-up" data-delay="2">
+        <div class="step-num">2</div>
+        <h5>Submit Online Application</h5>
+        <p>Complete the admission form in minutes, upload your academic certificates, and select your preferred intake (Jan, May, or Sept).</p>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="step-card fade-up" data-delay="3">
+        <div class="step-num">3</div>
+        <h5>Offer Letter &amp; M-Pesa Payment</h5>
+        <p>Receive your admission letter online, complete the intake registration via M-Pesa Paybill, and report to our Mamboleo campus.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     8. CAMPUS EVENTS & CALENDAR (IF AVAILABLE)
+     ============================================================ -->
+{% if events %}
+<section class="container py-5 public-section">
+  <div class="d-flex justify-content-between align-items-end mb-4">
+    <div>
+      <span class="badge-soft badge rounded-pill px-3 py-2">Campus Calendar</span>
+      <h2 class="fw-bold mt-2 mb-0">Upcoming Events &amp; Intakes</h2>
+    </div>
+    <a href="{% url 'university:contact' %}" class="btn btn-sm btn-outline-primary rounded-pill">Inquire About Intakes <i class="fa-solid fa-arrow-right ms-1"></i></a>
+  </div>
+  <div class="row g-4">
+    {% for ev in events %}
+    <div class="col-md-4">
+      <div class="card card-ums p-4 h-100 fade-up" style="border-radius:14px;">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <div class="p-2 rounded text-center text-white" style="background:var(--maroon);min-width:60px;">
+            <div class="fs-4 fw-bold lh-1">{{ ev.date|date:"d" }}</div>
+            <small class="text-uppercase" style="font-size:0.7rem;">{{ ev.date|date:"M" }}</small>
+          </div>
+          <div>
+            <h6 class="fw-bold mb-1 text-dark">{{ ev.title }}</h6>
+            <small class="text-muted"><i class="fa-solid fa-location-dot me-1 text-warning"></i>{{ ev.location|default:"Mamboleo Campus" }}</small>
+          </div>
+        </div>
+        <p class="text-muted small mb-0">{{ ev.description|truncatewords:18 }}</p>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<!-- ============================================================
+     12. FREQUENTLY ASKED QUESTIONS (FAQ)
+     ============================================================ -->
+<section class="container py-5 public-section">
+  <div class="section-heading mb-5 text-center">
+    <span class="badge-soft badge rounded-pill px-3 py-2">Got Questions?</span>
+    <h2 class="fw-bold mt-2" style="font-size: 2.2rem;">Frequently Asked Questions</h2>
+    <p class="text-muted mx-auto" style="max-width: 680px;">
+      Everything prospective students and parents need to know about admissions, fees, hostel accommodation, and dual certification.
+    </p>
+  </div>
+
+  <div class="row justify-content-center">
+    <div class="col-lg-9">
+      <div class="accordion pub-faq-accordion fade-up" id="wigotFaqAccordion">
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="faqHeading1">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapse1" aria-expanded="true" aria-controls="faqCollapse1">
+              What are the minimum entry requirements for admissions?
+            </button>
+          </h2>
+          <div id="faqCollapse1" class="accordion-collapse collapse show" aria-labelledby="faqHeading1" data-bs-parent="#wigotFaqAccordion">
+            <div class="accordion-body">
+              For <strong>Diploma Programmes</strong> (e.g. Diploma in Culinary Arts, Diploma in Food &amp; Beverage Management), the general requirement is KCSE mean grade C- or equivalent, or a recognized Certificate in a related field. For <strong>Certificate Programmes</strong>, the minimum is KCSE D Plain or Artisan certificate. For our <strong>1-Month Intensive Short Courses</strong> and Specialized Pastry classes, admission is open to all passion-driven culinary learners without strict academic restrictions.
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="faqHeading2">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapse2" aria-expanded="false" aria-controls="faqCollapse2">
+              When are the academic intakes, and can I enroll mid-year?
+            </button>
+          </h2>
+          <div id="faqCollapse2" class="accordion-collapse collapse" aria-labelledby="faqHeading2" data-bs-parent="#wigotFaqAccordion">
+            <div class="accordion-body">
+              Wigot School of Hospitality operates three primary semester intakes: <strong>January</strong>, <strong>May</strong>, and <strong>September</strong>. For our practical 1-Month Short Courses (such as Barista, Mixology, Cake Decorating, and Pastry), intake enrollment is rolling on the first Monday of every month throughout the academic year.
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="faqHeading3">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapse3" aria-expanded="false" aria-controls="faqCollapse3">
+              Can tuition fees be paid in installments via M-Pesa?
+            </button>
+          </h2>
+          <div id="faqCollapse3" class="accordion-collapse collapse" aria-labelledby="faqHeading3" data-bs-parent="#wigotFaqAccordion">
+            <div class="accordion-body">
+              Yes. We provide flexible tuition payment plans with zero interest. Trainees can pay termly or in structured monthly installments directly through our official <strong>M-Pesa Paybill</strong>. Every payment is automatically reconciled to the student's digital ledger in real time, and instant downloadable fee receipts are available in the Student Portal.
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="faqHeading4">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapse4" aria-expanded="false" aria-controls="faqCollapse4">
+              Is student hostel accommodation available in Mamboleo?
+            </button>
+          </h2>
+          <div id="faqCollapse4" class="accordion-collapse collapse" aria-labelledby="faqHeading4" data-bs-parent="#wigotFaqAccordion">
+            <div class="accordion-body">
+              Yes. The <strong>Office of the Dean of Trainees</strong> oversees verified student hostel residences located in peaceful, safe residential areas in Mamboleo within short walking distance to the campus. Hostels feature 24/7 security, high-speed Wi-Fi, study desks, and optional trainee meal catering tailored for busy culinary schedules.
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="faqHeading5">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapse5" aria-expanded="false" aria-controls="faqCollapse5">
+              Are Wigot qualifications recognized internationally?
+            </button>
+          </h2>
+          <div id="faqCollapse5" class="accordion-collapse collapse" aria-labelledby="faqHeading5" data-bs-parent="#wigotFaqAccordion">
+            <div class="accordion-body">
+              Yes. Wigot School of Hospitality is fully registered and licensed by <strong>TVETA (Technical and Vocational Education and Training Authority)</strong> in Kenya. Our diploma courses are examined by the <strong>Institute of Commercial Management (ICM UK)</strong> and <strong>KNEC</strong>, which are globally recognized credentials accepted by luxury international hotel groups, safari lodges, and cruise ship lines worldwide.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     13. CAMPUS LOCATION & DIRECT CONTACT CARD
+     ============================================================ -->
+<section class="container py-5 public-section">
+  <div class="pub-campus-card p-4 p-lg-5 fade-up">
+    <div class="row g-4 g-lg-5 align-items-center">
+      <div class="col-lg-7">
+        <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-3" style="background:rgba(138,26,52,.08);color:var(--maroon);font-weight:700;font-size:.78rem;letter-spacing:.6px;text-transform:uppercase;">
+          <i class="fa-solid fa-building-columns"></i> Visit Our Campus
+        </div>
+        <h2 class="fw-bold text-dark mb-2" style="font-size: 2rem; letter-spacing: -.5px;">Mamboleo, Kisumu Campus</h2>
+        <p class="text-muted mb-4" style="line-height: 1.65; font-size: .96rem;">
+          Located conveniently off the Kisumu–Kakamega Road in Mamboleo, Kisumu. 
+          Our modern campus features fully operational training restaurants, culinary labs, lecture suites, and administrative offices.
+        </p>
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <div class="pub-info-item">
+              <div class="pub-info-badge" style="background:rgba(138,26,52,.09);color:var(--maroon);">
+                <i class="fa-solid fa-location-dot"></i>
+              </div>
+              <div>
+                <strong class="d-block text-dark" style="font-size: .92rem;">Address</strong>
+                <small class="text-muted" style="line-height: 1.4; display: block;">Mamboleo, Kisumu, Off Kisumu–Kakamega Road</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <div class="pub-info-item">
+              <div class="pub-info-badge" style="background:rgba(22,101,52,.1);color:#166534;">
+                <i class="fa-solid fa-phone"></i>
+              </div>
+              <div>
+                <strong class="d-block text-dark" style="font-size: .92rem;">Admissions Line</strong>
+                <small class="text-muted" style="line-height: 1.4; display: block;">+254 706 063 799 / +254 708 112 222</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <div class="pub-info-item">
+              <div class="pub-info-badge" style="background:rgba(30,58,138,.09);color:#1e3a8a;">
+                <i class="fa-solid fa-envelope"></i>
+              </div>
+              <div>
+                <strong class="d-block text-dark" style="font-size: .92rem;">Official Email</strong>
+                <small class="text-muted" style="line-height: 1.4; display: block;">info@wigotschoolofhospitality.com</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <div class="pub-info-item">
+              <div class="pub-info-badge" style="background:rgba(180,83,9,.1);color:#b45309;">
+                <i class="fa-solid fa-clock"></i>
+              </div>
+              <div>
+                <strong class="d-block text-dark" style="font-size: .92rem;">Working Hours</strong>
+                <small class="text-muted" style="line-height: 1.4; display: block;">Mon–Fri: 8:00 AM – 5:00 PM | Sat: 9:00 AM – 1:00 PM</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-5">
+        <div class="pub-tour-box">
+          <div class="pub-tour-icon-wrap">
+            <i class="fa-solid fa-map-location-dot"></i>
+          </div>
+          <div class="d-inline-block px-3 py-1 rounded-pill mb-2" style="background:rgba(197,160,89,.15);color:#8a6a1a;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">
+            Complimentary Campus Walk
+          </div>
+          <h4 class="fw-bold text-dark mb-2">Plan Your Campus Tour</h4>
+          <p class="small text-muted mb-4" style="line-height: 1.55;">
+            Meet our executive chefs, explore our commercial kitchens, and discuss fee financing with an admissions officer.
+          </p>
+          <a href="tel:+254706063799" class="btn rounded-pill pub-tour-btn-primary w-100 mb-2 btn-press text-white">
+            <i class="fa-solid fa-phone me-2 text-white"></i><span class="text-white">Call +254 706 063 799</span>
+          </a>
+          <a href="https://maps.google.com/?q=Wigot+Gardens+Kisumu" target="_blank" rel="noopener noreferrer" class="btn rounded-pill pub-tour-btn-outline w-100 btn-press">
+            <i class="fa-solid fa-diamond-turn-right me-2 text-primary"></i>Get Directions via Google Maps
+          </a>
+          <div class="mt-3 text-muted" style="font-size: .78rem;">
+            <i class="fa-solid fa-circle-check text-success me-1"></i> No appointment required during working hours
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     10. FINAL CALL TO ACTION
+     ============================================================ -->
+<section class="container py-5 public-section">
+  <div class="pub-final-cta text-white fade-up">
+    <span class="badge rounded-pill bg-warning text-dark px-3 py-2 fw-bold mb-3">Next Intake Starting Soon</span>
+    <h2 class="fw-bold fs-1">Shape Your Future in World-Class Hospitality</h2>
+    <p class="opacity-75 mb-4 mx-auto" style="max-width:680px;">
+      Join hundreds of successful alumni working in Kenya's premier safari lodges, international airlines, and luxury 5-star hotels. Enroll today in just 5 minutes.
+    </p>
+    <div class="d-flex justify-content-center gap-3 flex-wrap">
+      <a href="{% url 'university:admissions_apply' %}" class="btn btn-light btn-lg rounded-pill px-5 fw-bold text-primary btn-press shadow">
+        Apply Online Now <i class="fa-solid fa-arrow-right-long ms-2"></i>
+      </a>
+      <a href="{% url 'university:contact' %}" class="btn btn-outline-light btn-lg rounded-pill px-4 fw-semibold btn-press">
+        Inquire With Admissions
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Quick Admissions Concierge Floating Dock -->
+<div class="pub-concierge-dock" id="conciergeDock">
+  <a href="https://wa.me/254706063799?text=Hello%20Wigot%20School%20of%20Hospitality,%20I%20would%20like%20to%20inquire%20about%20admissions." target="_blank" rel="noopener noreferrer" class="concierge-pill" title="Chat with Admissions on WhatsApp">
+    <span class="concierge-pulse"></span>
+    <i class="fa-brands fa-whatsapp"></i>
+    <span class="concierge-text">Chat with Admissions</span>
+  </a>
+</div>
+
+<!-- Executive Lightbox Viewer Modal -->
+<div class="pub-lightbox-overlay" id="pubLightbox" aria-hidden="true">
+  <div class="pub-lightbox-content">
+    <button type="button" class="pub-lightbox-close" id="pubLightboxClose" aria-label="Close image viewer">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+    <img src="" alt="Campus Facility Preview" class="pub-lightbox-img" id="pubLightboxImg">
+    <div class="pub-lightbox-caption" id="pubLightboxCaption"></div>
+  </div>
+</div>
+
+<!-- Executive Offcanvas Quick Curriculum Preview Drawer -->
+<div class="course-drawer-backdrop" id="courseDrawerBackdrop" aria-hidden="true"></div>
+<aside class="course-drawer" id="courseDrawer" aria-hidden="true" role="dialog" aria-labelledby="drawerTitle">
+  <div class="course-drawer-header">
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge bg-warning text-dark rounded-pill px-3 py-1 fw-bold" id="drawerCategory">Diploma</span>
+      <span class="badge bg-white text-dark border rounded-pill px-2 py-1 small" id="drawerExam">ICM (UK)</span>
+    </div>
+    <button type="button" class="course-drawer-close" id="courseDrawerClose" aria-label="Close curriculum drawer">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+  </div>
+  <div class="course-drawer-body">
+    <div class="course-drawer-cover">
+      <img id="drawerImg" src="https://www.wigotschoolofhospitality.com/assets/images/items/MN-24261646379768.jpg" alt="Course Preview Cover">
+      <div class="course-drawer-cover-badge" id="drawerCode">DCA</div>
+    </div>
+    <h3 class="fw-bold text-dark mt-3 mb-1" id="drawerTitle">Diploma in Culinary Arts</h3>
+    <div class="d-flex align-items-center gap-3 text-muted small mb-3">
+      <span><i class="fa-solid fa-clock text-warning me-1"></i><span id="drawerDuration">120 Credits · 100% Practical</span></span>
+      <span><i class="fa-solid fa-hotel text-warning me-1"></i>Guaranteed Attachment</span>
+    </div>
+    <div class="course-drawer-fee-box mb-4">
+      <div class="small text-muted text-uppercase fw-bold" style="font-size:0.72rem;letter-spacing:0.5px;">Tuition &amp; Fees (Kenyan Shillings)</div>
+      <div class="fs-4 fw-bold text-dark" id="drawerFee">KES 35,000 / Term</div>
+      <small class="text-success fw-semibold"><i class="fa-solid fa-check-circle me-1"></i>Interest-free 3-installment plan available via M-Pesa</small>
+    </div>
+
+    <div class="mb-4">
+      <h6 class="fw-bold text-dark text-uppercase small mb-2" style="letter-spacing:0.5px;">Core Practical Syllabus &amp; Competencies:</h6>
+      <ul class="list-unstyled d-flex flex-column gap-2" id="drawerModules">
+        <!-- Dynamically populated -->
+      </ul>
+    </div>
+
+    <div class="course-drawer-cta">
+      <a href="" id="drawerApplyBtn" class="btn btn-primary rounded-pill w-100 py-3 fw-bold text-white btn-ripple shadow">
+        Proceed with Application <i class="fa-solid fa-arrow-right ms-2"></i>
+      </a>
+      <div class="text-center mt-2">
+        <small class="text-muted" style="font-size:0.75rem;">Instant online enrollment · M-Pesa verified receipt</small>
+      </div>
+    </div>
+  </div>
+</aside>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/public-landing.js' %}"></script>
 {% endblock %}

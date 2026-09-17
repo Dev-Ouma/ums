@@ -532,11 +532,40 @@ def applicant_dashboard(request):
     })
 
 
+def resolve_requested_program(param):
+    """Resolve a Program instance from an ID, program code, or course code."""
+    if not param:
+        return None
+    param_clean = str(param).strip()
+    if not param_clean:
+        return None
+    if param_clean.isdigit():
+        p = Program.objects.filter(pk=int(param_clean), status=Program.Status.ACTIVE).first()
+        if p:
+            return p
+    p = Program.objects.filter(code__iexact=param_clean, status=Program.Status.ACTIVE).first()
+    if p:
+        return p
+    if not param_clean.startswith("WSH-"):
+        p = Program.objects.filter(code__iexact=f"WSH-{param_clean}", status=Program.Status.ACTIVE).first()
+        if p:
+            return p
+    p = Program.objects.filter(courses__code__iexact=param_clean, status=Program.Status.ACTIVE).first()
+    if p:
+        return p
+    p = Program.objects.filter(
+        Q(name__icontains=param_clean) | Q(courses__title__icontains=param_clean),
+        status=Program.Status.ACTIVE
+    ).first()
+    return p
+
+
 @rate_limit("admissions-apply", limit=30, window_seconds=60)
 def apply(request):
     """
     Prospective student application form with real-time draft auto-save & state recovery.
     Hydrates existing draft data on load and delegates strict validation on submission.
+    Pre-selects and retains the selected programme across the entire application flow.
     """
     if not bool(get_setting("admissions_portal_active", True)):
         # The Setups UI let an admin "close" the admissions portal, but this
@@ -548,6 +577,11 @@ def apply(request):
     active_intake = get_default_active_intake()
     programs = Program.objects.filter(status=Program.Status.ACTIVE).select_related("department", "department__school")
     custom_fields = ApplicationCustomField.objects.filter(is_active=True)
+
+    program_param = request.GET.get("program") or request.GET.get("program_id") or request.GET.get("course")
+    requested_program = resolve_requested_program(program_param)
+    if requested_program:
+        request.session["selected_program_id"] = requested_program.id
 
     if request.method == "POST":
         user = request.user if request.user.is_authenticated else None
@@ -563,9 +597,15 @@ def apply(request):
             draft = get_or_create_applicant_draft(request)
             created_in_this_request = True
 
+        post_data = request.POST.dict()
+        if not post_data.get("program"):
+            fallback_prog_id = request.session.get("selected_program_id") or (draft.program_id if draft else None)
+            if fallback_prog_id:
+                post_data["program"] = str(fallback_prog_id)
+
         success, res = validate_and_submit_application(
             application=draft,
-            payload=request.POST.dict(),
+            payload=post_data,
             request=request,
         )
         if success:
@@ -583,10 +623,12 @@ def apply(request):
                 messages.error(request, error)
             
             session_docs = request.session.get("draft_application_documents", {})
-            post_fields = request.POST.dict()
-            error_state = {"fields": post_fields, "documents": session_docs, "intakes_data": intakes_data}
+            error_state = {"fields": post_data, "documents": session_docs, "intakes_data": intakes_data}
+            selected_err_prog_id = post_data.get("program") or request.session.get("selected_program_id")
+            selected_err_program = Program.objects.filter(pk=selected_err_prog_id).first() if (selected_err_prog_id and str(selected_err_prog_id).isdigit()) else None
             return render(request, "admissions/apply.html", {
                 "programs": programs,
+                "selected_program": selected_err_program,
                 "intake": active_intake,
                 "intakes_data": intakes_data,
                 "available_intakes": intakes_data.get("intakes", []),
@@ -598,7 +640,7 @@ def apply(request):
                 "draft_state_json": json.dumps(error_state),
                 "draft_documents": session_docs,
                 "guardian_relationships": Application.GUARDIAN_RELATIONSHIPS,
-                "data": post_fields,
+                "data": post_data,
                 "field_errors": res.get("field_errors", {}),
                 "draft_step": 1,
                 "completion_percentage": 0,
@@ -608,8 +650,24 @@ def apply(request):
     draft = get_active_applicant_draft(request)
     state = serialize_draft_state(draft, request=request) if draft else empty_draft_state()
 
+    # Pre-select and persist programme into draft and state
+    active_prog_id = (
+        (requested_program.id if requested_program else None)
+        or (draft.program_id if (draft and draft.program_id) else None)
+        or request.session.get("selected_program_id")
+    )
+    selected_program = None
+    if active_prog_id:
+        selected_program = Program.objects.filter(pk=active_prog_id, status=Program.Status.ACTIVE).first()
+        if selected_program:
+            state["fields"]["program"] = str(selected_program.id)
+            if draft and draft.program_id != selected_program.id:
+                draft.program = selected_program
+                draft.save(update_fields=["program"])
+
     return render(request, "admissions/apply.html", {
         "programs": programs,
+        "selected_program": selected_program,
         "intake": (draft.intake if draft else None) or active_intake,
         "intakes_data": intakes_data,
         "available_intakes": intakes_data.get("intakes", []),

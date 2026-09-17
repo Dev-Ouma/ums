@@ -1,14 +1,31 @@
 <section class="container py-5">
-  {% if block.heading %}<h2 class="fw-bold text-center mb-4">{{ block.heading }}</h2>{% endif %}
+  {% if block.heading %}
+  <div class="section-heading mb-4 text-center">
+    <span class="badge-soft badge rounded-pill px-3 py-2">Campus Calendar</span>
+    <h2 class="fw-bold mt-2">{{ block.heading }}</h2>
+    {% if block.subheading %}<p class="text-muted mx-auto" style="max-width:640px;">{{ block.subheading }}</p>{% endif %}
+  </div>
+  {% endif %}
   <div class="row g-4">
     {% for e in items %}
       <div class="col-md-4">
-        <div class="card border-0 rounded-4 shadow-sm p-4 h-100">
-          <span class="badge badge-soft rounded-pill align-self-start mb-2">{{ e.category }}</span>
-          <h6 class="fw-bold">{{ e.title }}</h6>
-          <div class="small text-muted"><i class="fa-solid fa-calendar-days me-1"></i>{{ e.date|date:'d M Y' }}</div>
+        <div class="card card-ums p-4 h-100 fade-up" style="border-radius:14px;border:1px solid rgba(138,26,52,.1)!important;">
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <div class="p-2 rounded text-center text-white" style="background:var(--maroon);min-width:60px;">
+              <div class="fs-4 fw-bold lh-1">{{ e.date|date:"d" }}</div>
+              <small class="text-uppercase" style="font-size:0.7rem;">{{ e.date|date:"M" }}</small>
+            </div>
+            <div>
+              <h6 class="fw-bold mb-1 text-dark">{{ e.title }}</h6>
+              <small class="text-muted"><i class="fa-solid fa-location-dot me-1 text-warning"></i>{{ e.location|default:"Mamboleo Campus" }}</small>
+            </div>
+          </div>
+          <p class="text-muted small mb-0">{{ e.description|truncatewords:18 }}</p>
         </div>
       </div>
-    {% empty %}<p class="text-muted">No upcoming events.</p>{% endfor %}
+    {% empty %}
+      <div class="col-12 text-center py-4 text-muted">No upcoming events currently scheduled.</div>
+    {% endfor %}
   </div>
 </section>
+

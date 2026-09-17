@@ -1337,6 +1337,76 @@ html.sidebar-collapsed .sidebar .pill-soon{display:none!important}
 .tt-session-card:hover .tt-actions {
   opacity: 1;
 }
+/* ---------- Scroll Progress Bar (Global) ---------- */
+.pub-scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3.5px;
+  width: 0%;
+  background: linear-gradient(90deg, #8a1a34 0%, #b23a54 50%, #c5a059 100%);
+  z-index: 9999999;
+  transition: width 0.08s ease-out;
+  box-shadow: 0 1px 6px rgba(138, 26, 52, 0.45);
+  pointer-events: none;
+}
+
+/* ---------- Back to Top Floating Button (Global) ---------- */
+.pub-back-to-top {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8a1a34 0%, #5c1122 100%);
+  color: #ffffff !important;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 10px 25px rgba(138, 26, 52, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  cursor: pointer;
+  z-index: 999999;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(16px) scale(0.9);
+  transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s ease, background 0.3s ease;
+  outline: none;
+}
+.pub-back-to-top .pub-progress-ring {
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  width: 48px;
+  height: 48px;
+  transform: rotate(-90deg);
+  pointer-events: none;
+}
+.pub-back-to-top .pub-ring-fill {
+  transition: stroke-dashoffset 0.1s linear;
+}
+.pub-back-to-top.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+}
+.pub-back-to-top:hover {
+  background: linear-gradient(135deg, #a12340 0%, #4a0d1b 100%);
+  color: #ffffff !important;
+  transform: translateY(-4px) scale(1.08);
+  box-shadow: 0 14px 30px rgba(138, 26, 52, 0.55);
+}
+.pub-back-to-top:active {
+  transform: translateY(-1px) scale(0.96);
+}
+/* When AI FAB or dashboard floating widgets are present */
+body:has(.ai-fab) .pub-back-to-top,
+.ai-fab ~ .pub-back-to-top {
+  bottom: 96px;
+  right: 32px;
+}
 
 @media print {
   @page { size: A4; margin: 12mm; }

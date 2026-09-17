@@ -1,0 +1,153 @@
+{% extends 'base_public.html' %}
+{% load static %}
+
+{% block title %}Campus Photo Gallery · Wigot School of Hospitality{% endblock %}
+
+{% block content %}
+<!-- ============================================================
+     HERO: CAMPUS GALLERY
+     ============================================================ -->
+<section class="py-5 text-white position-relative" style="background:linear-gradient(135deg,#5c1122 0%,#8a1a34 50%,#3d0814 100%);overflow:hidden;">
+  <div class="container position-relative py-3 text-center">
+    <span class="badge rounded-pill px-3 py-1 mb-3" style="background:rgba(255,255,255,.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.2);font-size:.8rem;letter-spacing:.5px;text-transform:uppercase;font-weight:700;">
+      <i class="fa-solid fa-camera-retro text-warning me-1"></i> Visual Life at Wigot
+    </span>
+    <h1 class="display-4 fw-extrabold mb-3" style="letter-spacing:-.8px;">
+      Campus Life &amp; <span style="color:#ffe6a7;">Culinary Excellence</span>
+    </h1>
+    <p class="lead text-white-50 mx-auto mb-0" style="max-width:680px;line-height:1.7;">
+      Take an inside look at daily life at Wigot School of Hospitality in Mamboleo, Kisumu. Experience our commercial production kitchens, pastry labs, barista lounges, and student events.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================
+     GALLERY FILTER TABS & PHOTO GRID
+     ============================================================ -->
+<section class="py-5 public-section bg-light">
+  <div class="container py-2">
+    
+    <!-- Filter Pills -->
+    <div class="d-flex justify-content-center gap-2 flex-wrap mb-5" id="galleryFilterGroup">
+      <button class="btn btn-primary rounded-pill px-4 py-2 fw-bold active gallery-tab-btn" data-filter="all">
+        All Photos ({{ photos|length }})
+      </button>
+      <button class="btn btn-outline-secondary rounded-pill px-4 py-2 fw-semibold gallery-tab-btn" data-filter="culinary">
+        Culinary Arts
+      </button>
+      <button class="btn btn-outline-secondary rounded-pill px-4 py-2 fw-semibold gallery-tab-btn" data-filter="beverage">
+        F&amp;B &amp; Barista
+      </button>
+      <button class="btn btn-outline-secondary rounded-pill px-4 py-2 fw-semibold gallery-tab-btn" data-filter="pastry">
+        Pastry &amp; Bakery
+      </button>
+      <button class="btn btn-outline-secondary rounded-pill px-4 py-2 fw-semibold gallery-tab-btn" data-filter="service">
+        Dining &amp; Banquet
+      </button>
+      <button class="btn btn-outline-secondary rounded-pill px-4 py-2 fw-semibold gallery-tab-btn" data-filter="life">
+        Campus Life
+      </button>
+    </div>
+
+    <!-- Photos Grid -->
+    <div class="row g-4" id="galleryGrid">
+      {% for p in photos %}
+      <div class="col-md-6 col-lg-4 gallery-card-item" data-category="{{ p.category }}">
+        <div class="card h-100 border-0 rounded-4 shadow-sm overflow-hidden bg-white pub-gallery-card">
+          <div class="position-relative overflow-hidden" style="height:260px;cursor:pointer;" onclick="openPhotoModal('{{ p.url }}', '{{ p.title|escapejs }}', '{{ p.tag|escapejs }}', '{{ p.desc|escapejs }}')">
+            <img src="{{ p.url }}" alt="{{ p.title }}" class="w-100 h-100 object-fit-cover pub-gallery-img">
+            <span class="badge rounded-pill px-3 py-1 position-absolute top-0 start-0 m-3 shadow-sm" style="background:rgba(16,29,43,.85);color:#fff;backdrop-filter:blur(6px);font-size:.75rem;">
+              {{ p.tag }}
+            </span>
+            <div class="pub-gallery-overlay d-flex align-items-center justify-content-center">
+              <span class="btn btn-light rounded-circle shadow p-3">
+                <i class="fa-solid fa-magnifying-glass-plus text-primary fs-5"></i>
+              </span>
+            </div>
+          </div>
+          <div class="p-4 d-flex flex-column flex-grow-1">
+            <h5 class="fw-bold text-dark mb-2">{{ p.title }}</h5>
+            <p class="text-muted small mb-0 flex-grow-1" style="line-height:1.6;">{{ p.desc }}</p>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Bottom Action CTA -->
+    <div class="card p-4 p-md-5 mt-5 rounded-4 border-0 shadow-sm text-center" style="background:linear-gradient(135deg,#ffffff 0%,#faf6f0 100%);border:1px solid rgba(197,160,89,.35)!important;">
+      <h3 class="fw-bold text-dark mb-2">Ready to Wear the Wigot Chef Whites?</h3>
+      <p class="text-muted mx-auto mb-4" style="max-width:600px;">
+        Enroll in our hands-on TVETA &amp; ICM (UK) accredited hospitality and culinary arts programs. Apply online today in 5 minutes.
+      </p>
+      <div class="d-flex justify-content-center gap-3 flex-wrap">
+        <a href="{% url 'university:admissions_apply' %}" class="btn btn-primary rounded-pill px-5 py-3 fw-bold btn-press shadow">
+          Apply Online Now <i class="fa-solid fa-arrow-right ms-2"></i>
+        </a>
+        <a href="{% url 'university:courses_public' %}" class="btn btn-outline-dark rounded-pill px-4 py-3 fw-semibold btn-press">
+          Explore All Programmes &amp; Courses
+        </a>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================
+     PHOTO LIGHTBOX MODAL
+     ============================================================ -->
+<div class="modal fade" id="galleryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content rounded-4 overflow-hidden border-0 shadow-lg">
+      <div class="modal-header border-0 bg-dark text-white p-3">
+        <span class="badge bg-warning text-dark me-2" id="modalTag">Category</span>
+        <h5 class="modal-title fw-bold" id="modalTitle">Photo Title</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0 bg-black text-center">
+        <img src="" id="modalImg" alt="Wigot Gallery Photo" class="img-fluid" style="max-height:70vh;object-fit:contain;width:100%;">
+      </div>
+      <div class="modal-footer border-0 bg-white p-3 d-flex justify-content-between">
+        <p class="text-muted small mb-0" id="modalDesc">Description</p>
+        <button type="button" class="btn btn-secondary rounded-pill px-4 btn-sm" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const filterBtns = document.querySelectorAll('.gallery-tab-btn');
+  const items = document.querySelectorAll('.gallery-card-item');
+
+  filterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      filterBtns.forEach(b => {
+        b.classList.remove('btn-primary', 'active');
+        b.classList.add('btn-outline-secondary');
+      });
+      btn.classList.remove('btn-outline-secondary');
+      btn.classList.add('btn-primary', 'active');
+
+      const filter = btn.getAttribute('data-filter');
+      items.forEach(item => {
+        if (filter === 'all' || item.getAttribute('data-category') === filter) {
+          item.style.display = 'block';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+    });
+  });
+});
+
+function openPhotoModal(imgUrl, title, tag, desc) {
+  document.getElementById('modalImg').src = imgUrl;
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalTag').textContent = tag;
+  document.getElementById('modalDesc').textContent = desc;
+  const modal = new bootstrap.Modal(document.getElementById('galleryModal'));
+  modal.show();
+}
+</script>
+{% endblock %}

@@ -154,6 +154,12 @@ class Program(models.Model):
     def get_absolute_url(self):
         return reverse("university:program_detail", args=[self.pk])
 
+    def get_public_apply_url(self):
+        return f"{reverse('university:admissions_apply')}?program={self.code}"
+
+    def get_public_catalog_url(self):
+        return f"{reverse('university:courses_public')}?q={self.code}"
+
     @property
     def school(self):
         return self.department.school if self.department else None

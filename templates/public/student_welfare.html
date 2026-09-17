@@ -1,0 +1,345 @@
+{% extends 'base_public.html' %}
+{% load static %}
+
+{% block title %}Student Welfare & Campus Life · Wigot School of Hospitality{% endblock %}
+
+{% block content %}
+<!-- ============================================================
+     HERO: STUDENT WELFARE & DEAN'S MANDATE
+     ============================================================ -->
+<section class="py-5 text-white position-relative" style="background:linear-gradient(135deg,#5c1122 0%,#8a1a34 50%,#3d0814 100%);overflow:hidden;">
+  <div class="position-absolute top-0 end-0 opacity-10 pe-none" style="transform:translate(15%,-15%);">
+    <i class="fa-solid fa-graduation-cap" style="font-size:38rem;color:#ffffff;"></i>
+  </div>
+  <div class="container position-relative py-4">
+    <div class="row align-items-center g-5">
+      <div class="col-lg-7">
+        <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-3" style="background:rgba(255,255,255,.12);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.2);font-size:.82rem;letter-spacing:.5px;text-transform:uppercase;font-weight:700;">
+          <i class="fa-solid fa-shield-heart text-warning"></i> Office of the Dean of Trainees
+        </div>
+        <h1 class="display-4 fw-extrabold mb-3" style="letter-spacing:-.8px;">
+          Student Welfare &amp; <span style="color:#ffe6a7;">Holistic Campus Life</span>
+        </h1>
+        <p class="lead text-white-50 mb-4" style="line-height:1.7;max-width:620px;">
+          At Wigot School of Hospitality, our mandate ensures that every trainee is thoroughly supported spiritually, physically, and mentally. Through our rich co-curricular calendar and modern facilities, we cultivate poised, resilient future leaders in world-class hospitality.
+        </p>
+        <div class="d-flex gap-3 flex-wrap align-items-center">
+          <a href="#facilities" class="btn btn-warning rounded-pill px-4 py-3 fw-bold text-dark btn-press shadow">
+            Explore Facilities <i class="fa-solid fa-arrow-down ms-2"></i>
+          </a>
+          <a href="{% url 'university:contact' %}" class="btn btn-outline-light rounded-pill px-4 py-3 fw-semibold btn-press">
+            Speak With Trainee Counselor
+          </a>
+        </div>
+      </div>
+      <div class="col-lg-5">
+        <div class="position-relative">
+          <div class="card p-2 shadow-lg rounded-4 overflow-hidden" style="background:#ffffff;border:4px solid rgba(255,255,255,.2);">
+            <img src="https://www.wigotschoolofhospitality.com/assets/images/welfare.jpg" 
+                 alt="Wigot School of Hospitality Student Welfare" 
+                 class="img-fluid rounded-3" 
+                 style="height:340px;width:100%;object-fit:cover;"
+                 onerror="this.src='https://www.wigotschoolofhospitality.com/assets/images/gallery/1647589570-IMG_8787.jpg'">
+            <div class="p-3 text-dark text-start">
+              <span class="badge rounded-pill px-3 py-1 text-white mb-1" style="background:var(--maroon);font-size:.75rem;">Mamboleo Campus</span>
+              <h6 class="fw-bold mb-1">Vibrant Trainee Community</h6>
+              <small class="text-muted">A supportive learning environment at the foot of Kajulu Hills, Kisumu.</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     METRICS STRIP
+     ============================================================ -->
+<section class="py-3 bg-white border-bottom shadow-sm">
+  <div class="container">
+    <div class="row g-3 text-center">
+      <div class="col-6 col-md-3">
+        <div class="p-2">
+          <h3 class="fw-extrabold text-primary mb-0">9+</h3>
+          <small class="text-muted fw-semibold">Modern Training Facilities</small>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="p-2">
+          <h3 class="fw-extrabold text-primary mb-0">100%</h3>
+          <small class="text-muted fw-semibold">Holistic Trainee Support</small>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="p-2">
+          <h3 class="fw-extrabold text-primary mb-0">24/7</h3>
+          <small class="text-muted fw-semibold">Campus &amp; Hostel Security</small>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="p-2">
+          <h3 class="fw-extrabold text-primary mb-0">Dual</h3>
+          <small class="text-muted fw-semibold">TVETA &amp; ICM UK Standards</small>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     CORE MANDATE PILLARS
+     ============================================================ -->
+<section class="py-5 bg-light public-section">
+  <div class="container py-3">
+    <div class="text-center mb-5 fade-up">
+      <span class="badge rounded-pill px-3 py-2 text-uppercase fw-bold" style="background:rgba(138,26,52,.1);color:var(--maroon);font-size:.8rem;letter-spacing:.5px;">
+        Pastoral &amp; Academic Care
+      </span>
+      <h2 class="fw-bold text-dark mt-2" style="font-size:2.2rem;">The Dean of Trainees Mandate</h2>
+      <p class="text-muted mx-auto" style="max-width:680px;">
+        Ensuring balance between intensive culinary and hospitality practicals and student personal well-being.
+      </p>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-md-4">
+        <div class="card h-100 p-4 border-0 shadow-sm rounded-4 text-center transition-all pub-pillar-card">
+          <div class="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle" style="width:68px;height:68px;background:rgba(138,26,52,.1);color:var(--maroon);font-size:1.8rem;">
+            <i class="fa-solid fa-heart-pulse"></i>
+          </div>
+          <h5 class="fw-bold text-dark">Physical Well-Being</h5>
+          <p class="text-muted small mb-0" style="line-height:1.6;">
+            On-campus first-aid clinic, active sports leagues, healthy student nutrition, and ergonomic training environments tailored for culinary endurance.
+          </p>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card h-100 p-4 border-0 shadow-sm rounded-4 text-center transition-all pub-pillar-card">
+          <div class="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle" style="width:68px;height:68px;background:rgba(30,58,138,.1);color:#1e3a8a;font-size:1.8rem;">
+            <i class="fa-solid fa-brain"></i>
+          </div>
+          <h5 class="fw-bold text-dark">Mental &amp; Emotional Poise</h5>
+          <p class="text-muted small mb-0" style="line-height:1.6;">
+            Professional counseling, stress-management workshops, peer-mentorship circles, and open-door guidance for industry transition and personal challenges.
+          </p>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card h-100 p-4 border-0 shadow-sm rounded-4 text-center transition-all pub-pillar-card">
+          <div class="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle" style="width:68px;height:68px;background:rgba(217,119,6,.1);color:#d97706;font-size:1.8rem;">
+            <i class="fa-solid fa-hands-praying"></i>
+          </div>
+          <h5 class="fw-bold text-dark">Spiritual Fulfillment</h5>
+          <p class="text-muted small mb-0" style="line-height:1.6;">
+            Multi-faith prayer spaces, respect for all religious backgrounds, chaplaincy consultations, and moral values rooted in service leadership.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     A) PHYSICAL FACILITIES (9 VERIFIED FACILITIES)
+     ============================================================ -->
+<section class="py-5 bg-white public-section" id="facilities">
+  <div class="container py-3">
+    <div class="text-center mb-5 fade-up">
+      <span class="badge rounded-pill px-3 py-2 text-uppercase fw-bold" style="background:rgba(138,26,52,.1);color:var(--maroon);font-size:.8rem;letter-spacing:.5px;">
+        Campus Infrastructure
+      </span>
+      <h2 class="fw-bold text-dark mt-2" style="font-size:2.2rem;">World-Class Physical Facilities</h2>
+      <p class="text-muted mx-auto" style="max-width:680px;">
+        Every facility at Wigot School of Hospitality is engineered to simulate authentic four-star and five-star commercial hotel operations.
+      </p>
+    </div>
+
+    <div class="row g-4">
+      {% for f in facilities %}
+      <div class="col-md-6 col-lg-4">
+        <div class="card h-100 p-4 rounded-4 shadow-sm border" style="border-color:rgba(138,26,52,.12)!important;background:#ffffff;transition:transform .25s ease,box-shadow .25s ease;">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <div class="d-flex align-items-center justify-content-center rounded-3" style="width:52px;height:52px;background:linear-gradient(135deg,#8a1a34,#5c1122);color:#ffffff;font-size:1.4rem;box-shadow:0 8px 18px rgba(138,26,52,.25);">
+              <i class="fa-solid {{ f.icon }}"></i>
+            </div>
+            <span class="badge rounded-pill px-3 py-1" style="background:rgba(197,160,89,.15);color:#8a6a1a;font-weight:700;font-size:.72rem;">
+              {{ f.highlight }}
+            </span>
+          </div>
+          <h5 class="fw-bold text-dark mb-2">{{ f.name }}</h5>
+          <p class="text-muted small mb-0" style="line-height:1.6;">{{ f.desc }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     B) ACCOMMODATION & C) CO-CURRICULAR & D) UNIFORMS
+     ============================================================ -->
+<section class="py-5 bg-light public-section">
+  <div class="container py-3">
+    <div class="row g-4 align-items-stretch">
+      
+      <!-- B) Accommodation -->
+      <div class="col-lg-4">
+        <div class="card h-100 p-4 border-0 rounded-4 shadow-sm bg-white">
+          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-3" style="background:rgba(138,26,52,.08);color:var(--maroon);font-weight:700;font-size:.75rem;text-transform:uppercase;">
+            <i class="fa-solid fa-hotel"></i> Section B
+          </div>
+          <h4 class="fw-bold text-dark mb-3">Student Accommodation</h4>
+          <p class="text-muted small mb-3">
+            The Dean of Trainees manages certified accommodation partnerships ensuring safe, affordable housing in Mamboleo, Kisumu.
+          </p>
+          <div class="d-flex flex-column gap-3">
+            {% for item in accommodation_points %}
+            <div class="d-flex align-items-start gap-2">
+              <i class="fa-solid fa-circle-check text-success mt-1"></i>
+              <div>
+                <strong class="d-block text-dark small">{{ item.title }}</strong>
+                <span class="text-muted" style="font-size:.8rem;">{{ item.desc }}</span>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- C) Gardens & Co-Curricular -->
+      <div class="col-lg-4">
+        <div class="card h-100 p-4 border-0 rounded-4 shadow-sm bg-white">
+          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-3" style="background:rgba(22,101,52,.08);color:#166534;font-weight:700;font-size:.75rem;text-transform:uppercase;">
+            <i class="fa-solid fa-tree"></i> Section C
+          </div>
+          <h4 class="fw-bold text-dark mb-3">Gardens &amp; Co-Curricular</h4>
+          <p class="text-muted small mb-3">
+            Located next to Wigot Gardens hotel, trainees enjoy unmatched nature trails in Kajulu Hills, sports, and culinary contests.
+          </p>
+          <div class="d-flex flex-column gap-3">
+            {% for item in co_curricular_points %}
+            <div class="d-flex align-items-start gap-2">
+              <i class="fa-solid fa-circle-check text-success mt-1"></i>
+              <div>
+                <strong class="d-block text-dark small">{{ item.title }}</strong>
+                <span class="text-muted" style="font-size:.8rem;">{{ item.desc }}</span>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- D) Uniforms -->
+      <div class="col-lg-4">
+        <div class="card h-100 p-4 border-0 rounded-4 shadow-sm bg-white">
+          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-3" style="background:rgba(30,58,138,.08);color:#1e3a8a;font-weight:700;font-size:.75rem;text-transform:uppercase;">
+            <i class="fa-solid fa-shirt"></i> Section D
+          </div>
+          <h4 class="fw-bold text-dark mb-3">Uniforms &amp; Grooming</h4>
+          <p class="text-muted small mb-3">
+            Professional poise is non-negotiable in hospitality. Trainees take immense pride in their executive attire and grooming standards.
+          </p>
+          <div class="d-flex flex-column gap-3">
+            {% for item in grooming_points %}
+            <div class="d-flex align-items-start gap-2">
+              <i class="fa-solid fa-circle-check text-success mt-1"></i>
+              <div>
+                <strong class="d-block text-dark small">{{ item.title }}</strong>
+                <span class="text-muted" style="font-size:.8rem;">{{ item.desc }}</span>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     CAMPUS LIFE GALLERY PREVIEW
+     ============================================================ -->
+<section class="py-5 bg-white public-section">
+  <div class="container py-3">
+    <div class="d-flex justify-content-between align-items-end flex-wrap gap-3 mb-4">
+      <div>
+        <span class="badge rounded-pill px-3 py-2 text-uppercase fw-bold" style="background:rgba(138,26,52,.1);color:var(--maroon);font-size:.8rem;letter-spacing:.5px;">
+          Student Life In Pictures
+        </span>
+        <h2 class="fw-bold text-dark mt-2 mb-1" style="font-size:2.2rem;">Moments at Wigot</h2>
+        <p class="text-muted mb-0">Authentic moments from our culinary practicals, barista training, and banquet halls.</p>
+      </div>
+      <a href="{% url 'university:gallery' %}" class="btn btn-outline-primary rounded-pill px-4 fw-bold">
+        View Full Gallery <i class="fa-solid fa-arrow-right ms-2"></i>
+      </a>
+    </div>
+
+    <div class="row g-3">
+      {% for g in gallery_preview %}
+      <div class="col-6 col-md-4">
+        <div class="position-relative overflow-hidden rounded-4 shadow-sm" style="height:240px;">
+          <img src="{{ g.url }}" alt="{{ g.title }}" class="w-100 h-100 object-fit-cover transition-transform" style="transition:transform .4s ease;">
+          <div class="position-absolute bottom-0 start-0 end-0 p-3 text-white" style="background:linear-gradient(180deg,transparent 0%,rgba(16,29,43,.85) 100%);">
+            <span class="badge bg-warning text-dark px-2 py-1 small fw-bold mb-1">{{ g.category }}</span>
+            <h6 class="fw-bold mb-0 text-truncate">{{ g.title }}</h6>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     DEAN'S OFFICE CONTACT SUITE
+     ============================================================ -->
+<section class="container py-5 public-section">
+  <div class="pub-campus-card p-4 p-lg-5 fade-up">
+    <div class="row g-4 align-items-center">
+      <div class="col-lg-8">
+        <span class="badge rounded-pill px-3 py-1 mb-2" style="background:rgba(138,26,52,.1);color:var(--maroon);font-weight:700;font-size:.78rem;text-transform:uppercase;">
+          Direct Trainee Support
+        </span>
+        <h3 class="fw-bold text-dark mb-2">Have Questions About Accommodation or Welfare?</h3>
+        <p class="text-muted mb-4">
+          Our Trainee Welfare Officers are ready to guide prospective and continuing students regarding hostel placement, catering plans, fee financing, and pastoral care.
+        </p>
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <div class="pub-info-item">
+              <div class="pub-info-badge" style="background:rgba(138,26,52,.09);color:var(--maroon);">
+                <i class="fa-solid fa-phone"></i>
+              </div>
+              <div>
+                <strong class="d-block text-dark small">Direct Line</strong>
+                <small class="text-muted">+254 706 063 799 / +254 708 112 222</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <div class="pub-info-item">
+              <div class="pub-info-badge" style="background:rgba(30,58,138,.09);color:#1e3a8a;">
+                <i class="fa-solid fa-envelope"></i>
+              </div>
+              <div>
+                <strong class="d-block text-dark small">Welfare Office Email</strong>
+                <small class="text-muted">info@wigotschoolofhospitality.com</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4 text-center">
+        <a href="{% url 'university:admissions_apply' %}" class="btn btn-primary rounded-pill px-4 py-3 fw-bold w-100 mb-2 btn-press text-white shadow">
+          Apply For Next Intake <i class="fa-solid fa-arrow-right ms-2"></i>
+        </a>
+        <a href="{% url 'university:contact' %}" class="btn btn-outline-dark rounded-pill px-4 py-3 fw-semibold w-100 btn-press">
+          Book Welfare Consultation
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

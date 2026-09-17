@@ -20,59 +20,66 @@
 </head>
 
 <body class="public-theme">
+  <!-- Scroll Progress Indicator -->
+  <div id="scrollProgressBar" class="pub-scroll-progress" aria-hidden="true"></div>
+
   {% with url_name=request.resolver_match.url_name %}
   <div class="pub-topbar">
     <div class="container d-flex justify-content-between align-items-center">
-      <span class="tb-welcome"><i class="fa-solid fa-graduation-cap me-2"></i>Welcome To University Management
-        System</span>
-      <div class="tb-links d-none d-lg-flex">
+      <div class="tb-welcome">
+        <i class="fa-solid fa-graduation-cap text-warning me-1"></i>
+        <span>Wigot School of Hospitality</span>
+        <span class="d-none d-md-inline opacity-75">· Excellence in Culinary Arts</span>
+      </div>
+      <div class="tb-links d-none d-md-flex align-items-center">
+        <a href="tel:+254706063799"><i class="fa-solid fa-phone text-warning me-1"></i>+254 706 063 799</a>
+        <span class="tb-divider"></span>
+        <a href="mailto:info@wigotschoolofhospitality.com"><i class="fa-solid fa-envelope text-warning me-1"></i>info@wigotschoolofhospitality.com</a>
+        <span class="tb-divider"></span>
         <a href="{% url 'university:about' %}">Campus Life</a>
-        <a href="{% url 'university:courses_public' %}">Academics</a>
-        <a href="{% url 'university:courses_public' %}">All Programs</a>
-        <a href="{% url 'university:about' %}">Alumni</a>
-        <a href="{% url 'accounts:login' %}">Administration</a>
+        <span class="tb-divider"></span>
+        <a href="{% url 'accounts:login' %}"><i class="fa-solid fa-shield-halved text-warning me-1"></i>Portals</a>
       </div>
     </div>
   </div>
 
   <header class="pub-header">
     <div class="container pub-header-inner">
-      <a class="pub-brand d-flex align-items-center gap-2 text-decoration-none" href="{% url 'university:home' %}">
-        <img src="{% static 'img/branding/ums-lion-academy.png' %}" alt="UMS Lion Academy logo" class="rounded-3 shadow-sm" style="width:40px;height:40px;object-fit:contain;background:#fff;padding:2px;">
-        <div class="d-flex flex-column lh-1">
-          <small class="text-uppercase fw-bold text-muted" style="font-size:0.68rem;letter-spacing:1px;">University</small>
-          <b class="text-primary fw-bold fs-5">{{ site.site_short_name|default:'UMS' }}</b>
+      <a class="pub-brand" href="{% url 'university:home' %}">
+        <img src="{% static 'img/branding/ums-lion-academy.png' %}" alt="Wigot School of Hospitality logo">
+        <div class="brand-meta">
+          <span class="brand-sub">University &amp; Hospitality College</span>
+          <b class="brand-title">{{ site.site_short_name|default:'Wigot' }}</b>
         </div>
       </a>
       <nav class="pub-menu" id="pubMenu">
         {% if site_menus.header %}
           {% for item in site_menus.header %}
-            <a href="{{ item.href|default:item.url }}" class="{% if item.href == request.path or item.url == request.path %}active{% endif %} {% if 'apply' in item.href or 'apply' in item.url or 'Apply' in item.label %}pub-nav-cta{% endif %}">{{ item.label }}</a>
+            {% if 'apply' not in item.url|lower and 'apply' not in item.label|lower %}
+            <a href="{{ item.href|default:item.url }}" class="{% if item.href == request.path or item.url == request.path %}active{% endif %}">{{ item.label }}</a>
+            {% endif %}
           {% endfor %}
+          <a href="{% url 'university:admissions_apply' %}" class="pub-nav-apply d-lg-none mt-2 text-center">Apply Now <i class="fa-solid fa-arrow-right ms-1"></i></a>
         {% else %}
           <a href="{% url 'university:home' %}" class="{% if url_name == 'home' %}active{% endif %}">Home</a>
           <a href="{% url 'university:about' %}" class="{% if url_name == 'about' %}active{% endif %}">About Us</a>
-          <a href="{% url 'university:courses_public' %}"
-            class="{% if url_name == 'courses_public' %}active{% endif %}">Courses</a>
-          <a href="{% url 'university:admissions_apply' %}"
-            class="pub-nav-cta {% if url_name == 'admissions_apply' or request.path == '/admissions/apply/' %}active{% endif %}">Apply Now</a>
+          <a href="{% url 'university:courses_public' %}" class="{% if url_name == 'courses_public' %}active{% endif %}">Programmes &amp; Courses</a>
+          <a href="{% url 'university:student_welfare' %}" class="{% if url_name == 'student_welfare' %}active{% endif %}">Student Welfare</a>
+          <a href="{% url 'university:gallery' %}" class="{% if url_name == 'gallery' %}active{% endif %}">Gallery</a>
           <a href="{% url 'university:contact' %}" class="{% if url_name == 'contact' %}active{% endif %}">Contact</a>
-          {% if not user.is_authenticated %}<a href="{% url 'accounts:signup' %}">Sign Up</a>{% endif %}
+          <a href="{% url 'university:admissions_apply' %}" class="pub-nav-apply d-lg-none mt-2 text-center">Apply Now <i class="fa-solid fa-arrow-right ms-1"></i></a>
         {% endif %}
       </nav>
       <div class="pub-actions">
-        <a class="pub-icon-btn" href="{% url 'university:courses_public' %}" title="Search courses"><i
-            class="fa-solid fa-magnifying-glass"></i></a>
+        <a class="pub-icon-btn" href="{% url 'university:courses_public' %}" title="Search courses"><i class="fa-solid fa-magnifying-glass"></i></a>
+        <a href="{% url 'university:admissions_apply' %}" class="pub-nav-apply d-none d-lg-inline-flex">Apply Now</a>
         {% if user.is_authenticated %}
         {% include 'partials/_account_menu.html' with variant='public' %}
-        <a href="{% url 'university:dashboard' %}" class="pub-apply">Dashboard <i
-            class="fa-solid fa-gauge-high"></i></a>
+        <a href="{% url 'university:dashboard' %}" class="pub-apply">Dashboard <i class="fa-solid fa-gauge-high ms-1"></i></a>
         {% else %}
-        <a href="{% url 'accounts:login' %}" class="pub-apply">Login <i
-            class="fa-solid fa-arrow-right-to-bracket"></i></a>
+        <a href="{% url 'accounts:login' %}" class="pub-apply">Login <i class="fa-solid fa-arrow-right ms-1"></i></a>
         {% endif %}
-        <button class="pub-icon-btn pub-burger" onclick="document.getElementById('pubMenu').classList.toggle('open')"><i
-            class="fa-solid fa-bars"></i></button>
+        <button class="pub-icon-btn pub-burger" onclick="document.getElementById('pubMenu').classList.toggle('open')"><i class="fa-solid fa-bars"></i></button>
       </div>
     </div>
   </header>
@@ -94,45 +101,64 @@
     <div class="container">
       <div class="row g-4">
         <div class="col-lg-4">
-          <h5 class="text-white fw-bold"><i class="fa-solid fa-graduation-cap me-2"></i>{{ site.site_short_name|default:'UMS' }}</h5>
-          <p class="small">A modern, all-in-one platform to run admissions, academics, attendance,
-            exams, fees and campus life — powered by built-in AI insights.</p>
+          <div class="footer-brand mb-3">
+            <img src="{% static 'img/branding/wigot-gardens-college-logo.png' %}" alt="Wigot Gardens College · School of Hospitality" class="rounded-3 bg-white p-2 shadow-sm" style="max-height: 80px; width: auto; object-fit: contain;">
+          </div>
+          <p class="small text-white-50">Kenya's premier hospitality and culinary arts training institute based in Mamboleo, Kisumu. Industry-standard commercial kitchens, TVETA/KNEC/ICM UK dual certification, and guaranteed hotel attachments.</p>
           <div class="d-flex gap-2 fs-5">
-            <span class="text-muted" title="Social profile coming soon" aria-label="Facebook profile coming soon"><i class="fa-brands fa-facebook"></i></span>
-            <span class="text-muted" title="Social profile coming soon" aria-label="X profile coming soon"><i class="fa-brands fa-x-twitter"></i></span>
-            <span class="text-muted" title="Social profile coming soon" aria-label="Instagram profile coming soon"><i class="fa-brands fa-instagram"></i></span>
-            <span class="text-muted" title="Social profile coming soon" aria-label="YouTube profile coming soon"><i class="fa-brands fa-youtube"></i></span>
+            <a href="https://www.facebook.com" target="_blank" rel="noopener noreferrer" class="text-white-50" title="Facebook" aria-label="Facebook"><i class="fa-brands fa-facebook"></i></a>
+            <a href="https://www.instagram.com" target="_blank" rel="noopener noreferrer" class="text-white-50" title="Instagram" aria-label="Instagram"><i class="fa-brands fa-instagram"></i></a>
+            <a href="https://www.twitter.com" target="_blank" rel="noopener noreferrer" class="text-white-50" title="X Twitter" aria-label="X Twitter"><i class="fa-brands fa-x-twitter"></i></a>
+            <a href="https://www.youtube.com" target="_blank" rel="noopener noreferrer" class="text-white-50" title="YouTube" aria-label="YouTube"><i class="fa-brands fa-youtube"></i></a>
           </div>
         </div>
         <div class="col-lg-2 col-6">
           <h6 class="text-white">Explore</h6>
-          <a class="d-block small mb-1" href="{% url 'university:home' %}">Home</a>
-          <a class="d-block small mb-1" href="{% url 'university:courses_public' %}">Courses</a>
-          <a class="d-block small mb-1" href="{% url 'university:admissions_apply' %}">Apply Now</a>
-          <a class="d-block small mb-1" href="{% url 'university:about' %}">About</a>
-          <a class="d-block small mb-1" href="{% url 'university:contact' %}">Contact</a>
-          <a class="d-block small mb-1" href="{% url 'university:privacy' %}">Privacy &amp; data protection</a>
-          <a class="d-block small mb-1" href="{% url 'university:public_status' %}"><i class="fa-solid fa-signal me-1 text-success"></i>System Status</a>
+          <a class="d-block small mb-1 text-white-50" href="{% url 'university:home' %}">Home</a>
+          <a class="d-block small mb-1 text-white-50" href="{% url 'university:courses_public' %}">Programmes &amp; Courses</a>
+          <a class="d-block small mb-1 text-white-50" href="{% url 'university:student_welfare' %}">Student Welfare</a>
+          <a class="d-block small mb-1 text-white-50" href="{% url 'university:gallery' %}">Campus Gallery</a>
+          <a class="d-block small mb-1 text-white-50" href="{% url 'university:admissions_apply' %}">Apply Now</a>
+          <a class="d-block small mb-1 text-white-50" href="{% url 'university:about' %}">About Wigot</a>
+          <a class="d-block small mb-1 text-white-50" href="{% url 'university:contact' %}">Contact Us</a>
+          <a class="d-block small mb-1 text-white-50" href="{% url 'university:privacy' %}">Privacy Policy</a>
+          <a class="d-block small mb-1 text-white-50" href="{% url 'university:public_status' %}"><i class="fa-solid fa-signal me-1 text-success"></i>System Status</a>
         </div>
         <div class="col-lg-3 col-6">
-          <h6 class="text-white">Portals</h6>
-          <a class="d-block small mb-1" href="{% url 'accounts:login' %}">Student Login</a>
-          <a class="d-block small mb-1" href="{% url 'accounts:login' %}">Teaching Staff Login</a>
-          <a class="d-block small mb-1" href="{% url 'accounts:login' %}">Admin Login</a>
+          <h6 class="text-white">Portals &amp; Systems</h6>
+          <a class="d-block small mb-1 text-white-50" href="{% url 'accounts:login' %}">Student Portal</a>
+          <a class="d-block small mb-1 text-white-50" href="{% url 'accounts:login' %}">Staff &amp; Lecturer Login</a>
+          <a class="d-block small mb-1 text-white-50" href="{% url 'accounts:login' %}">Administration Cockpit</a>
+          <a class="d-block small mb-1 text-white-50" href="{% url 'university:admissions_apply' %}">Online Admission Desk</a>
         </div>
         <div class="col-lg-3">
-          <h6 class="text-white">Reach us</h6>
-          <p class="small mb-1"><i class="fa-solid fa-location-dot me-2"></i>Knowledge City, Campus Road</p>
-          <p class="small mb-1"><i class="fa-solid fa-envelope me-2"></i>{{ site.contact_email|default:'hello@example.com' }}</p>
-          <p class="small mb-1"><i class="fa-solid fa-phone me-2"></i>0000</p>
+          <h6 class="text-white">Contact &amp; Campus</h6>
+          <p class="small mb-1 text-white-50"><i class="fa-solid fa-location-dot me-2 text-warning"></i>{{ site.contact_address|default:'Mamboleo, Kisumu, Off Kisumu–Kakamega Road' }}</p>
+          <p class="small mb-1 text-white-50"><i class="fa-solid fa-envelope me-2 text-warning"></i><a href="mailto:{{ site.contact_email|default:'info@wigotschoolofhospitality.com' }}" class="text-white-50 text-decoration-none">{{ site.contact_email|default:'info@wigotschoolofhospitality.com' }}</a></p>
+          <p class="small mb-1 text-white-50"><i class="fa-solid fa-phone me-2 text-warning"></i><a href="tel:+254706063799" class="text-white-50 text-decoration-none">{{ site.contact_phone|default:'+254 706 063 799 / +254 708 112 222' }}</a></p>
+          <p class="small mb-1 text-white-50"><i class="fa-solid fa-clock me-2 text-warning"></i>Mon – Fri: 8:00 AM – 5:00 PM</p>
         </div>
       </div>
       <hr class="border-secondary">
-      <p class="text-center small mb-0 d-flex align-items-center justify-content-center gap-2 flex-wrap">© {% now "Y" %} University Management System · Built with Django · Powered by
-        StackGee <img src="{% static 'img/branding/stackgee-logo.jpg' %}" alt="StackGee Technologies" style="height:32px;width:auto;vertical-align:middle;border-radius:4px"></p>
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 text-white-50 small">
+        <span>© {% now "Y" %} Wigot Gardens College · School of Hospitality. All rights reserved.</span>
+        <span class="d-flex align-items-center gap-2">
+          <span>Powered by UMS &amp; StackGee</span>
+          <img src="{% static 'img/branding/stackgee-logo.jpg' %}" alt="StackGee Technologies" style="height:26px;width:auto;vertical-align:middle;border-radius:4px">
+        </span>
+      </div>
     </div>
   </footer>
   {% endwith %}
+
+  <!-- Back to Top Floating Arrow with Circular Scroll Progress Ring -->
+  <button type="button" id="backToTopBtn" class="pub-back-to-top" aria-label="Back to top" title="Back to top">
+    <svg class="pub-progress-ring" width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
+      <circle class="pub-ring-bg" cx="24" cy="24" r="21" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="2.5" />
+      <circle class="pub-ring-fill" id="scrollProgressCircle" cx="24" cy="24" r="21" fill="none" stroke="#d6a13a" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="132" stroke-dashoffset="132" />
+    </svg>
+    <i class="fa-solid fa-arrow-up"></i>
+  </button>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="{% static 'js/loading.js' %}"></script>

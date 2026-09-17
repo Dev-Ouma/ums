@@ -1,18 +1,30 @@
 {% load cms_tags %}
 <section class="container py-5">
-  {% if block.heading %}<h2 class="fw-bold text-center mb-4">{{ block.heading }}</h2>{% endif %}
+  {% if block.heading %}
+  <div class="section-heading mb-4 text-center">
+    <span class="badge-soft badge rounded-pill px-3 py-2">Executive Gateways</span>
+    <h2 class="fw-bold mt-2">{{ block.heading }}</h2>
+    {% if block.subheading %}<p class="text-muted mx-auto" style="max-width:640px;">{{ block.subheading }}</p>{% endif %}
+  </div>
+  {% endif %}
   <div class="row g-4">
     {% for row in block.body|rows %}
-      <div class="col-md-4">
-        <div class="portal-card">
-          <div class="pc-head">
-            <span class="pc-icon"><i class="fa-solid {{ row|cell:2|default:'fa-circle-dot' }}"></i></span>
-            <h5>{{ row|cell:0 }}</h5>
+      <div class="col-md-6 col-lg-3">
+        <a href="{{ row|cell:3|default:'/accounts/login/' }}" class="role-card fade-up text-decoration-none h-100 d-flex flex-column">
+          <div class="role-card-header">
+            <div class="role-card-icon" style="background:rgba(138,26,52,.08);color:var(--maroon)">
+              <i class="fa-solid {{ row|cell:2|default:'fa-circle-dot' }}"></i>
+            </div>
+            <span class="role-card-kicker">Workspace</span>
           </div>
-          <p>{{ row|cell:1 }}</p>
-          {% if row|cell:3 %}<a class="pc-chevron" href="{{ row|cell:3 }}"><i class="fa-solid fa-arrow-right"></i></a>{% endif %}
-        </div>
+          <h5 class="text-dark">{{ row|cell:0 }}</h5>
+          <p class="text-muted small flex-grow-1">{{ row|cell:1 }}</p>
+          <div class="role-card-footer">
+            <span class="role-card-btn">Enter Portal <i class="fa-solid fa-arrow-right-long"></i></span>
+          </div>
+        </a>
       </div>
     {% endfor %}
   </div>
 </section>
+

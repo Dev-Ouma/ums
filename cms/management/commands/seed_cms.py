@@ -10,37 +10,38 @@ from cms.models import Block, MenuItem, Page, SiteSettings
 
 BLOCKS = [
     dict(block_type="hero", variant="gradient",
-         subheading="Welcome To UMS",
-         heading="University Management",
-         body="<p>One smart platform to run admissions, academics, attendance, exams, "
-              "fees and campus life — with role-based portals and built-in AI insights.</p>",
-         link_text="Get Started", link_url="/accounts/signup/",
-         secondary_link_text="Browse courses", secondary_link_url="/catalog/"),
+         subheading="Excellence in Culinary Arts & Hospitality Management",
+         heading="Pioneering Hospitality, Culinary Arts & Leadership",
+         body="<p>Industry-standard, 100% practical training in Mamboleo, Kisumu. "
+              "Commercial production kitchens, dual TVETA &amp; ICM (UK) credentials, and guaranteed 5-star hotel attachments.</p>",
+         link_text="Apply for Admission", link_url="/admissions/apply/",
+         secondary_link_text="Programmes & Courses", secondary_link_url="/catalog/"),
     dict(block_type="cards", variant="icons", heading="Choose your portal",
-         body="Student Portal | Track attendance, results, assignments and fees. | fa-user-graduate | /accounts/login/\n"
-              "Faculty Portal | Take attendance, set assignments and grade work. | fa-chalkboard-user | /accounts/login/\n"
-              "Administration | Full control over students, staff and finances. | fa-user-shield | /accounts/login/"),
-    dict(block_type="stats", variant="cards", heading="UMS at a glance",
-         body="46 | Students\n10 | Faculty\n18 | Courses\n6 | Departments"),
-    dict(block_type="features", variant="grid3", heading="Everything in one place",
-         subheading="From admission to graduation, without the spreadsheets.",
-         body="Admissions | Applications, enrolment and programme placement. | fa-file-circle-plus\n"
-              "Attendance | Per-session marking with instant percentages. | fa-calendar-check\n"
-              "Examinations | Weighted CATs and finals with published results. | fa-file-pen\n"
-              "Fees | Invoices, payments and outstanding balances. | fa-wallet\n"
-              "AI Insights | At-risk detection and performance prediction. | fa-wand-magic-sparkles\n"
-              "Campus Life | Events and notices for the whole institution. | fa-calendar-days"),
-    dict(block_type="departments", variant="grid", heading="Our departments", item_limit=6),
-    dict(block_type="courses", variant="grid", heading="Featured courses", item_limit=6),
-    dict(block_type="cta", variant="gradient", heading="Ready to modernise your campus?",
-         subheading="Join thousands of students and faculty already using UMS every day.",
-         link_text="Create free account", link_url="/accounts/signup/",
-         secondary_link_text="Talk to us", secondary_link_url="/contact/"),
+         body="Student Portal | Track attendance, download fee receipts, view exam results and attachments. | fa-user-graduate | /accounts/login/\n"
+              "Faculty Desk | Daily attendance, practical kitchen rubrics, syllabus and grading. | fa-chalkboard-user | /accounts/login/\n"
+              "Administration | Comprehensive controls for admissions, fee reconciliation and audits. | fa-user-shield | /accounts/login/\n"
+              "Online Admission | Instant application desk with KCSE upload and M-Pesa fee payment. | fa-file-signature | /admissions/apply/"),
+    dict(block_type="stats", variant="cards", heading="Wigot at a Glance",
+         body="1250 | Graduates & Alumni\n15 | Career Programs\n100% | Hotel Attachment\n4 | Accreditation Bodies"),
+    dict(block_type="features", variant="grid3", heading="The Wigot Advantage",
+         subheading="Industry-grade practical excellence in Mamboleo, Kisumu.",
+         body="Commercial Kitchens | Multi-station production ranges, salamanders & pastry labs. | fa-kitchen-set\n"
+              "Dual Global Credentials | Examined by ICM (UK) & KNEC, TVETA licensed. | fa-award\n"
+              "Hotel Attachments | 100% placement with Sarova, Serena, PrideInn & luxury lodges. | fa-hotel\n"
+              "M-Pesa Fee Portal | Instant fee settlement, installments and digital receipts. | fa-mobile-screen-button\n"
+              "Lakeside Campus | Serene campus at the foot of Kajulu Hills next to Wigot Gardens. | fa-tree\n"
+              "Dean of Trainees | Comprehensive spiritual, physical and mental student welfare. | fa-shield-heart"),
+    dict(block_type="departments", variant="grid", heading="Our Departments", item_limit=6),
+    dict(block_type="courses", variant="grid", heading="Featured Programmes & Courses", item_limit=6),
+    dict(block_type="cta", variant="gradient", heading="Shape Your Future in World-Class Hospitality",
+         subheading="Intakes Open in January, May & September. Start your application online in just 5 minutes.",
+         link_text="Apply Online Now", link_url="/admissions/apply/",
+         secondary_link_text="Contact Admissions", secondary_link_url="/contact/"),
 ]
 
 MENUS = [
-    ("header", [("Home", "/"), ("About Us", "/about/"), ("Courses", "/catalog/"), ("Apply Now", "/admissions/apply/"), ("Contact", "/contact/")]),
-    ("footer_explore", [("Home", "/"), ("Courses", "/catalog/"), ("Apply Now", "/admissions/apply/"), ("About", "/about/"), ("Contact", "/contact/")]),
+    ("header", [("Home", "/"), ("About Us", "/about/"), ("Programmes & Courses", "/catalog/"), ("Student Welfare", "/student-welfare/"), ("Gallery", "/gallery/"), ("Contact", "/contact/")]),
+    ("footer_explore", [("Home", "/"), ("Programmes & Courses", "/catalog/"), ("Student Welfare", "/student-welfare/"), ("Gallery", "/gallery/"), ("Apply Now", "/admissions/apply/"), ("About", "/about/"), ("Contact", "/contact/")]),
 ]
 
 

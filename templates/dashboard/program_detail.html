@@ -21,7 +21,13 @@
       <p class="text-muted small mb-0"><i class="fa-solid fa-award me-1 text-primary"></i>Award: <strong>{{ program.award_title }}</strong></p>
     {% endif %}
   </div>
-  <div class="d-flex gap-2 align-items-center">
+  <div class="d-flex gap-2 align-items-center flex-wrap">
+    <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3"
+            data-copy-url="{{ request.scheme }}://{{ request.get_host }}{{ program.get_public_apply_url }}"
+            data-copy-msg="Direct application URL for {{ program.code }} copied!"
+            title="Copy Public Apply URL">
+      <i class="fa-solid fa-link me-1"></i>Copy Apply Link
+    </button>
     {% if is_admin %}
       <a href="{% url 'university:program_edit' program.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
         <i class="fa-solid fa-pen me-1"></i>Edit Programme
@@ -33,6 +39,65 @@
     <a href="{% url 'university:admin_programs' %}" class="btn btn-sm btn-light border rounded-pill px-3">
       <i class="fa-solid fa-arrow-left me-1"></i>Back to Directory
     </a>
+  </div>
+</div>
+
+<!-- Public Website & Direct Marketing Links Card -->
+<div class="card card-ums border-0 shadow-sm mb-4" style="background: linear-gradient(135deg, #ffffff 0%, #fcfbf9 100%); border-left: 4px solid var(--maroon, #8a1a34) !important;">
+  <div class="card-body p-4">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+      <div>
+        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2.5 py-1 rounded-pill small mb-1">
+          <i class="fa-solid fa-globe me-1"></i>Public Marketing & Admissions
+        </span>
+        <h5 class="fw-bold text-dark mb-0">Public Website Links for {{ program.code }}</h5>
+      </div>
+      <span class="text-muted small">Share these direct URLs in admissions campaigns, brochures, and student outreach.</span>
+    </div>
+
+    <div class="row g-3">
+      <!-- Direct Application Link -->
+      <div class="col-lg-6">
+        <label class="form-label small fw-bold text-muted text-uppercase mb-1">
+          <i class="fa-solid fa-paper-plane text-primary me-1"></i>Direct Application Form URL
+        </label>
+        <div class="input-group">
+          <input type="text" class="form-control font-monospace small bg-white" readonly
+                 id="applyUrlInput" value="{{ request.scheme }}://{{ request.get_host }}{{ program.get_public_apply_url }}">
+          <button type="button" class="btn btn-outline-primary"
+                  data-copy-url="{{ request.scheme }}://{{ request.get_host }}{{ program.get_public_apply_url }}"
+                  data-copy-msg="Direct application URL for {{ program.code }} copied!"
+                  title="Copy to clipboard">
+            <i class="fa-solid fa-copy me-1"></i>Copy
+          </button>
+          <a href="{{ program.get_public_apply_url }}" target="_blank" class="btn btn-light border" title="Test link in new tab">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          </a>
+        </div>
+        <small class="text-muted d-block mt-1">Directs candidates straight to the application desk with <strong>{{ program.name }}</strong> pre-selected and locked.</small>
+      </div>
+
+      <!-- Public Course Catalog Link -->
+      <div class="col-lg-6">
+        <label class="form-label small fw-bold text-muted text-uppercase mb-1">
+          <i class="fa-solid fa-book-open text-warning me-1"></i>Public Website Catalog URL
+        </label>
+        <div class="input-group">
+          <input type="text" class="form-control font-monospace small bg-white" readonly
+                 id="catalogUrlInput" value="{{ request.scheme }}://{{ request.get_host }}{{ program.get_public_catalog_url }}">
+          <button type="button" class="btn btn-outline-secondary"
+                  data-copy-url="{{ request.scheme }}://{{ request.get_host }}{{ program.get_public_catalog_url }}"
+                  data-copy-msg="Catalog link for {{ program.code }} copied!"
+                  title="Copy to clipboard">
+            <i class="fa-solid fa-copy me-1"></i>Copy
+          </button>
+          <a href="{{ program.get_public_catalog_url }}" target="_blank" class="btn btn-light border" title="View in public catalog">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          </a>
+        </div>
+        <small class="text-muted d-block mt-1">Displays this programme on the public catalog with live fee structure and curriculum details.</small>
+      </div>
+    </div>
   </div>
 </div>
 
