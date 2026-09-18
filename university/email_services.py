@@ -9,6 +9,7 @@ never handed to a template.
 
 import re
 import unicodedata
+from xml.sax.saxutils import escape
 
 from django.core.mail import EmailMultiAlternatives, get_connection
 from django.utils import timezone
@@ -344,22 +345,89 @@ def _login_url(request=None):
     return f"{base}{path}" if base else path
 
 
+def _branded_email_html(institution_name, heading, intro_html, body_rows, cta_url=None, cta_label=None, footer_note=None):
+    """
+    Shared branded HTML shell for system notification emails, matching the
+    visual language already used for official payment receipts
+    (see receipt_email_services.render_receipt_email_content) -- a dark
+    gradient header, a white card body, and a labelled key/value table --
+    so account-creation/credential mail doesn't read as a bare plain-text
+    message next to the rest of the system's branded correspondence.
+
+    `body_rows` is a list of (label, value) tuples rendered as a simple
+    key/value table; values are HTML-escaped by the caller if needed.
+    """
+    rows_html = "".join(
+        f'<tr><td style="padding:8px 0;color:#64748b;font-size:13px;width:40%;">{escape(label)}</td>'
+        f'<td style="padding:8px 0;color:#0f172a;font-size:14px;font-weight:600;">{value}</td></tr>'
+        for label, value in body_rows
+    )
+    cta_html = ""
+    if cta_url and cta_label:
+        cta_html = f"""
+        <div style="text-align:center;margin:28px 0 8px;">
+          <a href="{escape(cta_url)}" style="display:inline-block;background:#047857;color:#ffffff;
+             text-decoration:none;font-weight:600;font-size:14px;padding:12px 28px;border-radius:8px;">
+            {escape(cta_label)}
+          </a>
+        </div>
+        <p style="font-size:12px;color:#94a3b8;text-align:center;word-break:break-all;">{escape(cta_url)}</p>
+        """
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{escape(heading)}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f8fafc;color:#1e293b;
+             font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;">
+  <div style="width:100%;max-width:600px;margin:0 auto;padding:24px 16px;">
+    <div style="background:#ffffff;border-radius:12px;border:1px solid #e2e8f0;
+                box-shadow:0 4px 16px rgba(15,23,42,0.06);overflow:hidden;">
+      <div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 60%,#047857 100%);
+                  color:#ffffff;padding:28px 24px;text-align:center;">
+        <h1 style="margin:0;font-size:20px;font-weight:700;letter-spacing:0.5px;">{escape(institution_name)}</h1>
+        <p style="margin:6px 0 0;font-size:13px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;">
+          {escape(heading)}
+        </p>
+      </div>
+      <div style="padding:28px 24px;">
+        {intro_html}
+        <table style="width:100%;border-collapse:collapse;margin-top:12px;">
+          {rows_html}
+        </table>
+        {cta_html}
+      </div>
+      <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 24px;
+                  text-align:center;font-size:12px;color:#94a3b8;">
+        {escape(footer_note) if footer_note else "If you did not expect this message, contact the ICT service desk."}
+      </div>
+    </div>
+  </div>
+</body>
+</html>"""
+
+
 def notify_account_created(user, username, activation_url=None, temporary_password=None,
                            request=None, institutional_email=None):
     """Welcome message. Prefers an activation link over shipping a password."""
     if not bool(get_setting("notify_account_created", True)):
         return False, "Notification disabled."
     to = institutional_email or user.email
+    institution = _institution()
+    login_url = _login_url(request)
+
     lines = [
         f"Hello {user.get_full_name() or username},",
         "",
-        f"An account has been created for you at {_institution()}.",
+        f"An account has been created for you at {institution}.",
         "",
         f"Username: {username}",
     ]
     if institutional_email:
         lines.append(f"Institutional email: {institutional_email}")
-    lines.append(f"Sign in at: {_login_url(request)}")
+    lines.append(f"Sign in at: {login_url}")
     lines.append("")
     if activation_url:
         lines += ["Set your password using this secure link:", activation_url,
@@ -370,17 +438,56 @@ def notify_account_created(user, username, activation_url=None, temporary_passwo
     else:
         lines.append("Use the 'Forgot password?' link on the sign-in page to set your password.")
     lines += ["", "If you did not expect this message, contact the ICT service desk."]
-    return send_system_email(to, f"[{_institution()}] Your account is ready", "\n".join(lines),
-                             template_code="account_created", user=user)
+    text_body = "\n".join(lines)
+
+    body_rows = [("Username", escape(username)), ("Sign-in page", f'<a href="{escape(login_url)}">{escape(login_url)}</a>')]
+    if institutional_email:
+        body_rows.append(("Institutional email", escape(institutional_email)))
+
+    if activation_url:
+        intro_html = (
+            f"<p>Hello {escape(user.get_full_name() or username)},</p>"
+            f"<p>An account has been created for you at <strong>{escape(institution)}</strong>. "
+            f"Use the button below to set your password -- the link can be used once and expires automatically.</p>"
+        )
+        cta_url, cta_label = activation_url, "Set Your Password"
+    elif temporary_password:
+        intro_html = (
+            f"<p>Hello {escape(user.get_full_name() or username)},</p>"
+            f"<p>An account has been created for you at <strong>{escape(institution)}</strong>. "
+            f"A temporary password has been issued to you separately (not by email) and "
+            f"you will be required to change it at first sign-in.</p>"
+        )
+        cta_url, cta_label = login_url, "Sign In"
+    else:
+        intro_html = (
+            f"<p>Hello {escape(user.get_full_name() or username)},</p>"
+            f"<p>An account has been created for you at <strong>{escape(institution)}</strong>. "
+            f"Use the \"Forgot password?\" link on the sign-in page to set your password.</p>"
+        )
+        cta_url, cta_label = login_url, "Sign In"
+
+    html_body = _branded_email_html(
+        institution_name=institution,
+        heading="Your Account Is Ready",
+        intro_html=intro_html,
+        body_rows=body_rows,
+        cta_url=cta_url,
+        cta_label=cta_label,
+    )
+
+    return send_system_email(to, f"[{institution}] Your account is ready", text_body,
+                             html_body=html_body, template_code="account_created", user=user)
 
 
 def notify_password_reset(user, reset_url, expiry_minutes, request=None):
     if not bool(get_setting("notify_password_reset", True)):
         return False, "Notification disabled."
+    institution = _institution()
     body = "\n".join([
         f"Hello {user.get_full_name() or user.username},",
         "",
-        f"A password reset was requested for your {_institution()} account.",
+        f"A password reset was requested for your {institution} account.",
         "",
         "Use this secure link to choose a new password:",
         reset_url,
@@ -388,24 +495,53 @@ def notify_password_reset(user, reset_url, expiry_minutes, request=None):
         f"The link expires in {expiry_minutes} minutes and can only be used once.",
         "If you did not request this, you can ignore this message — your password is unchanged.",
     ])
-    return send_system_email(user.email, f"[{_institution()}] Password reset request", body,
-                             template_code="password_reset", user=user)
+    html_body = _branded_email_html(
+        institution_name=institution,
+        heading="Password Reset Request",
+        intro_html=(
+            f"<p>Hello {escape(user.get_full_name() or user.username)},</p>"
+            f"<p>A password reset was requested for your <strong>{escape(institution)}</strong> account. "
+            f"Use the button below to choose a new password -- the link expires in "
+            f"{expiry_minutes} minutes and can only be used once.</p>"
+        ),
+        body_rows=[("Account", escape(user.username))],
+        cta_url=reset_url,
+        cta_label="Reset Your Password",
+        footer_note="If you did not request this, you can ignore this message — your password is unchanged.",
+    )
+    return send_system_email(user.email, f"[{institution}] Password reset request", body,
+                             html_body=html_body, template_code="password_reset", user=user)
 
 
 def notify_password_changed(user, request=None):
     if not bool(get_setting("notify_password_changed", True)):
         return False, "Notification disabled."
+    institution = _institution()
+    changed_at = timezone.now()
     body = "\n".join([
         f"Hello {user.get_full_name() or user.username},",
         "",
-        f"The password on your {_institution()} account was changed on "
-        f"{timezone.now():%Y-%m-%d %H:%M}.",
+        f"The password on your {institution} account was changed on "
+        f"{changed_at:%Y-%m-%d %H:%M}.",
         "",
         "All other sessions have been signed out.",
         "If this was not you, contact the ICT service desk immediately.",
     ])
-    return send_system_email(user.email, f"[{_institution()}] Your password was changed", body,
-                             template_code="password_changed", user=user)
+    html_body = _branded_email_html(
+        institution_name=institution,
+        heading="Password Changed",
+        intro_html=(
+            f"<p>Hello {escape(user.get_full_name() or user.username)},</p>"
+            f"<p>The password on your <strong>{escape(institution)}</strong> account was changed. "
+            f"All other sessions have been signed out.</p>"
+        ),
+        body_rows=[("Account", escape(user.username)), ("Changed at", changed_at.strftime("%Y-%m-%d %H:%M"))],
+        cta_url=_login_url(request),
+        cta_label="Sign In",
+        footer_note="If this was not you, contact the ICT service desk immediately.",
+    )
+    return send_system_email(user.email, f"[{institution}] Your password was changed", body,
+                             html_body=html_body, template_code="password_changed", user=user)
 
 
 def notify_account_status(user, status, reason="", request=None):
