@@ -464,6 +464,15 @@ def admin_unit_registration_detail(request, pk):
                 registration.enrollments.exclude(status=Enrollment.DROPPED).update(status=Enrollment.ACTIVE)
                 # Automatically generate semester invoice from fee structure
                 get_or_create_semester_invoice(registration.student, registration.term)
+                log_activity(
+                    request=request,
+                    user=request.user,
+                    action=AuditLog.Action.UPDATE,
+                    module=AuditLog.Module.ACADEMICS,
+                    entity="SemesterRegistration",
+                    entity_id=registration.pk,
+                    description=f"Approved unit registration for {registration.student.roll_no} ({registration.term.name}); semester fee invoice generated.",
+                )
             messages.success(request, f"Registration for {registration.student.roll_no} has been APPROVED and semester fee invoice generated.")
             return redirect("university:admin_unit_registration_detail", pk=registration.pk)
 
@@ -474,6 +483,15 @@ def admin_unit_registration_detail(request, pk):
                 registration.admin_remarks = remarks
                 registration.save()
                 registration.enrollments.exclude(status=Enrollment.DROPPED).update(status=Enrollment.DRAFT)
+                log_activity(
+                    request=request,
+                    user=request.user,
+                    action=AuditLog.Action.UPDATE,
+                    module=AuditLog.Module.ACADEMICS,
+                    entity="SemesterRegistration",
+                    entity_id=registration.pk,
+                    description=f"Rejected unit registration for {registration.student.roll_no} ({registration.term.name}).",
+                )
             messages.warning(request, f"Registration for {registration.student.roll_no} marked as REJECTED.")
             return redirect("university:admin_unit_registration_detail", pk=registration.pk)
 
@@ -493,6 +511,15 @@ def admin_unit_registration_detail(request, pk):
                         }
                     )
                     registration.recalculate_credits()
+                    log_activity(
+                        request=request,
+                        user=request.user,
+                        action=AuditLog.Action.UPDATE,
+                        module=AuditLog.Module.ACADEMICS,
+                        entity="SemesterRegistration",
+                        entity_id=registration.pk,
+                        description=f"Added unit {course.code} to {registration.student.roll_no}'s registration ({registration.term.name}).",
+                    )
                 messages.success(request, f"Added unit {course.code} to {registration.student.roll_no}'s registration.")
             return redirect("university:admin_unit_registration_detail", pk=registration.pk)
 
@@ -503,6 +530,15 @@ def admin_unit_registration_detail(request, pk):
             with transaction.atomic():
                 enr.delete()
                 registration.recalculate_credits()
+                log_activity(
+                    request=request,
+                    user=request.user,
+                    action=AuditLog.Action.UPDATE,
+                    module=AuditLog.Module.ACADEMICS,
+                    entity="SemesterRegistration",
+                    entity_id=registration.pk,
+                    description=f"Removed unit {code} from {registration.student.roll_no}'s registration ({registration.term.name}).",
+                )
             messages.info(request, f"Removed unit {code} from registration.")
             return redirect("university:admin_unit_registration_detail", pk=registration.pk)
 
@@ -961,11 +997,29 @@ def admin_supplementary_decision(request, pk):
         )
         reg.fee_invoice = inv
         reg.save()
+        log_activity(
+            request=request,
+            user=request.user,
+            action=AuditLog.Action.UPDATE,
+            module=AuditLog.Module.ACADEMICS,
+            entity="SupplementaryExamRegistration",
+            entity_id=reg.pk,
+            description=f"Approved supplementary exam for {reg.student.roll_no} - {reg.course.code}; invoice KES 1,000 issued.",
+        )
         messages.success(request, f"Approved supplementary exam for {reg.student.roll_no} - {reg.course.code}. Invoice KES 1,000 issued.")
 
     elif action == "reject":
         reg.status = SupplementaryExamRegistration.Status.REJECTED
         reg.save()
+        log_activity(
+            request=request,
+            user=request.user,
+            action=AuditLog.Action.UPDATE,
+            module=AuditLog.Module.ACADEMICS,
+            entity="SupplementaryExamRegistration",
+            entity_id=reg.pk,
+            description=f"Rejected supplementary exam application for {reg.student.roll_no} - {reg.course.code}.",
+        )
         messages.warning(request, f"Rejected application for {reg.student.roll_no} - {reg.course.code}.")
 
     return redirect("university:admin_supplementary_list")

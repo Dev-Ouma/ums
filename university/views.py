@@ -2229,7 +2229,7 @@ def course_import(request):
                 messages.error(request, "There are no valid records to import.")
                 return render(request, "dashboard/course_import.html", {"preview_data": session_data})
 
-            imported_count, failed_count = course_io.execute_course_import(valid_items)
+            imported_count, failed_count = course_io.execute_course_import(valid_items, user=request.user)
             total_failed = errors_count + failed_count
 
             request.session.pop("pending_course_import", None)

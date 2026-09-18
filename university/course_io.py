@@ -21,7 +21,8 @@ from reportlab.platypus import (
 )
 
 from accounts.models import FacultyProfile
-from university.models import Course, Department, Program
+from university.models import AuditLog, Course, Department, Program
+from university.audit_services import log_activity
 from university.student_io import NumberedCanvas
 
 
@@ -699,10 +700,11 @@ def validate_course_import_rows(raw_rows):
     }
 
 
-def execute_course_import(valid_items):
+def execute_course_import(valid_items, user=None):
     """Atomically commit valid course items to the database."""
     imported_count = 0
     failed_count = 0
+    imported_codes = []
 
     with transaction.atomic():
         for item in valid_items:
@@ -729,7 +731,18 @@ def execute_course_import(valid_items):
                     }
                 )
                 imported_count += 1
+                imported_codes.append(item["code"])
             except Exception:
                 failed_count += 1
+
+        if user and imported_count:
+            log_activity(
+                user=user,
+                action=AuditLog.Action.IMPORT,
+                module=AuditLog.Module.ACADEMICS,
+                entity="Course",
+                description=f"Bulk imported {imported_count} course(s).",
+                new_state={"imported_codes": imported_codes},
+            )
 
     return imported_count, failed_count

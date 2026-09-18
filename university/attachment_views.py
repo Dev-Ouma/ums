@@ -260,7 +260,7 @@ def faculty_attachment_review_log(request, pk):
         raise PermissionDenied("Only the assigned academic supervisor may review this logbook.")
 
     feedback = request.POST.get("feedback", "").strip()
-    review_logbook_entry(entry.id, request.user, feedback)
+    review_logbook_entry(entry.id, request.user, feedback, request=request)
     messages.success(request, f"Feedback recorded for Week {entry.week_number} logbook entry.")
     return redirect("university:faculty_attachment_dashboard")
 

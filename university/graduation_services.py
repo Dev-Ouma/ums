@@ -85,20 +85,39 @@ def audit_graduation_eligibility(student_profile):
         "F": Decimal("0.00"),
     }
 
+    all_credits = 0
+    unresolved_results = []
+
     for r in results:
         g = (r.grade or "F").upper()
         course = getattr(r.exam, "course", None) if hasattr(r, "exam") else None
-        cr = getattr(course, "credits", 3) if course else 3
+        if not course:
+            # A result with no linked course carries no real credit-hour value
+            # to compute a CGPA against. Fabricating a plausible-looking "3"
+            # would silently corrupt the CGPA/classification used on the
+            # official Degree Certificate. Exclude it and block eligibility
+            # until the orphaned exam/course link is resolved.
+            unresolved_results.append(str(r.pk))
+            continue
+        cr = course.credits
         pts = grade_points_map.get(g, Decimal("0.00"))
-        
+
         if g in ("E", "F"):
-            failed_results.append(course.code if course else "UNKNOWN")
+            failed_results.append(course.code)
         else:
             total_credits += cr
-        
-        total_gpa_points += (pts * cr)
 
-    all_credits = sum(getattr(r.exam.course, "credits", 3) if (hasattr(r, "exam") and hasattr(r.exam, "course") and r.exam.course) else 3 for r in results) or 1
+        total_gpa_points += (pts * cr)
+        all_credits += cr
+
+    if unresolved_results:
+        issues.append(
+            f"{len(unresolved_results)} result(s) are missing course/credit data and could not be "
+            "included in the CGPA calculation. Resolve the orphaned exam/course link(s) before "
+            "graduation clearance can proceed."
+        )
+
+    all_credits = all_credits or 1
     cgpa = round(total_gpa_points / Decimal(str(all_credits)), 2)
 
     if failed_results:

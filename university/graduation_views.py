@@ -1,4 +1,5 @@
 from university.document_views import present_pdf
+from datetime import date
 from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -18,8 +19,9 @@ from university.graduation_services import (
 )
 from university.security_utils import safe_redirect
 from university.permissions_services import has_user_permission
+from university.audit_services import log_activity
 from university.models import (
-    DepartmentClearance, GraduationApplication, GraduationCeremony
+    AuditLog, DepartmentClearance, GraduationApplication, GraduationCeremony
 )
 
 
@@ -102,13 +104,14 @@ def student_degree_certificate_pdf(request):
             sp = request.user.student_profile
             app = GraduationApplication.objects.filter(student=sp).select_related("student__user", "student__program", "ceremony").first()
         except Exception:
-            if is_staff:
-                app = GraduationApplication.objects.select_related("student__user", "student__program", "ceremony").filter(
-                    status__in=[GraduationApplication.Status.CLEARED, GraduationApplication.Status.SENATE_APPROVED, GraduationApplication.Status.GRADUATED]
-                ).order_by("-id").first() or GraduationApplication.objects.select_related("student__user", "student__program", "ceremony").order_by("-id").first()
+            app = None
 
     if not app:
-        raise Http404("Graduation application not found.")
+        # A staff user with no app_id/student_id/roll_no and no student_profile
+        # of their own has not actually identified which student's certificate
+        # they want. Handing back an arbitrary most-recent application would
+        # silently leak the wrong student's official certificate.
+        raise Http404("Graduation application not found. Staff must specify app_id, student_id, or roll_no.")
 
     sp = app.student
 
@@ -146,13 +149,12 @@ def student_clearance_certificate_pdf(request):
             sp = request.user.student_profile
             app = GraduationApplication.objects.filter(student=sp).select_related("student__user", "student__program", "ceremony").first()
         except Exception:
-            if is_staff:
-                app = GraduationApplication.objects.select_related("student__user", "student__program", "ceremony").filter(
-                    status__in=[GraduationApplication.Status.CLEARED, GraduationApplication.Status.SENATE_APPROVED, GraduationApplication.Status.GRADUATED]
-                ).order_by("-id").first() or GraduationApplication.objects.select_related("student__user", "student__program", "ceremony").order_by("-id").first()
+            app = None
 
     if not app:
-        raise Http404("Clearance record not found.")
+        # See student_degree_certificate_pdf: an unidentified staff request
+        # must not silently fall back to an arbitrary student's certificate.
+        raise Http404("Clearance record not found. Staff must specify app_id, student_id, or roll_no.")
 
     sp = app.student
     if app.status not in [GraduationApplication.Status.CLEARED, GraduationApplication.Status.SENATE_APPROVED, GraduationApplication.Status.GRADUATED]:
@@ -294,14 +296,32 @@ def admin_senate_approve(request, pk):
 def admin_ceremony_create(request):
     """Schedule a new Graduation Ceremony."""
     if request.method == "POST":
-        title = request.POST.get("title")
-        ay = request.POST.get("academic_year", "2025/2026")
-        c_date = request.POST.get("ceremony_date")
-        venue = request.POST.get("venue", "Main University Pavilion")
-        guest = request.POST.get("chief_guest", "")
+        title = request.POST.get("title", "").strip()
+        ay = request.POST.get("academic_year", "").strip()
+        c_date_raw = request.POST.get("ceremony_date", "").strip()
+        venue = request.POST.get("venue", "").strip() or "Main University Pavilion"
+        guest = request.POST.get("chief_guest", "").strip()
+
+        try:
+            c_date = date.fromisoformat(c_date_raw) if c_date_raw else None
+        except ValueError:
+            c_date = None
+
+        if not title or not ay or not c_date:
+            messages.error(request, "Enter a title, academic year, and a valid ceremony date.")
+            return redirect("university:admin_graduation_dashboard")
 
         c = GraduationCeremony.objects.create(
             title=title, academic_year=ay, ceremony_date=c_date, venue=venue, chief_guest=guest
+        )
+        log_activity(
+            request=request,
+            user=request.user,
+            action=AuditLog.Action.CREATE,
+            module=AuditLog.Module.ACADEMICS,
+            entity="GraduationCeremony",
+            entity_id=c.pk,
+            description=f"Scheduled graduation ceremony '{c.title}' ({ay}) on {c_date}.",
         )
         messages.success(request, f"Scheduled Graduation Ceremony '{c.title}'.")
         return redirect("university:admin_graduation_dashboard")

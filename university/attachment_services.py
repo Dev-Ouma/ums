@@ -241,12 +241,21 @@ def record_logbook_entry(
     return entry
 
 
-def review_logbook_entry(entry_id, faculty_user, feedback):
+def review_logbook_entry(entry_id, faculty_user, feedback, request=None):
     """Academic supervisor reviews and records remarks on a logbook entry."""
     entry = AttachmentLogbookEntry.objects.get(id=entry_id)
     entry.faculty_supervisor_reviewed = True
     entry.faculty_feedback = feedback
     entry.save(update_fields=["faculty_supervisor_reviewed", "faculty_feedback"])
+    log_activity(
+        request=request,
+        user=faculty_user,
+        action=AuditLog.Action.UPDATE,
+        module=AuditLog.Module.ACADEMICS,
+        entity="AttachmentLogbookEntry",
+        entity_id=entry.id,
+        description=f"Reviewed Week {entry.week_number} logbook entry for {entry.attachment.student.roll_no}.",
+    )
     return entry
 
 
