@@ -107,7 +107,14 @@ class AuditConsolidationTests(TestCase):
         self.assertEqual(audit.action, AuditLog.Action.CREATE)
 
     def test_student_fees_direct_payment_creates_receipt_and_allocation(self):
-        """Direct payment submission from student fees page creates full allocation and receipt."""
+        """
+        Student self-reported payment is recorded PENDING (never instantly
+        applied -- see student_fees()'s docstring: this form reports a
+        payment already made outside the app, it isn't itself a payment
+        provider). Full allocation and receipt only exist once a finance
+        officer verifies it through the same canonical confirmation path
+        the real M-Pesa callback uses.
+        """
         self.client.force_login(self.student_user)
         url = reverse("university:student_fees")
         resp = self.client.post(url, {
@@ -119,11 +126,22 @@ class AuditConsolidationTests(TestCase):
         self.assertRedirects(resp, reverse("university:student_fees"))
 
         self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.amount_paid, Decimal("15000.00"))
+        self.assertEqual(self.invoice.amount_paid, Decimal("0.00"))
 
         pmt = Payment.objects.filter(reference="TESTMPESA01").first()
         self.assertIsNotNone(pmt)
         self.assertEqual(pmt.amount, Decimal("15000.00"))
+        self.assertEqual(pmt.status, Payment.Status.PENDING)
+        self.assertFalse(PaymentAllocation.objects.filter(payment=pmt).exists())
+        self.assertFalse(FeeReceipt.objects.filter(payment=pmt).exists())
+
+        # Finance verifies -> now the invoice, allocation, and receipt exist.
+        self.client.force_login(self.admin_user)
+        self.client.post(reverse("university:admin_payment_verify", args=[pmt.pk]))
+
+        self.invoice.refresh_from_db()
+        pmt.refresh_from_db()
+        self.assertEqual(self.invoice.amount_paid, Decimal("15000.00"))
         self.assertEqual(pmt.status, Payment.Status.SUCCESSFUL)
 
         alloc = PaymentAllocation.objects.filter(payment=pmt, invoice=self.invoice).first()

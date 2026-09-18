@@ -59,7 +59,14 @@ class StudentPayFeesViewTests(FeePaymentTestBase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Semester Tuition Fee")
 
-    def test_partial_payment_updates_invoice_and_creates_payment(self):
+    def test_partial_payment_is_recorded_pending_not_instantly_applied(self):
+        """
+        A student self-reporting a payment (made outside the app's own
+        M-Pesa flow) must never instantly clear their own invoice -- the
+        Payment is created PENDING and the invoice is untouched until a
+        finance officer verifies it (see the *_after_finance_verification
+        tests below for the full two-step flow).
+        """
         resp = self.client.post(reverse("university:student_fees"), {
             "invoice_id": self.invoice.id,
             "amount": "4000",
@@ -69,27 +76,56 @@ class StudentPayFeesViewTests(FeePaymentTestBase):
         self.assertRedirects(resp, reverse("university:student_fees"))
 
         self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.amount_paid, Decimal("4000.00"))
-        self.assertEqual(self.invoice.balance, Decimal("6000.00"))
-        self.assertEqual(self.invoice.status, FeeInvoice.PARTIAL)
+        self.assertEqual(self.invoice.amount_paid, Decimal("0.00"))
+        self.assertEqual(self.invoice.status, FeeInvoice.UNPAID)
 
         pmt = Payment.objects.get(invoice=self.invoice)
+        self.assertEqual(pmt.status, Payment.Status.PENDING)
         self.assertEqual(pmt.amount, Decimal("4000.00"))
         self.assertEqual(pmt.method, "M-Pesa Paybill")
         self.assertEqual(pmt.reference, "QK89XY3410")
+        self.assertFalse(hasattr(pmt, "fee_receipt"))
 
-    def test_full_payment_marks_invoice_paid(self):
+    def test_partial_payment_applied_after_finance_verification(self):
+        self.client.post(reverse("university:student_fees"), {
+            "invoice_id": self.invoice.id,
+            "amount": "4000",
+            "method": "M-Pesa Paybill",
+            "reference": "QK89XY3410",
+        })
+        pmt = Payment.objects.get(invoice=self.invoice)
+
+        self.client.logout()
+        self.client.login(username="fee.admin", password="password123")
+        resp = self.client.post(reverse("university:admin_payment_verify", args=[pmt.pk]))
+        self.assertEqual(resp.status_code, 302)
+
+        self.invoice.refresh_from_db()
+        pmt.refresh_from_db()
+        self.assertEqual(pmt.status, Payment.Status.SUCCESSFUL)
+        self.assertEqual(self.invoice.amount_paid, Decimal("4000.00"))
+        self.assertEqual(self.invoice.balance, Decimal("6000.00"))
+        self.assertEqual(self.invoice.status, FeeInvoice.PARTIAL)
+        self.assertTrue(hasattr(pmt, "fee_receipt"))
+
+    def test_full_payment_marks_invoice_paid_after_finance_verification(self):
         self.client.post(reverse("university:student_fees"), {
             "invoice_id": self.invoice.id,
             "amount": "10000",
             "method": "Bank Deposit",
             "reference": "BNK-000111",
         })
+        pmt = Payment.objects.get(invoice=self.invoice)
+
+        self.client.logout()
+        self.client.login(username="fee.admin", password="password123")
+        self.client.post(reverse("university:admin_payment_verify", args=[pmt.pk]))
+
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.status, FeeInvoice.PAID)
         self.assertEqual(self.invoice.balance, Decimal("0.00"))
 
-    def test_overpayment_creates_credit_balance(self):
+    def test_overpayment_creates_credit_balance_after_finance_verification(self):
         """Overpayment is stored in full—excess becomes a credit on the student's account."""
         self.client.post(reverse("university:student_fees"), {
             "invoice_id": self.invoice.id,
@@ -97,6 +133,12 @@ class StudentPayFeesViewTests(FeePaymentTestBase):
             "method": "Card / Online",
             "reference": "CARD-000222",
         })
+        pmt = Payment.objects.get(invoice=self.invoice)
+
+        self.client.logout()
+        self.client.login(username="fee.admin", password="password123")
+        self.client.post(reverse("university:admin_payment_verify", args=[pmt.pk]))
+
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.amount_paid, Decimal("15000.00"))
         self.assertEqual(self.invoice.balance, Decimal("-5000.00"))

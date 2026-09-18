@@ -3463,56 +3463,36 @@ def student_fees(request):
             amt = Decimal("0.00")
 
         if amt > 0:
-            # See record_payment()'s equivalent block: invoice update plus
-            # Payment/Allocation/Receipt creation must commit together, not
-            # as separate unwrapped statements, or a mid-sequence failure
-            # leaves the invoice balance already advanced with no Payment
-            # or Receipt on record for it.
-            with transaction.atomic():
-                invoice = FeeInvoice.objects.select_for_update().get(pk=invoice.pk)
-                prev_balance = invoice.balance
-                invoice.amount_paid += amt
-                invoice.save(update_fields=["amount_paid"])
-                fee_acc = FeeAccount.objects.filter(status=FeeAccount.Status.ACTIVE).first()
-                pmt = Payment.objects.create(
-                    invoice=invoice,
-                    student=sp,
-                    fee_account=fee_acc,
-                    amount=amt,
-                    currency="KES",
-                    method=method,
-                    reference=reference,
-                    internal_reference=f"STU-{timezone.now().strftime('%Y%m%d%H%M%S%f')[:20]}",
-                    status=Payment.Status.SUCCESSFUL,
-                    academic_year=getattr(invoice.term, "academic_year", None) if invoice.term else None,
-                    term=invoice.term,
-                    completed_at=timezone.now(),
-                    payer_name=getattr(sp.user, "display_name", str(sp.user)),
-                    payer_phone=getattr(sp.user, "phone", ""),
-                )
-                PaymentAllocation.objects.create(
-                    payment=pmt,
-                    invoice=invoice,
-                    amount=amt,
-                    allocated_at=timezone.now(),
-                )
-                receipt_no = f"REC-{pmt.paid_on.year}-{pmt.id:06d}"
-                receipt, _ = FeeReceipt.objects.get_or_create(
-                    payment=pmt,
-                    defaults={
-                        "receipt_number": receipt_no,
-                        "student": sp,
-                        "issued_at": timezone.now(),
-                        "previous_balance": prev_balance,
-                        "amount_paid": amt,
-                        "remaining_balance": invoice.balance,
-                    },
-                )
-            try:
-                from university.receipt_email_services import dispatch_fee_receipt_email
-                dispatch_fee_receipt_email(receipt, trigger="AUTO", user=request.user)
-            except Exception as e:
-                logger.warning("Failed sending receipt email in student_fees: %s", e)
+            # This form lets a student self-report a payment made outside
+            # the app's own M-Pesa STK Push flow (student_pay_fees) --
+            # e.g. paid directly to the Paybill and is reporting the
+            # reference for reconciliation. It must NEVER instantly mark
+            # itself SUCCESSFUL: a student could otherwise type any amount
+            # and clear their own fees with no payment ever having
+            # happened, and it would generate a real official receipt and
+            # email for a payment nobody verified. It is recorded PENDING
+            # instead -- invoice balance, allocation, and receipt are only
+            # created once a finance officer verifies it via
+            # admin_payment_verify() (fee_account_views.py), which calls
+            # the same canonical process_payment_confirmation() used by the
+            # real M-Pesa callback, so there is exactly one place that ever
+            # marks a payment settled.
+            fee_acc = FeeAccount.objects.filter(status=FeeAccount.Status.ACTIVE).first()
+            pmt = Payment.objects.create(
+                invoice=invoice,
+                student=sp,
+                fee_account=fee_acc,
+                amount=amt,
+                currency="KES",
+                method=method,
+                reference=reference,
+                internal_reference=f"STU-{timezone.now().strftime('%Y%m%d%H%M%S%f')[:20]}",
+                status=Payment.Status.PENDING,
+                academic_year=getattr(invoice.term, "academic_year", None) if invoice.term else None,
+                term=invoice.term,
+                payer_name=getattr(sp.user, "display_name", str(sp.user)),
+                payer_phone=getattr(sp.user, "phone", ""),
+            )
             log_activity(
                 request=request,
                 user=request.user,
@@ -3520,12 +3500,14 @@ def student_fees(request):
                 module=AuditLog.Module.FEES,
                 entity="Payment",
                 entity_id=pmt.reference,
-                description=f"Student portal fee payment of KES {amt:,.2f} recorded for {sp.roll_no}.",
+                description=f"Student-reported payment of KES {amt:,.2f} submitted for verification "
+                            f"by {sp.roll_no} (Ref: {reference}). Awaiting finance confirmation.",
             )
-            if invoice.credit > 0:
-                messages.success(request, f"Payment of KES {amt:,.2f} recorded successfully (Ref: {reference}). Receipt {receipt_no} generated. Credit of KES {invoice.credit:,.2f} applied to your account.")
-            else:
-                messages.success(request, f"Payment of KES {amt:,.2f} recorded successfully (Ref: {reference}). Receipt {receipt_no} generated.")
+            messages.success(
+                request,
+                f"Payment of KES {amt:,.2f} (Ref: {reference}) has been submitted and is pending "
+                f"verification by the Finance Office. Your balance will update once confirmed.",
+            )
         else:
             messages.error(request, "Please enter a valid payment amount.")
         return redirect("university:student_fees")
