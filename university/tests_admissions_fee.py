@@ -6,7 +6,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import Role, User
-from university.models import AcademicYear, Application, ApplicationFeePayment, Department, Intake, Program
+from university.models import AcademicYear, Application, ApplicationFeePayment, Department, FeeStructure, Intake, Program
 from university.settings_services import get_setting, seed_default_settings, set_setting
 from university.admissions_views import application_access_token
 
@@ -16,6 +16,8 @@ class ApplicationFeeTestBase(TestCase):
     def setUpTestData(cls):
         dept = Department.objects.create(name="Computing", code="CMP")
         cls.program = Program.objects.create(name="BSc CS", code="BCS", department=dept)
+        cls.fee_structure = FeeStructure.objects.create(
+            program=cls.program, year_of_study=1, semester=1, tuition_fee=Decimal("45000.00"))
         cls.academic_year = AcademicYear.objects.create(
             name="2026/2027", start_date=date(2026, 9, 1), end_date=date(2027, 8, 31))
         cls.intake = Intake.objects.create(

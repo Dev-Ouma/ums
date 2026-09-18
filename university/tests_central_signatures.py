@@ -32,6 +32,7 @@ from university.models import (
     AuditLog,
     Department,
     DocumentSignatureConfig,
+    FeeStructure,
     Intake,
     IssuedAdmissionDocument,
     Program,
@@ -87,6 +88,12 @@ class CentralSignatureAndAdmissionLetterTests(TestCase):
             code="BCS",
             department=self.dept,
             level="UG",
+        )
+        FeeStructure.objects.create(
+            program=self.prog,
+            year_of_study=1,
+            semester=1,
+            tuition_fee=45000,
         )
         from datetime import date
         self.ay = AcademicYear.objects.create(

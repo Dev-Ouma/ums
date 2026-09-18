@@ -14,7 +14,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from accounts.models import Role, StudentProfile
+from accounts.models import Role, StudentProfile, User
 from university.academic_calendar_services import get_current_academic_year
 from university.audit_services import log_activity
 from university.document_views import present_pdf

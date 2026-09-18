@@ -5,7 +5,7 @@ from django.utils import timezone
 
 from accounts.models import StudentProfile
 from university.admissions_services import matriculate_applicant
-from university.models import AcademicTerm, AcademicYear, Application, Department, Intake, Program, SemesterRegistration
+from university.models import AcademicTerm, AcademicYear, Application, Department, FeeStructure, Intake, Program, SemesterRegistration
 from university.student_requests_services import resume_studies
 
 
@@ -20,6 +20,8 @@ class MatriculationTestBase(TestCase):
             name="Test Intake", academic_year=cls.academic_year,
             start_date=timezone.now().date(), end_date=timezone.now().date() + timedelta(days=90),
             is_active=True)
+        cls.fee_structure = FeeStructure.objects.create(
+            program=cls.program, year_of_study=1, semester=1, tuition_fee=45000)
 
     def make_application(self, email="app@example.com"):
         return Application.objects.create(

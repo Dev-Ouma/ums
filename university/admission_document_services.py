@@ -49,6 +49,21 @@ class SignatureAuthorizationError(PermissionDenied):
     pass
 
 
+class FeeScheduleMissingError(Exception):
+    """
+    Raised when a program has no FeeStructure configured for year 1 / semester
+    1 and an admission letter is about to be generated for it. This document
+    is a legally significant, signed, QR-verified official letter an
+    applicant will pay real fees against -- it must never print a fabricated
+    tuition figure just because nobody configured the program's fee
+    schedule yet. Surfacing this loudly at generation time (instead of
+    silently substituting a placeholder number) is the same fix already
+    applied to the fee-receipt PDF's fabricated academic-year/programme
+    fallbacks this session.
+    """
+    pass
+
+
 def build_dynamic_fields_catalog():
     """
     Returns a structured dictionary of all available template placeholders
@@ -189,30 +204,31 @@ def build_admission_document_context(application, document=None, template=None, 
     deadline_date = rep_date - timedelta(days=7) if rep_date else issue_dt + timedelta(days=14)
     acceptance_deadline_str = deadline_date.strftime("%A, %d %B %Y")
 
-    # Dynamic Fee Schedule & Breakdown
+    # Dynamic Fee Schedule & Breakdown -- never fabricated. This letter is a
+    # legally significant, signed, QR-verified official document an
+    # applicant pays real fees against; printing a plausible-looking made-up
+    # figure when the institution simply hasn't configured a fee schedule
+    # for this program yet would be actively misleading, not a harmless
+    # default. Fail loudly instead so an admin sets up the real FeeStructure
+    # before the letter can be issued.
     fee_struct = FeeStructure.objects.filter(program=prog, year_of_study=1, semester=1).first()
-    if fee_struct:
-        tuition_val = fee_struct.tuition_fee
-        reg_fee_val = fee_struct.registration_fee
-        exam_fee_val = fee_struct.examination_fee
-        lib_fee_val = fee_struct.library_fee
-        act_fee_val = fee_struct.activity_fee
-        med_fee_val = fee_struct.medical_fee
-        ict_fee_val = fee_struct.ict_fee
-        union_fee_val = fee_struct.student_union_fee
-        statutory_val = fee_struct.total_fee - fee_struct.tuition_fee
-        total_fee_val = fee_struct.total_fee
-    else:
-        tuition_val = Decimal("45000.00")
-        reg_fee_val = Decimal("1500.00")
-        exam_fee_val = Decimal("3000.00")
-        lib_fee_val = Decimal("1000.00")
-        act_fee_val = Decimal("1000.00")
-        med_fee_val = Decimal("1500.00")
-        ict_fee_val = Decimal("2000.00")
-        union_fee_val = Decimal("500.00")
-        statutory_val = Decimal("10500.00")
-        total_fee_val = Decimal("55500.00")
+    if not fee_struct:
+        raise FeeScheduleMissingError(
+            f"No fee structure is configured for {prog.name if prog else 'this programme'} "
+            f"(Year 1, Semester 1). Set up the programme's fee schedule under Finance & Fees "
+            f"before issuing an admission letter -- it must show the institution's real, "
+            f"current fees, not a placeholder amount."
+        )
+    tuition_val = fee_struct.tuition_fee
+    reg_fee_val = fee_struct.registration_fee
+    exam_fee_val = fee_struct.examination_fee
+    lib_fee_val = fee_struct.library_fee
+    act_fee_val = fee_struct.activity_fee
+    med_fee_val = fee_struct.medical_fee
+    ict_fee_val = fee_struct.ict_fee
+    union_fee_val = fee_struct.student_union_fee
+    statutory_val = fee_struct.total_fee - fee_struct.tuition_fee
+    total_fee_val = fee_struct.total_fee
 
     # Document reference
     doc_ref = document.document_reference if document else f"UMS/ADM/{issue_dt.year}/{application.application_number.split('-')[-1]}"

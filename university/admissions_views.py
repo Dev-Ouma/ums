@@ -1,13 +1,14 @@
 from university.document_views import present_pdf
 from datetime import date, timedelta
 import logging
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core import signing
 from django.core.paginator import Paginator
 from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_safe
@@ -32,6 +33,7 @@ from university.admissions_services import (
     matriculate_applicant,
 )
 from university.admission_document_services import (
+    FeeScheduleMissingError,
     SignatureAuthorizationError,
     SignatureRequiredError,
 )
@@ -973,6 +975,18 @@ def _serve_admission_letter(request, pk, as_attachment=False):
             return redirect(
                 f"{reverse('university:admissions_status')}?access={application_access_token(app)}"
             )
+        except FeeScheduleMissingError as exc:
+            if is_staff:
+                messages.error(request, f"Admission letter cannot be issued yet: {exc}")
+                return redirect("university:admin_admission_document_detail", pk=app.pk)
+            messages.error(
+                request,
+                "Your admission letter is being finalized by the admissions office. "
+                "Please check again shortly.",
+            )
+            return redirect(
+                f"{reverse('university:admissions_status')}?access={application_access_token(app)}"
+            )
 
     # Existing letters are stored as immutable PDF snapshots. When an admin
     # revises the assigned template, issue a new current version on the next
@@ -986,7 +1000,7 @@ def _serve_admission_letter(request, pk, as_attachment=False):
                 reason=f"Automatically regenerated after template revision to version {doc.template.version}",
                 issue_as_new_version=True,
             )
-        except (SignatureRequiredError, SignatureAuthorizationError) as exc:
+        except (SignatureRequiredError, SignatureAuthorizationError, FeeScheduleMissingError) as exc:
             if is_staff:
                 messages.error(request, f"Admission letter cannot be regenerated: {exc}")
                 return redirect("university:admin_admission_document_detail", pk=app.pk)
@@ -1301,12 +1315,30 @@ def admin_admission_detail(request, pk):
         if action == "under_review":
             app.status = Application.Status.UNDER_REVIEW
             messages.info(request, f"Application {app.application_number} marked Under Review.")
+            log_activity(
+                request=request,
+                user=request.user,
+                action=AuditLog.Action.UPDATE,
+                module=AuditLog.Module.ADMISSIONS,
+                entity="Application",
+                entity_id=app.pk,
+                description=f"Marked application {app.application_number} Under Review.",
+            )
 
         elif action == "accept":
             app.status = Application.Status.ACCEPTED
             if not app.admitted_reg_no:
                 app.admitted_reg_no = assign_admitted_reg_no(app)
             app.save()
+            log_activity(
+                request=request,
+                user=request.user,
+                action=AuditLog.Action.UPDATE,
+                module=AuditLog.Module.ADMISSIONS,
+                entity="Application",
+                entity_id=app.pk,
+                description=f"Accepted application {app.application_number}, assigned Reg No: {app.admitted_reg_no}.",
+            )
             from university.admission_document_services import generate_admission_document
             try:
                 generate_admission_document(app, user=request.user, reason="Generated upon application acceptance")
@@ -1324,6 +1356,15 @@ def admin_admission_detail(request, pk):
         elif action == "reject":
             app.status = Application.Status.REJECTED
             messages.warning(request, f"Application {app.application_number} has been rejected.")
+            log_activity(
+                request=request,
+                user=request.user,
+                action=AuditLog.Action.UPDATE,
+                module=AuditLog.Module.ADMISSIONS,
+                entity="Application",
+                entity_id=app.pk,
+                description=f"Rejected application {app.application_number}.",
+            )
 
         app.save()
         return redirect("university:admin_admission_detail", pk=app.pk)
@@ -1399,12 +1440,21 @@ def admin_intakes(request):
         elif parsed_end < parsed_start:
             messages.error(request, "Intake end date cannot be before its start date.")
         else:
-            Intake.objects.create(
+            intake = Intake.objects.create(
                 name=name,
                 academic_year=academic_year,
                 start_date=parsed_start,
                 end_date=parsed_end,
                 is_active=is_active,
+            )
+            log_activity(
+                request=request,
+                user=request.user,
+                action=AuditLog.Action.CREATE,
+                module=AuditLog.Module.ADMISSIONS,
+                entity="Intake",
+                entity_id=intake.pk,
+                description=f"Created intake '{name}' ({parsed_start} to {parsed_end}) for academic year {academic_year.name}.",
             )
             messages.success(request, f"Intake '{name}' created successfully.")
             return redirect("university:admin_intakes")
@@ -1459,6 +1509,15 @@ def admin_cohorts(request):
                 existing.end_date = parsed_end
                 existing.description = description
                 existing.save(update_fields=["start_date", "end_date", "description"])
+                log_activity(
+                    request=request,
+                    user=request.user,
+                    action=AuditLog.Action.UPDATE,
+                    module=AuditLog.Module.ADMISSIONS,
+                    entity="Cohort",
+                    entity_id=existing.pk,
+                    description=f"Updated cohort '{existing.name}' ({parsed_start} to {parsed_end}).",
+                )
                 messages.success(request, f"Cohort '{existing.name}' updated successfully.")
                 return redirect("university:admin_cohorts")
         elif Cohort.objects.filter(name=name).exists():
@@ -1473,11 +1532,20 @@ def admin_cohorts(request):
             except ValueError:
                 parsed_end = None
 
-            Cohort.objects.create(
+            cohort = Cohort.objects.create(
                 name=name,
                 start_date=parsed_start,
                 end_date=parsed_end,
                 description=description
+            )
+            log_activity(
+                request=request,
+                user=request.user,
+                action=AuditLog.Action.CREATE,
+                module=AuditLog.Module.ADMISSIONS,
+                entity="Cohort",
+                entity_id=cohort.pk,
+                description=f"Created cohort '{name}' ({parsed_start} to {parsed_end}).",
             )
             messages.success(request, f"Cohort '{name}' created successfully.")
             return redirect("university:admin_cohorts")

@@ -140,11 +140,14 @@ def matriculate_applicant(application, created_by=None):
             user=user,
             roll_no=roll_no,
             program=application.program,
-            address=application.address or "Nairobi, Kenya",
+            # Honest placeholders when the applicant genuinely left these
+            # blank -- not a fabricated specific city or invented guardian
+            # name, which would read as real data nobody actually provided.
+            address=application.address or "Not Provided",
             date_of_birth=application.date_of_birth,
             current_semester=1,
             status=StudentProfile.Status.ACTIVE,
-            guardian_name=application.guardian_name or f"Parent of {application.first_name}",
+            guardian_name=application.guardian_name or "Not Provided",
             guardian_relationship=application.guardian_relationship or "Parent",
             guardian_phone=application.guardian_phone or "",
             guardian_email=application.guardian_email or "",
@@ -201,6 +204,7 @@ def matriculate_applicant(application, created_by=None):
 
     # Ensure admission document exists and links to student_profile
     from university.admission_document_services import (
+        FeeScheduleMissingError,
         SignatureAuthorizationError,
         SignatureRequiredError,
         generate_admission_document,
@@ -209,7 +213,7 @@ def matriculate_applicant(application, created_by=None):
     if not doc:
         try:
             generate_admission_document(application, user=created_by, reason="Auto-generated on matriculation")
-        except (SignatureRequiredError, SignatureAuthorizationError):
+        except (SignatureRequiredError, SignatureAuthorizationError, FeeScheduleMissingError):
             logger.warning(
                 "Admission document generation deferred during matriculation for application %s",
                 application.pk,
@@ -236,26 +240,41 @@ def matriculate_applicant(application, created_by=None):
         }
     )
 
-    # Automatically generate initial semester invoice from fee structure
+    # Automatically generate initial semester invoice from fee structure.
+    # If no FeeStructure is configured for this program yet, do NOT invoice
+    # a fabricated placeholder amount -- that would create a real,
+    # persistent financial record charging the student a number nobody
+    # actually set. Skip the auto-invoice and log it clearly so finance
+    # staff know to configure the fee schedule and issue the invoice
+    # manually; matriculation itself still proceeds (a missing fee
+    # schedule shouldn't block enrollment).
     fee_struct = FeeStructure.objects.filter(
         program=application.program,
         year_of_study=1,
         semester=1
     ).first()
 
-    billed_amount = fee_struct.total_fee if fee_struct else Decimal("55500.00")
-    due_date = timezone.now().date() + timedelta(days=30)
-    FeeInvoice.objects.get_or_create(
-        student=student_profile,
-        title="Year 1 Semester 1 Tuition & Statutory Fees",
-        defaults={
-            "amount": billed_amount,
-            "amount_paid": Decimal("0.00"),
-            "issued_on": timezone.now().date(),
-            "due_date": due_date,
-            "term": active_term,
-        }
-    )
+    if fee_struct:
+        due_date = timezone.now().date() + timedelta(days=30)
+        FeeInvoice.objects.get_or_create(
+            student=student_profile,
+            title="Year 1 Semester 1 Tuition & Statutory Fees",
+            defaults={
+                "amount": fee_struct.total_fee,
+                "amount_paid": Decimal("0.00"),
+                "issued_on": timezone.now().date(),
+                "due_date": due_date,
+                "term": active_term,
+            }
+        )
+    else:
+        log_activity(
+            user=created_by, action=AuditLog.Action.UPDATE, module=AuditLog.Module.FEES,
+            entity="FeeInvoice", entity_id=student_profile.roll_no,
+            description=f"No fee structure configured for {application.program.name if application.program else 'this programme'} "
+                        f"(Year 1, Semester 1) -- skipped auto-invoicing {student_profile.roll_no} on matriculation. "
+                        f"Configure the fee schedule and issue the invoice manually.",
+        )
 
     # The third value is retained for callers that used to surface a starting
     # password. Matriculation no longer issues one: the student sets their own

@@ -16,6 +16,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db import transaction
+from django.db.models import Q
 from django.forms import EmailField
 from django.urls import reverse
 from django.utils import timezone
@@ -1158,6 +1159,8 @@ def validate_and_submit_application(
             "passport_photo": (ApplicationAttachment.DocType.PASSPORT_PHOTO, "Passport Size Photograph"),
             "other_document": (ApplicationAttachment.DocType.OTHER, "Other Supporting Document"),
         }
+        failed_doc_titles = []
+        migrated_doc_keys = []
         for doc_key, (doc_type, title) in file_mappings.items():
             if doc_key in session_docs:
                 d_info = session_docs[doc_key]
@@ -1189,11 +1192,24 @@ def validate_and_submit_application(
                             default_storage.delete(stored_path)
                         except Exception:
                             pass
+                        migrated_doc_keys.append(doc_key)
                     except Exception as e:
                         logger.error("Error attaching session document %s: %s", doc_key, e)
+                        failed_doc_titles.append(title)
+                else:
+                    # Session recorded the document but the stored file is gone --
+                    # this is a real missing document, not a successful migration.
+                    failed_doc_titles.append(title)
 
-        # Clear session documents
-        request.session.pop("draft_application_documents", None)
+        # Only clear documents that actually migrated. A document that failed
+        # stays in the session so the applicant isn't told it was attached
+        # when it wasn't -- and so it can be retried instead of silently lost.
+        for doc_key in migrated_doc_keys:
+            session_docs.pop(doc_key, None)
+        if session_docs:
+            request.session["draft_application_documents"] = session_docs
+        else:
+            request.session.pop("draft_application_documents", None)
         request.session.modified = True
 
     # Transition to READY_FOR_PAYMENT
@@ -1216,11 +1232,18 @@ def validate_and_submit_application(
     token = application_access_token(application)
     pay_url = f"{reverse('university:admissions_fee_pay', kwargs={'pk': application.pk})}?access={token}"
 
+    submit_message = "Application saved successfully! Please proceed to pay the application fee."
+    if request and failed_doc_titles:
+        submit_message = (
+            "Application saved, but the following document(s) could not be attached: "
+            f"{', '.join(failed_doc_titles)}. Please re-upload them from your application before it is reviewed."
+        )
+
     return True, {
         "success": True,
         "application_id": application.pk,
         "application_number": application.application_number,
         "status": application.status,
         "redirect_url": pay_url,
-        "message": "Application saved successfully! Please proceed to pay the application fee.",
+        "message": submit_message,
     }
