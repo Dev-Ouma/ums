@@ -11,8 +11,9 @@ from university.library_services import (
     get_user_library_status, issue_book, return_book,
     search_books, seed_default_books
 )
-from university.models import AcademicTerm, Book, BookLoan, Course, PastExamPaper
+from university.models import AcademicTerm, AuditLog, Book, BookLoan, Course, PastExamPaper
 from university.permissions_services import has_user_permission
+from university.audit_services import log_activity
 
 User = get_user_model()
 
@@ -206,10 +207,19 @@ def admin_library_book_create(request):
             messages.error(request, "Title, author, and a copy count between 1 and 10,000 are required.")
             return redirect("/manage/library/?tab=catalog")
 
-        Book.objects.create(
+        book = Book.objects.create(
             title=title, author=author, isbn=isbn, category=category,
             call_number=call_no, shelf_location=shelf, total_copies=copies,
             available_copies=copies
+        )
+        log_activity(
+            request=request,
+            user=request.user,
+            action=AuditLog.Action.CREATE,
+            module=AuditLog.Module.NOTICES,
+            entity="Book",
+            entity_id=book.id,
+            description=f"Added book '{title}' to catalog ({copies} cop{'y' if copies == 1 else 'ies'}).",
         )
         messages.success(request, f"Added book '{title}' to catalog.")
     return redirect("/manage/library/?tab=catalog")
@@ -225,15 +235,31 @@ def admin_past_paper_create(request):
         term_id = request.POST.get("term_id")
         title = request.POST.get("title")
         etype = request.POST.get("exam_type", "MAIN")
-        ay = request.POST.get("academic_year", "2024/2025")
+        ay = request.POST.get("academic_year", "").strip()
         file_obj = request.FILES.get("file_attachment")
+
+        if not ay:
+            # A hardcoded "2024/2025" fallback would silently misfile a
+            # paper under the wrong academic year instead of requiring the
+            # staff member to state which year it's actually from.
+            messages.error(request, "Select the academic year this past paper is from.")
+            return redirect("/manage/library/?tab=past_papers")
 
         course = get_object_or_404(Course, pk=course_id)
         term = get_object_or_404(AcademicTerm, pk=term_id)
 
-        PastExamPaper.objects.create(
+        paper = PastExamPaper.objects.create(
             course=course, term=term, title=title, exam_type=etype,
             academic_year=ay, file_attachment=file_obj, uploaded_by=request.user
+        )
+        log_activity(
+            request=request,
+            user=request.user,
+            action=AuditLog.Action.CREATE,
+            module=AuditLog.Module.NOTICES,
+            entity="PastExamPaper",
+            entity_id=paper.id,
+            description=f"Registered past paper '{title}' for {course.code} ({ay}).",
         )
         messages.success(request, f"Registered past paper for '{course.code}'.")
     return redirect("/manage/library/?tab=past_papers")

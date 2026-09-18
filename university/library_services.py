@@ -7,6 +7,8 @@ from django.utils import timezone
 from university.audit_services import log_activity
 from university.models import AuditLog, Book, BookLoan, Course, PastExamPaper
 
+OVERDUE_FINE_PER_DAY_KES = Decimal("50.00")
+
 
 def seed_default_books():
     """Seed foundational textbooks and academic volumes."""
@@ -119,7 +121,7 @@ def return_book(loan_id, staff_user=None, request=None):
     fine = Decimal("0.00")
     if today > loan.due_date:
         overdue_days = (today - loan.due_date).days
-        fine = Decimal(str(overdue_days * 50))  # KES 50 per day overdue fine
+        fine = OVERDUE_FINE_PER_DAY_KES * overdue_days
 
     loan.return_date = today
     loan.status = BookLoan.Status.RETURNED
@@ -148,18 +150,30 @@ def return_book(loan_id, staff_user=None, request=None):
 
 
 def get_user_library_status(user):
-    """Return user's active loans, overdue items, and total unpaid fines."""
+    """
+    Return user's active loans, overdue items, and total unpaid fines.
+
+    Lazily flags any loan that has crossed its due date as OVERDUE (and
+    accrues its fine) the next time this is called -- most commonly from
+    the student's own GET request to their library portal. This is an
+    intentional idempotent lazy-sync: it always converges to the same
+    state a scheduled job would produce, and issue_book()'s overdue-borrower
+    check relies on the persisted status being current. The write is
+    row-locked so two concurrent calls for the same user can't race.
+    """
     today = timezone.now().date()
+
+    with transaction.atomic():
+        active = BookLoan.objects.select_for_update().filter(borrower=user, status=BookLoan.Status.ACTIVE)
+        for l in active:
+            if today > l.due_date:
+                overdue_days = (today - l.due_date).days
+                l.status = BookLoan.Status.OVERDUE
+                l.fine_accrued = OVERDUE_FINE_PER_DAY_KES * overdue_days
+                l.save(update_fields=["status", "fine_accrued"])
+
     loans = BookLoan.objects.filter(borrower=user)
     active = loans.filter(status=BookLoan.Status.ACTIVE)
-    
-    # Auto-flag overdue loans
-    for l in active:
-        if today > l.due_date and l.status != BookLoan.Status.OVERDUE:
-            l.status = BookLoan.Status.OVERDUE
-            overdue_days = (today - l.due_date).days
-            l.fine_accrued = Decimal(str(overdue_days * 50))
-            l.save(update_fields=["status", "fine_accrued"])
 
     overdue = loans.filter(status=BookLoan.Status.OVERDUE)
     total_fines = sum(l.fine_accrued for l in loans.filter(fine_paid=False))
