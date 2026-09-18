@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.utils import timezone
 
 from university.models import (
@@ -430,7 +430,10 @@ def allocate_payment_to_invoices(payment: Payment) -> List[PaymentAllocation]:
     creating a credit balance (overpayment).
     """
     student = payment.student
-    invoices = list(FeeInvoice.objects.filter(student=student).order_by("due_date", "id"))
+    # Row-lock the student's invoices so two payments confirmed concurrently
+    # (e.g. near-simultaneous provider webhooks) can't both read the same
+    # stale amount_paid and silently overwrite each other's allocation.
+    invoices = list(FeeInvoice.objects.select_for_update().filter(student=student).order_by("due_date", "id"))
 
     allocations = []
     unallocated_amount = payment.amount
@@ -497,11 +500,24 @@ def reverse_or_refund_payment(
     Deducts the refunded amount from invoice balances and logs a reversal record.
     Never hard-deletes the original payment.
     """
-    if payment.status != Payment.Status.SUCCESSFUL:
-        raise ValueError("Only successful payments can be reversed or refunded.")
+    # Row-lock the payment for the duration of this reversal so two
+    # concurrent reversal requests against the same payment can't both read
+    # the same already-reversed total and over-reverse it.
+    payment = Payment.objects.select_for_update().get(pk=payment.pk)
 
-    if amount <= Decimal("0.00") or amount > payment.amount:
-        raise ValueError("Invalid refund amount.")
+    if payment.status not in (Payment.Status.SUCCESSFUL, Payment.Status.PARTIALLY_REFUNDED):
+        raise ValueError("Only successful (or partially refunded) payments can be reversed or refunded.")
+
+    already_reversed = PaymentReversal.objects.filter(
+        original_payment=payment, status=PaymentReversal.Status.APPROVED,
+    ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+    remaining_reversible = payment.amount - already_reversed
+
+    if amount <= Decimal("0.00") or amount > remaining_reversible:
+        raise ValueError(
+            f"Invalid refund amount. Only KES {remaining_reversible:,.2f} of this payment remains reversible "
+            f"(KES {already_reversed:,.2f} already reversed/refunded)."
+        )
 
     reversal = PaymentReversal.objects.create(
         original_payment=payment,

@@ -21,10 +21,26 @@ from reportlab.platypus import (
 from university.models import FeeInvoice, FeeStructure, Payment
 
 
+class FeeScheduleMissingError(Exception):
+    """
+    Raised when no FeeStructure is configured for a student's program/year/
+    semester (or the program at all). An official FeeInvoice is a real
+    financial record the student is expected to pay against -- generating
+    one with an invented amount just because nobody configured the fee
+    schedule yet would silently bill the student a number with no basis in
+    the institution's actual fee configuration. Callers must decide whether
+    to hard-fail or skip invoicing (and log it) rather than fabricate.
+    """
+    pass
+
+
 def get_or_create_semester_invoice(student, term=None, year_of_study=None, semester=None):
     """
     Ensure an official FeeInvoice exists for the student's semester registration.
     Uses FeeStructure configured for the student's program, year_of_study, and semester.
+
+    Raises FeeScheduleMissingError if no matching (or general) FeeStructure
+    exists for the student's program -- never fabricates a billed amount.
     """
     y = year_of_study or student.year_of_study or 1
     s = semester or student.semester or 1
@@ -39,7 +55,14 @@ def get_or_create_semester_invoice(student, term=None, year_of_study=None, semes
         # Fallback to general program fee structure if any
         fee_struct = FeeStructure.objects.filter(program=student.program).first()
 
-    billed_amount = fee_struct.total_fee if fee_struct else Decimal("55500.00")
+    if not fee_struct:
+        raise FeeScheduleMissingError(
+            f"No fee structure is configured for "
+            f"{student.program.name if student.program else 'this programme'} "
+            f"(Year {y}, Semester {s}). Configure the fee schedule before invoicing this student."
+        )
+
+    billed_amount = fee_struct.total_fee
     term_name = term.name if term else f"Year {y} Semester {s}"
     title = f"{term_name} Tuition & Statutory Fees"
 

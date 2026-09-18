@@ -8,6 +8,7 @@ from datetime import datetime
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Count, Q, Sum
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -333,6 +334,16 @@ def fee_account_set_default(request, pk):
     account.is_default = True
     account.save(update_fields=["is_default"])
 
+    log_activity(
+        request=request,
+        user=request.user,
+        action=AuditLog.Action.UPDATE,
+        module=AuditLog.Module.FEES,
+        entity="FeeAccount",
+        entity_id=str(account.id),
+        description=f"Set '{account.name}' as the default {account.get_account_type_display()} account.",
+    )
+
     messages.success(request, f"'{account.name}' set as the default {account.get_account_type_display()} account.")
     return safe_redirect(request, request.META.get("HTTP_REFERER"), "university:fee_accounts_dashboard")
 
@@ -422,14 +433,34 @@ def fee_account_delete(request, pk):
     Safe account deactivation. Preserves records if payments exist.
     """
     account = get_object_or_404(FeeAccount, pk=pk)
+    account_name = account.name
+    account_id = account.id
     if Payment.objects.filter(fee_account=account).exists():
         account.status = FeeAccount.Status.EXPIRED
         account.is_default = False
         account.save(update_fields=["status", "is_default"])
+        log_activity(
+            request=request,
+            user=request.user,
+            action=AuditLog.Action.UPDATE,
+            module=AuditLog.Module.FEES,
+            entity="FeeAccount",
+            entity_id=str(account_id),
+            description=f"Archived (soft-deleted) fee account '{account_name}' -- historical payments exist.",
+        )
         messages.info(request, f"Account '{account.name}' has historical payments and was archived rather than deleted.")
     else:
         account.delete()
-        messages.success(request, f"Fee Account '{account.name}' deleted.")
+        log_activity(
+            request=request,
+            user=request.user,
+            action=AuditLog.Action.DELETE,
+            module=AuditLog.Module.FEES,
+            entity="FeeAccount",
+            entity_id=str(account_id),
+            description=f"Permanently deleted fee account '{account_name}' (no historical payments).",
+        )
+        messages.success(request, f"Fee Account '{account_name}' deleted.")
 
     return redirect("university:fee_accounts_dashboard")
 
@@ -519,14 +550,34 @@ def admin_payment_verify(request, pk):
     Finance Officer manual verification for pending bank transfers or unmatched payments.
     """
     payment = get_object_or_404(Payment, pk=pk)
-    provider_ref = request.POST.get("provider_reference", "").strip() or payment.provider_reference or f"MANUAL-{timezone.now().strftime('%H%M%S')}"
+    # The student-declared `reference` (e.g. the M-Pesa code they typed in)
+    # is real evidence already on record, not a fabricated value -- it's a
+    # legitimate fallback. Only a synthetic "MANUAL-<timestamp>" string
+    # would have been fabricated, and that's no longer generated here.
+    provider_ref = request.POST.get("provider_reference", "").strip() or payment.provider_reference or payment.reference
 
-    receipt = process_payment_confirmation(
-        payment=payment,
-        provider_reference=provider_ref,
-        confirmed_by=request.user,
-        request=request,
-    )
+    if not provider_ref:
+        # A fabricated "MANUAL-<timestamp>" reference would mark the payment
+        # SUCCESSFUL and issue an official receipt with no actual evidence
+        # (e.g. a bank transaction ID) that money was received. Require the
+        # finance officer to supply the real reference from their evidence.
+        messages.error(
+            request,
+            "Enter the provider/bank transaction reference from your verification evidence before confirming this payment.",
+        )
+        return redirect("university:admin_payment_detail", pk=payment.pk)
+
+    try:
+        receipt = process_payment_confirmation(
+            payment=payment,
+            provider_reference=provider_ref,
+            confirmed_by=request.user,
+            request=request,
+        )
+    except Exception as e:
+        logger.exception("Manual payment verification failed for payment %s", pk)
+        messages.error(request, f"Verification failed: {str(e)}")
+        return redirect("university:admin_payment_detail", pk=payment.pk)
 
     messages.success(request, f"Payment {payment.internal_reference} verified and settled. Receipt {receipt.receipt_number} issued.")
     return redirect("university:admin_payment_detail", pk=payment.pk)
@@ -560,6 +611,7 @@ def admin_payment_reverse(request, pk):
         )
         messages.success(request, f"{reversal.get_reversal_type_display()} of KES {amount:,.2f} applied successfully.")
     except Exception as e:
+        logger.exception("Payment reversal failed for payment %s", pk)
         messages.error(request, f"Reversal failed: {str(e)}")
 
     return redirect("university:admin_payment_detail", pk=payment.pk)
@@ -614,6 +666,16 @@ def fee_reconciliation_match(request, pk):
     recon.reconciled_at = timezone.now()
     recon.notes = f"{recon.notes}\n[RESOLVED]: Manually matched by {request.user.username} on {timezone.now().strftime('%Y-%m-%d')}."
     recon.save()
+
+    log_activity(
+        request=request,
+        user=request.user,
+        action=AuditLog.Action.UPDATE,
+        module=AuditLog.Module.FEES,
+        entity="PaymentReconciliation",
+        entity_id=recon.pk,
+        description=f"Manually marked reconciliation record {recon.provider_reference} as Matched.",
+    )
 
     messages.success(request, f"Reconciliation record {recon.provider_reference} marked as Matched.")
     return redirect("university:fee_reconciliation_dashboard")
@@ -708,80 +770,105 @@ def fee_reconciliation_import(request):
     reviews = 0
     total_processed = 0
 
-    for row in data_rows:
-        if len(row) <= max(col_map.values()):
-            continue
-
-        raw_ref = str(row[col_map["provider_ref"]]).strip()
-        if not raw_ref or raw_ref.lower() in ["total", "subtotal", "balance", "none", "nan", "null"]:
-            continue
-
-        raw_amt = str(row[col_map["amount"]]).replace(",", "").replace("KES", "").replace("Ksh", "").replace("$", "").strip()
-        try:
-            amt = Decimal(raw_amt)
-            if amt <= 0:
+    with transaction.atomic():
+        for row in data_rows:
+            if len(row) <= max(col_map.values()):
                 continue
-        except (decimal.InvalidOperation, ValueError):
-            continue
 
-        raw_date = str(row[col_map.get("date", 0)]).strip() if "date" in col_map else ""
-        trans_date = timezone.now()
-        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d"):
+            raw_ref = str(row[col_map["provider_ref"]]).strip()
+            if not raw_ref or raw_ref.lower() in ["total", "subtotal", "balance", "none", "nan", "null"]:
+                continue
+
+            raw_amt = str(row[col_map["amount"]]).replace(",", "").replace("KES", "").replace("Ksh", "").replace("$", "").strip()
             try:
-                dt = datetime.strptime(raw_date[:19], fmt)
-                trans_date = timezone.make_aware(dt, timezone.get_current_timezone())
-                break
-            except Exception:
-                pass
+                amt = Decimal(raw_amt)
+                if amt <= 0:
+                    continue
+            except (decimal.InvalidOperation, ValueError):
+                continue
 
-        raw_student = str(row[col_map.get("student", 0)]).strip() if "student" in col_map else ""
+            raw_date = str(row[col_map.get("date", 0)]).strip() if "date" in col_map else ""
+            trans_date = timezone.now()
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d"):
+                try:
+                    dt = datetime.strptime(raw_date[:19], fmt)
+                    trans_date = timezone.make_aware(dt, timezone.get_current_timezone())
+                    break
+                except Exception:
+                    pass
 
-        internal_payment = Payment.objects.filter(
-            Q(reference__iexact=raw_ref) | Q(provider_reference__iexact=raw_ref) | Q(internal_reference__iexact=raw_ref)
-        ).first()
+            raw_student = str(row[col_map.get("student", 0)]).strip() if "student" in col_map else ""
 
-        if not internal_payment and raw_student:
             internal_payment = Payment.objects.filter(
-                student__roll_no__iexact=raw_student,
-                amount=amt,
-                status=Payment.Status.SUCCESSFUL
+                Q(reference__iexact=raw_ref) | Q(provider_reference__iexact=raw_ref) | Q(internal_reference__iexact=raw_ref)
             ).first()
 
-        if internal_payment:
-            if abs(internal_payment.amount - amt) < Decimal("0.01"):
-                status = PaymentReconciliation.Status.MATCHED
-                notes = f"Auto-matched with Payment #{internal_payment.id} ({internal_payment.reference})."
-                matched += 1
-            else:
-                status = PaymentReconciliation.Status.AMOUNT_MISMATCH
-                notes = f"Amount mismatch: Bank shows KES {amt:,.2f} while ledger shows KES {internal_payment.amount:,.2f}."
-                mismatches += 1
-        else:
-            student = StudentProfile.objects.filter(roll_no__iexact=raw_student).first() if raw_student else None
-            if student:
-                status = PaymentReconciliation.Status.UNMATCHED
-                notes = f"Received for student {student.user.get_full_name()} ({student.roll_no}), pending ledger allocation."
-                unmatched += 1
-            else:
-                status = PaymentReconciliation.Status.REQUIRES_REVIEW
-                notes = f"Unallocated transaction. Student identifier '{raw_student}' could not be matched."
-                reviews += 1
+            if not internal_payment and raw_student:
+                internal_payment = Payment.objects.filter(
+                    student__roll_no__iexact=raw_student,
+                    amount=amt,
+                    status=Payment.Status.SUCCESSFUL
+                ).first()
 
-        PaymentReconciliation.objects.update_or_create(
+            if internal_payment:
+                if abs(internal_payment.amount - amt) < Decimal("0.01"):
+                    status = PaymentReconciliation.Status.MATCHED
+                    notes = f"Auto-matched with Payment #{internal_payment.id} ({internal_payment.reference})."
+                    matched += 1
+                else:
+                    status = PaymentReconciliation.Status.AMOUNT_MISMATCH
+                    notes = f"Amount mismatch: Bank shows KES {amt:,.2f} while ledger shows KES {internal_payment.amount:,.2f}."
+                    mismatches += 1
+            else:
+                student = StudentProfile.objects.filter(roll_no__iexact=raw_student).first() if raw_student else None
+                if student:
+                    status = PaymentReconciliation.Status.UNMATCHED
+                    notes = f"Received for student {student.user.get_full_name()} ({student.roll_no}), pending ledger allocation."
+                    unmatched += 1
+                else:
+                    status = PaymentReconciliation.Status.REQUIRES_REVIEW
+                    notes = f"Unallocated transaction. Student identifier '{raw_student}' could not be matched."
+                    reviews += 1
+
+            PaymentReconciliation.objects.update_or_create(
+                fee_account=fee_account,
+                provider_reference=raw_ref,
+                defaults={
+                    "payment": internal_payment,
+                    "internal_reference": internal_payment.reference if internal_payment else "",
+                    "amount": amt,
+                    "status": status,
+                    "transaction_date": trans_date,
+                    "reconciled_at": timezone.now(),
+                    "reconciled_by": request.user,
+                    "notes": notes,
+                }
+            )
+            total_processed += 1
+
+        FeeAccountLog.objects.create(
             fee_account=fee_account,
-            provider_reference=raw_ref,
-            defaults={
-                "payment": internal_payment,
-                "internal_reference": internal_payment.reference if internal_payment else "",
-                "amount": amt,
-                "status": status,
-                "transaction_date": trans_date,
-                "reconciled_at": timezone.now(),
-                "reconciled_by": request.user,
-                "notes": notes,
-            }
+            event_type=FeeAccountLog.EventType.VERIFICATION,
+            message=(
+                f"Bank statement import: {total_processed} transactions processed "
+                f"({matched} matched, {unmatched} unmatched, {mismatches} amount mismatches, {reviews} flagged for review)."
+            ),
+            payload_preview={"filename": uploaded_file.name, "total_processed": total_processed},
         )
-        total_processed += 1
+
+        log_activity(
+            request=request,
+            user=request.user,
+            action=AuditLog.Action.IMPORT,
+            module=AuditLog.Module.FEES,
+            entity="PaymentReconciliation",
+            entity_id=str(fee_account.id),
+            description=(
+                f"Imported bank statement '{uploaded_file.name}' for {fee_account.name}: "
+                f"{total_processed} transactions processed "
+                f"({matched} matched, {unmatched} unmatched, {mismatches} amount mismatches, {reviews} flagged for review)."
+            ),
+        )
 
     messages.success(
         request,

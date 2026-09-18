@@ -20,7 +20,7 @@ from django.views.decorators.http import require_POST
 from accounts.models import Role, StudentProfile
 from .examination_operations import generate_exam_card_pdf, generate_nominal_roll_pdf
 from .examination_services import is_admin
-from .financial_services import check_financial_clearance, get_or_create_semester_invoice
+from .financial_services import check_financial_clearance, get_or_create_semester_invoice, FeeScheduleMissingError
 from .models import (
     AcademicTerm, Course, Department, Enrollment, Exam, FeeInvoice, Cohort,
     Program, Result, SemesterRegistration, SupplementaryExamRegistration, StudentTransferRequest,
@@ -462,8 +462,15 @@ def admin_unit_registration_detail(request, pk):
                 registration.save()
                 # Set child enrollments to ACTIVE
                 registration.enrollments.exclude(status=Enrollment.DROPPED).update(status=Enrollment.ACTIVE)
-                # Automatically generate semester invoice from fee structure
-                get_or_create_semester_invoice(registration.student, registration.term)
+                # Automatically generate semester invoice from fee structure.
+                # A missing fee structure must not block registration approval,
+                # but it must also never invoice a fabricated amount -- skip
+                # invoicing and record it clearly for finance staff instead.
+                try:
+                    get_or_create_semester_invoice(registration.student, registration.term)
+                    invoice_note = "; semester fee invoice generated"
+                except FeeScheduleMissingError:
+                    invoice_note = "; no fee structure configured, invoice NOT generated -- finance staff must invoice manually"
                 log_activity(
                     request=request,
                     user=request.user,
@@ -471,9 +478,9 @@ def admin_unit_registration_detail(request, pk):
                     module=AuditLog.Module.ACADEMICS,
                     entity="SemesterRegistration",
                     entity_id=registration.pk,
-                    description=f"Approved unit registration for {registration.student.roll_no} ({registration.term.name}); semester fee invoice generated.",
+                    description=f"Approved unit registration for {registration.student.roll_no} ({registration.term.name}){invoice_note}.",
                 )
-            messages.success(request, f"Registration for {registration.student.roll_no} has been APPROVED and semester fee invoice generated.")
+            messages.success(request, f"Registration for {registration.student.roll_no} has been APPROVED{invoice_note}.")
             return redirect("university:admin_unit_registration_detail", pk=registration.pk)
 
         elif action == "reject":
