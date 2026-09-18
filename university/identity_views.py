@@ -442,24 +442,36 @@ def user_action(request, pk, action):
                              else "Account was not locked; counters were cleared.")
 
     elif action == "send_reset_link":
-        ok, message, url = send_reset_link(user, actor=request.user, request=request)
-        if ok:
-            messages.success(request, f"A password reset link was emailed to {user.email}.")
+        if user.is_superuser and not request.user.is_superuser:
+            messages.error(request, "This account is protected and cannot be modified.")
         else:
-            # Delivery failed, so hand the administrator the link for controlled
-            # out-of-band delivery rather than leaving the user stuck.
-            messages.warning(request, f"Reset link could not be emailed ({message}). "
-                                      f"Secure link: {url}")
+            ok, message, url = send_reset_link(user, actor=request.user, request=request)
+            if ok:
+                messages.success(request, f"A password reset link was emailed to {user.email}.")
+            else:
+                # Delivery failed, so hand the administrator the link for controlled
+                # out-of-band delivery rather than leaving the user stuck.
+                messages.warning(request, f"Reset link could not be emailed ({message}). "
+                                          f"Secure link: {url}")
 
     elif action == "force_password_change":
-        force_password_change(user, actor=request.user, request=request)
-        messages.success(request, f"'{user.username}' must change their password at next sign-in.")
+        if user.is_superuser and not request.user.is_superuser:
+            messages.error(request, "This account is protected and cannot be modified.")
+        else:
+            force_password_change(user, actor=request.user, request=request)
+            messages.success(request, f"'{user.username}' must change their password at next sign-in.")
 
     elif action == "temporary_password":
-        temporary = issue_temporary_password(user, actor=request.user, request=request)
-        messages.warning(request, f"Temporary password for {user.username}: {temporary} — "
-                                  f"deliver it securely. It expires and must be changed at "
-                                  f"first sign-in.")
+        if user.is_superuser and not request.user.is_superuser:
+            # A lower-privileged admin must never receive a superuser's
+            # freshly generated temporary password back in the response --
+            # that is a direct account-takeover path.
+            messages.error(request, "This account is protected and cannot be modified.")
+        else:
+            temporary = issue_temporary_password(user, actor=request.user, request=request)
+            messages.warning(request, f"Temporary password for {user.username}: {temporary} — "
+                                      f"deliver it securely. It expires and must be changed at "
+                                      f"first sign-in.")
 
     elif action == "revoke_sessions":
         killed = invalidate_user_sessions(
@@ -477,9 +489,29 @@ def user_action(request, pk, action):
 
     elif action == "assign_group":
         group = get_object_or_404(UserGroup, pk=request.POST.get("group"))
-        _membership, created = assign_group(user, group, actor=request.user, request=request)
-        messages.success(request, f"Added to '{group.name}'." if created
-                         else f"Already a member of '{group.name}'.")
+        # A group's `roles` M2M activates a StaffRoleAssignment for every
+        # attached role on membership (see identity_services.assign_group),
+        # and has_user_permission() also grants permissions directly through
+        # a group's own `permissions` M2M -- both are the exact same
+        # escalation path assign_role guards against above. Check both.
+        admin_tier_codes = ["admin.manage_roles_permissions", "users.assign_staff_role"]
+        group_grants_admin_tier_role = (
+            group.roles.filter(permissions__code__in=admin_tier_codes).exists()
+            or group.permissions.filter(code__in=admin_tier_codes).exists()
+        )
+        if group_grants_admin_tier_role and not has_user_permission(
+            request.user, "admin.manage_roles_permissions"
+        ):
+            messages.error(request, f"Adding members to '{group.name}' requires "
+                                    f"'Manage Roles & Permissions' — it grants "
+                                    f"an administrator-tier role.")
+        elif user == request.user and group_grants_admin_tier_role:
+            messages.error(request, "You cannot add yourself to a group that "
+                                    "grants an administrator-tier role.")
+        else:
+            _membership, created = assign_group(user, group, actor=request.user, request=request)
+            messages.success(request, f"Added to '{group.name}'." if created
+                             else f"Already a member of '{group.name}'.")
 
     elif action == "remove_group":
         group = get_object_or_404(UserGroup, pk=request.POST.get("group"))

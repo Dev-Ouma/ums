@@ -18,7 +18,7 @@ from django.utils import timezone
 from accounts.models import FacultyProfile, Role, StudentProfile, User
 from university.identity_models import (AccountStatus, InstitutionalEmail, LoginRecord,
                                         PasswordHistoryEntry, PasswordResetToken,
-                                        UserAccount, UserGroup, UserType)
+                                        UserAccount, UserGroup, UserGroupMembership, UserType)
 from university.models import Department, Program, StaffRoleAssignment
 
 
@@ -774,6 +774,129 @@ class RoleAssignmentPrivilegeEscalationTests(IdentityTestBase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(StaffRoleAssignment.objects.filter(
             user=self.target, role=self.identity_admin_role, is_active=True).exists())
+
+
+class GroupAssignmentPrivilegeEscalationTests(IdentityTestBase):
+    """
+    assign_group must be guarded exactly like assign_role: a group whose
+    attached roles (or own direct permissions) carry role/permission-
+    management power is administrator-tier, and adding someone to it must
+    require 'admin.manage_roles_permissions' -- otherwise a holder of the
+    narrower 'users.manage_groups' permission could bootstrap themselves or
+    anyone else into full system-admin by adding them to such a group.
+    """
+    def setUp(self):
+        from university.models import StaffRole, SystemPermission
+        self.client = Client()
+        self.target = self.make_account("group.escalation.target")
+
+        self.limited_role = StaffRole.objects.create(name="Group Assigner", code="group_assigner")
+        self.limited_role.permissions.add(SystemPermission.objects.get(code="users.manage_groups"))
+        self.limited_actor = self.make_account("limited.group.actor")
+        StaffRoleAssignment.objects.create(
+            user=self.limited_actor, role=self.limited_role,
+            department=None, school=None, is_active=True, assigned_by=self.admin,
+        )
+
+        self.identity_admin_role = StaffRole.objects.get(code="identity_admin")
+        self.admin_tier_group = UserGroup.objects.create(
+            code="admin-tier-grp", name="Admin Tier Group", user_type=UserType.STAFF)
+        self.admin_tier_group.roles.add(self.identity_admin_role)
+
+        self.ordinary_group = UserGroup.objects.create(
+            code="ordinary-grp", name="Ordinary Group", user_type=UserType.STAFF)
+
+    def test_holder_of_narrow_permission_cannot_add_another_user_to_an_admin_tier_group(self):
+        self.client.force_login(self.limited_actor)
+        response = self.client.post(
+            reverse("university:user_action", args=[self.target.pk, "assign_group"]),
+            {"group": self.admin_tier_group.pk})
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(UserGroupMembership.objects.filter(
+            user=self.target, group=self.admin_tier_group).exists())
+        self.assertFalse(StaffRoleAssignment.objects.filter(
+            user=self.target, role=self.identity_admin_role, is_active=True).exists())
+
+    def test_holder_of_narrow_permission_cannot_add_self_to_an_admin_tier_group(self):
+        self.client.force_login(self.limited_actor)
+        response = self.client.post(
+            reverse("university:user_action", args=[self.limited_actor.pk, "assign_group"]),
+            {"group": self.admin_tier_group.pk})
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(UserGroupMembership.objects.filter(
+            user=self.limited_actor, group=self.admin_tier_group).exists())
+
+    def test_holder_of_narrow_permission_can_still_add_to_an_ordinary_group(self):
+        self.client.force_login(self.limited_actor)
+        response = self.client.post(
+            reverse("university:user_action", args=[self.target.pk, "assign_group"]),
+            {"group": self.ordinary_group.pk})
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(UserGroupMembership.objects.filter(
+            user=self.target, group=self.ordinary_group).exists())
+
+    def test_administrator_can_still_add_to_an_admin_tier_group(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("university:user_action", args=[self.target.pk, "assign_group"]),
+            {"group": self.admin_tier_group.pk})
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(UserGroupMembership.objects.filter(
+            user=self.target, group=self.admin_tier_group).exists())
+
+
+class SuperuserCredentialActionProtectionTests(IdentityTestBase):
+    """
+    A lower-privileged admin holding only 'users.reset_password' must never
+    be able to issue a temporary password, send a reset link, or force a
+    password change for a superuser account -- each of those hands the
+    actor (or reveals to them) a working credential for that superuser,
+    which is a direct account-takeover path if unguarded.
+    """
+    def setUp(self):
+        from university.models import StaffRole, SystemPermission
+        self.client = Client()
+        self.superuser_target = User.objects.create_superuser(
+            username="other.superuser", email="other.superuser@example.com",
+            password="Str0ng!Super2026", first_name="Other", last_name="Super")
+
+        self.limited_role = StaffRole.objects.create(name="Password Resetter", code="pw_resetter")
+        self.limited_role.permissions.add(SystemPermission.objects.get(code="users.reset_password"))
+        self.limited_actor = self.make_account("limited.pw.actor")
+        StaffRoleAssignment.objects.create(
+            user=self.limited_actor, role=self.limited_role,
+            department=None, school=None, is_active=True, assigned_by=self.admin,
+        )
+        self.client.force_login(self.limited_actor)
+
+    def test_cannot_issue_temporary_password_for_a_superuser(self):
+        old_password = self.superuser_target.password
+        response = self.client.post(
+            reverse("university:user_action", args=[self.superuser_target.pk, "temporary_password"]))
+        self.assertEqual(response.status_code, 302)
+        self.superuser_target.refresh_from_db()
+        self.assertEqual(self.superuser_target.password, old_password)
+
+    def test_cannot_send_reset_link_for_a_superuser(self):
+        from university.identity_models import PasswordResetToken
+        response = self.client.post(
+            reverse("university:user_action", args=[self.superuser_target.pk, "send_reset_link"]))
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(PasswordResetToken.objects.filter(user=self.superuser_target).exists())
+
+    def test_cannot_force_password_change_for_a_superuser(self):
+        response = self.client.post(
+            reverse("university:user_action", args=[self.superuser_target.pk, "force_password_change"]))
+        self.assertEqual(response.status_code, 302)
+        account = UserAccount.objects.filter(user=self.superuser_target).first()
+        self.assertFalse(account and account.must_change_password)
+
+    def test_a_superuser_actor_can_still_issue_a_temporary_password_for_a_superuser(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("university:user_action", args=[self.superuser_target.pk, "temporary_password"]))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("Temporary password", str(list(response.wsgi_request._messages)[-1]))
 
 
 class GroupRoleRevocationSymmetryTests(IdentityTestBase):
