@@ -394,15 +394,38 @@ def build_report_data(report_key, params, user=None):
     return data
 
 
+def _parse_date_param(value):
+    """
+    Validate a raw GET-param date string before it reaches a queryset filter.
+    Returns the string unchanged if it's a real ISO date, else None (the
+    filter is simply skipped) instead of letting an invalid value reach
+    Django's date lookup parser and crash the report with a 500.
+    """
+    if not value:
+        return None
+    try:
+        date.fromisoformat(value)
+        return value
+    except ValueError:
+        return None
+
+
 def _scope_examination_queryset(qs, user, exam_field="exam"):
-    """Apply the same departmental/teaching scope used by examination operations."""
+    """
+    Apply the same departmental/teaching scope used by examination operations.
+
+    `exam_field` is the lookup path from `qs`'s model to the related Exam,
+    e.g. "exam" for a Result queryset (-> exam_id__in=...). Pass exam_field=""
+    when `qs` IS the Exam queryset itself (-> pk__in=...).
+    """
     if not user or not getattr(user, "is_authenticated", False):
         return qs.none()
     from . import examination_services
     if examination_services.is_admin(user):
         return qs
     scoped_ids = examination_services.staff_scope(user).values("pk")
-    return qs.filter(**{f"{exam_field}_id__in": scoped_ids})
+    lookup = "pk__in" if not exam_field else f"{exam_field}_id__in"
+    return qs.filter(**{lookup: scoped_ids})
 
 
 # ---------- Sub-queries ----------
@@ -693,7 +716,10 @@ def _query_senate_fail_list(params, user):
 
 
 def _query_academic_performance(params, user):
-    qs = Result.objects.select_related("exam__course", "exam__term", "student__program").filter(marks_obtained__isnull=False)
+    qs = _scope_examination_queryset(
+        Result.objects.select_related("exam__course", "exam__term", "student__program").filter(marks_obtained__isnull=False),
+        user,
+    )
     applied_filters = []
 
     if params.get("term"):
@@ -756,7 +782,10 @@ def _query_academic_performance(params, user):
 
 
 def _query_grade_distribution(params, user):
-    qs = Result.objects.select_related("exam__course", "exam__term").filter(marks_obtained__isnull=False)
+    qs = _scope_examination_queryset(
+        Result.objects.select_related("exam__course", "exam__term").filter(marks_obtained__isnull=False),
+        user,
+    )
     applied_filters = []
 
     if params.get("term"):
@@ -805,13 +834,17 @@ def _query_grade_distribution(params, user):
 
 
 def _query_examination_results_summary(params, user):
-    qs = Exam.objects.select_related("course", "term", "course__department").annotate(
-        total_candidates=Count("results"),
-        present_candidates=Count("results", filter=Q(results__attendance="PRESENT")),
-        absent_candidates=Count("results", filter=Q(results__attendance="ABSENT")),
-        passed_candidates=Count("results", filter=Q(results__marks_obtained__gte=40)),
-        failed_candidates=Count("results", filter=Q(results__marks_obtained__lt=40, results__attendance="PRESENT"))
-    ).order_by("-date")
+    qs = _scope_examination_queryset(
+        Exam.objects.select_related("course", "term", "course__department").annotate(
+            total_candidates=Count("results"),
+            present_candidates=Count("results", filter=Q(results__attendance="PRESENT")),
+            absent_candidates=Count("results", filter=Q(results__attendance="ABSENT")),
+            passed_candidates=Count("results", filter=Q(results__marks_obtained__gte=40)),
+            failed_candidates=Count("results", filter=Q(results__marks_obtained__lt=40, results__attendance="PRESENT"))
+        ).order_by("-date"),
+        user,
+        exam_field="",
+    )
 
     applied_filters = []
     if params.get("term"):
@@ -862,8 +895,11 @@ def _query_examination_results_summary(params, user):
 
 
 def _query_cat_vs_exam_analysis(params, user):
-    qs = Result.objects.select_related("exam", "exam__course", "student", "student__user").filter(
-        cat_marks__isnull=False, exam_marks__isnull=False
+    qs = _scope_examination_queryset(
+        Result.objects.select_related("exam", "exam__course", "student", "student__user").filter(
+            cat_marks__isnull=False, exam_marks__isnull=False
+        ),
+        user,
     )
     applied_filters = []
 
@@ -926,8 +962,11 @@ def _query_cat_vs_exam_analysis(params, user):
 
 
 def _query_missing_marks_audit(params, user):
-    qs = Result.objects.select_related("exam", "exam__course", "student", "student__user").filter(
-        Q(marks_obtained__isnull=True) | Q(attendance="PENDING")
+    qs = _scope_examination_queryset(
+        Result.objects.select_related("exam", "exam__course", "student", "student__user").filter(
+            Q(marks_obtained__isnull=True) | Q(attendance="PENDING")
+        ),
+        user,
     )
     applied_filters = []
 
@@ -1210,12 +1249,14 @@ def _query_user_activity_audit(params, user):
     qs = AuditLog.objects.all().order_by("-timestamp")
     applied_filters = []
 
-    if params.get("date_from"):
-        qs = qs.filter(timestamp__date__gte=params["date_from"])
-        applied_filters.append(f"From: {params['date_from']}")
-    if params.get("date_to"):
-        qs = qs.filter(timestamp__date__lte=params["date_to"])
-        applied_filters.append(f"To: {params['date_to']}")
+    date_from = _parse_date_param(params.get("date_from"))
+    date_to = _parse_date_param(params.get("date_to"))
+    if date_from:
+        qs = qs.filter(timestamp__date__gte=date_from)
+        applied_filters.append(f"From: {date_from}")
+    if date_to:
+        qs = qs.filter(timestamp__date__lte=date_to)
+        applied_filters.append(f"To: {date_to}")
     if params.get("q"):
         q = params["q"].strip()
         qs = qs.filter(Q(user_display__icontains=q) | Q(module__icontains=q) | Q(description__icontains=q))
@@ -1252,12 +1293,14 @@ def _query_recycle_bin_audit(params, user):
     qs = RecycleBinItem.objects.all().order_by("-deleted_at")
     applied_filters = []
 
-    if params.get("date_from"):
-        qs = qs.filter(deleted_at__date__gte=params["date_from"])
-        applied_filters.append(f"From: {params['date_from']}")
-    if params.get("date_to"):
-        qs = qs.filter(deleted_at__date__lte=params["date_to"])
-        applied_filters.append(f"To: {params['date_to']}")
+    date_from = _parse_date_param(params.get("date_from"))
+    date_to = _parse_date_param(params.get("date_to"))
+    if date_from:
+        qs = qs.filter(deleted_at__date__gte=date_from)
+        applied_filters.append(f"From: {date_from}")
+    if date_to:
+        qs = qs.filter(deleted_at__date__lte=date_to)
+        applied_filters.append(f"To: {date_to}")
     if params.get("q"):
         q = params["q"].strip()
         qs = qs.filter(Q(object_repr__icontains=q) | Q(module__icontains=q))

@@ -3149,7 +3149,13 @@ def events(request):
 def event_create(request):
     form = EventForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
-        form.save()
+        event = form.save()
+        log_activity(
+            request=request, user=request.user,
+            action=AuditLog.Action.CREATE, module=AuditLog.Module.NOTICES,
+            entity="Event", entity_id=event.id,
+            description=f"Created event '{event.title}'.",
+        )
         messages.success(request, "Event created.")
         return redirect("university:events")
     return _render_form(request, form, "Add Event", "", "fa-calendar-plus",
@@ -3162,6 +3168,12 @@ def event_edit(request, pk):
     form = EventForm(request.POST or None, instance=ev)
     if request.method == "POST" and form.is_valid():
         form.save()
+        log_activity(
+            request=request, user=request.user,
+            action=AuditLog.Action.UPDATE, module=AuditLog.Module.NOTICES,
+            entity="Event", entity_id=ev.id,
+            description=f"Updated event '{ev.title}'.",
+        )
         messages.success(request, "Event updated.")
         return redirect("university:events")
     return _render_form(request, form, "Edit Event", ev.title, "fa-pen",
