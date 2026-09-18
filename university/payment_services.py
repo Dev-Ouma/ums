@@ -210,6 +210,61 @@ def initiate_student_payment(
     return payment, result
 
 
+#: How long a gateway-initiated STK Push / hosted-checkout payment can sit
+#: PENDING/PROCESSING with no provider callback before the system gives up
+#: waiting and marks it EXPIRED. Safaricom's own STK prompt times out on
+#: the customer's phone well within this window; if no callback has
+#: arrived by then, one is not coming for this attempt.
+PENDING_PAYMENT_TIMEOUT_MINUTES = 5
+
+
+def expire_stale_pending_payments(timeout_minutes: int = PENDING_PAYMENT_TIMEOUT_MINUTES) -> int:
+    """
+    Marks gateway-initiated payments EXPIRED once they've sat unconfirmed
+    past the timeout, so a student's status page (and its polling loop)
+    resolves to a definite state instead of waiting forever for a callback
+    that failed to arrive -- the same reason every real payment gateway
+    (Stripe, Paystack, Safaricom's own Daraja docs) treats "no callback
+    within N minutes" as a terminal failure state, not silence.
+
+    Deliberately scoped to `provider_reference`-bearing payments only --
+    those are the ones a provider (M-Pesa STK, card gateway) actually
+    accepted and is expected to call back about. Student self-reported
+    "I paid outside the app" payments (student_fees()) have no
+    provider_reference and are excluded: those are meant to sit PENDING
+    indefinitely awaiting a finance officer's manual review, not a
+    provider callback, so a timeout would incorrectly deny a legitimately
+    -made payment that simply hasn't been reviewed yet.
+
+    Called from control_services.tick() on the same cadence as every other
+    background job in the system (backups, webhooks, receipt retries).
+    """
+    cutoff = timezone.now() - timezone.timedelta(minutes=timeout_minutes)
+    stale = Payment.objects.filter(
+        status__in=[Payment.Status.PENDING, Payment.Status.PROCESSING, Payment.Status.INITIATED],
+        created_at__lt=cutoff,
+    ).exclude(provider_reference="")
+
+    expired_count = 0
+    for payment in stale:
+        payment.status = Payment.Status.EXPIRED
+        payment.notes = (
+            (payment.notes + "\n" if payment.notes else "")
+            + f"Auto-expired: no provider confirmation received within "
+              f"{timeout_minutes} minutes of initiation."
+        )
+        payment.save(update_fields=["status", "notes"])
+        log_activity(
+            user=None, action=AuditLog.Action.UPDATE, module=AuditLog.Module.FEES,
+            entity="Payment", entity_id=payment.internal_reference,
+            description=f"Payment {payment.internal_reference} auto-expired after "
+                        f"{timeout_minutes} minutes with no provider confirmation.",
+        )
+        expired_count += 1
+
+    return expired_count
+
+
 @transaction.atomic
 def process_payment_confirmation(
     payment_id_or_ref=None,

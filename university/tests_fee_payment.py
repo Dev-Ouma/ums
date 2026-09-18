@@ -342,3 +342,94 @@ class DirectC2BPaybillTests(FeePaymentTestBase):
         self.assertEqual(recon.amount, Decimal("7500.00"))
         self.assertEqual(recon.status, PaymentReconciliation.Status.UNMATCHED)
 
+
+class ExpireStalePendingPaymentsTests(FeePaymentTestBase):
+    """
+    Regression guard: a gateway-initiated (STK Push) payment that never
+    receives a provider callback used to sit PENDING forever, and the
+    student's status page polled indefinitely with no resolution. The
+    background job must expire it after the timeout window so the status
+    becomes definite, matching how any real payment gateway's status page
+    behaves.
+    """
+    def test_stale_gateway_initiated_payment_is_expired(self):
+        from university.payment_services import expire_stale_pending_payments
+
+        pmt = Payment.objects.create(
+            invoice=self.invoice, student=self.student, amount=Decimal("5000.00"),
+            currency="KES", method="M-Pesa", status=Payment.Status.PENDING,
+            provider_reference="ws_CO_STALE001",
+        )
+        Payment.objects.filter(pk=pmt.pk).update(
+            created_at=Payment.objects.get(pk=pmt.pk).created_at - timedelta(minutes=10))
+
+        expired_count = expire_stale_pending_payments(timeout_minutes=5)
+        self.assertEqual(expired_count, 1)
+
+        pmt.refresh_from_db()
+        self.assertEqual(pmt.status, Payment.Status.EXPIRED)
+
+    def test_recent_gateway_initiated_payment_is_not_expired(self):
+        from university.payment_services import expire_stale_pending_payments
+
+        pmt = Payment.objects.create(
+            invoice=self.invoice, student=self.student, amount=Decimal("5000.00"),
+            currency="KES", method="M-Pesa", status=Payment.Status.PENDING,
+            provider_reference="ws_CO_RECENT001",
+        )
+
+        expire_stale_pending_payments(timeout_minutes=5)
+        pmt.refresh_from_db()
+        self.assertEqual(pmt.status, Payment.Status.PENDING)
+
+    def test_self_reported_payment_with_no_provider_reference_is_never_expired(self):
+        """
+        A student self-reported payment (student_fees()) has no
+        provider_reference -- it's meant to sit PENDING indefinitely
+        awaiting finance review, not a provider callback, and must never
+        be auto-expired just for being old.
+        """
+        from university.payment_services import expire_stale_pending_payments
+
+        pmt = Payment.objects.create(
+            invoice=self.invoice, student=self.student, amount=Decimal("5000.00"),
+            currency="KES", method="Bank Deposit", status=Payment.Status.PENDING,
+            reference="BNK-OLD-001",
+        )
+        Payment.objects.filter(pk=pmt.pk).update(
+            created_at=Payment.objects.get(pk=pmt.pk).created_at - timedelta(days=30))
+
+        expire_stale_pending_payments(timeout_minutes=5)
+        pmt.refresh_from_db()
+        self.assertEqual(pmt.status, Payment.Status.PENDING)
+
+
+class StudentFeesAlreadyConfirmedShortCircuitTests(FeePaymentTestBase):
+    """
+    Both the in-app STK Push flow and a direct M-Pesa Paybill deposit are
+    already fully automatic (Safaricom's own callback/C2B webhook resolves
+    them with no human involved) -- if a student reports a reference that
+    already landed and was confirmed automatically, the form must say so
+    instead of queuing a redundant manual review.
+    """
+    def setUp(self):
+        self.client.login(username="fee.student", password="password123")
+
+    def test_reporting_an_already_confirmed_reference_short_circuits(self):
+        Payment.objects.create(
+            invoice=self.invoice, student=self.student, amount=Decimal("4000.00"),
+            currency="KES", method="M-Pesa", status=Payment.Status.SUCCESSFUL,
+            reference="ALREADY-CONFIRMED-01",
+        )
+
+        resp = self.client.post(reverse("university:student_fees"), {
+            "invoice_id": self.invoice.id,
+            "amount": "4000",
+            "method": "M-Pesa Paybill",
+            "reference": "ALREADY-CONFIRMED-01",
+        }, follow=True)
+
+        self.assertContains(resp, "already confirmed")
+        # No new Payment row was queued for review.
+        self.assertEqual(Payment.objects.filter(reference="ALREADY-CONFIRMED-01").count(), 1)
+

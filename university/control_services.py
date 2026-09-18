@@ -404,6 +404,11 @@ def tick():
         retry_failed_receipt_emails()
     except Exception:
         pass
+    try:
+        from .payment_services import expire_stale_pending_payments
+        expire_stale_pending_payments()
+    except Exception:
+        pass
 
 
 @transaction.atomic

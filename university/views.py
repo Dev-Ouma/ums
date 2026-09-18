@@ -3462,6 +3462,24 @@ def student_fees(request):
         except Exception:
             amt = Decimal("0.00")
 
+        # If this transaction already landed automatically -- a direct
+        # M-Pesa Paybill deposit is confirmed by Safaricom's own C2B
+        # webhook the moment it happens, with no human involved at all,
+        # same as an in-app STK Push -- the student is reporting something
+        # the system already knows about. Short-circuit instead of queuing
+        # a redundant manual review for a payment that's already settled.
+        already_confirmed = Payment.objects.filter(
+            Q(provider_reference=reference) | Q(reference=reference),
+            student=sp, status=Payment.Status.SUCCESSFUL,
+        ).first()
+        if already_confirmed:
+            messages.info(
+                request,
+                f"Reference {reference} is already confirmed and applied to your account "
+                f"(automatically verified against the M-Pesa transaction record) -- no further action needed.",
+            )
+            return redirect("university:student_fees")
+
         if amt > 0:
             # This form lets a student self-report a payment made outside
             # the app's own M-Pesa STK Push flow (student_pay_fees) --

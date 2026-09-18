@@ -22,11 +22,24 @@
       <h3 class="fw-bold text-dark mb-1">Payment {{ payment.get_status_display }}</h3>
       <p class="text-muted small mb-4">The payment provider reported that this transaction could not be completed.</p>
     {% else %}
-      <div class="rounded-circle bg-warning-subtle text-warning mx-auto d-flex align-items-center justify-content-center mb-3" style="width: 72px; height: 72px;">
+      <div id="pendingIcon" class="rounded-circle bg-warning-subtle text-warning mx-auto d-flex align-items-center justify-content-center mb-3" style="width: 72px; height: 72px;">
         <span class="ums-spin ums-spin-lg" role="status" aria-label="Awaiting payment confirmation"></span>
       </div>
-      <h3 class="fw-bold text-dark mb-1">Awaiting Payment Confirmation</h3>
-      <p class="text-muted small mb-4">Please complete the prompt on your phone or follow the payment instructions below.</p>
+      <h3 id="pendingTitle" class="fw-bold text-dark mb-1">Awaiting Payment Confirmation</h3>
+      <p id="pendingSubtitle" class="text-muted small mb-4">Please complete the prompt on your phone or follow the payment instructions below.</p>
+      <div id="pendingTimeoutBanner" class="alert alert-warning border-0 rounded-4 text-start small d-none mb-4" role="status">
+        <i class="fa-solid fa-hourglass-half me-1"></i>
+        This is taking longer than usual. It can take a few minutes for the confirmation to arrive --
+        you don't need to keep this page open; we'll update your status automatically once it's confirmed.
+        <div class="mt-2 d-flex gap-2 flex-wrap">
+          <button type="button" id="checkStatusNowBtn" class="btn btn-sm btn-outline-dark rounded-pill px-3">
+            <i class="fa-solid fa-rotate me-1"></i>Check Status Now
+          </button>
+          <a href="{% url 'university:student_fees' %}" class="btn btn-sm btn-light rounded-pill px-3">
+            Check back later
+          </a>
+        </div>
+      </div>
     {% endif %}
 
     <!-- Transaction Summary Card -->
@@ -46,7 +59,7 @@
         </div>
         <div class="col-sm-6 d-flex justify-content-between">
           <span class="text-muted">Status:</span>
-          <span class="badge {% if payment.status == 'SUCCESSFUL' %}bg-success{% elif payment.status == 'FAILED' %}bg-danger{% else %}bg-warning text-dark{% endif %} px-2.5 py-1 rounded-pill fw-semibold">
+          <span class="badge {% if payment.status == 'SUCCESSFUL' %}bg-success{% elif payment.status == 'FAILED' or payment.status == 'CANCELLED' or payment.status == 'EXPIRED' %}bg-danger{% else %}bg-warning text-dark{% endif %} px-2.5 py-1 rounded-pill fw-semibold">
             {{ payment.get_status_display }}
           </span>
         </div>
@@ -125,20 +138,66 @@
 
 {% if payment.status != 'SUCCESSFUL' and payment.status != 'FAILED' %}
 <script>
-  // Automatic status polling every 3.5 seconds
-  const pollInterval = setInterval(async () => {
+  // Polls for status every 3.5s, but only for a bounded window (90s) --
+  // the server itself gives up waiting for a provider callback after 5
+  // minutes (payment_services.expire_stale_pending_payments, run via the
+  // background job tick) and marks the payment EXPIRED, so this page must
+  // eventually stop silently spinning and either reload on a real status
+  // change or tell the student it's taking a while, matching how any
+  // real payment gateway's status page behaves rather than polling
+  // forever with nothing to show for it.
+  const POLL_INTERVAL_MS = 3500;
+  const MAX_POLL_DURATION_MS = 90000;
+  const pollUrl = "{% url 'university:student_payment_poll' payment.internal_reference %}";
+  const startedAt = Date.now();
+  let pollTimer = null;
+
+  function showTimeoutBanner() {
+    const banner = document.getElementById('pendingTimeoutBanner');
+    const title = document.getElementById('pendingTitle');
+    const subtitle = document.getElementById('pendingSubtitle');
+    if (banner) banner.classList.remove('d-none');
+    if (title) title.textContent = 'Still Waiting for Confirmation';
+    if (subtitle) subtitle.textContent = 'No response from the payment provider yet.';
+  }
+
+  async function checkStatusOnce() {
     try {
-      const res = await fetch("{% url 'university:student_payment_poll' payment.internal_reference %}");
-      if (!res.ok) return;
+      const res = await fetch(pollUrl);
+      if (!res.ok) return false;
       const data = await res.json();
       if (data.is_successful || data.is_failed) {
-        clearInterval(pollInterval);
         location.reload();
+        return true;
       }
     } catch (e) {
       // Ignore transient network glitches during polling
     }
-  }, 3500);
+    return false;
+  }
+
+  function poll() {
+    if (Date.now() - startedAt >= MAX_POLL_DURATION_MS) {
+      clearInterval(pollTimer);
+      showTimeoutBanner();
+      return;
+    }
+    checkStatusOnce();
+  }
+
+  pollTimer = setInterval(poll, POLL_INTERVAL_MS);
+
+  const checkNowBtn = document.getElementById('checkStatusNowBtn');
+  if (checkNowBtn) {
+    checkNowBtn.addEventListener('click', () => {
+      checkNowBtn.disabled = true;
+      checkNowBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Checking...';
+      checkStatusOnce().finally(() => {
+        checkNowBtn.disabled = false;
+        checkNowBtn.innerHTML = '<i class="fa-solid fa-rotate me-1"></i>Check Status Now';
+      });
+    });
+  }
 </script>
 {% endif %}
 {% endblock %}
