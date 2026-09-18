@@ -1,4 +1,5 @@
 """One policy evaluator for HTTP, navigation, login and background operations."""
+import logging
 import re
 from contextlib import contextmanager
 from datetime import timedelta
@@ -12,6 +13,8 @@ from .models import (SystemRestriction, SystemModule, SystemSubmodule, SystemFea
                      Notice, MessageDelivery, ControlNotification, ControlHeartbeat,
                      AcademicYear, AcademicTerm, AuditLog)
 from .permissions_services import has_user_permission
+
+logger = logging.getLogger(__name__)
 
 PERMISSIONS = {
     'maintenance': ['view','create','edit','schedule','activate','deactivate','bypass'],
@@ -398,7 +401,12 @@ def tick():
         from .webhook_services import deliver_pending_webhooks
         deliver_pending_webhooks()
     except Exception:
-        pass
+        # Per-delivery failures are already captured and audited inside
+        # deliver_pending_webhooks() itself; this catches a failure of the
+        # outer function (e.g. the initial query), which would otherwise
+        # leave the whole webhook subsystem silently stalled with zero
+        # operational visibility.
+        logger.exception("deliver_pending_webhooks() failed during scheduler tick")
     try:
         from .receipt_email_services import retry_failed_receipt_emails
         retry_failed_receipt_emails()

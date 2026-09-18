@@ -8,8 +8,20 @@ from university.audit_services import log_activity
 from university.decorators import permission_required
 from university.models import AuditLog
 from university.webhook_models import WebhookDelivery, WebhookEndpoint
+from university.webhook_services import WebhookURLError, validate_webhook_url
 
 _admin_required = permission_required("admin.manage_settings")
+
+
+def _url_is_safe(request, url):
+    """Validate a submitted webhook URL against SSRF targets, flashing an
+    error and returning False if it fails."""
+    try:
+        validate_webhook_url(url)
+        return True
+    except WebhookURLError as e:
+        messages.error(request, str(e))
+        return False
 
 
 @login_required
@@ -31,6 +43,8 @@ def webhook_create(request):
         event_kinds = request.POST.getlist("event_kinds")
         if not name or not url:
             messages.error(request, "A name and URL are required.")
+        elif not _url_is_safe(request, url):
+            pass
         else:
             endpoint = WebhookEndpoint.objects.create(
                 name=name, url=url, event_kinds=event_kinds, created_by=request.user)
@@ -50,8 +64,15 @@ def webhook_create(request):
 def webhook_edit(request, pk):
     endpoint = get_object_or_404(WebhookEndpoint, pk=pk)
     if request.method == "POST":
+        new_url = request.POST.get("url", endpoint.url).strip()
+        if not _url_is_safe(request, new_url):
+            return render(request, "system/webhooks/form.html", {
+                "endpoint": endpoint,
+                "event_kind_choices": WebhookEndpoint.EVENT_KIND_CHOICES,
+                "selected_kinds": set(endpoint.event_kinds or []),
+            })
         endpoint.name = request.POST.get("name", endpoint.name).strip()
-        endpoint.url = request.POST.get("url", endpoint.url).strip()
+        endpoint.url = new_url
         endpoint.event_kinds = request.POST.getlist("event_kinds")
         endpoint.is_active = bool(request.POST.get("is_active"))
         endpoint.save()

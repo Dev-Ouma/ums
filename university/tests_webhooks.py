@@ -8,6 +8,74 @@ from accounts.models import Role, User
 from university.events import account_status_changed, dispatch_event
 from university.models import AuditLog
 from university.webhook_models import WebhookDelivery, WebhookEndpoint
+from university.webhook_services import WebhookURLError, validate_webhook_url
+
+
+class WebhookURLSSRFValidationTests(TestCase):
+    """
+    Regression tests for the SSRF fix: an admin-configured webhook URL
+    must never resolve to an internal/private/loopback/link-local address,
+    since this server itself makes unattended, retried outbound POSTs to
+    it on a schedule.
+    """
+    def test_rejects_loopback_ip(self):
+        with self.assertRaises(WebhookURLError):
+            validate_webhook_url("http://127.0.0.1/hook")
+
+    def test_rejects_localhost_hostname(self):
+        with self.assertRaises(WebhookURLError):
+            validate_webhook_url("http://localhost/hook")
+
+    def test_rejects_cloud_metadata_endpoint(self):
+        with self.assertRaises(WebhookURLError):
+            validate_webhook_url("http://169.254.169.254/latest/meta-data/")
+
+    def test_rejects_private_rfc1918_address(self):
+        with self.assertRaises(WebhookURLError):
+            validate_webhook_url("http://10.0.0.5/hook")
+
+    def test_rejects_non_http_scheme(self):
+        with self.assertRaises(WebhookURLError):
+            validate_webhook_url("ftp://8.8.8.8/hook")
+
+    def test_accepts_a_public_ip_literal(self):
+        # Uses a numeric IP literal (Google public DNS) so the test has no
+        # real DNS dependency -- getaddrinfo resolves IP literals locally.
+        validate_webhook_url("https://8.8.8.8/hook")  # should not raise
+
+
+class WebhookAdminViewSSRFTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="wh.admin", email="wh.admin@example.com", password="pass12345", role=Role.ADMIN,
+        )
+        self.client = Client()
+        self.client.force_login(self.admin)
+
+    def test_create_rejects_a_loopback_url(self):
+        response = self.client.post(reverse("university:webhook_create"), {
+            "name": "Malicious Sink", "url": "http://127.0.0.1:8000/steal", "event_kinds": [],
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(WebhookEndpoint.objects.filter(name="Malicious Sink").exists())
+
+    def test_create_accepts_a_public_ip_literal(self):
+        response = self.client.post(reverse("university:webhook_create"), {
+            "name": "Public Sink", "url": "https://8.8.8.8/hook", "event_kinds": [],
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(WebhookEndpoint.objects.filter(name="Public Sink").exists())
+
+    def test_edit_rejects_changing_url_to_a_metadata_endpoint(self):
+        endpoint = WebhookEndpoint.objects.create(
+            name="Edit Target", url="https://8.8.8.8/hook", event_kinds=[], is_active=True,
+        )
+        response = self.client.post(reverse("university:webhook_edit", args=[endpoint.pk]), {
+            "name": "Edit Target", "url": "http://169.254.169.254/latest/meta-data/", "event_kinds": [],
+        })
+        self.assertEqual(response.status_code, 200)
+        endpoint.refresh_from_db()
+        self.assertEqual(endpoint.url, "https://8.8.8.8/hook")
 
 
 class QueueWebhookDeliveriesTests(TestCase):

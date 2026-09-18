@@ -12,9 +12,12 @@ on the next tick if a POST fails, with no new infrastructure needed.
 """
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
+import socket
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from django.utils import timezone
@@ -23,6 +26,46 @@ from university.integrations.base import BaseIntegrationAdapter
 from university.webhook_models import WebhookDelivery, WebhookEndpoint
 
 logger = logging.getLogger(__name__)
+
+
+class WebhookURLError(ValueError):
+    """Raised when an admin-supplied webhook URL fails SSRF safety checks."""
+    pass
+
+
+def validate_webhook_url(url):
+    """
+    Reject a webhook URL that would make this server's own outbound
+    delivery requests (made on an unattended background schedule, with
+    retries) reach an internal service or the cloud metadata endpoint.
+    An admin-configurable "POST to this URL periodically" feature is a
+    classic SSRF vector if the target isn't restricted to public hosts.
+
+    Raises WebhookURLError with a human-readable reason; returns None
+    (no value) on success.
+    """
+    parsed = urllib.parse.urlparse((url or "").strip())
+    if parsed.scheme not in ("http", "https"):
+        raise WebhookURLError("Webhook URL must use http:// or https://.")
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise WebhookURLError("Webhook URL must include a hostname.")
+    if hostname.lower() in ("localhost", "localhost.localdomain"):
+        raise WebhookURLError("Webhook URL cannot point at localhost.")
+
+    try:
+        resolved_ips = {info[4][0] for info in socket.getaddrinfo(hostname, None)}
+    except socket.gaierror:
+        raise WebhookURLError(f"Could not resolve hostname '{hostname}'.")
+
+    for ip_str in resolved_ips:
+        ip = ipaddress.ip_address(ip_str)
+        if (ip.is_private or ip.is_loopback or ip.is_link_local
+                or ip.is_multicast or ip.is_reserved or ip.is_unspecified):
+            raise WebhookURLError(
+                f"Webhook URL resolves to a non-public address ({ip_str}) and cannot be used."
+            )
 
 #: Maps a webhook-subscribable event kind (WebhookEndpoint.EVENT_KIND_CHOICES)
 #: to a JSON-shaping function for that event's dispatch_event() kwargs.
