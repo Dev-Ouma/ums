@@ -76,6 +76,9 @@ DEFAULT_PERMISSIONS = [
     ("reports.senate_marksheet", "Generate Senate Consolidated Marksheets", "Reports", "Compile and export official Board of Examiners master sheets."),
     ("reports.export_files", "Export Reports (PDF/Excel/CSV)", "Reports", "Download printable PDF, Excel, and CSV datasets."),
 
+    # --- Admissions ---
+    ("admissions.manage_scoped", "Manage Admissions (School-Scoped)", "Admissions", "Review and decide prospective applications for the assigned school(s), or institution-wide for unscoped grants."),
+
     ("admin.manage_settings", "Manage System Settings & Setups", "Administration", "Configure university branding, academic rules, and system toggles."),
     ("admin.view_audit_logs", "Inspect Audit Trail Ledgers", "Administration", "Forensic analysis of user activity, state changes, and logins."),
     ("admin.manage_recycle_bin", "Manage Recycle Bin & Restore", "Administration", "Inspect and restore soft-deleted university records."),
@@ -139,6 +142,7 @@ DEFAULT_ROLES = [
             "academics.manage_attachments", "academics.manage_evaluations", "academics.manage_graduation",
             "exams.create_exam", "exams.view_marks", "exams.moderate_marks", "exams.approve_senate", "exams.publish_results",
             "reports.view_catalog", "reports.generate_official", "reports.senate_marksheet", "reports.export_files",
+            "admissions.manage_scoped",
         ]
     },
     {

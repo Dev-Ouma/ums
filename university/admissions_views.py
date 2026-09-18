@@ -1109,9 +1109,17 @@ def applicant_decline_offer(request, pk):
 # ==============================================================================
 
 def _admissions_scope(user):
+    """
+    Resolves the caller's admissions access scope through the standard
+    permission engine (StaffRole -> "admissions.manage_scoped") instead of a
+    hardcoded role-code check, so granting/removing admissions access is a
+    Roles & Permissions configuration change, not a code change.
+    """
     if user.is_superuser or user.role == Role.ADMIN:
         return True, set()
-    assignments = StaffRoleAssignment.objects.filter(user=user, is_active=True, role__code__iexact="dean").select_related("department__school")
+    assignments = StaffRoleAssignment.objects.filter(
+        user=user, is_active=True, role__permissions__code="admissions.manage_scoped",
+    ).select_related("department__school")
     school_ids = {a.department.school_id for a in assignments if a.department and a.department.school_id}
     if not school_ids:
         profile = FacultyProfile.objects.filter(user=user).select_related("department__school").first()

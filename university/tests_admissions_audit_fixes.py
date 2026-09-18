@@ -17,6 +17,7 @@ from django.utils import timezone
 from accounts.models import Role
 from university.admission_document_services import FeeScheduleMissingError, build_admission_document_context
 from university.admissions_services import matriculate_applicant
+from university.admissions_views import _admissions_scope
 from university.models import (
     AcademicTerm,
     AcademicYear,
@@ -30,7 +31,10 @@ from university.models import (
     Intake,
     Program,
     School,
+    StaffRole,
+    StaffRoleAssignment,
 )
+from university.permissions_services import seed_default_permissions_and_roles
 
 User = get_user_model()
 
@@ -224,3 +228,55 @@ class AdmissionsAuditFixesTests(TestCase):
         self.assertTrue(
             AuditLog.objects.filter(module=AuditLog.Module.ADMISSIONS, entity="Cohort").exists()
         )
+
+
+class AdmissionsScopeRBACTests(TestCase):
+    """
+    _admissions_scope() used to hardcode a `role__code__iexact="dean"` check.
+    It now derives access through the standard permission engine
+    (StaffRole -> "admissions.manage_scoped"), so these tests confirm the
+    scoping behaviour is unchanged after that rewiring.
+    """
+    def setUp(self):
+        seed_default_permissions_and_roles()
+        self.school_a = School.objects.create(name="Faculty of Computing", code="FOCA")
+        self.school_b = School.objects.create(name="Faculty of Business", code="FOBB")
+        self.dept_a = Department.objects.create(name="Dept A", code="DPTA", school=self.school_a)
+        self.dept_b = Department.objects.create(name="Dept B", code="DPTB", school=self.school_b)
+
+        self.central_admin = User.objects.create_user(
+            username="central.admin", email="central.admin@ums.ac.ke", role=Role.ADMIN, password="password123",
+        )
+        self.dean_user = User.objects.create_user(
+            username="dean.a", email="dean.a@ums.ac.ke", role=Role.FACULTY, password="password123",
+        )
+        self.unscoped_faculty = User.objects.create_user(
+            username="faculty.plain", email="faculty.plain@ums.ac.ke", role=Role.FACULTY, password="password123",
+        )
+        dean_role = StaffRole.objects.get(code="dean")
+        StaffRoleAssignment.objects.create(
+            user=self.dean_user, role=dean_role, department=self.dept_a, is_active=True,
+        )
+
+    def test_central_admin_has_full_scope(self):
+        central_admin, school_ids = _admissions_scope(self.central_admin)
+        self.assertTrue(central_admin)
+        self.assertEqual(school_ids, set())
+
+    def test_dean_is_scoped_to_own_school_via_admissions_permission(self):
+        central_admin, school_ids = _admissions_scope(self.dean_user)
+        self.assertFalse(central_admin)
+        self.assertEqual(school_ids, {self.school_a.id})
+
+    def test_user_without_admissions_permission_has_no_scope(self):
+        central_admin, school_ids = _admissions_scope(self.unscoped_faculty)
+        self.assertFalse(central_admin)
+        self.assertEqual(school_ids, set())
+
+    def test_deactivated_dean_assignment_loses_scope(self):
+        assignment = StaffRoleAssignment.objects.get(user=self.dean_user)
+        assignment.is_active = False
+        assignment.save(update_fields=["is_active"])
+        central_admin, school_ids = _admissions_scope(self.dean_user)
+        self.assertFalse(central_admin)
+        self.assertEqual(school_ids, set())
