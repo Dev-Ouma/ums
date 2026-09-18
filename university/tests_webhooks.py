@@ -147,7 +147,7 @@ class DeliverPendingWebhooksTests(TestCase):
         mock_response.__enter__.return_value = mock_response
         mock_response.__exit__.return_value = False
 
-        with patch("urllib.request.urlopen", return_value=mock_response):
+        with patch("university.webhook_services._NO_REDIRECT_OPENER.open", return_value=mock_response):
             delivered = deliver_pending_webhooks()
 
         self.assertEqual(delivered, 1)
@@ -159,7 +159,7 @@ class DeliverPendingWebhooksTests(TestCase):
     def test_failed_delivery_schedules_a_retry_with_backoff(self):
         from university.webhook_services import deliver_pending_webhooks
 
-        with patch("urllib.request.urlopen", side_effect=OSError("connection refused")):
+        with patch("university.webhook_services._NO_REDIRECT_OPENER.open", side_effect=OSError("connection refused")):
             deliver_pending_webhooks()
 
         self.delivery.refresh_from_db()
@@ -173,7 +173,7 @@ class DeliverPendingWebhooksTests(TestCase):
         self.delivery.attempt_count = self.delivery.max_attempts - 1
         self.delivery.save()
 
-        with patch("urllib.request.urlopen", side_effect=OSError("connection refused")):
+        with patch("university.webhook_services._NO_REDIRECT_OPENER.open", side_effect=OSError("connection refused")):
             deliver_pending_webhooks()
 
         self.delivery.refresh_from_db()
@@ -228,3 +228,59 @@ class WebhookAdminViewTests(TestCase):
         res = client.post(reverse("university:webhook_delete", args=[endpoint.pk]))
         self.assertEqual(res.status_code, 302)
         self.assertFalse(WebhookEndpoint.objects.filter(pk=endpoint.pk).exists())
+
+    def test_webhook_list_escapes_endpoint_name_for_the_inline_confirm_script(self):
+        # Regression: the delete button's onsubmit="confirm('...name...')" used
+        # to interpolate the raw (HTML-escaped only) name into a JS string.
+        # Django's HTML escaping turns a quote into &#x27;, but the browser
+        # HTML-attribute-decodes that back to a literal ' before the JS
+        # engine parses onsubmit -- so a name containing a quote could break
+        # out of the confirm() string and execute arbitrary JS in an admin's
+        # browser. |escapejs must be applied so quotes become ' instead,
+        # which survives HTML-attribute decoding unchanged.
+        WebhookEndpoint.objects.create(
+            name="Evil'); alert('xss", url="https://example.com/hook", event_kinds=[],
+        )
+        client = Client()
+        client.force_login(self.admin_user)
+        res = client.get(reverse("university:webhook_list"))
+        html = res.content.decode()
+        self.assertNotIn("confirm('Delete webhook endpoint \\'Evil');", html)
+        self.assertIn("\\u0027", html)
+
+
+class WebhookDeliveryRedirectSSRFTests(TestCase):
+    """
+    Regression tests: validate_webhook_url() only runs when an admin saves
+    an endpoint's URL. urllib.request.urlopen() follows HTTP redirects by
+    default, so a delivery request to an already-validated public URL could
+    still be redirected by that endpoint (at delivery time, on the
+    unattended background schedule) to an internal/private target,
+    completely bypassing the SSRF check. Delivery must refuse to follow
+    any redirect.
+    """
+    def setUp(self):
+        self.endpoint = WebhookEndpoint.objects.create(
+            name="Redirect Test", url="https://example.com/hook",
+            event_kinds=["account_status_changed"], is_active=True)
+        self.delivery = WebhookDelivery.objects.create(
+            endpoint=self.endpoint, event_kind="account_status_changed",
+            payload={"event": "account_status_changed", "data": {}})
+
+    def test_delivery_does_not_follow_a_redirect_to_an_internal_target(self):
+        from urllib.error import HTTPError
+        from university.webhook_services import deliver_pending_webhooks
+
+        def _raise_redirect(*args, **kwargs):
+            raise HTTPError(
+                "http://169.254.169.254/latest/meta-data/", 302,
+                "Refusing to follow webhook redirect", {}, None,
+            )
+
+        with patch("university.webhook_services._NO_REDIRECT_OPENER.open", side_effect=_raise_redirect):
+            deliver_pending_webhooks()
+
+        self.delivery.refresh_from_db()
+        # Treated as a failed delivery attempt, never as a followed request.
+        self.assertIn(self.delivery.status, (WebhookDelivery.Status.RETRYING, WebhookDelivery.Status.FAILED))
+        self.assertEqual(self.delivery.response_status, 302)

@@ -139,6 +139,33 @@ def _sign_payload(secret, body_bytes):
     return hmac.new(secret.encode("utf-8"), body_bytes, hashlib.sha256).hexdigest()
 
 
+#: Bound how much of a delivery response we ever read into memory. A
+#: compromised or malicious endpoint could otherwise stream an unbounded
+#: response body at this server (memory-exhaustion DoS).
+_MAX_RESPONSE_BYTES = 64 * 1024
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """
+    Refuse to follow HTTP redirects on webhook delivery requests.
+
+    validate_webhook_url() only runs when an admin saves an endpoint's URL
+    -- urllib.request.urlopen() follows 3xx redirects automatically by
+    default, so a registered public URL that later (or immediately, if the
+    admin controls that endpoint) responds with a redirect to
+    127.0.0.1/169.254.169.254/an internal service would completely bypass
+    that validation on every scheduled delivery. There is no legitimate
+    reason a webhook receiver needs to redirect; if it moves, the admin
+    updates the registered URL (which gets re-validated).
+    """
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(
+            newurl, code, f"Refusing to follow webhook redirect to '{newurl}'.", headers, fp)
+
+
+_NO_REDIRECT_OPENER = urllib.request.build_opener(_NoRedirectHandler)
+
+
 class WebhookDeliveryAdapter(BaseIntegrationAdapter):
     integration_name = "Webhooks"
 
@@ -155,8 +182,8 @@ class WebhookDeliveryAdapter(BaseIntegrationAdapter):
         )
 
         def _post():
-            with urllib.request.urlopen(req, timeout=10) as response:
-                return response.getcode(), response.read().decode("utf-8", errors="replace")
+            with _NO_REDIRECT_OPENER.open(req, timeout=10) as response:
+                return response.getcode(), response.read(_MAX_RESPONSE_BYTES).decode("utf-8", errors="replace")
 
         try:
             status_code, body_text = self.call_with_audit(
@@ -167,7 +194,7 @@ class WebhookDeliveryAdapter(BaseIntegrationAdapter):
             delivery.error_message = ""
         except urllib.error.HTTPError as exc:
             delivery.response_status = exc.code
-            delivery.response_body = (exc.read().decode("utf-8", errors="replace") if exc.fp else "")[:2000]
+            delivery.response_body = (exc.read(_MAX_RESPONSE_BYTES).decode("utf-8", errors="replace") if exc.fp else "")[:2000]
             delivery.error_message = str(exc)
             self._mark_retry_or_failed(delivery)
         except Exception as exc:

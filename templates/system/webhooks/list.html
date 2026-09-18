@@ -47,7 +47,7 @@
               <a href="{% url 'university:webhook_deliveries' endpoint.pk %}" class="btn btn-sm btn-outline-secondary rounded-pill">Deliveries</a>
               <a href="{% url 'university:webhook_edit' endpoint.pk %}" class="btn btn-sm btn-outline-primary rounded-pill">Edit</a>
               <form method="post" action="{% url 'university:webhook_delete' endpoint.pk %}" class="d-inline"
-                    onsubmit="return confirm('Delete webhook endpoint \'{{ endpoint.name }}\'? This cannot be undone.');">
+                    onsubmit="return confirm('Delete webhook endpoint \'{{ endpoint.name|escapejs }}\'? This cannot be undone.');">
                 {% csrf_token %}
                 <button class="btn btn-sm btn-outline-danger rounded-pill">Delete</button>
               </form>
