@@ -94,8 +94,12 @@
                   <small class="text-muted">{{ sem.get_term_type_display }} {{ sem.semester_number }} · {{ sem.start_date|date:"d M Y" }} - {{ sem.end_date|date:"d M Y" }}</small>
                 </td>
                 <td>
-                  <a href="{% url 'university:academic_year_detail' sem.academic_year.pk %}" class="fw-semibold">{{ sem.academic_year.name }}</a>
-                  {% if sem.academic_year.is_current %}<span class="badge bg-success rounded-pill ms-1">Year Current</span>{% endif %}
+                  {% if sem.academic_year %}
+                    <a href="{% url 'university:academic_year_detail' sem.academic_year.pk %}" class="fw-semibold">{{ sem.academic_year.name }}</a>
+                    {% if sem.academic_year.is_current %}<span class="badge bg-success rounded-pill ms-1">Year Current</span>{% endif %}
+                  {% else %}
+                    <span class="text-muted fst-italic">No academic year set</span>
+                  {% endif %}
                 </td>
                 <td class="small">
                   {{ sem.registration_start_date|date:"d M Y"|default:"Not set" }} -
