@@ -1104,6 +1104,12 @@ class PaymentAllocation(models.Model):
 
 
 class FeeReceipt(models.Model):
+    class EmailStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        SENT = "SENT", "Sent"
+        FAILED = "FAILED", "Failed"
+        RETRYING = "RETRYING", "Retrying"
+
     receipt_number = models.CharField(max_length=64, unique=True, db_index=True)
     payment = models.OneToOneField(Payment, on_delete=models.CASCADE, related_name="fee_receipt")
     student = models.ForeignKey("accounts.StudentProfile", on_delete=models.CASCADE, related_name="fee_receipts")
@@ -1112,11 +1118,51 @@ class FeeReceipt(models.Model):
     amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
     remaining_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
+    # Email Notification Tracking
+    email_status = models.CharField(max_length=20, choices=EmailStatus.choices, default=EmailStatus.PENDING, db_index=True)
+    recipient_email = models.EmailField(blank=True, default="", help_text="Student primary email address")
+    cc_email = models.CharField(max_length=255, blank=True, default="", help_text="Personal application email in CC")
+    email_sent_at = models.DateTimeField(null=True, blank=True)
+    retry_count = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True, default="")
+    pdf_file = models.FileField(upload_to="fee_receipts/%Y/%m/", null=True, blank=True)
+
     class Meta:
         ordering = ["-issued_at"]
 
     def __str__(self):
         return f"{self.receipt_number} · {self.student.roll_no} ({self.amount_paid})"
+
+
+class FeeReceiptDeliveryLog(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        SENT = "SENT", "Sent"
+        FAILED = "FAILED", "Failed"
+        RETRYING = "RETRYING", "Retrying"
+
+    class Trigger(models.TextChoices):
+        AUTO = "AUTO", "Automatic (Payment Confirmation)"
+        RESEND = "RESEND", "Manual Resend"
+        RETRY = "RETRY", "Automatic Retry"
+
+    receipt = models.ForeignKey(FeeReceipt, on_delete=models.CASCADE, related_name="delivery_logs")
+    to_email = models.EmailField()
+    cc_email = models.CharField(max_length=255, blank=True, default="")
+    subject = models.CharField(max_length=255)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
+    trigger = models.CharField(max_length=20, choices=Trigger.choices, default=Trigger.AUTO)
+    attempt_number = models.PositiveIntegerField(default=1)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    error_reason = models.TextField(blank=True, default="")
+    initiated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="receipt_email_deliveries")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Receipt {self.receipt.receipt_number} email to {self.to_email} [{self.status}]"
 
 
 class PaymentReconciliation(models.Model):

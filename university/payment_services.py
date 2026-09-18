@@ -341,6 +341,13 @@ def process_payment_confirmation(
     except Exception as e:
         logger.warning(f"Failed to dispatch payment confirmation SMS for {payment.internal_reference}: {e}")
 
+    # Dispatch automated branded PDF receipt email notification
+    try:
+        from university.receipt_email_services import dispatch_fee_receipt_email
+        dispatch_fee_receipt_email(receipt, trigger="AUTO", user=confirmed_by)
+    except Exception as e:
+        logger.warning(f"Failed to dispatch payment receipt email for {receipt.receipt_number}: {e}")
+
     # Log to AuditLog
     log_activity(
         request=request,

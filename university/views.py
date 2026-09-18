@@ -21,7 +21,7 @@ from django.views.decorators.http import require_POST
 from accounts.models import FacultyProfile, Role, StudentProfile
 
 from . import ai, course_io, faculty_io, fee_io, program_io, services, student_io, timetable_io
-from .decorators import role_required
+from .decorators import role_required, permission_required as _permission_required
 from .security_utils import safe_redirect
 from .document_design import get_branding
 from .financial_services import (
@@ -2589,6 +2589,13 @@ def record_payment(request, pk):
     except (InvalidOperation, TypeError):
         amount = Decimal("0")
     if amount > 0:
+        # Invoice update, Payment, PaymentAllocation, and FeeReceipt creation
+        # are one sensitive financial operation and must commit together --
+        # previously the invoice balance update was atomic on its own but
+        # the Payment/Allocation/Receipt writes that followed were plain,
+        # unwrapped statements, so a failure partway through (e.g. the
+        # receipt insert) would leave the invoice's balance already
+        # incremented with no Payment or Receipt to account for it.
         with transaction.atomic():
             invoice = FeeInvoice.objects.select_for_update().get(pk=invoice.pk)
             prev_balance = invoice.balance
@@ -2597,39 +2604,50 @@ def record_payment(request, pk):
             fee_acc = FeeAccount.objects.filter(status=FeeAccount.Status.ACTIVE).first()
             import uuid
             ref = f"TXN-{uuid.uuid4().hex[:20].upper()}"
-        pmt = Payment.objects.create(
-            invoice=invoice,
-            student=invoice.student,
-            fee_account=fee_acc,
-            amount=amount,
-            currency="KES",
-            method="Front-desk",
-            reference=ref,
-            internal_reference=f"FNT-{timezone.now().strftime('%Y%m%d%H%M%S%f')[:20]}",
-            status=Payment.Status.SUCCESSFUL,
-            academic_year=getattr(invoice.term, "academic_year", None) if invoice.term else None,
-            term=invoice.term,
-            completed_at=timezone.now(),
-            payer_name=getattr(invoice.student.user, "display_name", str(invoice.student.user)),
-        )
-        PaymentAllocation.objects.create(
-            payment=pmt,
-            invoice=invoice,
-            amount=amount,
-            allocated_at=timezone.now(),
-        )
-        receipt_no = f"REC-{pmt.paid_on.year}-{pmt.id:06d}"
-        FeeReceipt.objects.get_or_create(
-            payment=pmt,
-            defaults={
-                "receipt_number": receipt_no,
-                "student": invoice.student,
-                "issued_at": timezone.now(),
-                "previous_balance": prev_balance,
-                "amount_paid": amount,
-                "remaining_balance": invoice.balance,
-            },
-        )
+
+            pmt = Payment.objects.create(
+                invoice=invoice,
+                student=invoice.student,
+                fee_account=fee_acc,
+                amount=amount,
+                currency="KES",
+                method="Front-desk",
+                reference=ref,
+                internal_reference=f"FNT-{timezone.now().strftime('%Y%m%d%H%M%S%f')[:20]}",
+                status=Payment.Status.SUCCESSFUL,
+                academic_year=getattr(invoice.term, "academic_year", None) if invoice.term else None,
+                term=invoice.term,
+                completed_at=timezone.now(),
+                payer_name=getattr(invoice.student.user, "display_name", str(invoice.student.user)),
+            )
+            PaymentAllocation.objects.create(
+                payment=pmt,
+                invoice=invoice,
+                amount=amount,
+                allocated_at=timezone.now(),
+            )
+            receipt_no = f"REC-{pmt.paid_on.year}-{pmt.id:06d}"
+            receipt, _ = FeeReceipt.objects.get_or_create(
+                payment=pmt,
+                defaults={
+                    "receipt_number": receipt_no,
+                    "student": invoice.student,
+                    "issued_at": timezone.now(),
+                    "previous_balance": prev_balance,
+                    "amount_paid": amount,
+                    "remaining_balance": invoice.balance,
+                },
+            )
+
+        # Email delivery is deliberately outside the transaction: it's
+        # external I/O with its own retry/audit path (receipt_email_services),
+        # isolated with a try/except so it can never roll back or block a
+        # payment that has already committed.
+        try:
+            from university.receipt_email_services import dispatch_fee_receipt_email
+            dispatch_fee_receipt_email(receipt, trigger="AUTO", user=request.user)
+        except Exception as e:
+            logger.warning("Failed sending receipt email in record_payment: %s", e)
         log_activity(
             request=request,
             user=request.user,
@@ -3445,44 +3463,56 @@ def student_fees(request):
             amt = Decimal("0.00")
 
         if amt > 0:
-            prev_balance = invoice.balance
-            invoice.amount_paid += amt
-            invoice.save()
-            fee_acc = FeeAccount.objects.filter(status=FeeAccount.Status.ACTIVE).first()
-            pmt = Payment.objects.create(
-                invoice=invoice,
-                student=sp,
-                fee_account=fee_acc,
-                amount=amt,
-                currency="KES",
-                method=method,
-                reference=reference,
-                internal_reference=f"STU-{timezone.now().strftime('%Y%m%d%H%M%S%f')[:20]}",
-                status=Payment.Status.SUCCESSFUL,
-                academic_year=getattr(invoice.term, "academic_year", None) if invoice.term else None,
-                term=invoice.term,
-                completed_at=timezone.now(),
-                payer_name=getattr(sp.user, "display_name", str(sp.user)),
-                payer_phone=getattr(sp.user, "phone", ""),
-            )
-            PaymentAllocation.objects.create(
-                payment=pmt,
-                invoice=invoice,
-                amount=amt,
-                allocated_at=timezone.now(),
-            )
-            receipt_no = f"REC-{pmt.paid_on.year}-{pmt.id:06d}"
-            FeeReceipt.objects.get_or_create(
-                payment=pmt,
-                defaults={
-                    "receipt_number": receipt_no,
-                    "student": sp,
-                    "issued_at": timezone.now(),
-                    "previous_balance": prev_balance,
-                    "amount_paid": amt,
-                    "remaining_balance": invoice.balance,
-                },
-            )
+            # See record_payment()'s equivalent block: invoice update plus
+            # Payment/Allocation/Receipt creation must commit together, not
+            # as separate unwrapped statements, or a mid-sequence failure
+            # leaves the invoice balance already advanced with no Payment
+            # or Receipt on record for it.
+            with transaction.atomic():
+                invoice = FeeInvoice.objects.select_for_update().get(pk=invoice.pk)
+                prev_balance = invoice.balance
+                invoice.amount_paid += amt
+                invoice.save(update_fields=["amount_paid"])
+                fee_acc = FeeAccount.objects.filter(status=FeeAccount.Status.ACTIVE).first()
+                pmt = Payment.objects.create(
+                    invoice=invoice,
+                    student=sp,
+                    fee_account=fee_acc,
+                    amount=amt,
+                    currency="KES",
+                    method=method,
+                    reference=reference,
+                    internal_reference=f"STU-{timezone.now().strftime('%Y%m%d%H%M%S%f')[:20]}",
+                    status=Payment.Status.SUCCESSFUL,
+                    academic_year=getattr(invoice.term, "academic_year", None) if invoice.term else None,
+                    term=invoice.term,
+                    completed_at=timezone.now(),
+                    payer_name=getattr(sp.user, "display_name", str(sp.user)),
+                    payer_phone=getattr(sp.user, "phone", ""),
+                )
+                PaymentAllocation.objects.create(
+                    payment=pmt,
+                    invoice=invoice,
+                    amount=amt,
+                    allocated_at=timezone.now(),
+                )
+                receipt_no = f"REC-{pmt.paid_on.year}-{pmt.id:06d}"
+                receipt, _ = FeeReceipt.objects.get_or_create(
+                    payment=pmt,
+                    defaults={
+                        "receipt_number": receipt_no,
+                        "student": sp,
+                        "issued_at": timezone.now(),
+                        "previous_balance": prev_balance,
+                        "amount_paid": amt,
+                        "remaining_balance": invoice.balance,
+                    },
+                )
+            try:
+                from university.receipt_email_services import dispatch_fee_receipt_email
+                dispatch_fee_receipt_email(receipt, trigger="AUTO", user=request.user)
+            except Exception as e:
+                logger.warning("Failed sending receipt email in student_fees: %s", e)
             log_activity(
                 request=request,
                 user=request.user,
@@ -3590,3 +3620,34 @@ def ai_insights(request):
         "at_risk": at_risk,
         "top_courses": top_courses,
     })
+
+
+@login_required
+@_permission_required("finance.record_payments")
+@require_POST
+def resend_fee_receipt_email_view(request, pk):
+    """
+    Authorized Finance/Admin action to resend the official branded payment receipt email.
+    """
+    from university.models import FeeReceipt, FeeReceiptDeliveryLog
+    receipt = get_object_or_404(
+        FeeReceipt.objects.select_related("payment", "student", "student__user"),
+        pk=pk,
+    )
+
+    from university.receipt_email_services import resend_fee_receipt_email
+    log_entry = resend_fee_receipt_email(receipt, user=request.user)
+
+    if log_entry and log_entry.status == FeeReceiptDeliveryLog.Status.SENT:
+        cc_info = f" (CC: {log_entry.cc_email})" if log_entry.cc_email else ""
+        messages.success(request, f"Official receipt {receipt.receipt_number} resent successfully to {log_entry.to_email}{cc_info}.")
+    else:
+        err = log_entry.error_reason if log_entry else "Delivery failed."
+        messages.error(request, f"Failed resending receipt {receipt.receipt_number}: {err}")
+
+    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER")
+    if next_url and next_url.startswith("/"):
+        return redirect(next_url)
+    if receipt.receipt_number:
+        return redirect("university:student_receipt_view", receipt_no=receipt.receipt_number)
+    return redirect("university:admin_fees")

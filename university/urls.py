@@ -161,6 +161,7 @@ urlpatterns = [
     path("manage/fees/structures/<int:pk>/edit/", views.fee_structure_edit, name="fee_structure_edit"),
     path("manage/fees/structures/<int:pk>/delete/", views.fee_structure_delete, name="fee_structure_delete"),
     path("manage/fees/receipt/<int:pk>/pdf/", views.fee_receipt_pdf, name="fee_receipt_pdf"),
+    path("manage/fees/receipt/<int:pk>/resend-email/", views.resend_fee_receipt_email_view, name="resend_fee_receipt_email"),
 
     # Fee Accounts & Payment Gateway Administration
     path("finance/fee-accounts/", fee_account_views.fee_accounts_dashboard, name="fee_accounts_dashboard"),

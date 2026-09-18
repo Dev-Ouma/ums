@@ -399,6 +399,11 @@ def tick():
         deliver_pending_webhooks()
     except Exception:
         pass
+    try:
+        from .receipt_email_services import retry_failed_receipt_emails
+        retry_failed_receipt_emails()
+    except Exception:
+        pass
 
 
 @transaction.atomic
