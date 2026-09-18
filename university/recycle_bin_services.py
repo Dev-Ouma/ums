@@ -139,10 +139,14 @@ def _ensure_identity(user_inst, user_type, actor=None):
 
     The account returns as Pending rather than Active: a restore reinstates the
     record, not the right to sign in, so an administrator still has to activate
-    it deliberately.
+    it deliberately. (Without an explicit status=, ensure_account() would default
+    a brand-new envelope to ACTIVE, which is right for pre-existing/seeded users
+    but wrong here -- set_unusable_password() alone is a real but silent safety
+    net; PENDING makes the "not yet reinstated" state visible and explicit.)
     """
+    from university.identity_models import AccountStatus
     from university.identity_services import ensure_account
-    return ensure_account(user_inst, user_type=user_type, created_by=actor)
+    return ensure_account(user_inst, user_type=user_type, status=AccountStatus.PENDING, created_by=actor)
 
 
 @transaction.atomic

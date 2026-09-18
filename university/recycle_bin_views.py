@@ -127,11 +127,15 @@ def recycle_bin_detail(request, pk):
 @require_POST
 def recycle_bin_restore(request, pk):
     """Restore a single deleted record."""
-    success, message = restore_from_recycle_bin(pk, user=request.user, request=request)
-    if success:
-        messages.success(request, message)
-    else:
-        messages.error(request, message)
+    from django.core.exceptions import PermissionDenied
+    try:
+        success, message = restore_from_recycle_bin(pk, user=request.user, request=request)
+        if success:
+            messages.success(request, message)
+        else:
+            messages.error(request, message)
+    except PermissionDenied as e:
+        messages.error(request, str(e))
     return redirect("university:recycle_bin_dashboard")
 
 

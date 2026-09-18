@@ -26,6 +26,7 @@ from university.module_services import (
     set_module_status,
     set_submodule_status,
     set_feature_status,
+    cascade_module_status,
     bulk_set_modules_status,
     enable_all_modules,
     disable_all_configurable_modules,
@@ -36,12 +37,19 @@ from university.module_services import (
 
 
 def _admin_required(view_func):
-    """Ensure user is an active Administrator or Staff member."""
+    """
+    Ensure user is an Administrator. This module is registered with
+    target_roles: ["ADMIN"] and is_critical: True in the app's own module
+    registry -- deliberately narrower than Django's built-in `is_staff`
+    flag, which can be set on non-ADMIN-role accounts for unrelated
+    reasons (e.g. Django admin-site access) and must not grant module
+    toggle/export/import authority on its own.
+    """
     def _wrapped(request, *args, **kwargs):
         if not request.user.is_authenticated:
             return redirect("accounts:login")
         user_role = getattr(request.user, "role", "")
-        if not (request.user.is_staff or request.user.is_superuser or user_role in (Role.ADMIN, "ADMIN")):
+        if not (request.user.is_superuser or user_role in (Role.ADMIN, "ADMIN")):
             messages.error(request, "Access restricted. System Administrator privileges required.")
             return redirect("university:dashboard")
         return view_func(request, *args, **kwargs)
@@ -163,9 +171,11 @@ def admin_module_update(request, pk):
     )
 
     if success and cascade:
-        mod.submodules.all().update(status=new_status)
-        SystemFeature.objects.filter(submodule__module=mod).update(status=new_status)
-        msg += " All child submodules & features updated to match."
+        updated_subs, updated_feats, skipped = cascade_module_status(
+            mod.code, new_status, user=request.user)
+        msg += f" {updated_subs} submodule(s) and {updated_feats} feature(s) updated to match."
+        if skipped:
+            msg += f" Protected {len(skipped)} critical item(s): {', '.join(skipped)}."
 
     if success:
         messages.success(request, msg)
@@ -423,7 +433,7 @@ def admin_modules_import_json(request):
                     feat_msg = feat_item.get("status_message", "")
                     if feat_code and feat_status:
                         f = SystemFeature.objects.filter(code=feat_code).first()
-                        if f:
+                        if f and (not f.is_critical or feat_status == ModuleStatus.ENABLED):
                             f.status = feat_status
                             f.status_message = feat_msg
                             f.save(update_fields=["status", "status_message", "updated_at"])

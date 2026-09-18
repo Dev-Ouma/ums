@@ -251,6 +251,7 @@ def execute_backup_job(job_id: int) -> BackupJob:
             os.makedirs(db_dir, exist_ok=True)
             
             db_engine = connection.settings_dict.get("ENGINE", "")
+            sqlite_snapshot_captured = False
             if "sqlite" in db_engine:
                 sqlite_dest = os.path.join(db_dir, "database.sqlite3")
                 db_name = connection.settings_dict.get("NAME")
@@ -263,20 +264,43 @@ def execute_backup_job(job_id: int) -> BackupJob:
                         dst_conn.close()
                         if os.path.exists(sqlite_dest):
                             archive_members.append((sqlite_dest, "database/database.sqlite3", "DATABASE"))
+                            sqlite_snapshot_captured = True
                     except Exception as e:
                         logger.warning(f"Online sqlite connection backup error, falling back to file check: {e}")
                         if db_name and os.path.exists(db_name):
                             try:
                                 shutil.copy2(db_name, sqlite_dest)
                                 archive_members.append((sqlite_dest, "database/database.sqlite3", "DATABASE"))
+                                sqlite_snapshot_captured = True
                             except Exception as e2:
                                 logger.warning(f"Direct file copy fallback error: {e2}")
                 elif db_name and os.path.exists(db_name):
                     try:
                         shutil.copy2(db_name, sqlite_dest)
                         archive_members.append((sqlite_dest, "database/database.sqlite3", "DATABASE"))
+                        sqlite_snapshot_captured = True
                     except Exception as e:
                         logger.warning(f"File copy error during atomic block: {e}")
+
+                if not sqlite_snapshot_captured:
+                    # Both capture methods failed. The JSON dumpdata export
+                    # below still runs and gives this backup a valid,
+                    # restorable database component, so the job is not
+                    # failed outright -- but silently dropping the native
+                    # binary snapshot to a warning-level log line (easy to
+                    # miss) while the job still reports full success is
+                    # exactly the kind of masked partial failure this
+                    # backup system must not produce. Surface it on the
+                    # job's own visible log instead.
+                    BackupLog.objects.create(
+                        job=job,
+                        level=BackupLog.Level.WARNING,
+                        component="DATABASE",
+                        message="Native SQLite binary snapshot could not be captured (both the "
+                                "online connection backup and the direct file copy fallback "
+                                "failed). Falling back to the JSON data dump only -- see server "
+                                "logs for the underlying error.",
+                    )
 
             # Also output structured JSON data dump for maximum platform portability
             json_dest = os.path.join(db_dir, "data_dump.json")
@@ -844,11 +868,23 @@ def apply_retention_policies() -> Dict[str, Any]:
     bytes_reclaimed = 0
     now = timezone.now()
 
-    # Query candidate backups: successful and not protected
+    # Backups currently being read by an active restore must never be
+    # pruned out from under it -- the docstring's "NEVER deletes backups
+    # linked to in-progress restorations" guarantee was previously
+    # unenforced (only is_protected and the latest backup were excluded).
+    in_progress_backup_ids = BackupRestoreJob.objects.filter(
+        status__in=[
+            BackupRestoreJob.Status.QUEUED,
+            BackupRestoreJob.Status.IN_PROGRESS,
+            BackupRestoreJob.Status.VALIDATING,
+        ]
+    ).values("backup_id")
+
+    # Query candidate backups: successful, not protected, not mid-restore
     candidates = BackupJob.objects.filter(
         status=BackupJob.Status.SUCCESSFUL,
         is_protected=False,
-    ).order_by("-created_at")
+    ).exclude(id__in=in_progress_backup_ids).order_by("-created_at")
 
     total_count = candidates.count()
     if total_count <= 1:

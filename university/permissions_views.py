@@ -35,6 +35,29 @@ from university.identity_services import invalidate_user_sessions
 _admin_required = permission_required("admin.manage_roles_permissions")
 
 
+def _actor_depends_solely_on_role(actor, role_obj):
+    """
+    True if `actor` would lose their own admin.manage_roles_permissions
+    access if `role_obj` were deleted or stripped of that permission --
+    i.e. they hold it only through this StaffRole, not through base-ADMIN
+    role defaults, superuser status, or another active role/override.
+    Used to block an admin from deleting/editing-away the very role their
+    own console access depends on.
+    """
+    if actor.is_superuser or getattr(actor, "is_admin_role", False) or actor.role == Role.ADMIN:
+        # Base ADMIN role/superuser grants this permission by default
+        # regardless of any custom StaffRole -- can't self-lockout this way.
+        return False
+    other_grant = StaffRoleAssignment.objects.filter(
+        user=actor, is_active=True, role__permissions__code="admin.manage_roles_permissions",
+    ).exclude(role=role_obj).exists()
+    if other_grant:
+        return False
+    return StaffRoleAssignment.objects.filter(
+        user=actor, role=role_obj, is_active=True,
+    ).exists()
+
+
 # ==============================================================================
 # 1. ROLES & PERMISSIONS HUB (ADMIN SETUPS)
 # ==============================================================================
@@ -275,16 +298,17 @@ def staff_role_assignment_action(request, user_id):
         assignment_id = request.POST.get("assignment_id")
         assignment = get_object_or_404(StaffRoleAssignment, id=assignment_id, user=staff_user)
         role_name = assignment.role.name
-        assignment.delete()
+        with transaction.atomic():
+            assignment.delete()
+            log_activity(
+                request=request,
+                user=request.user,
+                action=AuditLog.Action.DELETE,
+                module=AuditLog.Module.CONFIG,
+                entity=f"Staff Role: {staff_user.username}",
+                description=f"Removed role '{role_name}' from staff user {staff_user.username}.",
+            )
         invalidate_user_sessions(staff_user)
-        log_activity(
-            request=request,
-            user=request.user,
-            action=AuditLog.Action.DELETE,
-            module=AuditLog.Module.CONFIG,
-            entity=f"Staff Role: {staff_user.username}",
-            description=f"Removed role '{role_name}' from staff user {staff_user.username}.",
-        )
         messages.success(request, f"Role '{role_name}' removed from {staff_user.username}.")
 
     return redirect("university:staff_user_access_detail", user_id=user_id)
@@ -311,6 +335,13 @@ def role_create_edit(request, role_id=None):
 
         if not name or not code:
             messages.error(request, "Role Name and Code identifier are required.")
+            return redirect(request.path)
+
+        if (role_obj and "admin.manage_roles_permissions" not in selected_perms
+                and _actor_depends_solely_on_role(request.user, role_obj)):
+            messages.error(request, f"You cannot remove 'Manage Roles & Permissions' from "
+                                    f"'{role_obj.name}' -- it is your own only source of "
+                                    f"that access. Assign yourself another role with it first.")
             return redirect(request.path)
 
         with transaction.atomic():
@@ -381,16 +412,39 @@ def role_delete(request, role_id):
         messages.error(request, "Built-in system roles cannot be deleted.")
         return redirect("university:staff_permissions_dashboard")
 
-    role_name = role_obj.name
-    role_obj.delete()
+    if _actor_depends_solely_on_role(request.user, role_obj):
+        messages.error(request, f"You cannot delete '{role_obj.name}' -- it is your own "
+                                f"only source of Roles & Permissions management access. "
+                                f"Assign yourself another role with that permission first.")
+        return redirect("university:staff_permissions_dashboard")
 
-    log_activity(
-        request=request,
-        user=request.user,
-        action=AuditLog.Action.DELETE,
-        module=AuditLog.Module.SETTINGS,
-        entity=f"Staff Role: {role_name}",
-        description=f"Deleted custom role '{role_name}'.",
-    )
-    messages.success(request, f"Role '{role_name}' was deleted.")
+    affected_assignments = StaffRoleAssignment.objects.filter(role=role_obj, is_active=True).select_related("user")
+    affected_usernames = [a.user.username for a in affected_assignments]
+
+    role_name = role_obj.name
+    with transaction.atomic():
+        role_obj.delete()
+        log_activity(
+            request=request,
+            user=request.user,
+            action=AuditLog.Action.DELETE,
+            module=AuditLog.Module.CONFIG,
+            entity=f"Staff Role: {role_name}",
+            description=(
+                f"Deleted custom role '{role_name}'."
+                + (f" This revoked it from {len(affected_usernames)} staff member(s): "
+                   f"{', '.join(affected_usernames)}." if affected_usernames else "")
+            ),
+        )
+    for username in affected_usernames:
+        invalidate_user_sessions(User.objects.get(username=username))
+
+    if affected_usernames:
+        messages.warning(
+            request,
+            f"Role '{role_name}' was deleted. This revoked access for {len(affected_usernames)} "
+            f"staff member(s): {', '.join(affected_usernames)}.",
+        )
+    else:
+        messages.success(request, f"Role '{role_name}' was deleted.")
     return redirect("university:staff_permissions_dashboard")

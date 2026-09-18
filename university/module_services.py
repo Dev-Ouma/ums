@@ -1386,6 +1386,64 @@ def set_feature_status(feature_code, new_status, status_message="", user=None):
 
 
 @transaction.atomic
+def cascade_module_status(module_code, new_status, user=None):
+    """
+    Applies `new_status` to a module's own submodules and features, honouring
+    each one's own `is_critical` flag exactly like set_submodule_status/
+    set_feature_status do -- a non-critical parent module can still contain
+    an individually critical submodule/feature, and cascading through a raw
+    bulk .update() would silently disable it with no protection and no
+    per-record audit trail. Everything here runs in one transaction with a
+    single summarizing audit log entry.
+
+    Returns (updated_submodules, updated_features, skipped_names).
+    """
+    mod = SystemModule.objects.select_for_update().filter(code=module_code).first()
+    if not mod:
+        return 0, 0, []
+
+    skipped = []
+    updated_subs = 0
+    for sub in mod.submodules.select_for_update():
+        if sub.is_critical and new_status != ModuleStatus.ENABLED:
+            skipped.append(sub.name)
+            continue
+        sub.status = new_status
+        if user and user.is_authenticated:
+            sub.updated_by = user
+        sub.save(update_fields=["status", "updated_by"] if user and user.is_authenticated else ["status"])
+        updated_subs += 1
+
+    updated_feats = 0
+    for feat in SystemFeature.objects.select_for_update().filter(submodule__module=mod):
+        if feat.is_critical and new_status != ModuleStatus.ENABLED:
+            skipped.append(feat.name)
+            continue
+        feat.status = new_status
+        if user and user.is_authenticated:
+            feat.updated_by = user
+        feat.save(update_fields=["status", "updated_by"] if user and user.is_authenticated else ["status"])
+        updated_feats += 1
+
+    log_activity(
+        action=AuditLog.Action.MODULES_BULK_UPDATE,
+        module=AuditLog.Module.MODULE_MGMT,
+        description=(
+            f"Cascaded '{mod.name}' status change to {updated_subs} submodule(s) and "
+            f"{updated_feats} feature(s) (target: '{new_status}')."
+            + (f" Protected {len(skipped)} critical item(s): {', '.join(skipped)}." if skipped else "")
+        ),
+        user=user,
+        entity="SystemModule",
+        entity_id=str(mod.id),
+        new_state={"code": mod.code, "cascaded_status": new_status, "submodules": updated_subs, "features": updated_feats},
+    )
+
+    invalidate_module_cache()
+    return updated_subs, updated_feats, skipped
+
+
+@transaction.atomic
 def bulk_set_modules_status(module_codes, new_status, user=None, status_message=""):
     """
     Bulk updates multiple modules safely while protecting critical system modules.

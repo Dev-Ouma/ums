@@ -296,6 +296,7 @@ def backup_schedule_run_now(request, pk):
         created_by=request.user,
     )
     execute_backup_job(job.pk)
+    job.refresh_from_db()
     schedule.last_run_at = timezone.now()
     schedule.next_run_at = calculate_next_run(schedule)
     schedule.save(update_fields=["last_run_at", "next_run_at"])
@@ -303,7 +304,14 @@ def backup_schedule_run_now(request, pk):
     log_activity(request=request, user=request.user, action=AuditLog.Action.UPDATE,
                  module=AuditLog.Module.BACKUPS, entity="BackupSchedule", entity_id=schedule.pk,
                  description=f"Manually ran backup schedule '{schedule.name}' now ({job.backup_id}).")
-    messages.success(request, f"Scheduled backup '{schedule.name}' executed: {job.backup_id}.")
+    if job.status == BackupJob.Status.SUCCESSFUL and job.verification_status == BackupJob.VerificationStatus.FAILED:
+        messages.warning(
+            request,
+            f"Scheduled backup '{schedule.name}' ran ({job.backup_id}) but FAILED its integrity "
+            f"verification. Review the verification details before relying on this backup.",
+        )
+    else:
+        messages.success(request, f"Scheduled backup '{schedule.name}' executed: {job.backup_id}.")
     return redirect("university:backup_detail", pk=job.pk)
 
 
@@ -393,9 +401,22 @@ def backup_create_now(request):
         custom_inclusions=custom_inclusions,
     )
     execute_backup_job(job.pk)
+    job.refresh_from_db()
 
     if job.status == BackupJob.Status.SUCCESSFUL:
-        messages.success(request, f"Backup {job.backup_id} completed successfully ({job.file_size_display}).")
+        if job.verification_status == BackupJob.VerificationStatus.FAILED:
+            # The archive was written but its own post-backup integrity
+            # check failed -- this must never read as a plain success,
+            # otherwise a corrupted/incomplete backup silently passes as
+            # a healthy disaster-recovery point.
+            messages.warning(
+                request,
+                f"Backup {job.backup_id} was created ({job.file_size_display}) but FAILED "
+                f"its integrity verification. Review the verification details before relying "
+                f"on this backup.",
+            )
+        else:
+            messages.success(request, f"Backup {job.backup_id} completed successfully ({job.file_size_display}).")
     else:
         messages.error(request, f"Backup {job.backup_id} failed: {job.error_message}")
 
